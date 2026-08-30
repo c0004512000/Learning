@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Collector Upgrade Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Collector Upgrade Card</h1>
+<p class="subtitle">升級的是 binary + components + config + semantics + state + observability</p>
+<ol>
+  <li>Pin target image digest；比對 distribution manifest/component set。</li>
+  <li>逐跨越版本讀 core、contrib、releases changelog 與 component README。</li>
+  <li>列出 breaking/deprecated/default/feature-gate/stability changes。</li>
+  <li>用 target binary resolve/validate final config；不要只改 image tag。</li>
+  <li>Diff semantic fixtures、canary、selection ratios、cardinality、internal metrics。</li>
+  <li>測 peak、outage、restart、queue/WAL/storage 與 stateful rebalance。</li>
+  <li>定義 canary cohort、observation window、rollback trigger 與 queue/state treatment。</li>
+  <li>確認 rollback artifact 可取；若 storage/schema 不向後相容，準備 roll-forward。</li>
+</ol>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

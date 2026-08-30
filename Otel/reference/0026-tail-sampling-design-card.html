@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Tail Sampling 設計卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Tail Sampling 設計卡</h1>
+<p class="subtitle">能看事後結果，代價是收集、等待、狀態與一致路由</p>
+
+<pre><code>approx pending memory
+≈ new traces/sec × decision wait sec × average trace bytes
+  + indexes/caches/runtime overhead</code></pre>
+
+<h2>上線前六問</h2>
+<ol>
+  <li>SDK 是否已在 source 丟掉候選 Spans？</li>
+  <li>同一 trace_id 的所有 Spans 是否路由到同一 Collector instance？</li>
+  <li>decision_wait 是否涵蓋實際 Trace duration/arrival delay？</li>
+  <li><code>num_traces</code>、bytes limit、memory budget 是否一致？</li>
+  <li>Late spans 的 decision cache 是否足夠？</li>
+  <li>Policy bias 是否被誤用來計算全量 SLO/rate？</li>
+</ol>
+
+<p><a href="../lessons/0033-tail-sampling-first-principles.html">回到 Lesson 33</a></p>
+</body>
+</html>
+

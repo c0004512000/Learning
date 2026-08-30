@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 25: Logs 的第一性原理與 Trace correlation</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>25. Logs 的第一性原理與 Trace correlation</h1>
+<p class="subtitle">保留離散事件的上下文，再用共同 identity 與 TraceContext 串接 signals · Lesson 25 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會理解 OTel LogRecord 的資料模型、既有 logging framework 與 OTel bridge/SDK 的分工，正確區分 body、attributes、Resource、Scope、
+Timestamp/ObservedTimestamp 與 optional Trace fields；也能畫出 direct export 與 file/stdout collection 兩種 pipeline。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/signals/logs/" target="_blank">OpenTelemetry — Logs</a>、<a href="https://opentelemetry.io/docs/specs/otel/logs/data-model/" target="_blank">Logs Data Model</a>、<a href="https://opentelemetry.io/docs/languages/python/instrumentation/#logs" target="_blank">Python Logs instrumentation</a></p>
+
+<h2>第一性原理：有些事實是離散事件，不是 duration 或 aggregate</h2>
+<p>
+「Inventory reservation 在 12:03:21 被拒絕，原因為 warehouse capacity」是一個有時間、嚴重度、內容與 metadata 的事件。
+Span 擅長一段 operation 的 start/end 與因果，Metric 擅長大量 measurements 的聚合；Log 擅長保存一筆事件的豐富內容。
+</p>
+
+<pre><code>Metric：最近 5 分鐘 inventory failures = 420
+Trace：這一筆 checkout 如何走到 inventory failure
+Log：拒絕事件的類型、原因、warehouse 與當時訊息</code></pre>
+
+<p>
+三者不是互相複製。若每個 Span attribute 都再印一次 log、每筆 log 都再做 Span Event，資料量與重複訊號會上升；
+應依查詢與生命周期選最合適的 primary representation，再用 correlation 串接。
+</p>
+
+<h2>LogRecord 的標準欄位</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>欄位</th><th>回答的問題</th></tr></thead>
+  <tbody>
+    <tr><td><code>Timestamp</code></td><td>事件在 source clock 何時發生？</td></tr>
+    <tr><td><code>ObservedTimestamp</code></td><td>Collection system 何時觀察到它？</td></tr>
+    <tr><td><code>SeverityText/Number</code></td><td>來源 severity 與正規化嚴重度？</td></tr>
+    <tr><td><code>Body</code></td><td>事件主要內容／payload？</td></tr>
+    <tr><td><code>Attributes</code></td><td>哪些 typed metadata 可描述與查詢此事件？</td></tr>
+    <tr><td><code>Resource</code></td><td>哪個 entity 產生 Log？</td></tr>
+    <tr><td><code>InstrumentationScope</code></td><td>哪個 logger/bridge/instrumentation code emit？</td></tr>
+    <tr><td><code>TraceId/SpanId/TraceFlags</code></td><td>它是否發生在某個 Trace/Span Context？</td></tr>
+    <tr><td><code>EventName</code></td><td>是否為具標準類型的 Event？</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Trace fields 是 optional。Process startup log、cron scheduler log 或沒有 active Span 的 background log 合理地可能沒有 trace/span IDs；
+不能以「所有 logs 必須有 Trace」作資料品質規則。
+</p>
+
+<h2>Timestamp 與 ObservedTimestamp 能揭露 transport delay</h2>
+<pre><code>Timestamp         = application 實際產生事件的時間
+ObservedTimestamp = Collector/OTel 首次觀察到的時間
+
+ingestion delay ≈ ObservedTimestamp - Timestamp
+（還要考慮 source clock skew）</code></pre>
+
+<p>
+對 file tailing、離線 buffer 或網路中斷後補送，兩者差距可能很大。若 backend 只按 observed time 排序，舊事件可能看似剛發生；
+若 source clock 漂移，timestamp 也可能不可靠。兩個欄位保留了判讀空間。
+</p>
+
+<h2>Structured 不等於「外面有 JSON 大括號」</h2>
+<p>
+Structured log 需要穩定 schema、field names、types 與 semantics，讓 downstream 能可靠解析。每筆都輸出不同 keys/types 的 JSON
+仍只是 semistructured。穩定設計可將 body 保持可讀，並把可查詢 metadata 放 typed attributes：
+</p>
+
+<pre><code>Body: "Inventory reservation is slow"
+Severity: WARN
+Attributes:
+  app.inventory.warehouse = "tw-north"
+  app.inventory.elapsed_ms = 820</code></pre>
+
+<p>
+避免把 password、token、完整 headers/body 或無限制 stack/context dump 寫入 logs。Log volume 近似事件率成長，
+每筆 payload 大小會直接乘上輸出、network、storage 與 indexing 成本。
+</p>
+
+<h2>OTel 不要求你放棄既有 logging API</h2>
+<p>Application 常保留 Python <code>logging</code> 等既有 API，再由 bridge/handler 轉成 OTel LogRecords：</p>
+
+<pre><code>Application logging call
+  → logging framework Logger
+  → OTel LoggingHandler / bridge
+  → LoggerProvider
+  → LogRecordProcessor
+  → LogRecordExporter
+  → Collector / console / backend</code></pre>
+
+<p>
+這讓 library 不必依賴特定 telemetry backend，也保留現有 logger level/filter/handler 生態。Python Logs implementation
+目前在官方 language support 表列為 Development，因此實務導入要 pin 版本並驗證 API/field mapping。
+</p>
+
+<h2>另一條路：先寫 stdout/file，再由 Collector 收</h2>
+<pre><code>Application → stdout/file
+  → container runtime / file
+  → Collector filelog 或特定 receiver
+  → parse/transform
+  → logs pipeline exporter</code></pre>
+
+<p>
+這適合 legacy/system/third-party logs，Collector 可解析、正規化格式。Direct OTLP 與 file collection 都合理，但若同一 record
+同時經兩條路徑送入同一 backend，就會重複。先畫 emission topology，再決定唯一 authoritative path。
+</p>
+
+<div class="box tip">
+<strong>Collector 能轉換，不能憑空恢復：</strong>若 source unstructured message 沒有明確 timestamp、severity 或 stable fields，
+regex/parser 只能猜測現有文字，無法恢復從未記錄的語意。First-party application 應盡量在 source 建立結構。
+</div>
+
+<h2>閱讀 Python correlation 範例</h2>
+<p>範例位於 <a href="../examples/0025-python-log-correlation.py"><code>examples/0025-python-log-correlation.py</code></a>：</p>
+
+<pre><code>log_provider = LoggerProvider(resource=resource)
+log_provider.add_log_record_processor(
+    BatchLogRecordProcessor(ConsoleLogRecordExporter())
+)
+handler = LoggingHandler(
+    level=logging.NOTSET,
+    logger_provider=log_provider,
+)</code></pre>
+
+<p>
+TraceProvider 與 LoggerProvider 共用同一 Resource，確保 signals 指向同一 checkout entity；LoggingHandler 將 Python records bridge
+到 OTel log pipeline。這與 Instrumentation Scope、Resource 的責任不因 signal 改變。
+</p>
+
+<pre><code>with tracer.start_as_current_span("checkout.reserve_inventory"):
+    logger.warning(
+        "Inventory reservation is slow",
+        extra={...},
+    )</code></pre>
+
+<p>
+Log emit 當下 current Context 含 Span，所以 bridge 可填 TraceId/SpanId/TraceFlags。若把 log 移到離開 <code>with</code> 後，
+current Span 已結束並 detach，correlation fields 可能為空；「程式同一函式」不等於「同一 current Context」。
+</p>
+
+<h2>Standalone Log 與 Span Event 如何選？</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>需求</th><th>較自然的模型</th></tr></thead>
+  <tbody>
+    <tr><td>事件只在某 Span timeline 中有意義</td><td>Span Event</td></tr>
+    <tr><td>即使 Trace 未 sampled/保存也要獨立查詢與 retention</td><td>Standalone Log</td></tr>
+    <tr><td>跨多個來源的 operational/audit event stream</td><td>Log（另做安全與稽核設計）</td></tr>
+    <tr><td>Operation-level exception 與 timestamp annotation</td><td>Span exception Event；是否另寫 Log依需求，避免盲目雙寫</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>SRE debugging lab：Log 有了，correlation 為何失敗？</h2>
+
+<h3>Case A：Trace ID 為空</h3>
+<p>
+確認 emit 時 current Span 是否有效，而非 request 早先曾建立。跨 thread/task/queue 時檢查 Context propagation；
+再查 bridge 是否擷取、exporter/Collector/backend 是否保留 trace fields。
+</p>
+
+<h3>Case B：有 Trace ID，但 backend 查不到 Trace</h3>
+<p>
+可能該 SpanContext 未 sampled、Trace exporter 失敗、signals 路由到不同 tenant/backend，或 Trace retention 已過期。
+Log correlation field 表示當時知道 identity，不保證 Trace signal pipeline 成功保存。
+</p>
+
+<h3>Case C：同一 Log 出現兩次</h3>
+<p>
+檢查 logger handler 數量與 <code>propagate</code> 是否又送 root handler；再查是否同時 direct OTLP 與 stdout/file collection，
+以及 Collector 是否有兩個 receivers/routes。Dedup backend 只能掩蓋，應先修 topology。
+</p>
+
+<details>
+  <summary>練習：把一段 unstructured log 正規化</summary>
+  <pre><code>WARN inventory slow warehouse=tw-north elapsed=820ms</code></pre>
+  <p>請拆成 Timestamp、Severity、Body、兩個 typed Attributes、Resource 與 Scope；再說明哪些欄位必須由 source 提供，哪些 Collector 可可靠 parse。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 一筆 JSON log 是否自動等於 structured log？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">不一定；還需要穩定 schema、types 與 semantics</button>
+    <button class="choice" data-correct="false">是；只要 JSON 可 parse 即可</button>
+    <button class="choice" data-correct="false">否；structured log 只能是 protobuf</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Log 沒有 TraceId 一定是錯誤嗎？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">不一定；沒有 active Trace Context 的 standalone event 合理地可無 TraceId</button>
+    <button class="choice" data-correct="false">一定；所有 process startup logs 都有 parent Span</button>
+    <button class="choice" data-correct="false">一定；Resource 會自動產生 TraceId</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. Timestamp 與 ObservedTimestamp 差距很大，最先提示什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Collection/transport delay 或 source clock skew，需要進一步區分</button>
+    <button class="choice" data-correct="false">Counter temporality 一定錯誤</button>
+    <button class="choice" data-correct="false">Span Links 超限</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0018-log-correlation-debug-card.html">Log correlation 與重複資料判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>挑一條 production log，畫出 emission → bridge/file → Collector → backend 路徑；
+列出每一層可能新增、遺失或重複哪些 LogRecord fields。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0024-exemplars-trace-correlation.html">&larr; Lesson 24: Exemplars</a></span>
+  <span><a href="0026-collector-multisignal-pipelines.html">下一課：Collector 多信號 pipelines 與隔離 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

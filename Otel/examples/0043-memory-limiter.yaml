@@ -1,0 +1,31 @@
+# Lesson 43 static memory-limiter example. It is not executed by this lesson.
+# Assume the container memory limit is 768 MiB; verify against your real deployment.
+
+processors:
+  memory_limiter/safety:
+    check_interval: 1s
+    limit_mib: 600
+    spike_limit_mib: 120
+    # hard limit = 600 MiB targeted heap
+    # soft limit = 600 - 120 = 480 MiB
+
+  batch/backend:
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+    timeout: 1s
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter/safety, batch/backend]
+      exporters: [otlp/backend]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter/safety, batch/backend]
+      exporters: [otlp/backend]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter/safety, batch/backend]
+      exporters: [otlp/backend]
+

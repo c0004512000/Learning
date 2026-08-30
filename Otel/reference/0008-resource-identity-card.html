@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Resource identity 快速判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Resource identity 快速判斷卡</h1>
+<p class="subtitle">先問「它描述哪一個 entity、多久改一次？」</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Attribute</th><th>Identity level</th><th>何時相同</th><th>何時改變</th></tr></thead>
+  <tbody>
+    <tr><td><code>service.namespace</code></td><td>系統／應用群組</td><td>同一邏輯系統內的 services</td><td>歸屬模型改變</td></tr>
+    <tr><td><code>service.name</code></td><td>邏輯 service</td><td>所有水平 replicas</td><td>service boundary 真正改名</td></tr>
+    <tr><td><code>service.instance.id</code></td><td>執行中 instance</td><td>只屬於該 instance</td><td>新的 runtime instance</td></tr>
+    <tr><td><code>service.version</code></td><td>部署 artifact/cohort</td><td>同一版本</td><td>部署新版本</td></tr>
+    <tr><td><code>deployment.environment.name</code></td><td>部署環境</td><td>同一 logical environment</td><td>移到另一環境</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>三個快速反例</h2>
+<ul>
+  <li><code>service.name=checkout-pod-a7f9</code>：把 instance 塞進 logical service，會拆碎 service view。</li>
+  <li><code>service.instance.id=checkout</code>：replicas 互相碰撞，無法隔離單一 instance。</li>
+  <li>把 <code>cart.item_count</code> 放 Resource：operation-specific value 被錯誤套到 provider 的所有 Spans。</li>
+</ul>
+
+<p><a href="../lessons/0015-resource-first-principles.html">回到 Lesson 15</a></p>
+</body>
+</html>
+

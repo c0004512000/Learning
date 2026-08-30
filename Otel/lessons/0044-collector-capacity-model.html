@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 44: Collector Capacity Model</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>44. Collector Capacity Model</h1>
+<p class="subtitle">Scale 的前提是知道 bottleneck、state ownership 與 backlog recovery，而不只是看到 CPU 高 · Lesson 44 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會用 rate、bytes、service time、concurrency、queue 與 recovery throughput 建立 Collector capacity model；
+區分 stateless、scraper、stateful components 的 scaling 方法，並判斷何時增加 Collector 反而會惡化 backend overload。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/scaling/" target="_blank">Scaling the Collector</a>、<a href="https://opentelemetry.io/docs/collector/deploy/gateway/" target="_blank">Gateway Deployment Pattern</a>、<a href="https://opentelemetry.io/docs/collector/internal-telemetry/" target="_blank">Collector Internal Telemetry</a></p>
+
+<h2>第一性原理：Capacity 是完成率，不是 Replica 數</h2>
+<p>一個穩態 pipeline 的必要條件：</p>
+
+<pre><code>long-term completion_rate ≥ incoming_rate
+
+backlog_change = incoming_rate - completion_rate</code></pre>
+
+<p>
+Completion 是成功 export 或明確 drop 的速率；若 exporter/backend 長期只能完成 10k items/s，前面 receivers 收 20k，
+不管 queue 多大都只是在延後 overflow。Replica 數只有在能增加瓶頸處 completion rate 時才有價值。
+</p>
+
+<h2>Items/s 不足以描述負載</h2>
+<p>同樣 10k spans/s，attribute/events/links 大小、processor complexity 與 exporter compression 可能完全不同。至少量：</p>
+
+<ul>
+  <li>items/s 與 bytes/s：steady、P95 peak、burst duration。</li>
+  <li>CPU seconds/item、allocated bytes/item、encoded bytes/item。</li>
+  <li>export latency distribution、request rate、batch bytes、success/failure/throttle。</li>
+  <li>state size：pending traces、metric series、connector caches、queue items/bytes。</li>
+</ul>
+
+<p>
+Capacity benchmark 必須使用接近 production 的 signal mix、cardinality、payload size 與 failure mode；只用空 attributes 的 synthetic spans 會高估容量。
+</p>
+
+<h2>Little's Law：Concurrency、Throughput 與 Latency</h2>
+<p>對穩定系統，粗略關係：</p>
+
+<pre><code>in_flight ≈ throughput × average_time_in_system
+</code></pre>
+
+<p>
+若 exporter 完成 100 requests/s、每 request 平均停留 0.5s，約需 50 in-flight requests 才能維持該 throughput。
+但增加 concurrency 只在 client/connection 是 bottleneck 時有效；若 backend 已飽和，更多 workers 會增加 contention、throttle 與 retry storm。
+</p>
+
+<h2>Queue 是時間緩衝，不是 Capacity</h2>
+<p>忽略 overhead，queue 可吸收 outage 的時間近似：</p>
+
+<pre><code>buffer_window_seconds ≈ queue_capacity_items / incoming_items_per_second</code></pre>
+
+<p>
+若 incoming 20k/s、queue 100k items，只約 5 秒。實務還需 bytes、batch unit、signal mix 與 existing occupancy。
+Queue 變大會增加 memory/disk、recovery time 與 stale telemetry，不會提高 backend steady completion rate。
+</p>
+
+<h2>Recovery 要有 Spare Capacity</h2>
+<p>Outage 累積 backlog <code>B</code> 後，恢復期：</p>
+
+<pre><code>net_drain_rate = completion_rate - current_incoming_rate
+drain_time = B / net_drain_rate       only if net_drain_rate > 0</code></pre>
+
+<p>
+若恢復後 completion 恰好等於 incoming，queue 不再長但永遠排不完。Capacity target 需保留 headroom，兼顧 burst、rollout、single-replica loss 與 backlog drain。
+</p>
+
+<h2>三類 Component，三種 Scaling 問題</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>類型</th><th>例子</th><th>Scale 關鍵</th></tr></thead>
+  <tbody>
+    <tr><td>Stateless data path</td><td>OTLP receive、filter、transform、batch、export</td><td>Load balance traffic；注意 gRPC long-lived connection 分布</td></tr>
+    <tr><td>Scraper/owner</td><td>Prometheus scrape、host collection</td><td>Targets 必須分配，避免 duplicate scrape 或漏 scrape</td></tr>
+    <tr><td>Stateful</td><td>Tail sampling、span metrics、temporality conversion</td><td>相同 key affinity/single writer；scale 改變 ownership/state continuity</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Stateless tier 可增 replicas 配 load balancer；gRPC L4 long-lived connections 可能長時間黏在少數 replicas，需理解連線重建/L7 行為。
+Scraper 需 target allocator/ownership。Stateful tier 需 traceID、service 或 metric-stream affinity，並評估 rebalance 時 in-flight state 分裂。
+</p>
+
+<h2>Autoscaling Signal 要接近真正 Constraint</h2>
+<p>CPU 是有用訊號但不完整：</p>
+
+<ul>
+  <li>CPU 高 + queue 不長 + zero refusal：可能仍健康，只是有效工作多。</li>
+  <li>CPU 低 + exporter queue 長：可能在等慢 backend/network。</li>
+  <li>Memory refusal 增加：表示 process protection 已啟動，delivery 有風險。</li>
+  <li>Scrape duration 接近 interval：scraper ownership capacity 不足。</li>
+  <li>State cache/pending traces 接近 limit：stateful capacity/affinity 問題。</li>
+</ul>
+
+<p>
+好的 scaling policy 常結合 traffic rate、CPU、memory/refusal、queue utilization/oldest age 與 backend latency；並設 scale-up 快、scale-down 慢與 minimum replicas。
+</p>
+
+<h2>何時不該 Scale Collector</h2>
+<p>
+若 exporter queues 同時成長、backend latency/throttle/failure 先上升，瓶頸在 downstream。增加 Collectors/workers 可能只讓更多 concurrent requests 壓向已過載 backend。
+此時應協調 backend capacity、降 ingestion、sampling/filter、rate limit 或延長可承受 buffer，而不是把 upstream fan-out 加倍。
+</p>
+
+<p>因果判斷：觀察哪個 constraint 先變壞，以及 scaling 後 completion rate 是否真的上升；不要以 correlation「Collector queue 高」就假設 Collector CPU 不夠。</p>
+
+<h2>Capacity Worksheet</h2>
+<p>
+使用 <a href="../examples/0044-capacity-worksheet.yaml"><code>examples/0044-capacity-worksheet.yaml</code></a> 填入 measured values。
+範例中 3 replicas × 12k/s × 65% target = 23.4k/s safe steady cluster rate，低於 60k/s peak；需要用 peak duration 與 queue/recovery 計算是否可吸收，
+或增加 replicas/降低 peak。這份 worksheet 不執行任何程式。
+</p>
+
+<h2>SRE 附加練習：Queue 70%，要不要 Scale？</h2>
+<ol>
+  <li>先看 queue slope 與 oldest age：短 burst 後下降，還是持續線性成長？</li>
+  <li>比較 incoming/completed rate，按 exporter/backend 分拆，不用 cluster aggregate 掩蓋 hotspot。</li>
+  <li>找 earliest saturation：CPU、memory refusal、network、backend latency/throttle/failure。</li>
+  <li>分類 component：stateless 可分流、scraper 要重分 target、stateful 要 preserve affinity。</li>
+  <li>估 scale 後 completion 是否提高；若 backend capped，先保護 downstream。</li>
+  <li>算 backlog drain time，設定 recovery SLO 與 scale-down guard。</li>
+</ol>
+
+<p>事故判斷可用 <a href="../reference/0037-capacity-incident-card.html">Collector Capacity Incident Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>Incoming 30k/s、completion 24k/s、queue 尚有 600k 空位，估滿 queue 時間。</li>
+  <li>累積 1.2M items，恢復後 completion 40k/s、incoming 25k/s，估 drain time。</li>
+  <li>CPU 35%、queue 線性長、backend 503 增加：說明加 Collector 可能為何無效。</li>
+  <li>Tail sampler replicas 從 3→6，列出除容量外必須驗證的 routing/state invariants。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>1. Queue 長期不成長的必要 rate 條件是？</strong></p>
+  <label><input type="radio" name="q1" value="a"> incoming 永遠大於 completion</label><br>
+  <label><input type="radio" name="q1" value="b"> long-term completion 至少等於 incoming</label><br>
+  <label><input type="radio" name="q1" value="c"> replicas 必須剛好 3</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>2. Backlog 要排空，恢復後必須？</strong></p>
+  <label><input type="radio" name="q2" value="a"> completion 等於 0</label><br>
+  <label><input type="radio" name="q2" value="b"> queue 再加大即可</label><br>
+  <label><input type="radio" name="q2" value="c"> completion 大於當下 incoming，形成正 net drain rate</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>3. Backend 已 throttling 時，為何增加 Collector 可能惡化？</strong></p>
+  <label><input type="radio" name="q3" value="a"> 增加 upstream concurrency/requests，卻不提高 downstream capacity</label><br>
+  <label><input type="radio" name="q3" value="b"> Collector replica 會自動關閉 TLS</label><br>
+  <label><input type="radio" name="q3" value="c"> Queue 一定立刻消失</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>Capacity 核心是 completion rate、state/queue resource 與 latency，不是 replica count。</li>
+  <li>Queue 只能吸收有限時間；recovery 需要 completion 大於 incoming 的 spare capacity。</li>
+  <li>Stateless、scraper、stateful components 分別需要 load balance、target ownership、key affinity。</li>
+  <li>Scale 前先找瓶頸；downstream 飽和時增加 Collector 可能只放大壓力。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0043-memory-limiter-first-principles.html">← Lesson 43</a>
+  <a href="0045-collector-slo-design.html">Lesson 45：Collector SLO Design →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

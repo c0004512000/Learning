@@ -1,0 +1,52 @@
+# Lesson 39 static routing example. It is not executed by this lesson.
+# routingconnector is available in contrib and k8s distributions.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+
+connectors:
+  routing/logs:
+    error_mode: ignore
+    default_pipelines: [logs/quarantine]
+    table:
+      # Every record is copied to archive, then remains eligible for later routes.
+      - context: resource
+        condition: "true"
+        action: copy
+        pipelines: [logs/archive]
+
+      # First matching move removes the record from subsequent evaluation.
+      - condition: log.severity_number >= SEVERITY_NUMBER_ERROR
+        action: move
+        pipelines: [logs/errors]
+
+      - condition: resource.attributes["deployment.environment.name"] == "prod"
+        action: move
+        pipelines: [logs/prod]
+
+exporters:
+  debug/archive:
+  debug/errors:
+  debug/prod:
+  debug/quarantine:
+
+service:
+  pipelines:
+    logs/in:
+      receivers: [otlp]
+      exporters: [routing/logs]
+    logs/archive:
+      receivers: [routing/logs]
+      exporters: [debug/archive]
+    logs/errors:
+      receivers: [routing/logs]
+      exporters: [debug/errors]
+    logs/prod:
+      receivers: [routing/logs]
+      exporters: [debug/prod]
+    logs/quarantine:
+      receivers: [routing/logs]
+      exporters: [debug/quarantine]
+

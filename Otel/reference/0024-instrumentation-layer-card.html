@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Instrumentation 分層判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Instrumentation 分層判斷卡</h1>
+<p class="subtitle">讓最了解語意、又最能穩定維護的 layer 負責</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Layer</th><th>最懂什麼</th><th>不該猜什麼</th></tr></thead>
+  <tbody>
+    <tr><td>Zero-code/framework</td><td>Runtime hooks、HTTP/RPC/DB edges</td><td>Domain intent、business outcome</td></tr>
+    <tr><td>Library instrumentation</td><td>該 library 的 public operations/protocol</td><td>Application SDK/export policy</td></tr>
+    <tr><td>Manual application</td><td>User journey、domain stages、business metrics</td><td>重複底層已標準化 network spans</td></tr>
+    <tr><td>Collector</td><td>Routing、policy、已存在 telemetry fields</td><td>Source 從未記錄的 hidden business state</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>重複 Span：</strong>先比 scope name/version、kind、name 與 timing；關掉或移動一個 owner，不先靠 backend dedup。</p>
+<p><a href="../lessons/0031-manual-vs-auto-instrumentation.html">回到 Lesson 31</a></p>
+</body>
+</html>
+

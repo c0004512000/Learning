@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 30: 端到端 OTel debugging 方法</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>30. 端到端 OTel debugging 方法</h1>
+<p class="subtitle">用資料契約與第一個失敗邊界，整合前 29 章的基礎模型 · Lesson 30 of N</p>
+
+<h2>本課定位</h2>
+<p>
+這不是用 troubleshooting tips 取代 OTel 基礎；相反地，它把已學的 Resource、Scope、Context、sampling、limits、processors、queues、
+temporality、Logs/Metrics/Traces data model 變成一套可重複的診斷演算法。沒有前面的 why/how，這章只會剩下指令清單。
+</p>
+<p class="cite">延伸來源：<a href="https://opentelemetry.io/docs/collector/troubleshooting/" target="_blank">Collector Troubleshooting</a>、<a href="https://opentelemetry.io/docs/collector/internal-telemetry/" target="_blank">Collector Internal Telemetry</a></p>
+
+<h2>第一性原理：缺失資料不是根因，而是一串未驗證命題</h2>
+<p>「Backend 找不到 checkout Trace」暗中包含：</p>
+
+<ol>
+  <li>Application 建立 recording Span。</li>
+  <li>Sampler 允許 export，Span 正常 end。</li>
+  <li>Processor 接手，queue/flush 沒丟。</li>
+  <li>Application exporter 使用正確 OTLP transport/endpoint。</li>
+  <li>Collector receiver 接受。</li>
+  <li>Ordered processors 未意外 drop/corrupt。</li>
+  <li>Sending queue/exporter 成功交給 backend。</li>
+  <li>Backend ingest 到正確 tenant/index。</li>
+  <li>Query 使用正確 Resource identity/time range。</li>
+</ol>
+
+<p>
+任一命題為假都產生相同表面症狀。Debug 的核心不是列更多可能性，而是用最便宜、最靠近資料的 evidence 找到第一個為假的命題。
+</p>
+
+<h2>Step 1：把 symptom 寫到不可誤解</h2>
+<p>不要寫「OTel 沒資料」，至少寫：</p>
+
+<pre><code>Signal: traces
+Entity: service.namespace=store, service.name=checkout, version=2.4.1
+Expected: SERVER span name=POST /checkout
+Observed: backend query returns zero results
+Window: 2026-08-20 14:00–14:10 Asia/Taipei
+Scope: production, one canary instance vs all replicas</code></pre>
+
+<p>
+Signal、identity、record、time、cohort 決定要查哪條 pipeline。模糊 symptom 會讓不同人同時修 SDK、Collector、backend，破壞因果。
+</p>
+
+<h2>Step 2：畫 expected path，不從工具 UI 開始</h2>
+<pre><code>Source instrumentation
+  → API/SDK recording + sampling/limits
+  → Processor/Reader + application exporter
+  → OTLP transport
+  → Collector receiver
+  → ordered processor chain
+  → sending queue/retry
+  → Collector exporter
+  → backend ingestion/index
+  → query/UI</code></pre>
+
+<p>
+Metric 要加 aggregation/View/temporality，Log 要加 bridge/file receiver，Trace 要加 Context/parent/sampling；
+但骨架相同：每一層有 input、state transition、output contract。
+</p>
+
+<h2>Step 3：為每個邊界定義「正面成功證據」</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Boundary</th><th>較強的正面證據</th><th>常見假證據</th></tr></thead>
+  <tbody>
+    <tr><td>Source → SDK</td><td>recording state、固定 test record、sampling decision</td><td>Code 看起來有呼叫 API</td></tr>
+    <tr><td>SDK → exporter</td><td>Console/controlled exporter output、flush result、export errors</td><td>Span 已 end</td></tr>
+    <tr><td>Transport → receiver</td><td>receiver accepted counter、protocol response</td><td>Port open/readiness</td></tr>
+    <tr><td>Processors</td><td>per-processor in/out、postcondition payload</td><td>Config validation passed</td></tr>
+    <tr><td>Queue → exporter</td><td>queue trend、sent/failed/enqueue_failed rates</td><td>沒有 error log</td></tr>
+    <tr><td>Backend → query</td><td>ingestion acknowledgment/metrics、raw query by exact identity</td><td>Dashboard panel 空白</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Evidence strength 來自它直接觀察 contract output，而不是間接 absence。Port open 只證明 socket/listener，不證明 payload 被 pipeline 接受。
+</p>
+
+<h2>Step 4：找第一個 broken boundary</h2>
+<p>演算法：</p>
+
+<ol>
+  <li>從 source 開始，標記每層 <strong>pass / fail / unknown</strong>。</li>
+  <li>找到最後一個 pass。</li>
+  <li>只測試緊鄰的下一個 unknown/fail。</li>
+  <li>提出一個會被證據推翻的 hypothesis。</li>
+  <li>一次只改一個變因，保留 before/after。</li>
+  <li>修復後沿完整 path 重驗，不只看局部 log 消失。</li>
+</ol>
+
+<div class="box tip">
+<strong>二分的不是伺服器數，而是知識空間：</strong>Collector accepted_spans 上升後，source→receiver 大片假設已降低優先度；
+接著比較 processor outgoing 與 exporter queue，而不是重裝 SDK。
+</div>
+
+<h2>Step 5：用其他 signals 當 shared-boundary evidence</h2>
+<p>Traces 有、Metrics 無，不代表「Collector 正常」或「Collector 壞」；要拆共同與不同部分：</p>
+
+<pre><code>共同：Collector process、某 host/network、OTLP receiver declaration
+不同：App provider/reader、signal path、pipeline、processor/exporter instance、backend index</code></pre>
+
+<p>
+成功 signal 能排除 shared boundary 的部分 failure modes，但不能證明另一 signal 的 source/transport path/pipeline。
+這是 Lesson 26 matrix 的用途。
+</p>
+
+<h2>六類 symptom 對應不同 invariants</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Symptom class</th><th>優先 invariants</th></tr></thead>
+  <tbody>
+    <tr><td>Missing</td><td>recording/sampling、activation、queue/retry、ingestion/query</td></tr>
+    <tr><td>Partial</td><td>Span limits、metric overflow、filter/sampling、batch loss</td></tr>
+    <tr><td>Distorted</td><td>Semantic conventions、Resource identity、temporality、processor order</td></tr>
+    <tr><td>Delayed</td><td>Batch schedule、queue backlog、retry、Timestamp vs ObservedTimestamp</td></tr>
+    <tr><td>Duplicated</td><td>Multiple handlers/export paths、retry ambiguity、overlapping writers</td></tr>
+    <tr><td>Uncorrelated</td><td>Context propagation、Trace sampling、Links、Exemplars、Log trace fields</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+先分類能避免用 missing-data playbook 處理 distorted metric。例如 Counter restart 負 rate 有資料，只是 temporality/reset 被誤讀；
+重啟 Collector 不會修正 query 數學。
+</p>
+
+<h2>Controlled probe 的設計原則</h2>
+<p>需要測試資料時，probe 應：</p>
+
+<ul>
+  <li>使用非敏感 synthetic values。</li>
+  <li>有唯一但 bounded 的 test marker，避免成為長期高 cardinality 維度。</li>
+  <li>一次只走一條已知 signal/path。</li>
+  <li>記錄預期 Resource、Scope、Trace/metric/log fields。</li>
+  <li>有明確 cleanup/expiry，不污染 production SLO。</li>
+  <li>先在 local/debug exporter 驗證，再逐步加入遠端邊界。</li>
+</ul>
+
+<p>
+不要用真實 authorization token 當 marker，也不要為了找一筆測試 metric 放 request UUID attribute。
+</p>
+
+<h2>五個整合 fault-injection 思考題</h2>
+
+<h3>1. OTLP/HTTP exporter 指向 4317</h3>
+<p>預期第一個 broken boundary：application exporter → Collector listener，因 transport mismatch；receiver accepted 不上升。</p>
+
+<h3>2. Trace sampler 改 AlwaysOff</h3>
+<p>Span 可能 non-recording/non-exported；Metric 仍可聚合，但 TraceBased Exemplars 候選減少。不要從 Metrics 正常推論 Trace pipeline 正常。</p>
+
+<h3>3. 短命 process 移除 shutdown</h3>
+<p>Source Span 已 end，BatchSpanProcessor pending data 未必 export；broken boundary 在 processor lifecycle，而非 Collector。</p>
+
+<h3>4. Collector filter 依賴尚未 enrichment 的 attribute</h3>
+<p>Receiver accepted 上升，該 processor incoming 有資料、outgoing 可能為零；order/precondition failure。</p>
+
+<h3>5. Backend outage 超過 queue budget</h3>
+<p>Accepted 持續、send_failed/queue 上升，最終 enqueue_failed/refusal/loss risk；修復 backend 後仍需 surplus drain capacity。</p>
+
+<h2>不要在事故中同時做的事</h2>
+<ul>
+  <li>同時改 SDK sampler、Collector config、backend query。</li>
+  <li>為「多看一點」開 detailed debug 並輸出真實 secrets/payload。</li>
+  <li>清空 queue/volume 後才開始蒐證。</li>
+  <li>把所有 limits 調到無限，讓被保護資源先耗盡。</li>
+  <li>只因 error log 消失就宣告資料恢復。</li>
+</ul>
+
+<h2>可重複使用的 worksheet</h2>
+<p>
+使用 <a href="../examples/0030-debugging-worksheet.md"><code>examples/0030-debugging-worksheet.md</code></a>，依序記錄 symptom、expected path、
+boundary evidence、first broken boundary、invariant audit 與 closeout。它的目的不是增加文件工作，而是避免多人事故中假設漂移。
+</p>
+
+<details>
+  <summary>練習：完成一個紙上 incident</summary>
+  <pre><code>Symptoms:
+- checkout traces absent for 8 minutes
+- metrics continue
+- Collector accepted_spans rises
+- processor outgoing rises
+- queue 980/1000 and rising
+- send_failed_spans rises; sent_spans near zero</code></pre>
+  <p>請填 worksheet：最後 pass 在哪裡、第一個未通過 boundary、最可能 hypothesis、time-to-full 還需哪些數字、第一個 controlled action 是什麼。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Backend dashboard 空白最多直接證明什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">該 query/UI 沒呈現預期資料；前面多個邊界仍未知</button>
+    <button class="choice" data-correct="false">Application 一定沒建立 telemetry</button>
+    <button class="choice" data-correct="false">Collector receiver 一定停止</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 為何一次只改一個變因？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">保留 before/after 因果，讓 hypothesis 可被驗證或推翻</button>
+    <button class="choice" data-correct="false">因為 OTel 不能同時設定多個 components</button>
+    <button class="choice" data-correct="false">為了讓 incident 更久</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. Receiver accepted 上升、queue 快滿、sent 接近零，優先故障域是？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Collector exporter/downstream drain path</button>
+    <button class="choice" data-correct="false">Source instrumentation 未呼叫 API</button>
+    <button class="choice" data-correct="false">HTTP route cardinality 一定為零</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0023-first-broken-boundary-card.html">第一個失敗邊界判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>用 worksheet 寫一個你遇過的 observability incident，即使不是 OTel 也可以；
+我會幫你把「猜測」改寫成可驗證 boundary contracts，並調整後續章節難度。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0029-collector-internal-telemetry.html">&larr; Lesson 29: Internal telemetry</a></span>
+  <span><a href="0031-manual-vs-auto-instrumentation.html">下一課：Manual、library 與 zero-code instrumentation 分工 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

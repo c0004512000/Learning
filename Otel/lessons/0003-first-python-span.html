@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 3: 讓第一個 Python Span 出現在眼前</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>3. 讓第一個 Python Span 出現在眼前</h1>
+<p class="subtitle">把已理解的元件角色實作成第一條 telemetry pipeline · Lesson 3 of N</p>
+
+<h2>先把 Lesson 2 的角色地圖翻成 Python</h2>
+<p>
+這一課不會引入新的 pipeline。它只把你已經理解的兩個階段寫成程式：
+application startup 時設定 Provider、Processor 與 Exporter；每次 operation 執行時，
+Tracer 建立 Span，Span 結束後再由 Processor 交給 Exporter。
+</p>
+
+<pre><code>Startup（一次）:
+  TracerProvider + BatchSpanProcessor + ConsoleSpanExporter
+  -> 取得 Tracer
+
+Runtime（每次被觀測的工作）:
+  Tracer -> Span 開始 -> 執行工作 -> Span 結束
+  -> BatchSpanProcessor -> ConsoleSpanExporter -> terminal output</code></pre>
+
+<p>
+這個拆分讓 business instrumentation 不需知道最終資料目的地；
+日後把 ConsoleSpanExporter 換成送往 Collector 的 Exporter，主要改的是 startup configuration。
+</p>
+
+<h2>這一課的實作成果</h2>
+<p>
+執行 <a href="../examples/0003-first-span.py"><code>examples/0003-first-span.py</code></a>，
+讓終端機印出一個真的 Span。這不是 tracing backend，只是最短的 feedback loop：
+你能親眼確認 provider、processor、exporter 與 Span data model 都有作用。
+</p>
+
+<h2>設定環境並執行</h2>
+<p>在這個教學工作區的根目錄，以 PowerShell 執行：</p>
+<pre><code>python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install opentelemetry-api opentelemetry-sdk
+.\.venv\Scripts\python.exe .\examples\0003-first-span.py</code></pre>
+
+<div class="box tip">
+<strong>為什麼 application 需要 SDK？</strong>
+<code>opentelemetry-api</code> 提供 vendor-neutral 的埋點介面；SDK 才負責真正的 recording、
+sampling、processing 與 exporting。相反地，若你在寫一個可被別人引用的 library，通常只依賴 API，
+讓使用該 library 的 application 決定是否安裝 SDK 與資料目的地。
+</div>
+
+<h2>逐段判讀程式</h2>
+
+<h3>1. Resource：誰產生 telemetry？</h3>
+<pre><code>resource = Resource.create({"service.name": "checkout-demo"})</code></pre>
+<p>
+<code>service.name</code> 不是這次工作做了什麼，而是「哪個 logical service 產生所有這些資料」。
+Resource 會在 provider 建立時附加，並關聯到它之後產生的所有 Spans。若未設定，
+SDK 預設會使用 <code>unknown_service</code>。
+</p>
+
+<h3>2. Provider、Processor、Exporter：結束的 Span 怎麼離開 process？</h3>
+<pre><code>provider = TracerProvider(resource=resource)
+provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+trace.set_tracer_provider(provider)</code></pre>
+<p>
+<strong>TracerProvider</strong> 是 process 層級的 SDK configuration owner；
+它擁有 Resource、sampling 與 span processors 等設定。
+<strong>BatchSpanProcessor</strong> 將已結束的 Span 放入 queue 後批次交給 exporter，
+避免每個 request 都在 application thread 上直接輸出或送網路。
+<strong>ConsoleSpanExporter</strong> 只是本課的可見 sink；production 通常會改用 OTLP exporter。
+</p>
+
+<h3>3. Tracer：哪一段程式在埋點？</h3>
+<pre><code>tracer = trace.get_tracer("training.checkout", "0.1.0")</code></pre>
+<p>
+這個名稱是 <strong>instrumentation scope</strong>，用來識別哪個 module/library 產生 Span；
+它不是 <code>service.name</code>。一個 service 可以包含多個 instrumentation scopes。
+</p>
+
+<h3>4. Context manager：工作何時開始、何時結束？</h3>
+<pre><code>with tracer.start_as_current_span("checkout.calculate_total") as span:
+    # 被觀測的工作
+    ...</code></pre>
+<p>
+進入 <code>with</code> 時會開始並設為 current Span；離開時即使 block 因 exception 離開，
+Span 也會結束。這個「current」概念是下一階段讓 child Span 與跨服務 propagation 自動找到 parent 的基礎。
+</p>
+
+<h3>5. Attributes：這一次 operation 有什麼可查資料？</h3>
+<pre><code>span.set_attribute("app.cart.item_count", len(item_prices_cents))
+span.set_attribute("app.cart.total_cents", total_cents)</code></pre>
+<p>
+這兩個是 custom domain Attributes，用於描述這一次的計算；它們不是 service identity，
+也不是 Span identity。後續會學何時應使用 Semantic Conventions、何時須避免敏感資料或高基數 values。
+</p>
+
+<h2>你應該在 console 看到什麼？</h2>
+<p>實際欄位順序與值會隨 SDK 版本而異，但結構應接近：</p>
+<pre><code>{
+  "name": "checkout.calculate_total",
+  "context": {
+    "trace_id": "0x...",
+    "span_id": "0x..."
+  },
+  "parent_id": null,
+  "attributes": {
+    "app.cart.item_count": 3,
+    "app.cart.total_cents": 3674
+  },
+  "resource": {
+    "attributes": {
+      "service.name": "checkout-demo"
+    }
+  }
+}</code></pre>
+
+<div class="box ask">
+<strong>檢查你的輸出：</strong>先找 <code>name</code>、<code>parent_id</code>、
+<code>attributes</code> 與 <code>resource.service.name</code>。如果任何一項不符合預期，
+把完整輸出貼給我；我們會用它練習像 SRE 一樣從 telemetry 反推設定問題。
+</div>
+
+<h2>練習：用因果關係檢查理解</h2>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 你只保留 <code>trace.get_tracer(...)</code> 與 <code>start_as_current_span(...)</code>，但移除 SDK provider/processor/exporter 設定。最合理的結果是什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">API 仍可呼叫，但沒有已設定的 telemetry export pipeline</button>
+    <button class="choice" data-correct="false">API 會自動建立 Collector 並輸出所有 Span</button>
+    <button class="choice" data-correct="false">API 會將每個 Span 寫入 application database</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 為什麼 <code>service.name</code> 要放進 Resource，而不是每次呼叫 <code>span.set_attribute(...)</code>？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">它描述 emitter identity，應關聯到 provider 產生的所有 Span</button>
+    <button class="choice" data-correct="false">它描述每次 operation 的 outcome，應隨 Span 改變</button>
+    <button class="choice" data-correct="false">它描述 exporter protocol，應交給 processor 設定</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 將 console exporter 換成送往 Collector 的 exporter 時，哪個部分原則上不應改？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">以 Tracer 建立 Span 和設定 Attributes 的 business instrumentation</button>
+    <button class="choice" data-correct="false">以 Resource 表達 service identity 的 SDK configuration</button>
+    <button class="choice" data-correct="false">以 Provider 安裝 exporter 的 telemetry destination configuration</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<h3>回想練習</h3>
+<div class="recall" data-recall data-answer="resource|Resource">
+<p><code>service.name</code> 應放在 ______，因為它識別產生 telemetry 的服務，而非單次 operation。</p>
+<input type="text" class="blank" placeholder="填入名詞">
+<button class="check-btn">檢查</button>
+<div class="feedback"></div>
+</div>
+
+<h2>課程地圖：只在需要時展開前置知識</h2>
+<p>
+目前路徑是 <strong>Trace foundations → Trace building blocks（Lesson 2）→ Python manual instrumentation（本課）→ Span data model
+與 Semantic Conventions → Context propagation</strong>。當概念真的需要時，再建立並回鏈到獨立主題：
+HTTP/networking 用於 propagation，Prometheus 用於 metrics data model 與 cardinality，
+Kubernetes 用於 Resource metadata 與 Collector deployment。它們不是這一課的前提。
+</p>
+
+<div class="box tip">
+<strong>推薦閱讀（主要來源）：</strong>
+<a href="https://opentelemetry.io/docs/languages/python/instrumentation/" target="_blank">OpenTelemetry 官方文件 — Python Manual Instrumentation</a>。
+特別看「Acquire Tracer」與「Creating spans」兩段；這是本課程式碼的權威依據。
+</div>
+
+<div class="box ask">
+<strong>有問題就問我：</strong>例如「為什麼 provider 是 global？」「BatchSpanProcessor 的 queue 滿了怎麼辦？」
+或「SDK 沒裝時 Span 究竟去哪了？」都正好是理解 OTel 底層設計的好問題。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0002-tracing-building-blocks.html">&larr; Lesson 2: Trace 的組成元件</a></span>
+  <span><a href="0004-read-a-span.html">下一課：讀懂一個真實 Span &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

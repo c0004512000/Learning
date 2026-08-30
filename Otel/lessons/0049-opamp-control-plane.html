@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 49: OpAMP Control Plane</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>49. OpAMP：Telemetry Fleet 的 Control Plane</h1>
+<p class="subtitle">OTLP 搬運觀測資料；OpAMP 管理產生與搬運資料的 agents。兩條路徑、兩種健康、兩套證據 · Lesson 49 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 desired state 與 observed state 理解 OpAMP；分辨 remote config、effective config、apply status 與 data-plane outcome；
+並能設計 agent identity、狀態收斂、失敗回報、安全邊界與 rollout gate。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/specs/opamp/" target="_blank">OpenTelemetry OpAMP Specification</a>、<a href="https://github.com/open-telemetry/opamp-spec/blob/main/specification.md" target="_blank">OpAMP Protocol Specification</a>、<a href="https://opentelemetry.io/docs/collector/management/" target="_blank">Collector Management</a></p>
+
+<h2>第一性原理：為何需要另一個協定？</h2>
+<pre><code>data plane:    application → OTLP → Collector → backend
+control plane: agent status → OpAMP Server → desired config → agent
+
+OTLP answers: telemetry 要送去哪裡、如何編碼？
+OpAMP answers: fleet 現在是誰、健康嗎、應使用哪個設定？</code></pre>
+
+<p>
+單台 Collector 可以靠人登入改檔；數百或數萬個 agents 則需要一致的身份、能力協商、設定發布與狀態回報。
+OpAMP 是 vendor-neutral 的遠端 agent 管理協定，目前規格標示為 Beta。它不是 telemetry transport，也不會替你證明 OTLP 資料真的抵達 backend。
+</p>
+
+<h2>核心模型：Desired State 必須與 Observed State 閉環</h2>
+<pre><code>Server desired config(hash D)
+          │ offer
+          ▼
+Agent receives D → APPLYING → APPLIED / FAILED
+          │                         │
+          └──── reports status ─────┘
+
+converged ≠ sent
+converged = correct identity
+          ∧ last_received_hash = D
+          ∧ apply_status = APPLIED
+          ∧ effective_config meets expectation
+          ∧ health/data-plane evidence passes</code></pre>
+
+<p>
+「Server 已送出」只是意圖；分散式系統裡封包可能未到、agent 可能拒收、套用可能失敗、local config 可能改變最後結果。
+因此 control loop 要反覆比較 desired 與 observed，直到收斂或逾時回滾。
+</p>
+
+<h2>誰先說話？Agent 先建立關係</h2>
+<p>
+OpAMP client 連上 Server 後，第一個訊息必須是 <code>AgentToServer</code> status report；Server 以 <code>ServerToAgent</code> 回覆。
+Agent 之後在狀態實際改變時再回報。WebSocket 可讓 Server 主動傳送；plain HTTP 則由 request/response 節奏承載。
+</p>
+<p>
+這種 agent-initiated connection 對 NAT/firewall 友善，也讓 Server 在送設定前先知道 agent description 與 capabilities。
+但「連線存在」仍只證明 control-plane reachability，不證明 Collector pipelines 健康。
+</p>
+
+<h2>Identity：先知道你在改誰</h2>
+<p>
+每個 agent 以 16-byte <code>instance_uid</code> 識別；它也讓共享或 multiplexed 連線中的訊息能正確對應。
+若 UID 每次 restart 都任意重生，Server 可能把同一 instance 當成新機器，造成 stale records、重複 rollout 或錯誤 cohort 判斷。
+</p>
+<p>
+Description 的 identifying attributes 用於身份判定；non-identifying attributes 描述版本、OS 等可變資訊。部署必須定義 UID 的生命週期，
+並避免只用可重複的 hostname 或人類標籤當唯一身份。
+</p>
+
+<h2>Capabilities 是協定契約，不是裝飾</h2>
+<p>
+Agent 只有宣告 <code>AcceptsRemoteConfig</code>，Server 才能 offer remote config；Server 也要宣告相應能力。
+Capabilities 防止一方假設另一方支援某功能。沒有該 bit，正確行為不是「試送看看」，而是不送並揭露能力不相容。
+</p>
+<p>
+OpAMP 也能承載 status、effective config、connection settings、packages 等能力，但成熟度不完全相同。
+應按實作與規格狀態逐項建 allowlist，不能把「支援 OpAMP」理解成所有管理功能都可用。
+</p>
+
+<h2>Remote Config 不等於 Effective Config</h2>
+<ul>
+  <li><strong>Remote config：</strong>Server 提供的 named configuration files 與 <code>config_hash</code>。</li>
+  <li><strong>RemoteConfigStatus：</strong>Agent 對最後收到 hash 的套用結果：<code>APPLYING</code>、<code>APPLIED</code> 或 <code>FAILED</code>。</li>
+  <li><strong>Effective config：</strong>Agent 此刻實際使用的設定，可能由 remote 與 local config 合成。</li>
+</ul>
+
+<p>
+OpAMP 刻意不規定 local/remote files 如何 merge；這是 agent-specific semantics。於是相同 remote hash 在不同 local base 上，可能產生不同 effective config。
+Fleet governance 必須固定 precedence、保護 local break-glass 設定，並以 final effective state 驗證，不只保存 remote payload。
+</p>
+
+<h2>Hash 的真正用途</h2>
+<p>
+Agent 回報 <code>last_remote_config_hash</code>；Server 若發現它和自己期望的 hash 不同，就重新帶上 remote config。
+Hash 是內容身份與收斂比較，不是成功證明，更不是安全簽章。Hash 相同只表示「指的是同一份 offer」；還要看 status、effective config 與 outcome。
+</p>
+
+<h2>APPLIED 仍不是終點</h2>
+<p><code>APPLIED</code> 表示 agent 認為 remote config 成功套用；仍可能出現：</p>
+<ul>
+  <li>Local overlay 讓 effective config 與預期不同。</li>
+  <li>Pipeline 啟動但 receiver 沒流量、exporter 被拒絕或資料被 filter。</li>
+  <li>設定語法有效，語意卻造成 cardinality、sampling 或 routing 事故。</li>
+  <li>Control plane 健康，data plane 或 backend 壞掉。</li>
+</ul>
+<p>所以 rollout gate 的最末端必須是 synthetic telemetry 與 Collector internal telemetry，而不是管理 UI 的綠燈。</p>
+
+<h2>Status Compression 與 Sequence Gap</h2>
+<p>
+Agent 可省略自上次回報後未變的欄位，減少 fleet 流量；<code>sequence_num</code> 用來偵測 Server 是否漏掉狀態。
+若序號不連續，Server 可要求 <code>ReportFullState</code> 重新建立完整視圖。
+</p>
+<p>
+這說明 observed state 是快取，不是永遠完整的事件紀錄。Server restart 或訊息遺失後，必須有 resynchronization；
+否則「欄位沒出現」會被錯解為「值不存在」。
+</p>
+
+<h2>Collector 整合：In-process 與 Supervisor 不等價</h2>
+<p>
+OpAMP 可由 agent process 內實作，也可由外部 Supervisor 管理 Collector lifecycle。實際能力取決於整合方式與版本；
+例如官方 guidance 指出 Collector built-in OpAMP extension 偏向回報 status/health/capabilities，而 Supervisor 才能處理較完整的遠端設定與 lifecycle。
+</p>
+<p>
+因此架構圖要標清楚：誰是 OpAMP client、誰寫 final config、誰 restart Collector、誰保存 UID、誰回報 health。
+協定允許某能力，不表示你採用的 Collector distribution/extension 已實作它。
+</p>
+
+<h2>安全：Control Plane 的 Blast Radius 更大</h2>
+<p>
+被入侵的 OpAMP Server 可能下發設定，讓 agent 讀取敏感 local files 或把 telemetry 送往攻擊者端點。
+所以要把它視為高權限控制面：雙向身份驗證與 TLS、最小 capabilities、細粒度 cohort/RBAC、signed/reviewed revision、audit log、速率限制、canary 與快速撤回。
+</p>
+<p>
+管理連線使用的 credentials 與 telemetry exporter credentials 應分離；remote config 也不應直接夾帶長期 secrets。
+「傳輸有 TLS」只保護通道，不會限制已獲授權 Server 能下發什麼。
+</p>
+
+<h2>建立可驗證的 State Contract</h2>
+<p>
+使用 <a href="../examples/0049-opamp-state-contract.yaml"><code>examples/0049-opamp-state-contract.yaml</code></a> 分開記錄 identity、desired hash、observed apply/effective state、data-plane proof 與 rollback。
+這是不可執行的推理範本，不是 Collector 或 OpAMP 設定。
+</p>
+
+<h2>SRE 附加練習：設定已下發，但未生效</h2>
+<p>情境：管理介面顯示 revision 49 已送到 100 台 agents，但 17 台仍走舊 exporter endpoint。</p>
+<ol>
+  <li>先凍結 rollout，取得 17 台的 instance UID、description、capabilities；排除 targeting/identity 漂移。</li>
+  <li>比較 Server desired hash 與各 agent 的 <code>last_remote_config_hash</code>，區分未收到與已收到。</li>
+  <li>對相同 hash 分群 <code>APPLYING</code>/<code>FAILED</code>/<code>APPLIED</code>；保留 error message 與時間。</li>
+  <li>FAILED 查 final config、component availability、local/remote merge 與 Supervisor restart；APPLYING 查 deadline/process health。</li>
+  <li>APPLIED 仍走舊端點者，比較 reported effective config，而不是重送同一份 config。</li>
+  <li>套用成功後送 synthetic trace/metric/log，查 internal telemetry、rejections 與 backend arrival。</li>
+  <li>未在 deadline 收斂就下發 last-known-good hash；同樣用 observed state 和 canary 證明 rollback。</li>
+</ol>
+<p>值班時可使用 <a href="../reference/0042-opamp-convergence-debug-card.html">OpAMP Convergence Debug Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>畫出你環境的 OTLP data plane 與 OpAMP control plane；標出各自的身份、TLS 與 failure domains。</li>
+  <li>定義 instance UID 在 pod reschedule、process restart、node replacement 時是否保留，並說明 why。</li>
+  <li>寫一個 rollout invariant：desired hash、last received hash、status、effective config 與 canary 必須滿足什麼。</li>
+  <li>設計 Server compromise 的最小 blast radius：哪些 capabilities、cohort size、approval與 egress policy 能限制傷害？</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>1. Server 顯示 remote config 已送出，能證明什麼？</strong></p>
+  <label><input type="radio" name="q1" value="a"> Collector pipeline 已健康</label><br>
+  <label><input type="radio" name="q1" value="b"> Backend 已收到 telemetry</label><br>
+  <label><input type="radio" name="q1" value="c"> 只證明 Server 表達了 offer；仍要看 hash、status、effective config 與 data plane</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>2. 為何 remote config 與 effective config 可能不同？</strong></p>
+  <label><input type="radio" name="q2" value="a"> Agent 可結合 local config；merge semantics 由 agent 實作決定</label><br>
+  <label><input type="radio" name="q2" value="b"> Hash 會自動修改內容</label><br>
+  <label><input type="radio" name="q2" value="c"> OTLP 會覆寫 OpAMP</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>3. <code>APPLIED</code> 後最重要的下一個 gate 是？</strong></p>
+  <label><input type="radio" name="q3" value="a"> 立即 rollout 100%</label><br>
+  <label><input type="radio" name="q3" value="b"> 驗證 effective config、component health、internal telemetry 與 synthetic data-plane outcome</label><br>
+  <label><input type="radio" name="q3" value="c"> 刪除前一版設定</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>OpAMP 是管理 agents 的 control plane；OTLP 是 telemetry data plane。</li>
+  <li>控制面成功要由 desired hash、received hash、apply status、effective config 與 health 逐層證明。</li>
+  <li>Identity、capabilities、status resync 與 agent-specific merge semantics 是 fleet 收斂的基礎。</li>
+  <li>APPLIED 不等於資料可用；最後一定要用 internal telemetry 與 synthetic signals 驗證。</li>
+  <li>遠端設定具有高 blast radius，需最小權限、canary、audit 與可證明的 rollback。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0048-upgrading-collector-safely.html">← Lesson 48</a>
+  <a href="0050-fleet-configuration-governance.html">Lesson 50：Fleet Configuration Governance →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

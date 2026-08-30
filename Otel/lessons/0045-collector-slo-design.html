@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 45: Collector SLO Design</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>45. Collector SLO Design</h1>
+<p class="subtitle">Process up 不是目標；目標是 telemetry 依約可達、及時、正確、可用於決策 · Lesson 45 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 telemetry pipeline 的使用者結果設計 availability、loss、freshness、correctness 與 coverage SLIs；
+理解 internal telemetry 的證明邊界、intentional selection 對分母的影響，以及如何用 error budget/burn rate 驅動告警。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/internal-telemetry/" target="_blank">Collector Internal Telemetry</a>、<a href="https://opentelemetry.io/docs/collector/troubleshooting/" target="_blank">Collector Troubleshooting</a>、<a href="https://opentelemetry.io/docs/specs/otel/self-observability/" target="_blank">OTel Self-Observability</a></p>
+
+<h2>第一性原理：先定義使用者要完成的工作</h2>
+<p>SRE/開發者真正依賴的不是「Collector pod Ready」，而是：</p>
+
+<pre><code>producer emits telemetry
+  → pipeline accepts expected population
+  → policy intentionally transforms/selects it
+  → backend receives/indexes it
+  → user can query it within freshness target
+  → data still has correct identity/semantics</code></pre>
+
+<p>
+因此 process uptime 是 implementation indicator，不是完整 service level。Pod 可存活但 exporter queue 已滿；backend 可收到資料但晚 30 分鐘；
+counts 可完整但 service.name 被改壞。SLO 必須描述 observable outcome。
+</p>
+
+<h2>Boundary 決定你的 SLO 能證明什麼</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Boundary</th><th>能回答</th><th>不能單獨回答</th></tr></thead>
+  <tbody>
+    <tr><td>Collector process</td><td>runtime/CPU/memory/uptime</td><td>producer 是否送得到、backend 是否可查</td></tr>
+    <tr><td>Receiver→Exporter</td><td>Collector 內 ingress/egress/drop</td><td>upstream attempts、backend indexing</td></tr>
+    <tr><td>SDK→Backend ingest</td><td>end-to-end delivery到 ingest</td><td>query/index freshness</td></tr>
+    <tr><td>Producer→Queryable result</td><td>最接近使用者 outcome</td><td>需跨系統 canary/inventory</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>先寫 boundary，才有 numerator/denominator。不同團隊可同時維護 component SLO 與 end-to-end SLO，但不可把前者冒充後者。</p>
+
+<h2>五種互補 SLI</h2>
+<h3>1. Acceptance</h3>
+<pre><code>accepted / (accepted + refused)</code></pre>
+<p>
+Collector 有 receiver accepted/refused counters，能看已抵達 receiver 的 items。但 client 因 DNS/TLS/network 完全到不了，不在分母；
+因此它是 ingress boundary SLI，不是 producer attempt success。
+</p>
+
+<h3>2. Known Loss</h3>
+<p>
+Receiver refused、exporter enqueue failed、non-retryable terminal drops、OTLP partial rejected 都是 known loss evidence。
+Exporter send failed 本身未必已 loss，因可能進 retry；必須結合 retry/queue 最終結果，避免把 transient attempts 當 unique lost items。
+</p>
+
+<h3>3. Freshness</h3>
+<pre><code>freshness = queryable_time - event_or_observed_time</code></pre>
+<p>
+Queue size 只是 proxy；最接近 outcome 的量測是帶 production timestamp/unique marker 的 synthetic canary，直到 backend 可查。
+要分 clock skew、SDK interval、batch、queue、retry 與 indexing delay。
+</p>
+
+<h3>4. Correctness</h3>
+<p>
+資料抵達但 service/tenant identity 錯、metric unit/temporality 壞、trace parent 關係斷，仍不可用。
+Correctness 可用 canary assertions、schema checks、required-resource completeness、cardinality/relationship checks；安全 invariants 通常要求 100%。
+</p>
+
+<h3>5. Coverage</h3>
+<p>
+比較 expected producer/service inventory 與最近 telemetry。全局 throughput 正常仍可能掩蓋一個 region/team 完全消失；coverage 必須按 tenant、region、signal、service class 分段。
+</p>
+
+<h2>Intentional Selection 必須進入資料契約</h2>
+<p>
+Head/tail sampling、filter、routing、redaction 都可能讓 output count 小於 input。這不是自動 data loss；但若分母未建模，就無法分辨 policy 與事故。
+</p>
+
+<pre><code>accepted input
+  - intentionally filtered
+  - intentionally unsampled
+  = expected-to-deliver population
+
+unexpected loss rate = unexpected missing / expected-to-deliver</code></pre>
+
+<p>
+Tail sampling 的 expected population 甚至要以 traces/policy decision 為單位，不可直接用 spans count 相除。每個 SLI 必須說明 signal unit、selection stage 與 aggregation key。
+</p>
+
+<h2>Internal Telemetry 是 Boundary Evidence</h2>
+<p>Collector basic internal metrics 可提供：</p>
+
+<ul>
+  <li>receiver accepted/refused by signal。</li>
+  <li>exporter sent、enqueue failed、send failed。</li>
+  <li>queue size/capacity、in-flight requests。</li>
+  <li>process CPU、RSS、heap、uptime，HTTP/gRPC request telemetry。</li>
+</ul>
+
+<p>
+Metric name 會受 Collector version、OTLP vs Prometheus export、<code>_total</code> suffix 與 dots/underscores 轉換影響；dashboard/alerts 應固定版本契約並在升級時驗證。
+此外不要讓 Collector 只透過自己正在監控的唯一故障路徑輸出 internal telemetry，否則 data path 壞時監控也同時消失。至少保留獨立 scrape/外部 health/canary boundary。
+</p>
+
+<h2>Error Budget 把 Reliability 變成可決策資源</h2>
+<p>若 28 天 success SLO 為 99.99%，allowed bad fraction 是 0.01%。Burn rate：</p>
+
+<pre><code>burn_rate = observed_bad_fraction / allowed_bad_fraction
+</code></pre>
+
+<p>
+Burn=1 表示正以剛好耗完整窗口 budget 的速度消耗；Burn=10 表示快十倍。
+Multi-window alerts 可同時抓急性高 burn 與慢性低 burn，減少單點 threshold 噪音。不同 signal/tenant tier 可有不同 SLO，但安全 correctness 不應用 availability budget 抵銷。
+</p>
+
+<h2>SLO Worksheet</h2>
+<p>
+使用 <a href="../examples/0045-collector-slo-worksheet.yaml"><code>examples/0045-collector-slo-worksheet.yaml</code></a>，先填 boundary/question/limitation，再填 target。
+範例數值只是教學 placeholder，必須由業務 impact、incident history、capacity 與成本共同批准；本課不執行任何程式。
+</p>
+
+<h2>SRE 附加練習：Pod 全綠但 Trace 查不到</h2>
+<ol>
+  <li>確認 violated SLI：coverage、freshness、loss 或 correctness；限定 service/region/time。</li>
+  <li>查 producer-side export attempts/errors，補 receiver accepted 看 upstream→ingress gap。</li>
+  <li>沿每 hop 比較 accepted/refused、intentional sampling/filter、queue/enqueue failed、sent/send failed。</li>
+  <li>若 sent 正常，檢查 OTLP partial success、backend ingest/index/query 與 identity/schema。</li>
+  <li>用 canary 判斷 end-to-end；用真實 service inventory 判斷是否只是 canary path 健康。</li>
+  <li>找 first bad boundary，修復後用原 violated outcome 關閉，而非只看到 pod Ready。</li>
+</ol>
+
+<p>可使用 <a href="../reference/0038-collector-slo-debug-card.html">Collector SLO Debug Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>Receiver accepted=999,900、refused=100，算 ingress acceptance；列出它看不到的兩種 loss。</li>
+  <li>Exporter send_failed 增加但 queue 最終排空且 sent 補回，說明為何不能把所有 failed attempts 當 lost items。</li>
+  <li>設計一個 freshness canary：marker、timestamp、frequency、query condition、timeout 與 sensitive-data constraint。</li>
+  <li>列出三個 correctness invariants：resource identity、trace relationship、metric unit/temporality。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>1. 為何 Collector uptime 不能單獨作 end-to-end telemetry SLO？</strong></p>
+  <label><input type="radio" name="q1" value="a"> Uptime 永遠無法量</label><br>
+  <label><input type="radio" name="q1" value="b"> Collector 不會 crash</label><br>
+  <label><input type="radio" name="q1" value="c"> Process 可存活但拒收、排隊、送不出、語意錯或 backend 不可查</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>2. Exporter <code>send_failed</code> 增加是否必然等於 unique data 已永久遺失？</strong></p>
+  <label><input type="radio" name="q2" value="a"> 否，可能仍 retry；需看 queue 與最終 terminal outcome</label><br>
+  <label><input type="radio" name="q2" value="b"> 是，任何 failed attempt 都是 exactly one lost item</label><br>
+  <label><input type="radio" name="q2" value="c"> 它只代表 CPU 高</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>3. Freshness 最接近使用者 outcome 的量測是？</strong></p>
+  <label><input type="radio" name="q3" value="a"> Pod 數量</label><br>
+  <label><input type="radio" name="q3" value="b"> 帶 timestamp/marker 的 end-to-end canary 到 backend 可查時間</label><br>
+  <label><input type="radio" name="q3" value="c"> YAML 行數</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>SLO 從 user outcome 與 boundary 開始，不從現有 metric 名開始。</li>
+  <li>Acceptance、known loss、freshness、correctness、coverage 互補，不能只看 process uptime。</li>
+  <li>Intentional sampling/filter 必須明確扣出 expected-to-deliver population。</li>
+  <li>Internal telemetry 是 hop evidence；end-to-end canary、inventory 與獨立監控補足 blind spots。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0044-collector-capacity-model.html">← Lesson 44</a>
+  <a href="0046-synthetic-telemetry-canaries.html">Lesson 46：Synthetic Telemetry Canaries →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

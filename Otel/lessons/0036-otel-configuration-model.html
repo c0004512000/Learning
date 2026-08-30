@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 36: Collector Configuration Model</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>36. Collector Configuration Model</h1>
+<p class="subtitle">設定不是 YAML 文字；它是經過解析後，用來建構 runtime graph 的資料模型 · Lesson 36 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會把 Collector 設定拆成 source、resolution、merge、decode、graph construction 與 runtime start；
+理解 component ID、declaration/activation、config provider、substitution 與 final configuration，並能系統化定位設定問題。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/configuration/" target="_blank">Collector Configuration</a>、<a href="https://opentelemetry.io/docs/collector/components/" target="_blank">Collector Components</a></p>
+
+<div class="box warning">
+本章談的是 <strong>Collector</strong> configuration。OTel 另有給 application SDK 的 Declarative Configuration data model；
+兩者目的與 schema 不同，不要因為都使用 YAML 與 environment substitution 就混為一談。
+</div>
+
+<h2>第一性原理：設定的工作是建立可執行物件與資料流</h2>
+<p>YAML 只是 serialization。Collector 真正需要的是：</p>
+
+<pre><code>configuration sources
+  → resolve references/substitutions
+  → merge + override
+  → decode into typed component configs
+  → instantiate components
+  → connect active service pipelines
+  → start runtime resources</code></pre>
+
+<p>
+因此「檔案看起來正確」不代表 final model 正確，更不代表 runtime 能啟動。
+每個階段有不同 failure：找不到 source、env 缺值、merge 覆寫、unknown component、dangling reference、port collision、TLS/auth failure。
+</p>
+
+<h2>Component ID = type[/name]</h2>
+<p>Collector component instance 用 ID 辨識：</p>
+
+<pre><code>otlp                  # type=otlp, name empty
+otlp/edge             # type=otlp, name=edge
+otlp/backend-primary  # type=otlp, name=backend-primary</code></pre>
+
+<p>
+斜線前的 <code>type</code> 決定由哪個 component factory 解碼與建立；斜線後的 <code>name</code> 只是在同 type 下區分 instances。
+把 <code>otlp/foo</code> 改名成 <code>otlp/bar</code> 不會改變功能；把 type 改成 distribution 不包含的 component，則 decode/build 會失敗。
+</p>
+
+<p>
+同一 instance 可被多條 pipelines reference；那通常表示共享同一 runtime component，而不是複製多份設定。
+共享 receiver 可能只 bind 一次 port；共享 exporter 也代表共同 endpoint/queue state。是否共享應由 failure/resource ownership 推導，不只為了少寫 YAML。
+</p>
+
+<h2>Declaration 與 Activation 是兩件事</h2>
+<pre><code>receivers:
+  otlp/edge: {...}       # declare an instance
+
+service:
+  pipelines:
+    traces/prod:
+      receivers: [otlp/edge]  # reference it in an active graph</code></pre>
+
+<p>
+頂層 sections 是 component catalog；<code>service.pipelines</code> 才把它們連成 active graph。
+宣告但未 reference 的普通 pipeline component 不會因存在於 catalog 就自動處理資料。
+反過來，pipeline reference 一個未宣告 ID，graph 無法完成。
+</p>
+
+<p>Pipeline ID 也可寫成 <code>signal[/name]</code>，例如 <code>traces/prod</code>、<code>metrics/internal</code>；斜線後名稱用來區分用途，不改變 signal 型別。</p>
+
+<h2>Config Provider：值從哪裡來</h2>
+<p>
+Collector 的 <code>--config</code> 可接受路徑或 config URI。官方列出的 provider 包含 <code>file</code>、<code>env</code>、
+<code>yaml</code>、<code>http</code>、<code>https</code>。Provider 解決「取得 configuration bytes/map」；component config 解決「這些欄位代表什麼」。
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Provider</th><th>適合</th><th>主要風險</th></tr></thead>
+  <tbody>
+    <tr><td><code>file:</code></td><td>版本化、可審查的 base config</td><td>mount/path、rollout drift</td></tr>
+    <tr><td><code>env:</code></td><td>由 runtime 注入小型 config source</td><td>escaping、大小、不可見漂移</td></tr>
+    <tr><td><code>yaml:</code></td><td>精準 override 小欄位</td><td>CLI quoting 與難以稽核</td></tr>
+    <tr><td><code>http(s):</code></td><td>集中提供 configuration</td><td>bootstrap availability、trust/TLS、變更治理</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Provider 來源不是越多越好。來源增加會擴大 precedence 與 provenance 問題：事故時若無法回答「這個 final value 從哪來」，設定就不可操作。
+</p>
+
+<h2>Substitution：把 deployment-specific value 延後到 resolution</h2>
+<p>範例 <a href="../examples/0036-collector-config-model.yaml"><code>examples/0036-collector-config-model.yaml</code></a> 使用：</p>
+
+<pre><code>${env:OTLP_GRPC_ENDPOINT:-0.0.0.0:4317}
+${env:BACKEND_OTLP_ENDPOINT}
+${env:BACKEND_AUTH_HEADER}</code></pre>
+
+<p>
+第一個有 default，後兩個沒有。Substitution 的價值是把穩定 graph 與環境特定 endpoint/credential 分離；
+風險是 missing value 可能 resolve 成空值，而錯誤直到 decode 或 runtime 才顯現。
+Secret 不應因 substitution 而出現在 Git，但它仍可能出現在 process environment、resolved config 或 debug output；必須控制讀取與遮蔽。
+</p>
+
+<h2>Merge 與 Override：Final Config 才是事實</h2>
+<p>
+Collector 可接受多個 <code>--config</code> sources，也可用 <code>--set</code> 在 sources resolve/merge 後覆寫欄位。
+多檔能分離 base、environment 與 secret references，但語意取決於 merge 結果；不要只審查其中一個 fragment。
+</p>
+
+<pre><code>base + environment overlay + emergency override
+                  ↓
+             final config
+                  ↓
+             runtime graph</code></pre>
+
+<p>
+同一路徑若在多處定義，必須知道 precedence；list/map 的合併也不能憑直覺猜。
+Production 變更應保存可重建的 source set、版本與 final non-secret fingerprint，讓「同一版本」真的可比較。
+</p>
+
+<h2>Validation 只證明到哪一層？</h2>
+<p>官方提供 Collector <code>validate</code> command。它非常重要，但成功不等於端到端可用：</p>
+
+<ul>
+  <li>能證明 config 可取得、解析，且 component schema/graph 基本有效。</li>
+  <li>不能完整證明 production DNS、network policy、remote certificate、credential permission。</li>
+  <li>不能證明真實負載下 queue、memory、cardinality、sampling 語意正確。</li>
+  <li>不能證明 backend 接收到的 resource identity 與 dashboard query 相容。</li>
+</ul>
+
+<p>
+所以驗證分層：static validation → canary startup → synthetic telemetry → backend query → load/failure test。
+本課因全域安全限制只提供閱讀與靜態推理，不執行 Collector 或任何 Windows executable。
+</p>
+
+<h2>SRE 附加練習：同一 ConfigMap，為何兩台行為不同？</h2>
+<p>把問題拆成 deterministic stages，不先怪「Collector 有 cache」：</p>
+
+<ol>
+  <li>比對實際 binary distribution 與版本；相同 YAML 在不同 component set 可能 decode 不同。</li>
+  <li>列出每台實際啟動參數與全部 config URIs，而不是只看預期 deployment manifest。</li>
+  <li>比對 environment substitution 是否存在、是否空值、是否 default 生效。</li>
+  <li>重建 merge/override 後的 final config；敏感欄位只比較存在性或 hash，不輸出明文。</li>
+  <li>比對 active graph、listen endpoints、DNS/TLS/auth 與 Collector internal telemetry。</li>
+</ol>
+
+<p>快速流程可存成 <a href="../reference/0029-config-resolution-card.html">Collector 設定解析卡</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>在範例中找出 type、instance name、pipeline signal 與 pipeline name。</li>
+  <li>假設 <code>BACKEND_OTLP_ENDPOINT</code> 未設定，指出 failure 最早可能在哪個 stage 被發現，為何不能保證只在一處。</li>
+  <li>把 <code>otlp/edge</code> 從 pipeline reference 移除但保留 declaration，畫出 active graph。</li>
+  <li>設計 production config provenance 記錄：至少包含 binary version、source revisions、non-secret final hash 與 rollout ID。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>1. <code>otlp/backend</code> 中斜線前後各代表什麼？</strong></p>
+  <label><input type="radio" name="q1" value="a"> 前面是 signal，後面是 protocol</label><br>
+  <label><input type="radio" name="q1" value="b"> 前面是 component type，後面是 instance name</label><br>
+  <label><input type="radio" name="q1" value="c"> 前面是 namespace，後面一定是 hostname</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>2. 頂層宣告 receiver 後，何時才成為一般 telemetry pipeline 的 active component？</strong></p>
+  <label><input type="radio" name="q2" value="a"> YAML 存檔時</label><br>
+  <label><input type="radio" name="q2" value="b"> 只要 ID 含 <code>/prod</code></label><br>
+  <label><input type="radio" name="q2" value="c"> 被 <code>service.pipelines</code> reference 並成功建構 graph 時</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>3. 多來源設定事故中，最值得優先建立的事實是？</strong></p>
+  <label><input type="radio" name="q3" value="a"> 實際 sources/substitutions/overrides 解析出的 final config 與 provenance</label><br>
+  <label><input type="radio" name="q3" value="b"> README 中的預設範例</label><br>
+  <label><input type="radio" name="q3" value="c"> 最後修改 base YAML 的人</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>Collector config 是建構 runtime graph 的資料模型；YAML 只是其中一種來源表示。</li>
+  <li>Component ID 的 type 決定 factory，name 區分 instances；declaration 不等於 activation。</li>
+  <li>Provider、substitution、merge 與 override 共同決定 final config。</li>
+  <li>Static validation、runtime connectivity 與 telemetry semantics 是不同證明層級。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0035-connectors-first-principles.html">← Lesson 35</a>
+  <a href="0037-ottl-first-principles.html">Lesson 37：OTTL 第一性原理 →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

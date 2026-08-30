@@ -1,0 +1,12 @@
+# Merge this fragment into an existing Collector service configuration.
+# With no custom readers, the default internal metrics endpoint remains local.
+service:
+  telemetry:
+    resource:
+      service.name: otel-collector-training
+      deployment.environment.name: local
+    logs:
+      level: info
+    metrics:
+      level: detailed
+

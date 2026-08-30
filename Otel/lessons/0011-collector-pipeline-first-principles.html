@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 11: Collector pipeline 為何存在</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>11. Collector pipeline 為何存在</h1>
+<p class="subtitle">把 telemetry 的接收、治理與目的地從 application 解耦 · Lesson 11 of N</p>
+
+<h2>沒有 Collector 時，application 承擔什麼？</h2>
+<p>
+Application SDK 可以直接把 OTLP 送到 backend，但每個 service 都要知道 endpoint、credentials、TLS、
+retry、batching、vendor exporter 與 routing policy。當目的地改變，數十個語言與服務可能都要改設定或重新部署。
+</p>
+<p>
+Collector 在 application 與 backend 之間建立一個 telemetry control point：接收多種來源、依 policy 處理，
+再送往一個或多個目的地。它降低應用程式對 backend 的耦合，並讓治理、轉換與路由可獨立演進。
+</p>
+
+<div class="box">
+<strong>能力邊界：</strong>Collector 不能補回 application 從未產生的 Span、修復錯誤的 Span name，
+也不能憑空重建未 propagation 的 parent relationship。Application instrumentation 決定原始證據的語義；
+Collector 處理已收到的 telemetry。
+</div>
+
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/architecture/" target="_blank">OpenTelemetry Collector — Architecture</a></p>
+
+<h2>Pipeline 是一條有方向的資料路徑</h2>
+<pre><code>telemetry source
+      │
+      ▼
+  Receiver
+      │  接受並解碼
+      ▼
+ Processor 1
+      │  依順序處理
+      ▼
+ Processor 2
+      │
+      ▼
+   fan-out
+   ├──────────► Exporter A ──► Backend A
+   └──────────► Exporter B ──► Backend B</code></pre>
+
+<p>
+箭頭表示 telemetry data flow。Processors 是有順序的；最後一個 processor 將資料交給所有已設定 exporters，
+每個 exporter 取得資料副本。Pipeline 在 Collector startup 由 configuration 建立，不是每筆 Span 動態組裝。
+</p>
+
+<h2>每個 component 只解一類問題</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Component</th><th>核心責任</th><th>常見例子</th><th>不是什麼</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Receiver</strong></td><td>取得、接受並解碼 telemetry。</td><td>OTLP receiver 接受 gRPC/HTTP。</td><td>不代表資料已抵達 backend。</td></tr>
+    <tr><td><strong>Processor</strong></td><td>依序轉換、批次、限制、取樣或丟棄資料。</td><td>batch、memory_limiter、filter。</td><td>不是 network listener 或最終目的地。</td></tr>
+    <tr><td><strong>Exporter</strong></td><td>把 pipeline 結果送到 Collector 外部目的地。</td><td>OTLP exporter、debug exporter。</td><td>不建立 application Span。</td></tr>
+    <tr><td><strong>Pipeline</strong></td><td>把支援同一 signal 的 components 接成可執行路徑。</td><td>traces、metrics、logs pipeline。</td><td>不是單一 component。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>「宣告」不等於「啟用」</h2>
+<p>Collector configuration 有兩個不同層次：</p>
+<pre><code>receivers:
+  otlp: {}          # 定義一個 component instance
+
+processors:
+  batch: {}
+
+exporters:
+  debug: {}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]   # 在 pipeline 中引用，才形成 active path</code></pre>
+
+<p>
+上半部回答「有哪些 component、各自怎麼設定」；<code>service.pipelines</code> 回答「哪些 component
+以什麼順序服務哪一種 signal」。只在頂層定義 exporter，卻沒有放進 pipeline，不會自動收到任何資料。
+</p>
+
+<h2>Signal type 是 pipeline 的型別約束</h2>
+<p>
+Traces、metrics、logs 的資料模型不同。Pipeline 名稱中的 type 決定它處理哪個 signal；其中使用的 receiver、
+processor 與 exporter 都必須支援該 signal。<code>traces</code> pipeline 不會因為 OTLP receiver 同時能收 metrics，
+就自動把 metrics 也送出去；metrics 需要自己的 pipeline。
+</p>
+
+<pre><code>service:
+  pipelines:
+    traces:      # trace signal path
+      ...
+    metrics:     # separate metric signal path
+      ...
+    logs:        # separate log signal path
+      ...</code></pre>
+
+<h2>Processor 順序為何有語義？</h2>
+<p>
+Processor 是串接的 function：前一個輸出成為下一個輸入。因此「先刪除敏感欄位再 export」與
+「先依欄位做 sampling、再刪除」可能得到不同結果。順序不是 YAML 美觀問題，而是 data transformation 的因果順序。
+</p>
+
+<p>
+同理，processor 可以 drop telemetry。Receiver 成功接收只證明資料進入 Collector，不代表資料一定走到 exporter。
+Debug 時必須分站觀測，而不是把 Collector 當成一個黑盒。
+</p>
+
+<h2>Collector 解耦了什麼，沒有消除什麼？</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Collector 可集中處理</th><th>仍需 application / platform 負責</th></tr></thead>
+  <tbody>
+    <tr><td>Backend endpoints 與 credentials</td><td>建立有正確業務語義的 Spans</td></tr>
+    <tr><td>Batch、retry、routing 與多目的地</td><td>在正確 operation boundary 埋點</td></tr>
+    <tr><td>Attribute transform / redaction policy</td><td>避免一開始就收集不該出 process 的 secrets</td></tr>
+    <tr><td>Central tail sampling</td><td>正確 propagation Trace / Parent relationships</td></tr>
+    <tr><td>Protocol translation</td><td>Collector 自身的部署、容量、HA 與監控</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>SRE debugging lab：Collector 收得到，但 backend 沒資料</h2>
+<p>已知 application OTLP export 無連線錯誤，Collector 也在監聽。請依 pipeline 逐站建立假設：</p>
+<ol>
+  <li><strong>Receiver：</strong>正確 protocol / port / signal pipeline 是否啟用？</li>
+  <li><strong>Processors：</strong>filter / sampling 是否 drop？transform 是否產生 invalid data？</li>
+  <li><strong>Exporter：</strong>endpoint、TLS、credentials、queue、retry 是否正常？</li>
+  <li><strong>Backend：</strong>是否接受 request，query time range / tenant / service filter 是否正確？</li>
+</ol>
+
+<p>一個安全的定位方法，是在同一 traces pipeline 暫時增加 debug exporter：</p>
+<pre><code>exporters:
+  debug:
+  otlp/backend:
+    endpoint: backend.example:4317
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug, otlp/backend]</code></pre>
+
+<details>
+  <summary>如何解讀結果</summary>
+  <ul>
+    <li>Debug exporter 有 Span、backend 沒有：receiver 與前置 processors 已通過；優先查 backend exporter、network 或 backend ingestion。</li>
+    <li>Debug exporter 也沒有：優先查 application→receiver、signal pipeline activation，或 processors 是否 drop。</li>
+    <li>Debug exporter 的欄位已錯：問題發生在 application 或前置 processor；不要只盯 backend UI。</li>
+  </ul>
+</details>
+
+<div class="box tip">
+<strong>觀測點不是證明全部：</strong>Debug exporter 位於 processors 之後，所以它能證明資料已走過該 pipeline 的
+receiver 與 processors；它不能證明另一個 exporter 或 backend 已成功。
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Receiver 成功收到 Span，能推出什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">資料已進 Collector，後續仍未知</button>
+    <button class="choice" data-correct="false">資料已進 Backend，後續皆成功</button>
+    <button class="choice" data-correct="false">資料已被 Sample，後續皆成功</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 頂層定義 exporter 卻未放進 service pipeline，結果為何？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Component 存在，但沒有 active data path</button>
+    <button class="choice" data-correct="false">Component 自動接收全部 signals data</button>
+    <button class="choice" data-correct="false">Component 自動建立 application Spans data</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. Debug exporter 有資料、OTLP backend 沒資料，先查哪裡？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Backend exporter、network、backend ingestion</button>
+    <button class="choice" data-correct="false">Application Span creation、local Context</button>
+    <button class="choice" data-correct="false">HTTP route matching、Span name only</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0006-collector-pipeline-debug-card.html">Collector pipeline 與分站 debug 卡</a>。
+</div>
+
+<div class="box ask">
+<strong>有問題就問我：</strong>如果你貼一份 Collector config，我會先畫出真正 active 的 signal paths，
+再檢查每個 component 的責任；不會只從 YAML indentation 猜資料流。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0010-python-sampling-experiment.html">&larr; Lesson 10: Python sampling</a></span>
+  <span><a href="0012-minimal-collector-config.html">下一課：讀懂最小 Collector YAML &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

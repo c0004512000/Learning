@@ -1,0 +1,38 @@
+service: checkout
+
+questions:
+  - "Which inbound routes are slow or failing?"
+  - "Which dependency consumes the latency budget?"
+  - "Which domain stage rejects an order, and why?"
+
+coverage:
+  http_server:
+    owner: framework_or_zero_code
+    reason: protocol boundary and HTTP semantic conventions
+    scope_expected: opentelemetry.instrumentation.<framework>
+
+  database_client:
+    owner: library_instrumentation
+    reason: database client knows operation and protocol semantics
+    scope_expected: opentelemetry.instrumentation.<db_client>
+
+  checkout_validation:
+    owner: application_manual
+    reason: only domain code knows the business stage and outcome
+    scope_expected: acme.checkout.application
+
+  checkout_metrics:
+    owner: application_manual
+    reason: business result and duration need bounded domain dimensions
+    scope_expected: acme.checkout.application
+
+suppression_rules:
+  - "Do not wrap an already instrumented HTTP client only to create a second CLIENT span."
+  - "Move manual spans to domain boundaries instead of duplicating framework spans."
+
+application_owns:
+  - SDK installation and lifecycle
+  - Resource identity
+  - Sampling, processors/readers, exporters
+  - Instrumentation enable/disable and suppression policy
+

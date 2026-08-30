@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Span / Event / Attribute 決策卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Span / Event / Attribute 決策卡</h1>
+<p class="subtitle">以最小充分證據設計 telemetry</p>
+
+<pre><code>需要獨立 duration / outcome / causal node？
+  ├─ 是 → Span
+  └─ 否 → 發生時間有診斷意義？
+           ├─ 是 → Event
+           └─ 否 → Attribute（或不記錄）</code></pre>
+
+<h2>Span name 三個檢查</h2>
+<ol>
+  <li>描述的是 operation 類型，不是單次 instance。</li>
+  <li>值能穩定聚合，不含 user ID、UUID、完整 path 等動態值。</li>
+  <li>名稱足以區分 SRE 需要比較的工作類別。</li>
+</ol>
+
+<h2>Attribute 四道守門</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>守門問題</th><th>若答不出來</th></tr></thead>
+  <tbody>
+    <tr><td>事故時用它做什麼查詢？</td><td>先不要記錄。</td></tr>
+    <tr><td>值或值組合會無界成長嗎？</td><td>改成低基數分類或確認 backend 成本。</td></tr>
+    <tr><td>含個資、credential、payload 嗎？</td><td>移除、遮罩或只記安全分類。</td></tr>
+    <tr><td>Sampler 決策時已經知道嗎？</td><td>需要 sampling 時，盡量在 Span 建立時提供。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box">
+<strong>SRE 判斷：</strong>telemetry 的價值不是欄位數量，而是它能否以可接受成本排除事故假設。
+</div>
+
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/signals/traces/" target="_blank">OpenTelemetry — Traces</a>、<a href="https://opentelemetry.io/docs/specs/semconv/general/trace/" target="_blank">Trace Semantic Conventions</a></p>
+
+<div class="lesson-nav">
+  <span><a href="../lessons/0005-span-design-boundaries.html">&larr; 回 Lesson 5</a></span>
+  <span><a href="0002-span-reading-guide.html">Span 五問判讀卡 &rarr;</a></span>
+</div>
+</body>
+</html>

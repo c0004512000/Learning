@@ -1,0 +1,11 @@
+services:
+  collector:
+    # Pin the lab image so the same config does not silently change underneath us.
+    image: otel/opentelemetry-collector:0.158.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./0014-collector-container.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      # Host loopback only -> container listener.
+      - "127.0.0.1:4318:4318"
+

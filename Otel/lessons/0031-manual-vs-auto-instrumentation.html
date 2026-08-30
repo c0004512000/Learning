@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 31: Manual、library 與 zero-code instrumentation 分工</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>31. Manual、library 與 zero-code instrumentation 分工</h1>
+<p class="subtitle">從 semantic knowledge 的位置決定 owner，不把「自動或手動」當宗教選擇 · Lesson 31 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會區分 zero-code/framework、library-native/contrib、manual application 與 Collector enrichment 四個層級的可見範圍與責任，
+能以 semantic gap 設計混合 instrumentation，並用 Instrumentation Scope 定位重複埋點與版本回歸。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/instrumentation/" target="_blank">OpenTelemetry — Instrumentation</a>、<a href="https://opentelemetry.io/docs/concepts/instrumentation/libraries/" target="_blank">Library instrumentation guidance</a></p>
+
+<h2>第一性原理：Telemetry 品質受限於觀測點知道什麼</h2>
+<p>同一個 checkout request，在不同 layer 能看見不同事實：</p>
+
+<pre><code>Runtime/framework hook
+  knows: HTTP method, route, status, timing
+
+Database client library
+  knows: DB system, operation, server, client timing
+
+Application domain code
+  knows: validation stage, inventory decision, business outcome
+
+Collector
+  knows: only telemetry already emitted + deployment/environment context</code></pre>
+
+<p>
+Instrumentation 的 owner 應是「最了解該語意、且能穩定維護契約」的 layer。Collector 可以 normalize route attribute，
+卻無法從一個 409 status 憑空知道是 coupon invalid、inventory conflict 還是 fraud rejection。
+</p>
+
+<h2>Zero-code：快速建立 edges baseline</h2>
+<p>
+Zero-code instrumentation 透過 agent、runtime hooks、monkey patching 或 platform mechanisms，在不修改 business code 的情況下
+觀測常見 frameworks/libraries。它擅長 application edges：HTTP server/client、DB、RPC、messaging、runtime metrics。
+</p>
+
+<h3>優點</h3>
+<ul>
+  <li>導入速度快，能快速建立 distributed context 與常見 semantic conventions。</li>
+  <li>對不能修改 code 的第三方/legacy application 有價值。</li>
+  <li>集中 enable/disable 與 exporter configuration。</li>
+</ul>
+
+<h3>邊界</h3>
+<ul>
+  <li>通常看不到 domain stages 與 business semantics。</li>
+  <li>依賴 runtime/library version compatibility，升級可能改變 hooks/telemetry。</li>
+  <li>廣泛自動埋點可能產生低價值 spans、重複 instrumentation 或額外成本。</li>
+</ul>
+
+<p>
+Zero-code 是 baseline，不是「不用理解 instrumentation」。仍要驗證 Span names/kinds、Resource、Scopes、attributes、sampling 與 overhead。
+</p>
+
+<h2>Library instrumentation：由最懂 library semantics 的 owner 提供</h2>
+<p>
+Native library instrumentation 可直接在 public API/meaningful I/O boundary 使用 OTel API；若 library 沒原生支援，contrib instrumentation
+可透過 hooks/wrapping 補上。它應遵循 semantic conventions，使用 library/instrumentation 的 fully qualified scope name/version。
+</p>
+
+<div class="box tip">
+<strong>Library 只依賴 API：</strong>Library 不應替 application 安裝 SDK、設定 global Provider、sampler 或 exporter。
+API 在沒有 SDK 時是 non-operational/no-op；application owner 決定是否啟用、如何處理與輸出。這避免 library 綁架部署政策與 dependency graph。
+</div>
+
+<p>
+只對該 library 自己的 logical operation 埋點。薄 wrapper 若底層 network client 已有清楚 spans，又沒有新增語意，通常不需再包一層相同 span；
+serialization 之類內部細節可能更適合 Event，而不是每一步都建 Span。
+</p>
+
+<h2>Manual application instrumentation：補 domain semantic gap</h2>
+<p>Manual code 最適合：</p>
+<ul>
+  <li>User journey/domain stages：<code>checkout.validate_cart</code>、<code>order.reserve_inventory</code>。</li>
+  <li>只有 application 知道的 bounded business outcomes。</li>
+  <li>Business Metrics：completed orders、rejection classes、domain latency。</li>
+  <li>Meaningful Events：state transition、retry exhausted、fallback selected。</li>
+</ul>
+
+<p>
+不適合用「每個 function 一個 Span」衡量完整度。Span 應代表可獨立診斷的 operation；過度細分增加 overhead、噪音與 parent tree 深度，
+卻不一定增加決策資訊。
+</p>
+
+<h2>Collector enrichment：補 deployment facts，不重寫 source truth</h2>
+<p>
+Collector 可依 trusted environment 補 Kubernetes/cloud/tenant routing metadata、sanitize、normalize、filter；
+它不應猜 domain outcome、重新命名到掩蓋原 producer，或把不同 services 的錯誤 Resource identity 靜默合併。
+</p>
+
+<p>
+若 source 可正確產生語意，優先在 source/library 修正；Collector 適合跨團隊 policy 與 source 不可修改時的受控補救。
+</p>
+
+<h2>混合策略：先 baseline，再補 gap</h2>
+<ol>
+  <li><strong>Questions：</strong>列出 SRE/開發真正要回答的 user journey、dependency、SLO 問題。</li>
+  <li><strong>Baseline：</strong>啟用 zero-code/成熟 library instrumentation，取得 common edges。</li>
+  <li><strong>Gap map：</strong>找出只有 domain code 知道、但現有 telemetry 不含的 facts。</li>
+  <li><strong>Manual：</strong>只在 meaningful domain boundaries 加 spans/metrics/events。</li>
+  <li><strong>Policy：</strong>設定 suppression、sampling、limits、Views、sanitization。</li>
+  <li><strong>Verify：</strong>以 Scope、semantic conventions、cardinality、security 與 overhead 驗證。</li>
+</ol>
+
+<p>
+規劃範例位於 <a href="../examples/0031-instrumentation-ownership.yaml"><code>examples/0031-instrumentation-ownership.yaml</code></a>。
+它不是可執行 config，而是 ownership contract：每個 operation 只有一個主要 producer owner，並寫明原因與 expected scope。
+</p>
+
+<h2>重複 Spans 的第一性診斷</h2>
+<p>症狀：每次 outbound HTTP call 出現兩個相似 CLIENT Spans。比較：</p>
+
+<ul>
+  <li>Instrumentation Scope name/version。</li>
+  <li>Span kind、name、start/end timing、parent。</li>
+  <li>一筆是否來自 auto HTTP instrumentation，另一筆來自 manual wrapper。</li>
+  <li>是否同時啟用 native library 與 contrib monkey patch。</li>
+</ul>
+
+<p>
+修復通常是 suppress/disable 一個 producer，或把 manual Span 移到真正 domain boundary。例如保留 auto CLIENT span，
+把 manual span 改為較上層 <code>payment.authorize</code>，而非再建一個 <code>HTTP POST</code>。
+</p>
+
+<div class="box tip">
+<strong>不要先在 Collector/backend dedup：</strong>兩筆 Span 可能 attributes/timing 不同，後段 dedup 容易誤刪；
+而 application 已支付兩次 creation/processing/export 成本。先在 producer ownership 解決。
+</div>
+
+<h2>API 與 SDK ownership 再確認</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Concern</th><th>Library/instrumentation</th><th>Application/deployment</th></tr></thead>
+  <tbody>
+    <tr><td>建立 Span/Metric/Log</td><td>使用 OTel API</td><td>也可使用 API 做 domain telemetry</td></tr>
+    <tr><td>Scope name/version</td><td>自己的穩定 identity</td><td>application module identity</td></tr>
+    <tr><td>Resource</td><td>不硬編碼 host/service deployment identity</td><td>設定 service/environment/instance</td></tr>
+    <tr><td>Sampler/Processor/Reader</td><td>不主導 global policy</td><td>Application/platform owner</td></tr>
+    <tr><td>Exporter/backend</td><td>不選 vendor destination</td><td>Deployment configuration</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>SRE debugging lab：三種 coverage 問題</h2>
+
+<h3>Case A：有 HTTP/DB Spans，卻不知道 checkout 為何失敗</h3>
+<p>
+這是 semantic gap，不是 zero-code 故障。保留 common edge instrumentation，於 domain decision 加 bounded outcome attribute/Event/Span；
+不要把完整 cart 或 user ID 塞入每個 network Span。
+</p>
+
+<h3>Case B：升級 auto-instrumentation 後 latency 變高</h3>
+<p>
+按 scope version 比較 Span count、attributes、processor queue、CPU/memory 與 request latency。確認是否新增 instrumentations、重複 hooks、
+sampling/limits 改變；用 canary pin/rollback 驗證，而非直接關掉全部 OTel。
+</p>
+
+<h3>Case C：同一 dependency 有三層 nested Spans</h3>
+<p>
+逐層問各自新增什麼決策資訊。保留 domain operation + 最底層標準 client Span，若中間 wrapper 沒有獨立語意就 suppress；
+若中間是 retry/fallback policy，可用 Event/attributes 或具名 operation 表達，不照 call stack 機械建 Span。
+</p>
+
+<details>
+  <summary>練習：為 checkout 做 coverage map</summary>
+  <p>列 rows：HTTP ingress、validation、inventory、payment、DB、message publish；列 columns：owner layer、scope、Span/Metric/Event、
+semantic conventions、domain gap、duplication risk。每列只選一個 primary owner，必要時寫 correlation 而非重複。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Zero-code 最擅長什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Framework/library/runtime edges 與 common protocol telemetry</button>
+    <button class="choice" data-correct="false">自動理解所有 business decisions</button>
+    <button class="choice" data-correct="false">替每個 library 選 production backend</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Library 為何通常只依賴 OTel API？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">讓 application 決定 SDK/policy/export，避免 library 綁架部署</button>
+    <button class="choice" data-correct="false">API 會自動把資料送到固定 vendor</button>
+    <button class="choice" data-correct="false">SDK 不能建立 Tracer</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 兩個相似 CLIENT Spans 最先比較什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Instrumentation Scope、kind/name/timing 與啟用的 producers</button>
+    <button class="choice" data-correct="false">把 backend retention 加倍</button>
+    <button class="choice" data-correct="false">把 trace ID 放進 metric attribute</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0024-instrumentation-layer-card.html">Instrumentation 分層判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>用 ownership YAML 格式盤點你的一個 service；貼出三個最可能重複或缺少語意的 operations，
+我會依你的實際 stack 調整下一階段教材。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0030-end-to-end-debugging-method.html">&larr; Lesson 30: 端到端 debugging</a></span>
+  <span><a href="0032-semconv-schema-evolution.html">下一課：Semantic Conventions 與 schema 演進 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

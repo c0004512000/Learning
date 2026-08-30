@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 50: Fleet Configuration Governance</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>50. Fleet Configuration Governance</h1>
+<p class="subtitle">配置不是一份 YAML，而是從意圖、驗證、發布到觀測收斂的受控狀態轉移 · Lesson 50 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會理解為何大規模 Collector 管理需要 immutable revision、targeting、admission、progressive delivery、dwell time、invariants 與 rollback；
+也能把 OpAMP 提供的狀態原語組成安全的 fleet control loop，而不把協定本身誤當完整治理系統。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/specs/opamp/" target="_blank">OpenTelemetry OpAMP Specification</a>、<a href="https://github.com/open-telemetry/opamp-spec/blob/main/specification.md" target="_blank">OpAMP Protocol and Security</a>、<a href="https://opentelemetry.io/docs/security/config-best-practices/" target="_blank">Collector Configuration Security Best Practices</a></p>
+
+<h2>第一性原理：Fleet Change 是風險乘法</h2>
+<pre><code>expected harm ≈ probability(change is wrong)
+              × affected instances
+              × privilege/data reach
+              × detection delay
+              × recovery time</code></pre>
+
+<p>
+同一個錯誤在一台 Collector 是局部事故，在一萬台 agents 可能同時造成 telemetry blackout、secret exposure 或 backend overload。
+治理的目的不是消除所有錯誤，而是縮小 blast radius、提早得到可信證據、在損害擴大前停止。
+</p>
+
+<h2>OpAMP 給 Mechanism，治理定義 Policy</h2>
+<p>OpAMP 提供 identity、capabilities、remote config hash、apply status、effective config 與 health 等原語；但它不替組織決定：</p>
+<ul>
+  <li>誰可批准哪種 component、source、destination 或 privilege。</li>
+  <li>哪些 agents 屬於同一 cohort，最多同時變更多少。</li>
+  <li>要觀察多久、哪些 SLO 才能進下一階段。</li>
+  <li>失敗時自動 halt、rollback 或等待人工判斷。</li>
+</ul>
+<p>協定是可互通的工具；治理是你對風險與正確性的明確契約。</p>
+
+<h2>Revision 必須 Immutable 且可重建</h2>
+<p>
+若同一個 revision 名稱背後的內容可被覆寫，事故後就無法回答「當時實際發布了什麼」。每次 change 應有 immutable content hash，
+並綁定 source revision、distribution/component inventory、resolved non-secret config、policy results、test evidence 與 approver。
+</p>
+<p>
+Hash 只識別 bytes，無法說明內容安全或正確；因此 hash 必須和 provenance、review 與 semantic tests 一起保存。
+Secrets 應以受控 reference 在 runtime resolve，不嵌入可廣播的 revision。
+</p>
+
+<h2>Targeting 是安全邊界</h2>
+<p>
+Fleet selector 通常根據 environment、region、service、distribution/version、OS 或 capability。標籤可能缺漏、延遲或重複；
+所以送出前要把 selector materialize 成明確 instance UID 清單，做 cardinality 上限與 negative match 檢查。
+</p>
+<pre><code>safe target = selector result
+            ∩ authorized scope
+            ∩ compatible capabilities
+            ∩ explicit maximum cardinality</code></pre>
+<p>
+「prod=false」不是安全 cohort 定義：缺少 prod label 的 instance 可能被錯選。優先使用 positive allowlist，並把 unknown identity/metadata 排除。
+</p>
+
+<h2>Admission：不讓已知壞變更進入 Fleet</h2>
+<p>發布前的 admission gate 應逐層回答：</p>
+<ol>
+  <li><strong>Parse/schema：</strong>target distribution 能解析並找到所有 components 嗎？</li>
+  <li><strong>Policy：</strong>receiver 能讀哪些 paths？exporter 可連哪些 destinations？是否要求 TLS/auth？</li>
+  <li><strong>Semantic fixtures：</strong>輸入 trace/metric/log 後，output、drop、redaction、routing 是否符合契約？</li>
+  <li><strong>Resource/load：</strong>memory、queue、CPU、backend requests 是否在 budget？</li>
+  <li><strong>Recovery：</strong>last-known-good revision 仍可套用，state/storage 相容嗎？</li>
+</ol>
+<p>僅做 YAML lint 只能排除語法錯誤；它無法證明資料語意、安全與容量。</p>
+
+<h2>Cohort 必須代表 Failure Domains</h2>
+<p>
+先 lab，再單一小 cohort，再跨 region/OS/version 的 representative cohort，最後才 broad rollout。
+隨機 1% 若全落在同一種環境，可能完全測不到另一 distribution 缺少 component 的問題。
+</p>
+<p>
+Canary cohort 要小到事故可承受，又要含高風險變異。每階段固定最大 instance 數，禁止 selector 在 rollout 中因新 agents 加入而無界擴張。
+</p>
+
+<h2>Dwell Time 是觀測窗口，不是等待儀式</h2>
+<p>
+Config APPLIED 後，tail sampling、persistent queue、batch、periodic scrapes 或低流量服務的問題可能過一段時間才出現。
+Dwell time 至少涵蓋最慢關鍵 feedback loop，例如 scrape interval、tail decision wait、queue drain 或 alert evaluation window。
+</p>
+<pre><code>dwell ≥ max(relevant state horizon,
+            detection window,
+            low-traffic canary interval)</code></pre>
+<p>每階段要重新計時；若 cohort 或 revision 改變，不能沿用上一段已等待的時間。</p>
+
+<h2>Progress Gate 要同時看控制面與資料面</h2>
+<ul>
+  <li><strong>Control plane：</strong>targeted/online、received hash、APPLYING duration、FAILED ratio、effective drift、component health。</li>
+  <li><strong>Data plane：</strong>synthetic arrival、accepted/rejected/dropped items、queue utilization、export latency、backend ingest 與 queryability。</li>
+  <li><strong>Business semantics：</strong>sampling ratio、metric continuity/cardinality、log redaction、routing tenancy。</li>
+</ul>
+<p>
+只有 fleet average 會掩蓋小群體全壞。Gate 要按 cohort、revision、region、distribution/version 分割；但標籤本身也要控制 cardinality，避免把 instance UID 長期塞入每條 metric。
+</p>
+
+<h2>Halt、Rollback、Roll-forward 是不同決策</h2>
+<ul>
+  <li><strong>Halt：</strong>停止新增 exposure，保留現場與證據；通常是第一反應。</li>
+  <li><strong>Rollback：</strong>將 desired state 指回已驗證 revision，仍需重新證明它 APPLIED 且 data plane 恢復。</li>
+  <li><strong>Roll-forward：</strong>當 state/storage 不可逆、修正版更安全或 rollback 本身風險較高時採用。</li>
+</ul>
+<p>
+管理 UI 顯示 rollback sent 不代表復原。Recovery time 應量到 effective last-known-good 與 telemetry SLO 恢復，而不是按下按鈕的時間。
+</p>
+
+<h2>Drift 是 Desired 與 Effective 的差，不只是檔案差</h2>
+<p>
+Drift 可能來自 emergency local override、不同 env/secret/provider resolution、舊 agent merge semantics、人工修改或部分 rollout。
+要先把 drift 分成 authorized/expiring exception 與 unknown drift；不能盲目覆蓋 break-glass，也不能讓例外永久存在。
+</p>
+<p>
+每個 exception 應有 owner、理由、scope、expiry 與 replacement plan。到期後仍存在就 fail closed 或進入人工處理，而不是默默延長。
+</p>
+
+<h2>Governance 也需要自己的 Telemetry</h2>
+<p>至少監控以下 fleet-level signals：</p>
+<ul>
+  <li>每 revision 的 targeted/received/applied/failed/effective-drift counts。</li>
+  <li>從 desired change 到 APPLIED、再到 data-plane healthy 的 convergence latency。</li>
+  <li>按 error class、agent version、distribution、region 分群的 failure ratio。</li>
+  <li>rollout halt/rollback 次數、MTTR 與 exception age。</li>
+</ul>
+<p>這些不是取代 Collector internal telemetry，而是回答 fleet control loop 是否健康。</p>
+
+<h2>Rollout Policy Artifact</h2>
+<p>
+使用 <a href="../examples/0050-fleet-rollout-policy.yaml"><code>examples/0050-fleet-rollout-policy.yaml</code></a> 描述 admission、cohorts、invariants、halt 與 rollback。
+它是不可執行的治理範本；實際門檻需由你的流量、SLO 與 failure budget 校準。
+</p>
+
+<h2>SRE 附加練習：Canary 正常，10% 階段失敗</h2>
+<p>情境：1% canary 全綠；擴至 10% 後，Windows agents 大量 FAILED，Linux agents 正常。</p>
+<ol>
+  <li>立即 halt，不把 fleet average 的 92% applied 當成通過。</li>
+  <li>依 OS、distribution、version、capabilities 和 error message 分群，確認 failure domain。</li>
+  <li>比較 canary composition：1% 是否根本沒有 Windows，揭露 cohort representativeness 缺口。</li>
+  <li>檢查 target distribution 是否含所需 component、path/env/provider semantics 是否跨平台。</li>
+  <li>對失敗 cohort rollback；用相同 control/data-plane invariants 證明恢復。</li>
+  <li>補 Windows fixture/admission matrix，重建小型 representative canary，而非直接重試 10%。</li>
+</ol>
+<p>事故分類可用 <a href="../reference/0043-fleet-rollout-debug-card.html">Fleet Rollout Debug Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>列出你 fleet 的五個 failure dimensions，設計能覆蓋它們的最小 canary cohort。</li>
+  <li>選一條 pipeline，分別定義 control-plane、data-plane 與 semantic invariant。</li>
+  <li>找出最慢 feedback loop，推導 dwell time；不要任意填 10 分鐘。</li>
+  <li>設計一個不可由 remote config 覆寫的 local allowlist，說明它限制哪種 Server compromise。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>1. 為何隨機 1% 不一定是有效 canary？</strong></p>
+  <label><input type="radio" name="q1" value="a"> 1% 永遠太大</label><br>
+  <label><input type="radio" name="q1" value="b"> 它可能沒涵蓋關鍵 region、OS、version、distribution 等 failure dimensions</label><br>
+  <label><input type="radio" name="q1" value="c"> Canary 不需要 telemetry</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>2. 正確 dwell time 應如何推導？</strong></p>
+  <label><input type="radio" name="q2" value="a"> 永遠固定五分鐘</label><br>
+  <label><input type="radio" name="q2" value="b"> APPLIED 後立即結束</label><br>
+  <label><input type="radio" name="q2" value="c"> 涵蓋相關 state horizon、偵測窗口與低流量 canary interval 的最慢者</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>3. Rollback 何時才算成功？</strong></p>
+  <label><input type="radio" name="q3" value="a"> Last-known-good effective state 收斂，且 control/data-plane invariants 恢復</label><br>
+  <label><input type="radio" name="q3" value="b"> UI 顯示 rollback request 已送出</label><br>
+  <label><input type="radio" name="q3" value="c"> 刪除事故 revision</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>Fleet risk 隨 exposure、權限、偵測與復原時間放大；治理要限制這些乘數。</li>
+  <li>Immutable revision、materialized targeting 與 admission 讓變更可重建、可約束。</li>
+  <li>Representative cohorts、推導出的 dwell time 與分群 invariants 才能支持漸進發布。</li>
+  <li>OpAMP 提供 control-plane evidence；data-plane 與 semantic evidence 才完成正確性證明。</li>
+  <li>Halt 先阻止擴散；rollback 也必須重新驗證收斂與 telemetry 恢復。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0049-opamp-control-plane.html">← Lesson 49</a>
+  <a href="0051-prometheus-pull-collection.html">Lesson 51：Prometheus Pull Collection →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

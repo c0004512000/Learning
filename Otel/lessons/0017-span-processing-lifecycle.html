@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 17: Span Processor、批次與關閉生命週期</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>17. Span Processor、批次與關閉生命週期</h1>
+<p class="subtitle">Span 結束只是資料交接的起點，不是遠端保存的終點 · Lesson 17 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 latency isolation 與有限資源推導 Span Processor 的角色，分辨 Simple/Batch processor，並精確說明
+<code>end</code>、enqueue、export、<code>force_flush</code>、<code>shutdown</code> 各自保證到哪裡。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/sdk/#span-processor" target="_blank">OpenTelemetry Trace SDK — Span processor</a></p>
+
+<h2>第一性原理：request latency 與 telemetry I/O 不該被迫同步</h2>
+<p>
+Span 在 application thread 上建立與結束，但 OTLP export 涉及 serialization、network、timeout 與遠端負載。
+若每個 request 都等一次 network export，observability path 會直接增加業務 latency，甚至在 Collector 故障時放大事故。
+</p>
+
+<pre><code>業務工作完成
+  → Span.end()
+  → Processor 決定如何交接
+  → Exporter 編碼並傳輸
+
+Processor 是 lifecycle/cadence boundary
+Exporter 是 protocol/destination boundary</code></pre>
+
+<p>
+Span Processor 提供 Span start/end hooks，內建 processors 負責把完成的 Span 轉成可 export 表示、批次化並交給 exporter。
+只有 recording Spans 才會觸發 processor；這也把 Lesson 9 的 sampling 決策連到輸出成本。
+</p>
+
+<h2><code>Span.end()</code> 到底完成了什麼？</h2>
+<p>
+End 設定結束時間，使 Span 成為已完成、不可再修改的 observation，並同步觸發 processor 的 end callback。
+但它不等於：</n+</p>
+<ul>
+  <li>bytes 已經離開 application process；</li>
+  <li>Collector receiver 已接受；</li>
+  <li>Collector exporter 已送往 backend；</li>
+  <li>backend 已完成 durable storage/indexing。</li>
+</ul>
+
+<p>
+這些是串接但不同的狀態轉移。Debug 時若只看到 Span 已 end，就把結論推到 backend，會跨越多個尚未驗證的邊界。
+</p>
+
+<h2>Simple 與 Batch：差異不是名稱，而是等待發生在哪裡</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>面向</th><th>SimpleSpanProcessor</th><th>BatchSpanProcessor</th></tr></thead>
+  <tbody>
+    <tr><td>交付時機</td><td>Span 完成時立即交給 exporter</td><td>先放 bounded queue，再依批次條件 export</td></tr>
+    <tr><td>request path 影響</td><td>Exporter latency 更直接落在 end path</td><td>通常只承擔 enqueue，network 在背景工作</td></tr>
+    <tr><td>失敗壓力</td><td>慢 exporter 直接拖慢呼叫者</td><td>慢 exporter 使 queue 成長，滿後 drop</td></tr>
+    <tr><td>典型用途</td><td>開發、測試、最短可見 feedback</td><td>一般 production export</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Batch 不是「免費的非同步」。它只是把等待從 request path 移到有限 queue 與 background exporter。
+只要長期 Span arrival rate 大於 export drain rate，任何有限 queue 最終都會滿：
+</p>
+
+<pre><code>queue growth rate ≈ span arrival rate − successful drain rate
+
+若 arrival &gt; drain 持續成立：
+time-to-full ≈ remaining queue capacity / (arrival − drain)</code></pre>
+
+<p>
+增加 queue size 只能延後滿載，也會增加記憶體與最壞等待時間；它不能修復長期 throughput deficit。
+</p>
+
+<h2>Batch processor 的四個控制旋鈕</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>參數</th><th>控制的資源／時間</th><th>錯誤直覺</th></tr></thead>
+  <tbody>
+    <tr><td><code>max_queue_size</code></td><td>pending spans 上限</td><td>越大就永不 drop</td></tr>
+    <tr><td><code>schedule_delay_millis</code></td><td>定時觸發 export 的延遲</td><td>它是 Span duration</td></tr>
+    <tr><td><code>max_export_batch_size</code></td><td>單次 export 最大批量</td><td>可以大於 queue</td></tr>
+    <tr><td><code>export_timeout_millis</code></td><td>單次 export 的時間界線</td><td>等於 backend retention</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Batch 會在 timer、batch size threshold 或 ForceFlush 等條件觸發 export。參數要一起考慮：batch 太小增加 calls，
+太大可能增加等待與 payload；queue 太小吸收不了 burst，太大則掩蓋持續壅塞並消耗更多 memory。
+</p>
+
+<h2>ForceFlush 與 Shutdown 的責任不同</h2>
+
+<h3><code>force_flush(timeout)</code></h3>
+<p>
+要求 processors 儘快處理呼叫前已接手但尚未 export 的 Spans，並在 timeout 內回報成功、失敗或逾時。
+它不關閉 Provider，適合 FaaS invocation 結束、測試 checkpoint 等少數需要明確同步點的場景；不應每個 request 都呼叫，
+否則會消解 batching 的目的。
+</p>
+
+<h3><code>shutdown()</code></h3>
+<p>
+用於 SDK/process lifecycle 結束：包含 flush 效果並釋放 processors/exporters 資源，而且每個 Provider 應只呼叫一次。
+Shutdown 後不應繼續正常建立 telemetry；長時間 service 應接到 graceful termination，而不是 request handler。
+</p>
+
+<div class="box tip">
+<strong>保證邊界：</strong>即使 SDK flush 回報成功，也只能依實作／協定證明 SDK pending work 已完成到指定界線；
+不能跳過 Collector 與 backend 的 acknowledgment、storage、indexing 語意，宣稱 Trace 已可查詢。
+</div>
+
+<h2>閱讀 Python lifecycle 範例</h2>
+<p>範例位於 <a href="../examples/0017-processor-lifecycle.py"><code>examples/0017-processor-lifecycle.py</code></a>：</p>
+
+<pre><code>processor = BatchSpanProcessor(
+    exporter,
+    max_queue_size=256,
+    schedule_delay_millis=1_000,
+    max_export_batch_size=64,
+    export_timeout_millis=5_000,
+)</code></pre>
+
+<p>
+這些值是為了讓關係可見，不是 production tuning recommendation。Production 要從峰值 Span rate、允許 memory、出口 throughput、
+network latency、可接受 loss 與 shutdown budget 量測推導。
+</p>
+
+<pre><code>flush_completed = provider.force_flush(timeout_millis=3_000)
+provider.shutdown()</code></pre>
+
+<p>
+第一行是仍保持 SDK 可用的 checkpoint；第二行是終止 lifecycle。範例印出 flush result，是為了提醒「呼叫了」與「在期限內完成」不是同義詞。
+</p>
+
+<h2>SRE debugging lab：程式正常，Trace 為何還會不見？</h2>
+
+<h3>Case A：短命 process 沒有 graceful shutdown</h3>
+<p>
+Span 已 enqueue，但 process 在 background export 前退出。先重現並加入明確 flush/shutdown evidence；若改善，才支持 lifecycle hypothesis。
+不要因此把所有 loss 都歸咎於 shutdown。
+</p>
+
+<h3>Case B：高峰期才遺失</h3>
+<p>
+比較 span arrival、queue usage/drop、自身 exporter errors 與 successful drain rate。若 arrival 長期高於 drain，
+調大 queue 只延後問題；應檢查 sampling、export throughput、Collector capacity 與 downstream latency。
+</p>
+
+<h3>Case C：Exporter 持續 timeout</h3>
+<p>
+Processor 的 queue 會吸收短 burst，不能治療永久 unreachable endpoint。沿著 application exporter → network → Collector receiver
+檢查 timeout/retry evidence；預設 Span Processor 不負責替 exporter 實作 network retry policy。
+</p>
+
+<details>
+  <summary>練習：為每個觀察寫出「最多能證明什麼」</summary>
+  <ul>
+    <li><code>span.is_recording() == True</code></li>
+    <li><code>Span.end()</code> 已返回</li>
+    <li><code>force_flush()</code> 回傳成功</li>
+    <li>Collector debug exporter 印出 Span</li>
+    <li>Backend query 找到 Trace</li>
+  </ul>
+  <p>答案應形成逐層更強的證據，不可把前一層寫成後一層的保證。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. BatchSpanProcessor 的核心 trade-off 是什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">降低 request-path export 等待，但引入 bounded queue、延遲與 drop 風險</button>
+    <button class="choice" data-correct="false">保證每個 Span 永不遺失</button>
+    <button class="choice" data-correct="false">把 unsampled Span 變成 sampled</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 若 arrival rate 長期大於 drain rate，單純增加 queue 會如何？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">延後滿載，不能消除長期 throughput deficit</button>
+    <button class="choice" data-correct="false">自動增加 Collector throughput</button>
+    <button class="choice" data-correct="false">讓 exporter 不再需要 network</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. ForceFlush success 是否直接保證 backend 已可查詢？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">否；仍需區分 Collector、backend acceptance/storage/indexing 邊界</button>
+    <button class="choice" data-correct="false">是；它會同步所有未知 downstream systems</button>
+    <button class="choice" data-correct="false">是；只要 Span 已 end 就必然可查詢</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0010-span-export-lifecycle-card.html">Span export lifecycle 判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>假設服務每秒產生 1,000 Spans，出口只能持續處理 700 Spans/s，queue 尚有 6,000 空位。
+估算多久滿，並解釋為什麼把 queue 加倍不是完整修復。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0016-instrumentation-scope.html">&larr; Lesson 16: Instrumentation Scope</a></span>
+  <span><a href="0018-span-limits-and-dropped-data.html">下一課：Span Limits 與 dropped data &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

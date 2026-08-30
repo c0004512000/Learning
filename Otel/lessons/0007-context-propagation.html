@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 7: Context propagation 為何不可少</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>7. Context propagation 為何不可少</h1>
+<p class="subtitle">跨越 process boundary，重新建立可驗證的因果關係 · Lesson 7 of N</p>
+
+<h2>從物理限制開始</h2>
+<p>
+Service A 與 Service B 是不同 process：它們不共享 heap、不共享 Python object，也不共享「目前是哪個 Span」的執行狀態。
+因此 B 收到 HTTP request 時，不可能只靠本機記憶體知道這個 request 是 A 哪一個 Span 造成的。
+</p>
+<p>
+若要把兩邊的工作接成同一條 Trace，A 必須把<strong>最小的因果識別資訊</strong>寫進會跨 boundary 的 carrier；
+B 再讀出它，建立新的 child Span。這個序列化、傳遞與反序列化機制就是 context propagation。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/context-propagation/" target="_blank">OpenTelemetry — Context propagation</a></p>
+
+<h2>五個常混淆的名詞</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>名詞</th><th>責任</th><th>不是什麼</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Context</strong></td><td>在 execution unit 內攜帶目前相關狀態的容器，讓程式找到 current Span 等資訊。</td><td>不是 HTTP header，也不是整條 Trace。</td></tr>
+    <tr><td><strong>SpanContext</strong></td><td>Span 的不可變 correlation identity：Trace ID、Span ID、TraceFlags、TraceState。</td><td>不含 Span name、attributes、events 或 timestamps。</td></tr>
+    <tr><td><strong>Carrier</strong></td><td>真正跨 boundary 的媒介，例如 HTTP headers、message properties。</td><td>不是 OTel SDK object。</td></tr>
+    <tr><td><strong>Propagator</strong></td><td>依格式把 Context 資訊 inject 到 carrier，或從 carrier extract 出來。</td><td>不建立或 export Span。</td></tr>
+    <tr><td><strong>traceparent</strong></td><td>W3C Trace Context 的 HTTP header 表示，承載 trace correlation fields。</td><td>不是完整 Span 的 JSON。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box">
+<strong>關鍵界線：</strong>跨網路傳的是 SpanContext 的必要欄位，不是整個 Span。
+完整 Span 仍由各 service 的 SDK 在本地結束後，經 Processor / Exporter 送往 telemetry pipeline。
+</div>
+
+<h2>Sender 與 receiver 的完整因果鏈</h2>
+<pre><code>Service A（sender）
+  current CLIENT Span
+      │  inject：序列化目前 SpanContext
+      ▼
+  HTTP carrier: traceparent header
+      │  network：只運送字串 header
+      ▼
+Service B（receiver）
+  extract：解析 remote SpanContext
+      │  以 remote context 作 parent
+      ▼
+  new SERVER Span</code></pre>
+
+<ol>
+  <li>A 建立 outbound CLIENT Span；它有 Trace ID <code>T</code> 與 Span ID <code>A1</code>。</li>
+  <li>Propagator 在送出 request 前，把 <code>T</code>、<code>A1</code> 與 flags 寫入 headers。</li>
+  <li>B 在建立 SERVER Span 前先 extract headers，得到 remote parent context。</li>
+  <li>B 建立新的 Span ID <code>B1</code>，沿用 Trace ID <code>T</code>，並令 Parent Span ID = <code>A1</code>。</li>
+</ol>
+
+<p>
+B 不可沿用 A 的 Span ID，因為 B 是新的 operation；它只沿用 Trace ID 並指向 A 的 Span ID。
+這正是「同一條 Trace、不同因果節點」的最小資料需求。
+</p>
+
+<h2>拆解 <code>traceparent</code></h2>
+<pre><code>traceparent: 00-a0892f3577b34da6a3ce929d0e0e4736-f03067aa0ba902b7-01
+             │  │                                │                └─ trace-flags
+             │  │                                └─ parent-id（sender current Span ID）
+             │  └─ trace-id
+             └─ version</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>欄位</th><th>長度</th><th>下游如何使用</th></tr></thead>
+  <tbody>
+    <tr><td>version</td><td>2 hex chars</td><td>決定 header 格式版本。</td></tr>
+    <tr><td>trace-id</td><td>32 hex chars</td><td>下游 Span 沿用，加入同一條 Trace。</td></tr>
+    <tr><td>parent-id</td><td>16 hex chars</td><td>下游新 Span 的 Parent Span ID。</td></tr>
+    <tr><td>trace-flags</td><td>2 hex chars</td><td>傳遞 sampling 等 bit flags；<code>01</code> 的最低位表示 sampled。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+header 中稱為 <code>parent-id</code>，是因為它會成為接收端新 Span 的 parent；在送出端，
+它其實是 sender 當下 current Span 自己的 Span ID。不要把它誤解成「sender 的 Parent Span ID」。
+</p>
+
+<h2>Propagation 與 export 是兩條不同路徑</h2>
+<pre><code>Request path:   A -- traceparent --> B
+
+Telemetry path:
+  A Span -- Processor/Exporter --> Collector/backend
+  B Span -- Processor/Exporter --> Collector/backend</code></pre>
+
+<p>
+即使 A 沒有設定 Span exporter，context propagation 仍可能運作；反過來，A/B 都成功 export Spans，
+也可能因 headers 沒有 inject/extract 而變成兩條斷裂的 Traces。看到 backend 有資料，不代表 propagation 正確。
+</p>
+
+<h2>SRE debugging lab：Trace 在服務邊界斷掉</h2>
+<p>你在 backend 看到：</p>
+<pre><code>Service A CLIENT Span
+  trace_id = aaa...
+  span_id  = 111...
+
+Service B SERVER Span
+  trace_id = bbb...
+  span_id  = 222...
+  parent_id = null</code></pre>
+
+<p>這證明 B 建立了一條新 Trace，但還不能直接斷言是哪一行 code 壞了。依 boundary 逐步縮小：</p>
+<ol>
+  <li><strong>Sender：</strong>outgoing request 上是否真的有合法 <code>traceparent</code>？</li>
+  <li><strong>Transport：</strong>proxy、gateway 或 client library 是否保留 header？</li>
+  <li><strong>Receiver：</strong>instrumentation 是否在建立 SERVER Span 前 extract？</li>
+  <li><strong>Format：</strong>兩端是否使用相容 propagator，header 是否可解析？</li>
+  <li><strong>Execution context：</strong>inject 時正確的 CLIENT Span 是否為 current？</li>
+</ol>
+
+<details>
+  <summary>三種症狀如何定位</summary>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>症狀</th><th>優先假設</th></tr></thead>
+    <tbody>
+      <tr><td>Outgoing request 沒有 <code>traceparent</code></td><td>sender instrumentation / inject / current context。</td></tr>
+      <tr><td>Header 到達 B，但 B 仍是 root</td><td>receiver extract、propagator format 或建立順序。</td></tr>
+      <tr><td>A/B 同 Trace ID，但 B parent 指錯 Span</td><td>inject 時 current Span 錯誤，或 context attach/detach lifecycle 錯誤。</td></tr>
+    </tbody>
+  </table>
+  </div>
+</details>
+
+<h2>安全邊界</h2>
+<p>
+外部來源可以偽造 trace headers；送往不受信任的外部服務也可能暴露內部 correlation 資訊。
+此外，Baggage 可攜帶任意 key-value，切勿放 credential、API key 或 PII。這不改變 propagation 的
+核心機制，但 SRE 導入時必須明確定義 trust boundary 與 sanitization policy。
+</p>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Service B 建立 child Span 時，哪個值必須新產生？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">新的 Span ID</button>
+    <button class="choice" data-correct="false">新的 Trace ID</button>
+    <button class="choice" data-correct="false">新的 Parent ID</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Propagator 的核心責任是什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">在 Context 與 carrier 間轉換</button>
+    <button class="choice" data-correct="false">在 Span 與 backend 間儲存</button>
+    <button class="choice" data-correct="false">在 Processor 與 exporter 間取樣</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. A/B 都有 Span，但 Trace ID 不同，最合理的結論是？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Export 可用，propagation 尚未正確</button>
+    <button class="choice" data-correct="false">Propagation 可用，export 尚未正確</button>
+    <button class="choice" data-correct="false">Sampling 可用，resource 尚未正確</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0004-context-propagation-debug-card.html">Context propagation debug 卡</a>。
+</div>
+
+<div class="box ask">
+<strong>有問題就問我：</strong>你可以貼一個 <code>traceparent</code>（請勿貼 Baggage 或任何敏感 header），
+我會陪你拆出 version、Trace ID、parent ID 與 flags；也可以描述 service mesh / gateway 路徑，
+一起判斷應在哪個 boundary 觀察 header。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0006-http-server-span.html">&larr; Lesson 6: HTTP server Span</a></span>
+  <span><a href="0008-manual-python-propagation.html">下一課：Python 手動 inject / extract &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

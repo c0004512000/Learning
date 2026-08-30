@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Batch Tuning Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Batch Tuning Card</h1>
+<p class="subtitle">先量 workload 與 backend constraint，再調三個 knobs</p>
+<ol>
+  <li><strong>Units：</strong>spans/datapoints/log records 的 rate、bytes/item 分布與壓縮率。</li>
+  <li><strong>Trigger：</strong><code>send_batch_size</code> 是 send threshold，不是 hard maximum。</li>
+  <li><strong>Maximum：</strong><code>send_batch_max_size</code> 限 item count，不保證 byte size。</li>
+  <li><strong>Timeout：</strong>低流量下的額外等待上界之一，不含 exporter/network/backend latency。</li>
+  <li><strong>Order：</strong>memory limiter → drop/sampling → batch 通常較合理。</li>
+  <li><strong>Evidence：</strong>batch items/bytes histogram、size/timeout trigger count、request failures、queue age。</li>
+  <li><strong>Failure unit：</strong>大 batch 失敗時重試、duplicate、memory 與 partial rejection 影響更大。</li>
+</ol>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 26: Collector 多信號 pipelines 與隔離</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>26. Collector 多信號 pipelines 與隔離</h1>
+<p class="subtitle">共享 ingress，不混合 data model；分開 graph，仍共享 process resources · Lesson 26 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會把 Traces、Metrics、Logs 還原成三條 typed Collector graphs，理解同一 receiver declaration 如何服務多種信號、具名 component instances
+如何建立 signal-specific policy，以及 config-level isolation 與 process-level isolation 的差異。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/configuration/" target="_blank">Collector Configuration</a>、<a href="https://opentelemetry.io/docs/collector/architecture/" target="_blank">Collector Architecture</a></p>
+
+<h2>第一性原理：共同 transport 不等於共同資料模型</h2>
+<p>
+OTLP 能在同一 gRPC/HTTP listener 接收 Traces、Metrics、Logs，但三種信號有不同 records、aggregation/lifecycle 與 processors。
+Receiver 負責 ingress/protocol decode；pipeline 的 signal type 決定資料接下來能流向哪些 compatible components。
+</p>
+
+<pre><code>OTLP receiver 127.0.0.1:4318
+  ├─ /v1/traces  → traces pipeline  → Span batches
+  ├─ /v1/metrics → metrics pipeline → Metric data
+  └─ /v1/logs    → logs pipeline    → LogRecords</code></pre>
+
+<p>
+「都走 OTLP」不會把 Metric 轉成 Span，也不會讓 traces pipeline 自動處理 Logs。Protocol envelope 統一搬運方式，
+signal data model 仍維持 typed separation。
+</p>
+
+<h2>讀懂三條 active graphs</h2>
+<p>範例位於 <a href="../examples/0026-multisignal-collector.yaml"><code>examples/0026-multisignal-collector.yaml</code></a>：</p>
+
+<pre><code>traces:  otlp → batch/traces  → debug/traces
+metrics: otlp → batch/metrics → debug/metrics
+logs:    otlp → batch/logs    → debug/logs</code></pre>
+
+<p>
+Top-level <code>otlp</code> receiver 只宣告一次，三條 pipelines 都引用它。每條 graph 仍有自己的 signal type、processor instance
+與 exporter instance。這讓 log batch policy 不必與 traces 相同，也讓 debug output 的 component identity 可分辨信號。
+</p>
+
+<h2><code>type/name</code> 讓同一 component type 有多個 policy instances</h2>
+<pre><code>batch/traces
+batch/metrics
+batch/logs</code></pre>
+
+<p>
+三者 type 都是 <code>batch</code>，斜線後是 instance name。Named instances 可有不同 queue/batch parameters 並被不同 pipelines 引用。
+名稱本身沒有功能；功能來自 type、config 與 active reference。
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Instance</th><th>範例 batch size</th><th>教學意圖</th></tr></thead>
+  <tbody>
+    <tr><td><code>batch/traces</code></td><td>256</td><td>與其他 signals 分開觀察，不宣稱是 production 最佳值。</td></tr>
+    <tr><td><code>batch/metrics</code></td><td>512</td><td>Metric export payload/cadence 可獨立設計。</td></tr>
+    <tr><td><code>batch/logs</code></td><td>128</td><td>高 volume/big records 可有另一組 policy。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+這些值只用來讓 instance 差異可見，未經 workload measurement 不能當作 production recommendation。
+</p>
+
+<h2>Declaration、activation、compatibility 再次套用</h2>
+<ol>
+  <li><strong>Declaration：</strong>列出 <code>otlp</code>、三個 <code>batch/*</code>、三個 <code>debug/*</code>。</li>
+  <li><strong>Activation：</strong>從 <code>service.pipelines.traces|metrics|logs</code> 解析 references。</li>
+  <li><strong>Compatibility：</strong>確認每個 component/distribution 支援該 signal。</li>
+  <li><strong>Order：</strong>每條 graph 依 receiver → processors → exporters。</li>
+  <li><strong>Evidence：</strong>為每條 signal 定義獨立成功與 failure evidence。</li>
+</ol>
+
+<p>
+若只宣告 <code>debug/logs</code> 卻沒放進 logs pipeline，它不會收到資料；若只建立 traces pipeline，OTLP receiver
+不會因為能解析 Logs 就替你創造 logs graph。Lesson 12 的規則跨 signals 不變。
+</p>
+
+<h2>Config 分離不等於故障域完全分離</h2>
+<pre><code>Logical isolation:
+  separate queues/config/exporters/pipeline evidence
+
+Shared process reality:
+  Collector CPU + memory + network + GC + process lifecycle</code></pre>
+
+<p>
+三條 pipelines 在同一 Collector process 中，log storm 仍可能耗盡 shared CPU/memory/network，間接影響 Trace/Metric latency/drop。
+Named processors 降低 policy coupling，但不提供硬式 resource isolation。若 SLO、tenant、security 或 volume 差異很大，
+才進一步評估拆成不同 Collector deployments/processes；這是 deployment architecture 決策，不是多取幾個 instance name 就完成。
+</p>
+
+<div class="box tip">
+<strong>隔離是一條光譜：</strong>不同 component config → 不同 pipelines → 不同 Collector processes → 不同 nodes/accounts。
+每往右成本與操作複雜度上升，也增加故障/安全隔離。先從威脅與 SLO 推導，不追求形式上的「全部分開」。
+</div>
+
+<h2>跨信號 correlation 依賴共同 identity，不是 pipeline merge</h2>
+<p>
+Traces、Metrics、Logs 各自輸出，但若 application providers 使用一致的 <code>service.namespace/name/version/instance</code> Resource，
+backend 才能把它們歸到同一 entity。Log 的 TraceId/SpanId、Metric Exemplar 再建立 record-level correlation。
+</p>
+
+<p>
+Collector 三條 pipelines 不會因為同一 receiver 就自動補齊 identity。若 application signals 的 service.name 不一致，
+應修正 source/Resource enrichment policy；不要用模糊字串匹配假裝關聯。
+</p>
+
+<h2>Transport success 要按 signal/endpoint 精確描述</h2>
+<p>
+OTLP/HTTP 4318 listener 活著只能證明 socket/service 層的一部分。Traces 送到 <code>/v1/traces</code> 成功，不代表 application 已建立
+MeterProvider/MetricReader，或 <code>/v1/metrics</code> request 成功。Shared host/port 提供部分排除證據，但每個 signal 仍有獨立 source/export/pipeline。
+</p>
+
+<h2>SRE debugging lab：Traces 有、Metrics 無</h2>
+<p>以已知成功的 traces 縮小範圍：</p>
+
+<ol>
+  <li>Collector process、host reachability、OTLP/HTTP listener 大致可用。</li>
+  <li>不要重查 Trace instrumentation；改查 application MeterProvider、MetricReader、collection/shutdown。</li>
+  <li>確認 Metric exporter endpoint/path 是 <code>/v1/metrics</code>，不是 traces path。</li>
+  <li>確認 Collector <code>metrics</code> pipeline active 且引用 <code>otlp</code>。</li>
+  <li>查看 <code>batch/metrics</code> 與 <code>debug/metrics</code> 的 signal-specific evidence。</li>
+</ol>
+
+<p>
+若 Traces 使用 gRPC 4317、Metrics 使用 HTTP 4318，Trace success 甚至不能完全證明 Metrics transport path；
+每項推論要列出共同邊界與不同邊界。
+</p>
+
+<h3>故障注入 A：移除 metrics pipeline</h3>
+<p>
+Receiver declaration 仍在，Traces/Logs 可正常；Metrics 沒有 active graph。預測 config validation/startup 行為與 client export evidence，
+再用實際 distribution 驗證，不把「receiver 有 metrics capability」當 activation。
+</p>
+
+<h3>故障注入 B：大量 Logs 造成全 signals 延遲</h3>
+<p>
+查看 Collector process memory/CPU、各 receiver accepted/refused、processor queue/batch/export latency 與 exporter failures。
+若三條 signal 同時惡化，shared resource saturation 比三個獨立 instrumentation bugs 更值得先驗證。
+</p>
+
+<details>
+  <summary>練習：畫 fault-domain matrix</summary>
+  <p>列 rows：application SDK、transport、receiver、signal pipeline、shared Collector process、backend；列 columns：traces/metrics/logs。
+在每格填成功證據。只要某 column 成功，就標出它能排除哪些 shared rows、不能排除哪些 signal-specific cells。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 同一 OTLP receiver 被三條 pipelines 引用，代表什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">共享 ingress component，但各 signal 仍走 typed active graph</button>
+    <button class="choice" data-correct="false">三種信號會合併成同一 data model</button>
+    <button class="choice" data-correct="false">只需 traces pipeline 就自動啟用全部 signals</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 三個 named batch processors 是否提供完整 process resource isolation？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">否；它們分開 policy，但仍共享 Collector process CPU/memory/network</button>
+    <button class="choice" data-correct="false">是；每個 instance name 都會啟動獨立 VM</button>
+    <button class="choice" data-correct="false">是；Logs 不會使用 memory</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. Traces 正常、Metrics 消失時，最有價值的推理是？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Shared process/listener 有部分成功證據，優先查 Metric source/path/pipeline 的差異</button>
+    <button class="choice" data-correct="false">直接認定整個 Collector process 已停止</button>
+    <button class="choice" data-correct="false">把 Metrics 改成 Span attributes</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0019-multisignal-debug-matrix.html">Collector 多信號 debug matrix</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>把你理想的三信號路徑畫成 typed graphs，標出哪些 components/process resources 共用，
+以及你會用哪些 signal-specific 與 shared evidence 判斷故障域。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0025-logs-first-principles.html">&larr; Lesson 25: Logs</a></span>
+  <span><a href="0027-collector-processor-order.html">下一課：Collector Processor 順序與不變量 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 15: Resource 與 service identity</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>15. Resource 與 service identity</h1>
+<p class="subtitle">先回答「誰產生 telemetry」，再分析「發生什麼工作」 · Lesson 15 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 entity identity 推導 Resource 的用途，正確區分 logical service、runtime instance、版本與環境；
+也能判斷一個 attribute 應屬 Resource 還是 Span。這是跨 traces、metrics、logs 的共同基礎，不是 backend tag 命名技巧。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/resources/" target="_blank">OpenTelemetry — Resources</a>、<a href="https://opentelemetry.io/docs/specs/semconv/resource/service/" target="_blank">Service semantic conventions</a></p>
+
+<h2>第一性原理：觀測值若不知道來源，就無法比較</h2>
+<p>假設你只收到兩筆資料：</p>
+<pre><code>latency = 850 ms
+error = true</code></pre>
+<p>
+它們本身無法回答是哪個系統、服務、版本、環境或 instance。Telemetry 至少需要兩類描述：</n+</p>
+
+<pre><code>Resource：哪個 entity 產生資料？
+Signal record：這一次 observation / operation 是什麼？
+
+Resource(service.name=checkout, service.version=2.4.1)
+  └─ Span(checkout.validate_cart, app.cart.item_count=3)</code></pre>
+
+<p>
+Resource 是一組 attributes，代表產生 telemetry 的 entity。它在 Provider 初始化時關聯；由該 Provider 建立的 Spans
+都帶著同一 Resource。這正是為何 <code>service.name</code> 不應在每個 request 中隨意改變。
+</p>
+
+<h2>Resource attribute 還是 Span attribute？用變化尺度判斷</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>問題</th><th>若答案是…</th><th>通常歸屬</th></tr></thead>
+  <tbody>
+    <tr><td>它描述誰產生 telemetry 嗎？</td><td>service、process、container、pod、host、cloud resource</td><td>Resource</td></tr>
+    <tr><td>同一 Provider 的所有 observations 都應相同嗎？</td><td>service identity、deployment environment、版本</td><td>Resource</td></tr>
+    <tr><td>它描述某一次 operation 嗎？</td><td>route、status code、cart size、DB operation</td><td>Span</td></tr>
+    <tr><td>它會隨每個 request 改變嗎？</td><td>通常是 request/operation context</td><td>Span（仍須控制基數與敏感性）</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+不是「不常變」就一定是 Resource；判斷核心是 entity semantics。例如 feature flag 可能一小時才改一次，
+但若它是一次 request 的 evaluation result，仍不因此成為 service identity。
+</p>
+
+<h2>Service identity 的四個層級</h2>
+
+<h3>1. <code>service.namespace</code>：哪一個系統群組？</h3>
+<p>
+它把相關 services 放進同一 logical system，例如 <code>store</code>。同一 namespace 內的
+<code>service.name</code> 應可區分不同 services。Namespace 不是 Kubernetes namespace 的自動別名；若要表達
+Kubernetes identity，使用對應 <code>k8s.*</code> Resource attributes。
+</p>
+
+<h3>2. <code>service.name</code>：哪一個 logical service？</h3>
+<p>
+例如 <code>checkout</code>。所有水平 replicas 必須使用相同值，因為它們共同提供同一 logical function。
+若把 pod name、host name 或隨機 suffix 拼進去，backend 會把 replicas 誤認為多個 services，service graph、SLO 與聚合都被拆碎。
+</p>
+
+<p>
+SDK 在未指定時會提供 <code>unknown_service</code> 類 fallback，但那只讓資料仍具合法 identity，不代表操作上足夠。
+應明確設定 <code>service.name</code>，否則多個應用可能被錯誤混在一起。
+</p>
+
+<h3>3. <code>service.instance.id</code>：同一 service 的哪個執行 instance？</h3>
+<p>
+它要區分同時運行的 replicas。這讓 SRE 能問：「錯誤是否集中在單一 instance？」它不取代 service.name；
+兩者回答不同聚合層級。Instance ID 應為 opaque、在同一 namespace/name 下唯一，且避免直接洩露不必要的基礎設施細節。
+</p>
+
+<h3>4. <code>service.version</code> 與環境：哪個 deployment cohort？</h3>
+<p>
+<code>service.version</code> 識別實際 artifact 版本，例如 semantic version 或 commit hash；
+<code>deployment.environment.name</code> 識別 production、staging 等 logical environment。
+兩者讓同名 service 能按 rollout cohort 比較，而不是改寫 service.name 成 <code>checkout-prod-v2</code>。
+</p>
+
+<div class="box tip">
+<strong>正規化的價值：</strong><code>service.name=checkout</code> 保持穩定，version、environment、instance 分別放自己的維度。
+如此「整體 checkout」、「只看 production」、「比較 v2.4.0/v2.4.1」、「隔離單一 instance」都能由同一資料模型推導。
+</div>
+
+<h2>閱讀 Python 範例</h2>
+<p>範例位於 <a href="../examples/0015-resource-identity.py"><code>examples/0015-resource-identity.py</code></a>：</p>
+
+<pre><code>resource = Resource.create({
+    "service.namespace": "store",
+    "service.name": "checkout",
+    "service.version": os.environ.get("SERVICE_VERSION", "dev"),
+    "deployment.environment.name": os.environ.get(
+        "DEPLOYMENT_ENVIRONMENT", "local"
+    ),
+    "service.instance.id": os.environ.get(
+        "SERVICE_INSTANCE_ID", str(uuid.uuid4())
+    ),
+})</code></pre>
+
+<p>
+Code 提供 deterministic local defaults 與 deployment injection points。真正平台通常可透過 environment、Resource detectors
+或部署工具提供 identity；關鍵不是「一定寫死在 code」，而是最後合併出的 Resource 必須語意正確且來源衝突可預期。
+</p>
+
+<pre><code>with tracer.start_as_current_span("checkout.validate_cart") as span:
+    span.set_attribute("app.cart.item_count", 3)</code></pre>
+
+<p>
+Item count 只描述這一次 cart validation，所以放 Span。若把它放 Resource，它會錯誤地套到 Provider 後續建立的所有 Spans，
+而且 Resource 在 Provider 建立後不能拿來當 request-scoped mutable bag。
+</p>
+
+<h2>SRE debugging lab：identity 錯誤會偽裝成什麼症狀？</h2>
+
+<h3>Case A：service graph 突然出現幾百個 checkout services</h3>
+<p>
+先 group by <code>service.name</code> 檢查是否含 pod/host/random suffix，再與 <code>service.instance.id</code> 對照。
+若每個 replica 都有不同 service.name，根因是 identity level 混淆，不是服務真的被拆成幾百個邏輯元件。
+</p>
+
+<h3>Case B：production 與 staging traces 混在一起</h3>
+<p>
+確認 <code>deployment.environment.name</code> 是否缺失、拼字漂移或被不同來源覆寫。不要只用 Collector endpoint 推測環境；
+route destination 是 transport configuration，不是 telemetry 自身的 environment identity。
+</p>
+
+<h3>Case C：只有少數 replicas 高延遲，但 service aggregate 看不出來</h3>
+<p>
+先以穩定 service identity 篩選，再按 <code>service.instance.id</code> 分組。若 instance IDs 碰撞或全部相同，
+資料模型無法隔離單一 runtime，應修正產生 identity 的來源，而非在 Span name 拼 instance。
+</p>
+
+<details>
+  <summary>練習：為每個值選擇正確位置</summary>
+  <ul>
+    <li><code>checkout</code> → <code>service.name</code></li>
+    <li><code>8ae73a</code> artifact → <code>service.version</code></li>
+    <li><code>production</code> → <code>deployment.environment.name</code></li>
+    <li>某個 runtime UUID → <code>service.instance.id</code></li>
+    <li>這次 request 的 <code>http.response.status_code=503</code> → Span attribute</li>
+  </ul>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 水平擴展的 20 個 checkout replicas，其 <code>service.name</code> 應如何？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">全部相同，以 service.instance.id 區分 instances</button>
+    <button class="choice" data-correct="false">每個都拼上 pod name</button>
+    <button class="choice" data-correct="false">每個 request 隨機產生</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 為何 cart item count 不適合放 Resource？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">它描述單次 operation，而非 telemetry-producing entity</button>
+    <button class="choice" data-correct="false">Resource 只能放字串</button>
+    <button class="choice" data-correct="false">Span 不能使用 service identity</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. Collector endpoint 指向 production，能否取代 environment Resource？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">不能；transport destination 與資料自身 identity 是不同命題</button>
+    <button class="choice" data-correct="false">可以；endpoint 會自動寫入所有 signals</button>
+    <button class="choice" data-correct="false">可以；Resource 只用於 metrics</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0008-resource-identity-card.html">Resource identity 判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>用你熟悉的一個真實 service，列出 namespace、name、version、environment、instance ID
+各自從哪個 deployment source 取得，並說明哪幾個值跨 replicas 必須相同、哪個必須不同。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0014-run-collector-lab-safely.html">&larr; Lesson 14: Collector lab 證據鏈</a></span>
+  <span><a href="0016-instrumentation-scope.html">下一課：Instrumentation Scope 與來源責任 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

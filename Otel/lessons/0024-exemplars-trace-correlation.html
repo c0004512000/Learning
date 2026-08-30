@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 24: Exemplars 串接 Metrics 與 Traces</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>24. Exemplars 串接 Metrics 與 Traces</h1>
+<p class="subtitle">不把 Trace ID 變成 metric dimension，也能從聚合點跳到代表性操作 · Lesson 24 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 aggregation 的資訊損失推導 Exemplar，理解 eligibility、filter、reservoir 與 export/display 是不同階段；
+也能說明 Exemplar value 已包含在 Metric aggregate 中，以及為何它比 trace ID metric attribute 更符合成本模型。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exemplars" target="_blank">Metrics Data Model — Exemplars</a>、<a href="https://opentelemetry-python.readthedocs.io/en/latest/sdk/metrics.html#opentelemetry.sdk.metrics.TraceBasedExemplarFilter" target="_blank">Python TraceBasedExemplarFilter</a></p>
+
+<h2>第一性原理：Aggregation 回答群體，根因需要個體</h2>
+<p>
+Histogram 告訴你 500–1000ms bucket 有 280 requests，但不保留 280 條完整 request identities。
+SRE 想從異常 bucket 選一個真實 operation 深入 Trace；直覺做法是把 <code>trace_id</code> 當 metric attribute，
+但每個 Trace ID 都不同，會把 280 measurements 變成 280 aggregation states，摧毀 Lesson 22 的 bounded cardinality。
+</p>
+
+<pre><code>錯誤模型：
+metric{trace_id="unique-per-request"} → 每筆一個 series
+
+Exemplar 模型：
+metric aggregate point
+  └─ 少量代表性 recorded measurements
+       └─ optional trace_id + span_id</code></pre>
+
+<p>
+Exemplar 是與某個 Metric event 關聯的 recorded value，可附帶當時的 OTel Context。它建立 correlation edge，
+不把高基數 identity 加入 metric stream dimensions。
+</p>
+
+<h2>一筆 Exemplar 包含什麼？</h2>
+<ul>
+  <li>Recorded <strong>value</strong>。</li>
+  <li>Observation <strong>timestamp</strong>。</li>
+  <li>Optional <strong>trace ID / span ID</strong>。</li>
+  <li>Optional <strong>filtered attributes</strong>，補充 observation context。</li>
+</ul>
+
+<p>
+對 Histogram，Exemplar value 已經參與 bucket counts、count 與 sum；對 Sum，它已包含在 overall sum。
+Exemplar 不是額外 measurement，consumer 不應再把它加一次，否則 double count。
+</p>
+
+<div class="box tip">
+<strong>代表性，不是完整性：</strong>Exemplar 是從大量 measurements 中保留的少量樣本。
+沒有 Exemplar 不代表 bucket 沒有 measurements；有一個 Exemplar 也不代表它統計上代表整個 bucket 的所有根因。
+</div>
+
+<h2>四段 pipeline：eligible 不等於最後可點擊</h2>
+<pre><code>1. Filter：這筆 measurement 可否成為 exemplar？
+2. Reservoir：有限容量下保留哪幾筆 eligible measurements？
+3. Export path：OTLP / Collector / backend 是否保存 correlation fields？
+4. Query/UI：使用者能否從 metric point 導航到 Trace？</code></pre>
+
+<p>
+這四段任一缺失都可能讓 UI 看不到 Exemplar。Debug 時不能只說「SDK 有開」；要找首次失去 exemplar data 的邊界。
+</p>
+
+<h2>TraceBased filter：只讓 sampled Span context 的 measurement 候選</h2>
+<p>閱讀範例 <a href="../examples/0024-trace-based-exemplar.py"><code>examples/0024-trace-based-exemplar.py</code></a>：</p>
+
+<pre><code>metric_provider = MeterProvider(
+    resource=resource,
+    metric_readers=[metric_reader],
+    exemplar_filter=TraceBasedExemplarFilter(),
+)</code></pre>
+
+<p>
+Python 的 TraceBasedExemplarFilter 讓「在 sampled parent Span Context 中記錄」的 measurements 成為 eligible。
+選 sampled 是為了提高 trace ID 能在 Trace backend 查到的機率；若 Span 未被 export，保留 correlation ID 對導航價值有限。
+</p>
+
+<pre><code>with tracer.start_as_current_span("checkout.place_order"):
+    duration.record(875, {"http.route": "/checkout"})</code></pre>
+
+<p>
+Metric API 在未傳 explicit Context 時使用 current Context，因此 Histogram measurement 能關聯 current sampled Span。
+範例用 <code>ALWAYS_ON</code> 只是讓教學條件明確，不是 production sampling recommendation。
+即使 eligible，reservoir 仍可能選中別筆 measurement，所以不能把每次 record 都會輸出 Exemplar 當作 API 保證。
+</p>
+
+<h2>Filtered attributes 與 series attributes 不是同一責任</h2>
+<p>
+Metric point attributes 定義 aggregation identity；Exemplar filtered attributes 描述被選中 observation 的額外 context。
+這允許少量 sample 保留較細資訊，而不為所有 measurements 建新 time series。但仍需隱私、大小與 backend 支援審查；
+Exemplar 不是繞過資料治理的隱藏通道。
+</p>
+
+<h2>與 sampling 的互動</h2>
+<p>
+TraceBased filter 將 exemplars 與 head sampling decision 相連：只有 sampled current Span 的 measurements eligible。
+低 trace sampling ratio 會減少可關聯 exemplars；提高 sampling 能增加候選，但也增加 Trace 成本。
+</p>
+
+<p>
+理想設計需同時考慮 Metric coverage、Trace sampling、exemplar reservoir 與 retention。Metric 可全量聚合，Exemplar 只提供導航樣本，
+Trace backend 再保存被 sampling 選中的完整 operations。三層有不同成本與完整性。
+</p>
+
+<h2>SRE debugging lab：異常 bucket 有資料，為何點不到 Trace？</h2>
+
+<h3>Case A：Measurement 不在 current Span 內</h3>
+<p>
+Instrumentation 在 background thread/callback 記錄 Histogram，但 Context 未傳過去。檢查 record 當下 current SpanContext，
+而不是只看 request handler 曾經建立過 Span。必要時顯式傳遞 Context，但避免跨生命週期誤綁過期 request。
+</p>
+
+<h3>Case B：Exemplar 有 trace ID，但 backend 查不到 Trace</h3>
+<p>
+確認 Span sampled/exported、Trace exporter/Collector/backend 是否成功、retention windows 是否一致、tenant/project routing 是否相同。
+Correlation ID 存在只證明 measurement 當時知道 SpanContext，不保證另一條 signal pipeline 已保存 Trace。
+</p>
+
+<h3>Case C：Raw OTLP 有 Exemplar，UI 沒顯示</h3>
+<p>
+這把 SDK/transport 大致排除，調查 backend ingestion mapping、query API 與 visualization capability。
+保留 raw evidence，避免因 UI 不支援而回頭重寫 instrumentation。
+</p>
+
+<details>
+  <summary>練習：比較三種 correlation 設計</summary>
+  <ul>
+    <li>Trace ID 作 metric attribute：完整但 cardinality 無界，不可取。</li>
+    <li>Exemplar：bounded samples，可導航但不保證每筆。</li>
+    <li>只靠時間對齊：可縮小範圍，缺少精確 trace/span identity。</li>
+  </ul>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Exemplar value 是否要再加進 Histogram sum/count？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">不需要；它原本就已參與 aggregate</button>
+    <button class="choice" data-correct="false">需要；Exemplar 是額外 measurement</button>
+    <button class="choice" data-correct="false">只有 trace ID 為零時需要</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. TraceBasedExemplarFilter 讓哪些 measurements eligible？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">在 sampled parent Span Context 中記錄的 measurements</button>
+    <button class="choice" data-correct="false">所有沒有 Resource 的 measurements</button>
+    <button class="choice" data-correct="false">只有 Counter 負值</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 為何 Exemplar 比 trace ID metric attribute 更合適？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">它在 bounded sample 中保留 correlation，不為每個 Trace 建 aggregation series</button>
+    <button class="choice" data-correct="false">它會把所有 Traces 合併成同一 Trace ID</button>
+    <button class="choice" data-correct="false">它保證每個 request 都可導航</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0017-exemplar-correlation-card.html">Exemplar correlation 判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>選一個 latency Histogram，描述 Exemplar filter、reservoir 容量概念、Trace sampling、
+Metric/Trace retention 與 UI support 五個環節；指出每一環缺失時的可觀察症狀。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0023-metric-temporality.html">&larr; Lesson 23: Metric temporality</a></span>
+  <span><a href="0025-logs-first-principles.html">下一課：Logs 的第一性原理與 Trace correlation &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

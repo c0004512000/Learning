@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 13: Application 透過 OTLP 送進 Collector</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>13. Application 透過 OTLP 送進 Collector</h1>
+<p class="subtitle">替換資料出口，保持 telemetry 意義不變 · Lesson 13 of N</p>
+
+<h2>本課成果與邊界</h2>
+<p>
+你會把 Lesson 3 的 Console exporter 換成 OTLP/HTTP exporter，並能從第一性原理解釋每一個 endpoint、
+protocol 與 component 的方向。本課先建立完整資料路徑，不加入 backend、TLS、authentication、retry tuning
+或 Kubernetes；也不會自動安裝套件或執行任何 Windows executable。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/languages/python/exporters/" target="_blank">OpenTelemetry Python — Exporters</a>、<a href="https://opentelemetry.io/docs/specs/otlp/" target="_blank">OTLP Specification</a></p>
+
+<h2>先抓住不變量：資料的意義與去向是兩個問題</h2>
+<pre><code>Instrumentation 回答：發生了什麼工作？
+  span name、kind、attributes、events、status、parent
+
+Export configuration 回答：已完成的 telemetry 要去哪裡？
+  processor、exporter、protocol、endpoint</code></pre>
+
+<p>
+把 <code>ConsoleSpanExporter</code> 換成 <code>OTLPSpanExporter</code>，不應改變
+<code>checkout.calculate_total</code> 的名字、attributes 或 parentage。這是 OTel 分層設計的價值：
+business instrumentation 描述事實，deployment configuration 決定如何搬運事實。
+</p>
+
+<div class="box tip">
+<strong>SRE 判讀原則：</strong>若更換 backend 或 Collector 就必須大量重寫埋點，通常代表「訊號語意」與
+「輸出目的地」耦合太深。OTLP 的目的之一，就是以 OTel data model 搬運資料，降低出口切換造成的資訊損失與改動面。
+</div>
+
+<h2>完整路徑不是一個 exporter，而是兩個 process 的接力</h2>
+<pre><code>checkout application process
+  Span 結束
+    → BatchSpanProcessor
+    → OTLP/HTTP Span Exporter（HTTP client）
+    → POST http://127.0.0.1:4318/v1/traces
+
+Collector process
+  OTLP receiver（HTTP server，listen 127.0.0.1:4318）
+    → batch processor
+    → debug exporter
+    → Collector logging output</code></pre>
+
+<p>
+同一個單字 <em>exporter</em> 會在兩個 process 各出現一次，但角色不同：application exporter 把資料送出 process；
+Collector exporter 把 pipeline data 送往下一個 destination。本課 Collector 使用 debug exporter，所以第二段沒有 network backend。
+</p>
+
+<h2>為什麼選 OTLP/HTTP 4318，而不是只背「OTLP port」？</h2>
+<p>OTLP 是 telemetry transport protocol；它可承載於不同 transport。必須把 transport、port 與 path 一起看：</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Transport</th><th>本課 Collector listener</th><th>Trace destination</th><th>Python exporter 類別</th></tr></thead>
+  <tbody>
+    <tr><td>OTLP/HTTP + protobuf</td><td><code>127.0.0.1:4318</code></td><td><code>/v1/traces</code></td><td><code>proto.http...OTLPSpanExporter</code></td></tr>
+    <tr><td>OTLP/gRPC</td><td><code>127.0.0.1:4317</code></td><td>gRPC service/method</td><td><code>proto.grpc...OTLPSpanExporter</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+因此「使用 OTLP」仍不足以判斷 endpoint 是否正確。HTTP exporter 指向 4317，或 gRPC exporter 指向
+<code>http://127.0.0.1:4318/v1/traces</code>，都是 transport mismatch；兩端即使都叫 OTLP 也無法完成對話。
+</p>
+
+<h2>程式只替換輸出層</h2>
+<p>範例位於 <a href="../examples/0013-app-to-collector.py"><code>examples/0013-app-to-collector.py</code></a>。先比較最重要的差異：</p>
+
+<pre><code># Lesson 3：輸出到 application console
+BatchSpanProcessor(ConsoleSpanExporter())
+
+# Lesson 13：輸出到 Collector 的 OTLP/HTTP receiver
+exporter = OTLPSpanExporter(
+    endpoint="http://127.0.0.1:4318/v1/traces"
+)
+BatchSpanProcessor(exporter)</code></pre>
+
+<p>
+Span 建立與 attributes 完全不必知道 Collector 的存在。Python 的 OTLP/HTTP exporter 來自額外 dependency
+<code>opentelemetry-exporter-otlp-proto-http</code>；dependency 不存在時，import failure 是 application packaging 問題，
+還沒走到 network 或 Collector。
+</p>
+
+<h3>為什麼短程式最後呼叫 shutdown？</h3>
+<pre><code>provider.shutdown()</code></pre>
+<p>
+BatchSpanProcessor 以非同步批次降低 request path 的輸出成本。這也表示 Span 結束不等於 bytes 已立即離開 process。
+短命 demo 若立刻退出，buffer 可能尚未 export；controlled shutdown 會要求 processors/exporters 完成關閉流程並 flush。
+長時間服務則應把 shutdown 接到 application lifecycle，而不是每個 request 都呼叫。
+</p>
+
+<h2>執行前的必要條件</h2>
+<ol>
+  <li>Python environment 已有 API、SDK 與 <code>opentelemetry-exporter-otlp-proto-http</code> dependency。</li>
+  <li>Collector 使用 Lesson 12 config，且 OTLP/HTTP receiver 確實 listen <code>127.0.0.1:4318</code>。</li>
+  <li>Collector traces pipeline 引用了 <code>otlp</code> receiver 與 <code>debug</code> exporter。</li>
+  <li>再啟動 application，觀察 Collector output，而非期待 application 印出完整 Span JSON。</li>
+</ol>
+
+<p>
+這些是未來 lab 的執行順序，不代表本課已替你安裝或啟動軟體。依你的執行政策，Collector 實作會優先設計成
+既有 Docker 環境中的容器方案；未經你明確授權，不下載、安裝或執行 Windows <code>.exe</code>。
+</p>
+
+<h2>SRE debugging lab：用邊界二分，不要一次猜到底</h2>
+<p>症狀：「Collector debug output 沒有 Span。」先把路徑切成四個可證偽的假設：</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>邊界</th><th>最先查的證據</th><th>若失敗，問題類別</th></tr></thead>
+  <tbody>
+    <tr><td>Instrumentation → SDK</td><td>Span 是否 recording、是否正常 end</td><td>provider / sampler / lifecycle</td></tr>
+    <tr><td>Processor → app exporter</td><td>shutdown/flush 與 exporter error log</td><td>buffer / queue / exporter config</td></tr>
+    <tr><td>Network → Collector receiver</td><td>transport、host、port、path；listener 是否存在</td><td>endpoint / protocol / reachability</td></tr>
+    <tr><td>Receiver → Collector exporter</td><td>active traces pipeline 與 Collector internal errors</td><td>pipeline activation / processor / exporter</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>故障注入 A：把 endpoint 改成 4317</h3>
+<pre><code>OTLPSpanExporter(endpoint="http://127.0.0.1:4317/v1/traces")</code></pre>
+<p>
+預測：HTTP client 對 gRPC listener 說錯語言。這不是 Span data model 錯，也不是 sampling 的直接證據；
+先把它歸類為 transport/listener mismatch。
+</p>
+
+<h3>故障注入 B：移除 shutdown</h3>
+<p>
+預測：短命 process 可能在批次送出前結束，因此「偶爾看不到」具有 lifecycle/flush 的嫌疑。
+注意這只是可檢驗假設，不代表所有遺失都應用 shutdown 解釋；常駐服務要查 queue、timeout 與 exporter failure evidence。
+</p>
+
+<h3>故障注入 C：Collector 宣告 receiver，但 traces pipeline 沒引用</h3>
+<p>
+預測：不能以「4318 有 listener」推論 Span 會走到 debug exporter。listener availability 與 active pipeline path
+是兩個不同命題，回到 Lesson 12 的 declaration/activation distinction。
+</p>
+
+<details>
+  <summary>建議作答格式</summary>
+  <pre><code>Observed symptom:
+First broken boundary I want to test:
+Evidence that would confirm it:
+Evidence that would falsify it:
+Next boundary if falsified:</code></pre>
+  <p>這能避免把「沒有資料」直接等同於 Collector、backend 或 sampling 任一單點故障。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Console exporter 換成 OTLP exporter，哪一項理論上應保持不變？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Span 所描述的 operation 與 attributes</button>
+    <button class="choice" data-correct="false">資料輸出的 process boundary</button>
+    <button class="choice" data-correct="false">application 使用的 exporter dependency</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 本課 HTTP exporter 的完整 trace endpoint 為何包含 <code>/v1/traces</code>？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">OTLP/HTTP 以 signal-specific HTTP path 接收 traces</button>
+    <button class="choice" data-correct="false">它是 Collector debug UI 的頁面路徑</button>
+    <button class="choice" data-correct="false">它用來指定 service.name</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 短命程式中 Span 已 end，為何仍可能需要 shutdown/flush？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Batch processor 可能仍有尚未送出的 buffered spans</button>
+    <button class="choice" data-correct="false">Span end 會刪除 trace_id</button>
+    <button class="choice" data-correct="false">Collector 只在 application shutdown 時啟動</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>不必先執行。請畫出本課兩個 processes、兩個 exporters 與唯一的 network boundary，
+再說明「4318 有 listener」為何還不足以證明 debug exporter 會收到 Span。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0012-minimal-collector-config.html">&larr; Lesson 12: 最小 Collector config</a></span>
+  <span><a href="0014-run-collector-lab-safely.html">下一課：安全執行 Collector lab 與證據鏈 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# Lesson 44 capacity worksheet. Fill with measured values; it is not executable.
+
+workload:
+  steady_items_per_second: 20000
+  peak_items_per_second: 60000
+  average_bytes_per_item: 900
+  peak_duration_seconds: 300
+
+tier:
+  replicas: 3
+  measured_sustainable_items_per_second_per_replica: 12000
+  target_utilization_fraction: 0.65
+  queue_capacity_items_per_replica: 100000
+
+derived_reasoning:
+  safe_cluster_rate: "replicas * per_replica_rate * target_utilization"
+  backlog_growth_during_peak: "max(0, peak_rate - actual_completion_rate)"
+  drain_condition: "post_peak_completion_rate > post_peak_incoming_rate"
+  drain_time: "backlog / (completion_rate - incoming_rate)"
+
+classification:
+  component_type: stateless_or_scraper_or_stateful
+  affinity_key: none_or_trace_id_or_service_or_metric_stream
+  downstream_constraint: measure_backend_latency_throttle_and_failure
+

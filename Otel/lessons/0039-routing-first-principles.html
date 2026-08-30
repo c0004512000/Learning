@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 39: Routing 第一性原理</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>39. Routing 第一性原理</h1>
+<p class="subtitle">Routing 將一筆 telemetry 映射到目的 pipeline 集合，table order 與 move/copy 決定結果 · Lesson 39 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 connector graph 推導 routing table 的 ordered semantics，理解 move、copy、default pipelines、context 與 error fallback；
+能區分業務/tenant routing 與 stateful shard affinity，並用 destination truth table 驗證錯送、重送與無路由。
+</p>
+<p class="cite">主要來源：<a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/connector/routingconnector/README.md" target="_blank">Routing Connector</a>、<a href="https://opentelemetry.io/docs/collector/components/connector/" target="_blank">Collector Connectors</a></p>
+
+<h2>第一性原理：Routing 是一個 Destination Function</h2>
+<p>對每筆 telemetry item <code>x</code>，router 計算目的 pipelines 集合：</p>
+
+<pre><code>R(x) → {pipeline A, pipeline B, ...}</code></pre>
+
+<p>
+Filter 的結果是 keep/drop；routing 的結果是 destination set。Routing connector 不改變 signal type：traces→traces、metrics→metrics、logs→logs，
+並以 connector 的雙重角色連接 ingress pipeline 與一或多條 destination pipelines。
+</p>
+
+<pre><code>logs/in -- exporter:routing/logs
+                    ├─ receiver:routing/logs --> logs/prod
+                    ├─ receiver:routing/logs --> logs/errors
+                    └─ receiver:routing/logs --> logs/quarantine</code></pre>
+
+<h2>Table 是有順序的程式，不是無序 Map</h2>
+<p>每個 table entry 包含 predicate、action 與 pipelines。從上往下評估：</p>
+
+<ul>
+  <li><code>move</code>（預設）：matched data 送到 target，並從後續 route evaluation 移除。</li>
+  <li><code>copy</code>：matched data 複製到 target，但原資料繼續被後續 entries 評估。</li>
+  <li><code>default_pipelines</code>：接收走完 table 後未被 move 的剩餘資料。</li>
+</ul>
+
+<p>可用簡化 state machine 表示：</p>
+
+<pre><code>destinations = ∅
+remaining = true
+
+for entry in table order while remaining:
+  if entry.condition(x):
+    destinations += entry.pipelines
+    if entry.action == move:
+      remaining = false
+
+if remaining:
+  destinations += default_pipelines</code></pre>
+
+<p>
+因此 table 重排可能改變結果；這不是格式整理。多個 <code>copy</code> 可讓同一 item 進多條 pipelines，
+而 copy 後仍 remaining，所以最後也可能進 default。若你只想二選一，使用明確的互斥 move routes。
+</p>
+
+<h2>用範例手算 Destination Set</h2>
+<p>閱讀 <a href="../examples/0039-routing-connector.yaml"><code>examples/0039-routing-connector.yaml</code></a>：</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Input</th><th>Archive copy</th><th>後續 move</th><th>Final destinations</th></tr></thead>
+  <tbody>
+    <tr><td>prod ERROR</td><td>archive</td><td>errors（先命中）</td><td>archive + errors</td></tr>
+    <tr><td>prod INFO</td><td>archive</td><td>prod</td><td>archive + prod</td></tr>
+    <tr><td>dev INFO</td><td>archive</td><td>無</td><td>archive + quarantine(default)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+prod ERROR 不會再到 prod，因 error route 的 move 先結束 evaluation。若需求是同時到 errors 與 prod，
+可把 error action 改成 copy，但 then prod ERROR 會到 archive、errors、prod；成本與 duplicate query semantics 必須接受。
+</p>
+
+<h2>Default Pipeline 是已知未知的容器</h2>
+<p>
+沒有 default 時，unmatched data 的命運需要依 component/version 行為確認；production 設計不應讓未知 identity 靜默消失。
+一條受監控的 quarantine/default pipeline 能保留 evidence：記錄 unmatched count、有限樣本與缺少的 routing key，再修正 producer/policy。
+</p>
+
+<p>
+但 default 不是永遠的垃圾桶。要有 volume alert、retention、owner 與 remediation SLA；否則所有新 service/tenant 都可能長期被送錯 backend。
+</p>
+
+<h2>Routing Key 的 Trust Boundary</h2>
+<p>下面兩種值在安全性上不等價：</p>
+
+<pre><code>resource.attributes["tenant.id"]       # application payload can often set it
+otelcol.client.metadata["X-Tenant"]   # transport metadata; still needs authentication/trust</code></pre>
+
+<p>
+若 tenant routing 決定資料隔離、billing 或 authorization，不能只相信 producer 任意寫入的 resource attribute。
+即使使用 incoming header，也要由 authenticated gateway/proxy 驗證或重寫，防止 client spoof；Collector routing 是 distribution mechanism，不自動成為 identity provider。
+</p>
+
+<div class="box warning">
+先 authenticate，再把 verified principal 映射成 routing key；拒絕未知/矛盾 identity。不要把「header 存在」誤當「tenant 已驗證」。
+</div>
+
+<h2>Semantic Routing 不等於 Stateful Affinity</h2>
+<p>
+Routing connector 適合把資料送往固定的 policy pipelines/backend classes。Tail sampling 則要求同一 <code>traceID</code> 的所有 spans 到同一 state owner；
+span metrics 可能要求 service/metric stream affinity。這種 sharding 通常由 load-balancing exporter 等 topology mechanism 實作。
+</p>
+
+<p>
+若用每個 span 的 attribute 作 route，可能把同一 trace 的 spans 分到不同 destinations，破壞 tail sampler 的完整視野。
+問「這筆資料屬於哪個政策？」是 semantic route；問「相同 key 的所有資料由哪個 instance 持有 state？」是 affinity。兩者可串接，但不可混稱。
+</p>
+
+<h2>Context 與 Error Fallback</h2>
+<p>
+Routing connector 支援 resource、span、log、metric、datapoint 與 Collector request metadata paths，通常由 context-qualified path inference。
+若 condition 不含可推導 path（如 literal <code>true</code>），需指定 context。
+</p>
+
+<p>
+目前文件描述 <code>error_mode</code> 可為 ignore、silent、propagate；ignore/silent 遇 condition error 時資料會走 default pipelines，silent 不記錄。
+Default 正因如此也可能混合「合法 unmatched」與「route evaluation 出錯」；internal errors 與 default volume 必須分開監控。
+</p>
+
+<h2>SRE 附加練習：辨識三種 Routing Failure</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>症狀</th><th>可能機制</th><th>第一批 evidence</th></tr></thead>
+  <tbody>
+    <tr><td>錯送</td><td>predicate/identity/context 錯</td><td>input key、matched entry、final destination</td></tr>
+    <tr><td>重送</td><td>copy、多出口、重試/producer duplicate</td><td>destination set、trace/log identity、各出口 sent counts</td></tr>
+    <tr><td>無路由</td><td>unmatched、error、缺 default、downstream failure</td><td>default volume、evaluation errors、destination receiver/exporter evidence</td></tr>
+  </tbody>
+</table>
+</div>
+
+<ol>
+  <li>固定一筆 representative item，列出 resource/item/request metadata。</li>
+  <li>依 table order 手算每次 match、copy/move 與 remaining state。</li>
+  <li>確認 connector 在 ingress exporters 與每個 destination receivers 的 wiring。</li>
+  <li>比較 source accepted 與各 destination accepted/sent；總和大於 source 不一定是 duplicate bug，可能是 intentional copy。</li>
+  <li>用 route-specific synthetic markers 驗證 canary，且避免把敏感 tenant data 送入測試 backend。</li>
+</ol>
+
+<p>事故與 review 可用 <a href="../reference/0032-routing-proof-card.html">Routing Proof Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>將 error route 改成 <code>copy</code>，重新計算 prod ERROR、dev ERROR、prod INFO、dev INFO 的 destination sets。</li>
+  <li>交換 prod 與 error move routes，說明 prod ERROR 為何改送 prod 而不是 errors。</li>
+  <li>設 metadata 缺少 tenant header，設計 default/quarantine evidence 與 alert，禁止 silent loss。</li>
+  <li>說明為何 <code>resource.tenant.id=acme</code> 不能單獨構成 cross-tenant authorization。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>1. <code>copy</code> route 命中後的核心語意是？</strong></p>
+  <label><input type="radio" name="q1" value="a"> 資料只送 target，停止所有後續評估</label><br>
+  <label><input type="radio" name="q1" value="b"> 複製到 target，原資料仍可被後續 routes/default 處理</label><br>
+  <label><input type="radio" name="q1" value="c"> 永久刪除資料</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>2. 為何 routing table order 會改變結果？</strong></p>
+  <label><input type="radio" name="q2" value="a"> move 會將 matched data 從後續 evaluation 移除</label><br>
+  <label><input type="radio" name="q2" value="b"> YAML parser 隨機選第一列</label><br>
+  <label><input type="radio" name="q2" value="c"> 所有條目其實永遠同時執行</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>3. Tenant routing key 要成為安全邊界，最重要的額外條件是？</strong></p>
+  <label><input type="radio" name="q3" value="a"> key 名稱包含 tenant</label><br>
+  <label><input type="radio" name="q3" value="b"> 放在 resource attributes 就一定可信</label><br>
+  <label><input type="radio" name="q3" value="c"> identity 經 authentication/validation，且不容 client 任意 spoof</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>Routing 是 <code>R(x) → destination set</code>，透過 connector 連接同 signal pipelines。</li>
+  <li>Table 有順序；move 結束後續評估，copy 保留後續資格，default 接剩餘資料。</li>
+  <li>Tenant/security routing 必須使用已驗證 identity；payload/header 本身不自動可信。</li>
+  <li>Semantic routing 與 stateful affinity 是不同問題，事故時要分辨錯送、重送與無路由。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0038-filtering-first-principles.html">← Lesson 38</a>
+  <a href="0040-otlp-security-boundaries.html">Lesson 40：OTLP Security Boundaries →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

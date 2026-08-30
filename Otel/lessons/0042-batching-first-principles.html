@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 42: Batching 第一性原理</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>42. Batching 第一性原理</h1>
+<p class="subtitle">Batch 把多筆 items 攤提成較少 requests，交換 throughput、latency、memory 與 failure radius · Lesson 42 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會推導 batching 的成本模型，正確區分 <code>send_batch_size</code>、<code>send_batch_max_size</code>、<code>timeout</code>；
+理解 item count 不等於 bytes、metadata batching 的 cardinality，以及 batch size 對 retry/duplicate/partial rejection 的影響。
+</p>
+<p class="cite">主要來源：<a href="https://github.com/open-telemetry/opentelemetry-collector/blob/main/processor/batchprocessor/README.md" target="_blank">Batch Processor</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector/blob/main/processor/batchprocessor/documentation.md" target="_blank">Batch Internal Telemetry</a>、<a href="https://opentelemetry.io/docs/specs/otlp/" target="_blank">OTLP Specification</a></p>
+
+<h2>第一性原理：每個 Request 都有固定成本</h2>
+<p>假設每筆 telemetry payload 平均 <code>p</code> bytes，每個 request 固定 overhead 為 <code>h</code>，共有 <code>n</code> items：</p>
+
+<pre><code>one item per request: total ≈ n × (h + p)
+batch n items:        total ≈ h + n × p
+</code></pre>
+
+<p>
+Batching 攤提 connection/protocol/header/compression/exporter scheduling 成本，通常提高 throughput 與 compression ratio。
+代價是 items 必須先等待與占 memory；一個 request 失敗時，更多 items 成為同一 failure/retry unit。
+</p>
+
+<h2>Batch 由 Size Trigger 或 Time Trigger Flush</h2>
+<pre><code>pending items accumulate
+  ├─ count reaches send_batch_size → send
+  └─ timeout elapses              → send what is pending</code></pre>
+
+<p>
+高流量通常由 size trigger；低流量通常由 timeout，避免少量 telemetry 永遠等不到 threshold。
+因此 batch latency 不是固定值：剛進空 batch 的 item 可能等近 timeout，接近滿 batch 的 item 幾乎立刻送。
+</p>
+
+<h2>三個 Knobs 的精確語意</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Setting</th><th>語意</th><th>常見誤解</th></tr></thead>
+  <tbody>
+    <tr><td><code>send_batch_size</code></td><td>到達此 item count 就觸發 send</td><td>它不是 outgoing hard maximum</td></tr>
+    <tr><td><code>send_batch_max_size</code></td><td>把更大 pending batch 切成不超過此 item count 的單位；0 表示無上限</td><td>它限制 items，不保證 bytes</td></tr>
+    <tr><td><code>timeout</code></td><td>即使未達 size，也把 pending data 送出</td><td>它不是端到端 latency SLO</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+若設定 max，必須大於等於 trigger size。若 <code>timeout: 0s</code>，資料立即往下送，size trigger 被忽略，只可能受 max split 約束。
+閱讀靜態範例：<a href="../examples/0042-batch-processor.yaml"><code>examples/0042-batch-processor.yaml</code></a>。
+</p>
+
+<h2>Item Count 不等於 Encoded Bytes</h2>
+<p>兩個 batches 都有 1000 spans，bytes 仍可能差數十倍：</p>
+
+<ul>
+  <li>attributes 數量與 value 長度不同。</li>
+  <li>events/links 數量不同。</li>
+  <li>resource/scope grouping 與 protobuf overhead 不同。</li>
+  <li>compression ratio 隨內容重複度不同。</li>
+</ul>
+
+<p>
+因此 <code>send_batch_max_size: 4096</code> 不能證明 request 小於 backend 的 4 MiB limit。
+要同時觀察 batch item histogram、batch byte histogram、compressed request size/response 與 backend limit；必要時保守降低 item max，並修掉異常巨大的 telemetry item。
+</p>
+
+<h2>Latency Budget 不只 Timeout</h2>
+<pre><code>end-to-end delay ≈ SDK export interval
+                 + agent batch wait
+                 + agent queue wait/export
+                 + gateway batch wait
+                 + gateway queue wait/export
+                 + backend ingest/index delay</code></pre>
+
+<p>
+多層 Collector 各放一個長 timeout，latency 會累加。Exporter send time、retry backoff 與 queue backlog 也不包含在 batch timeout 內。
+設定前先分配 hop latency budget；不要只因「batch 有利效能」就在每層設 10 秒。
+</p>
+
+<h2>Processor Order：先保護、先刪除，再 Batch</h2>
+<p>官方建議 batch 位於 memory limiter 與 sampling 等 drop processors 之後：</p>
+
+<pre><code>receiver → memory_limiter → filter/sampling → transform as needed → batch → exporter</code></pre>
+
+<p>
+Memory limiter 先提供 process safety；filter/sampling 先縮小 population，避免把稍後要丟的 items 占進 batch buffer。
+但 transform 與 filter 的相對順序仍由 semantics 決定：filter predicate 若依賴 normalized field，transform 必須先做。
+</p>
+
+<h2>Batch Size 也是 Failure Unit</h2>
+<p>
+大 batch 減少 request rate，卻增加單次失敗的影響：retry 要重送更多 bytes；ack 遺失可能 duplicate 更多 items；
+non-retryable bad request 可能一次 drop 更多；partial success 也涉及較多 rejected items。小 batch failure radius 小，但 request/CPU overhead 高。
+</p>
+
+<p>因此最佳值是 workload/backend-specific，不存在通用魔法數字。目標是滿足：</p>
+
+<pre><code>request bytes < receiver/backend limit
+batch wait + queue wait < latency budget
+pending batch memory < memory budget
+request rate < connection/CPU budget
+failure unit < acceptable loss/duplicate radius</code></pre>
+
+<h2>Metadata Batching：隔離 Context，也乘上 Memory</h2>
+<p>
+設定 <code>metadata_keys</code> 時，每組不同 client metadata values 會建立獨立 batcher，適合保留 tenant auth metadata 邊界。
+但每個組合都有 background task 與 pending batch；memory 粗略隨 metadata cardinality 成長：
+</p>
+
+<pre><code>pending capacity ≈ batchers × send_batch_size × average item bytes</code></pre>
+
+<p>
+應設定 <code>metadata_cardinality_limit</code>，監控 <code>otelcol_processor_batch_metadata_cardinality</code>，並只使用經 authenticator 驗證的 metadata。
+否則 untrusted client 可製造大量 unique values，造成資源耗盡或超過 cardinality limit 的 permanent errors。
+</p>
+
+<h2>SRE 附加練習：RESOURCE_EXHAUSTED 與高延遲</h2>
+<p>情境：backend 偶發拒絕「message too large」，同時低流量 services 要 8 秒才可查。</p>
+
+<ol>
+  <li>分 service/signal 看 batch items 與 bytes 分布，不只平均值；找 P95/P99 與極端單 item。</li>
+  <li>比較 size-trigger 與 timeout-trigger 次數：低流量是否總等 timeout，高流量是否常超 byte limit。</li>
+  <li>確認 <code>send_batch_size</code> 是否被誤當 hard max；檢查有無 <code>send_batch_max_size</code>。</li>
+  <li>縮小 max/timeout 做 canary，觀察 request rate、CPU、compression、latency、failures 的共同變化。</li>
+  <li>若單一 item 已超 limit，調 batch 無法修；須限制/清理 oversized attributes/events。</li>
+  <li>檢查是否多層 batch timeout 累加，以及 exporter queue oldest age 是否才是主要 delay。</li>
+</ol>
+
+<p>調校時使用 <a href="../reference/0035-batch-tuning-card.html">Batch Tuning Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>輸入 500 items/s、<code>send_batch_size=1000</code>、timeout=5s，忽略 burst，推理主要 trigger 與大致 flush cadence。</li>
+  <li>輸入 50 items/s、相同設定，再推理每批 items 與最早 item 的等待時間。</li>
+  <li>兩個 1000-span batches 分別平均 300B 與 8KB/span，估算未壓縮 bytes，說明 item max 的盲點。</li>
+  <li>100 tenants、每 tenant 一個 batcher、size 2048、平均 1KB/item，估 pending payload 上界量級（尚未含 overhead）。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>1. <code>send_batch_size</code> 的正確角色是？</strong></p>
+  <label><input type="radio" name="q1" value="a"> 保證 request bytes 不超過該數字</label><br>
+  <label><input type="radio" name="q1" value="b"> 到達 item count 時觸發 send，不是 hard maximum</label><br>
+  <label><input type="radio" name="q1" value="c"> 決定 TLS certificate size</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>2. 為何兩個 item count 相同的 batches 仍可能一個超過 byte limit？</strong></p>
+  <label><input type="radio" name="q2" value="a"> OTLP item 永遠固定大小</label><br>
+  <label><input type="radio" name="q2" value="b"> timeout 會改變 certificate</label><br>
+  <label><input type="radio" name="q2" value="c"> attributes/events/value 長度與 encoding/compression 都讓 bytes/item 不同</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>3. Metadata batching 的主要資源風險是？</strong></p>
+  <label><input type="radio" name="q3" value="a"> 每個 unique metadata combination 建獨立 batcher/pending batch，cardinality 乘上 memory</label><br>
+  <label><input type="radio" name="q3" value="b"> 自動刪除所有 tenant identity</label><br>
+  <label><input type="radio" name="q3" value="c"> 永遠只建立一個 batcher</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>Batching 攤提 request 成本，但增加等待、memory 與 failure unit。</li>
+  <li>Size 是 trigger、max 是 item-count hard limit、timeout 解決低流量等待；都不直接保證 byte limit。</li>
+  <li>Batch 應通常在 memory limiter 與 drop/sampling 之後，且多層 timeout 會累加。</li>
+  <li>調校要共同觀察 items、bytes、trigger、latency、request errors、queue 與 metadata cardinality。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0041-otlp-delivery-semantics.html">← Lesson 41</a>
+  <a href="0043-memory-limiter-first-principles.html">Lesson 43：Memory Limiter 第一性原理 →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

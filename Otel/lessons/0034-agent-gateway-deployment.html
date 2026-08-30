@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 34: Agent、Gateway 與部署邊界</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>34. Agent、Gateway 與部署邊界</h1>
+<p class="subtitle">把 locality 工作放近 source，把集中 state/policy 放在可控 gateway · Lesson 34 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 network locality、metadata、credentials、stateful processing、scaling 與 failure radius 推導 Agent/Gateway placement；
+能設計兩層 gateway 的 trace/service affinity，並避免 duplicate collection、overlapping metric writers 與重複 transformations。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/deploy/agent/" target="_blank">Collector Agent Pattern</a>、<a href="https://opentelemetry.io/docs/collector/deploy/gateway/" target="_blank">Collector Gateway Pattern</a></p>
+
+<h2>第一性原理：Component 放置決定它能看見什麼、壞時影響誰</h2>
+<p>同一 Collector binary 可部署在不同位置；「Agent/Gateway」不是不同產品，而是 topology role：</p>
+
+<pre><code>Agent role
+  runs beside workload / same host / same node
+  optimizes locality and small failure radius
+
+Gateway role
+  standalone shared service per cluster/DC/region
+  optimizes central policy, credentials, aggregation and routing</code></pre>
+
+<p>
+選擇不應從「我們習慣 DaemonSet」開始，而要問 receiver 需要哪個 local resource、processor 需要多少跨 workload state、
+credentials 要分散到哪裡，以及一個 instance 掛掉可接受影響多少 producers。
+</p>
+
+<h2>Agent：靠近 source 的價值</h2>
+<p>Agent 常以 sidecar、host service 或 Kubernetes DaemonSet 與 workload 同 host/node，適合：</p>
+
+<ul>
+  <li>讀 local files/stdout/container logs。</li>
+  <li>Scrape host/process/node-local endpoints。</li>
+  <li>利用 local runtime/Kubernetes metadata enrichment。</li>
+  <li>讓 application SDK 送到低 latency、短 network path 的 OTLP endpoint。</li>
+  <li>在資料離開 host 前做必要 sanitization 與初步 backpressure。</li>
+</ul>
+
+<p>
+Agent failure 通常影響一個 host/node 的 telemetry，blast radius 小；但大量 agents 增加資源總量、版本/配置 rollout、queue/WAL volume 與 monitoring 數量。
+若每個 team 任意設定，policy drift 也會上升。
+</p>
+
+<h2>Gateway：集中 policy/state 的價值</h2>
+<p>Gateway 提供共享 OTLP endpoint，由一組 standalone Collectors 處理：</p>
+
+<ul>
+  <li>Central backend credentials、tenant routing、egress network policy。</li>
+  <li>跨 services/agents 的一致 filtering/sampling/transform policy。</li>
+  <li>較重的 queues/retries/WAL 與 backend fan-out。</li>
+  <li>需要完整 Trace/service state 的 Tail Sampling、span-to-metrics aggregation。</li>
+  <li>集中 capacity scaling 與 internal telemetry。</li>
+</ul>
+
+<p>
+代價是多一 hop、額外 latency/CPU/network、共享 failure radius 與 operation complexity。Gateway endpoint down 可能同時影響整個 cluster/region，
+所以 availability、load balancing、queue budgets 與 rollout 必須按 shared critical service 對待。
+</p>
+
+<h2>常見組合：Agent → Stateless Gateway → Stateful Gateway</h2>
+<pre><code>Applications / node-local logs
+  → Agent
+      local receive + enrich + sanitize + bounded queue
+  → Gateway tier 1
+      shared OTLP ingress + auth + routing
+  → Gateway tier 2 shards
+      tail sampling / service aggregation state
+  → Backend(s)</code></pre>
+
+<p>
+Tier 1 可擴展 stateless ingress，並用 routing-aware exporter 將資料分到 stateful tier。Tier 2 才持有 pending traces/aggregations；
+這讓 scaling responsibility 與 state affinity 明確，但每層都需 internal telemetry 與 failure budget。
+</p>
+
+<h2>Routing key 由 processor state 決定</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Downstream processing</th><th>Routing requirement</th><th>原因</th></tr></thead>
+  <tbody>
+    <tr><td>Stateless sanitize/batch/export</td><td>Ordinary load balancing 可行</td><td>單筆 batch 不依賴其他 batches 的同 key state</td></tr>
+    <tr><td>Tail sampling</td><td><code>traceID</code> affinity</td><td>同一 Trace 所有 Spans 必須同 instance</td></tr>
+    <tr><td>Span metrics/service aggregation</td><td><code>service</code> affinity（依 connector/design）</td><td>同一 service aggregation 要有單一 state owner</td></tr>
+    <tr><td>Metric cumulative transformation</td><td>Stream identity affinity/single writer</td><td>轉換 state 必須看到連續 points</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+官方 Gateway pattern 的 load-balancing exporter 支援 trace ID 或 service-name aware routing。Generic NGINX round-robin 可分散 stateless load，
+但不知道 OTLP Trace identity，不能保證 complete-trace affinity。
+</p>
+
+<div class="box tip">
+<strong>Scaling 會移動 ownership：</strong>hash ring/backends 改變時，部分 keys 會 reassign；in-flight traces/state 可能分裂或 reset。
+Autoscaling/rollout 要觀察 decision caches、graceful drain、metric reset/overlap，而非只看平均 CPU。
+</div>
+
+<h2>每個 transformation 只設一個明確 owner</h2>
+<p>Agent 與 Gateway 都能執行 processors，但重複不一定 idempotent：</p>
+
+<ul>
+  <li>同一 attribute rename 兩次可能 collision/遺失。</li>
+  <li>Probabilistic sampling 兩層各保留 10%，合成可能約 1%（視一致性/策略）。</li>
+  <li>兩層 batch 增加 visibility latency，未必增加價值。</li>
+  <li>兩層 retry/queue 讓 outage state 分散，backpressure/loss 定位更複雜。</li>
+  <li>兩處 log collection 可能讓同一 file/stdout record duplicate。</li>
+</ul>
+
+<p>
+規劃範例 <a href="../examples/0034-agent-gateway-ownership.yaml"><code>examples/0034-agent-gateway-ownership.yaml</code></a>
+為每項責任指定 owner。若刻意重複，必須證明 operation idempotent，並定義每層 evidence。
+</p>
+
+<h2>Metric single-writer：避免同一 stream 被多個 Collectors 重複寫</h2>
+<p>
+如果兩個 agents 同時 scrape 同一 target、或一筆 Metric 被兩條 gateway path複製，backend 可能收到同 Resource+Scope+metric+attributes 的重疊 writers，
+造成 out-of-order、gaps、cumulative resets 或 double count。
+</p>
+
+<p>
+修復不是任意加 replica label 到 measurement attributes；要建立 globally unique Resource identity、明確 scrape ownership/leader election，
+或確保同一 metric stream 只由一個 logical writer 輸出。Lesson 23 的 temporality 依賴這個不變量。
+</p>
+
+<h2>Credentials 與 trust boundaries</h2>
+<p>
+Gateway 可集中 vendor/backend credentials，避免每個 application/agent 持有；Agent→Gateway 仍需 authentication/TLS/tenant identity。
+Local receiver 也不應無條件 bind public interfaces。每一 hop 都要定義誰可 send、誰可 read metadata、哪裡 sanitize、失敗如何重試。
+</p>
+
+<p>
+Collector topology 不是安全控制本身；它只是提供集中 enforcement point。若 gateway 接受偽造 Resource/Baggage，不驗證就 routing，集中化反而放大影響。
+</p>
+
+<h2>每多一 hop，都新增一份 failure budget</h2>
+<pre><code>App → Agent queue/retry
+Agent → Gateway queue/retry
+Gateway tier 1 → tier 2 routing/retry
+Gateway tier 2 → Backend queue/retry</code></pre>
+
+<p>
+端到端 worst-case visibility latency 包含每層 batch delay、network、tail decision wait、queue backlog、retry backoff；
+端到端 data-loss boundary則取決於每層最弱的 capacity/persistence/retry。不能只把所有 queue sizes 相加宣稱總 outage budget。
+</p>
+
+<h2>SRE debugging lab：用 blast radius 判斷 topology layer</h2>
+
+<h3>Case A：只有一個 node 的所有 signals 消失</h3>
+<p>
+優先查 node Agent process/listener/resource pressure、local network與 apps endpoint；Gateway-wide failure 通常影響更多 nodes。
+用鄰近 node Agent internal telemetry 作對照。
+</p>
+
+<h3>Case B：全 cluster 的 backend export 同時失敗</h3>
+<p>
+查 shared Gateway/backend credentials/network/throttling、queue saturation。Agents accepted/queued 正常可將問題定位在 shared hop，
+並計算 Agent→Gateway/Gateway→backend 各自 time-to-full。
+</p>
+
+<h3>Case C：Tail traces 隨 Gateway replicas 增加而變碎</h3>
+<p>
+檢查 tier 1 是否 traceID-aware routing、resolver membership churn、tier 2 graceful drain 與 decision cache；generic round-robin 增加 replicas
+會提高同 Trace 分散機率。
+</p>
+
+<h3>Case D：Metrics 出現 out-of-order/reset</h3>
+<p>
+找 duplicate scrape/export paths、missing unique Resource identity與 gateway overlap。按 stream identity畫 writers；不要先在 query 層 clamp/reset。</p>
+
+<details>
+  <summary>練習：替一個 Kubernetes cluster 分配責任</summary>
+  <p>需求：container logs、host metrics、OTLP app telemetry、PII sanitization、tail sampling、two backends、30 分鐘 backend outage budget。</p>
+  <p>請決定 Agent/Gateway tiers、每項 processor owner、routing key、queue/WAL位置、credentials、failure radius與 internal telemetry path。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 讀 node-local log files 最自然放在哪裡？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Agent，因為具資料與 filesystem locality</button>
+    <button class="choice" data-correct="false">跨 region Gateway，因為離檔案最遠</button>
+    <button class="choice" data-correct="false">Backend query layer</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Tail sampling tier 前需要哪種 routing？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Trace ID affinity，讓同一 Trace 匯聚同一 instance</button>
+    <button class="choice" data-correct="false">每個 Span 隨機分散</button>
+    <button class="choice" data-correct="false">只依 log severity</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. Agent 與 Gateway 都做 10% sampling，主要風險是？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">策略可能疊加造成遠低於預期保留率與難以解釋的 ownership</button>
+    <button class="choice" data-correct="false">必定合成 20%</button>
+    <button class="choice" data-correct="false">Sampling 會增加所有 Spans</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0027-agent-gateway-placement-card.html">Agent/Gateway Placement 判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>畫出你目前/理想的 application→agent→gateway→backend topology；對每一 hop 寫 latency、auth、queue、
+retry、persistent state、routing key 與 blast radius，我會幫你找重複 owner與單點。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0033-tail-sampling-first-principles.html">&larr; Lesson 33: Tail Sampling</a></span>
+  <span><a href="0035-connectors-first-principles.html">下一課：Collector Connectors 與 pipeline 間資料流 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

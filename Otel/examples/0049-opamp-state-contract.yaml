@@ -1,0 +1,39 @@
+# Lesson 49 planning artifact — not an OpAMP or Collector configuration.
+# Purpose: make desired state and observed state independently reviewable.
+fleet_change:
+  change_id: "chg-otel-049"
+  cohort: "payments-canary"
+
+identity:
+  expected_instance_uid_stability: "survives agent reconnect and restart policy"
+  selectors:
+    service_namespace: "payments"
+    environment: "staging"
+  guardrail: "selectors must resolve to the reviewed cohort before rollout"
+
+desired_state:
+  remote_config_hash: "sha256:<reviewed-config-hash>"
+  revision: "collector-config-r49"
+  delivery_deadline: "15m"
+
+observed_state_contract:
+  opamp_connection: "connected"
+  reported_instance_uid: "<stable-16-byte-uid>"
+  accepts_remote_config_capability: true
+  last_remote_config_hash: "sha256:<reviewed-config-hash>"
+  remote_config_status: "APPLIED"
+  effective_config_contains_reviewed_revision: true
+  component_health: "healthy"
+
+data_plane_proof:
+  synthetic_trace_arrives: true
+  synthetic_metric_arrives: true
+  synthetic_log_arrives: true
+  rejection_and_drop_budget_ok: true
+  internal_telemetry_healthy: true
+
+rollback:
+  previous_config_hash: "sha256:<last-known-good-hash>"
+  trigger: "convergence deadline or data-plane SLO breach"
+  success: "previous hash APPLIED and canaries pass"
+

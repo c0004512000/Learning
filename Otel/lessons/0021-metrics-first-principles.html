@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 21: Metrics 的第一性原理與 Traces 分工</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>21. Metrics 的第一性原理與 Traces 分工</h1>
+<p class="subtitle">用聚合換取規模與趨勢，用 Trace 保留個別因果 · Lesson 21 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會理解 measurement、instrument、attributes、aggregation、metric stream 的關係，能從可做的數學選擇 Counter、UpDownCounter、
+Histogram、Gauge 或 asynchronous instrument，並知道何時 Metric 告訴你「有問題」、Trace 告訴你「哪個 operation 怎麼壞」。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/signals/metrics/" target="_blank">OpenTelemetry — Metrics</a>、<a href="https://opentelemetry.io/docs/languages/python/instrumentation/#metrics" target="_blank">Python Metrics instrumentation</a></p>
+
+<h2>第一性原理：大量 observations 不可能都用個別事件回答</h2>
+<p>
+假設 checkout 每秒有 10,000 requests。SRE 想知道最近五分鐘的 request rate、failure ratio、p95 latency 與 active requests。
+逐筆 Trace 保留豐富因果，但掃描每個 request 才算全域健康，成本高、易受 sampling 影響。Metric 在來源端先聚合 measurements：
+</p>
+
+<pre><code>大量 measurement events
+  + instrument semantics
+  + bounded attribute dimensions
+  + time window / temporality
+  → sums, counts, buckets, current values
+  → alerts, dashboards, scaling decisions</code></pre>
+
+<p>
+聚合犧牲個別 request identity 與完整因果，換取固定且較低的狀態成本。這不是低解析度 Trace；它是另一種資料模型。
+</p>
+
+<h2>Trace 與 Metric 的資訊交換</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>問題</th><th>Metric 擅長</th><th>Trace 擅長</th></tr></thead>
+  <tbody>
+    <tr><td>現在是否異常？</td><td>rate、ratio、distribution、saturation 趨勢</td><td>不是全量聚合的首選</td></tr>
+    <tr><td>哪一條 request 路徑慢？</td><td>只能指出哪個群組/時間窗異常</td><td>Span topology、timing、attributes、events</td></tr>
+    <tr><td>能否做可靠 alert？</td><td>適合以完整聚合 stream 告警</td><td>sampling 可能讓個別計數不代表總體</td></tr>
+    <tr><td>根因在哪個 dependency？</td><td>可縮小 service/operation 範圍</td><td>呈現個別 causal path 與錯誤細節</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+典型工作流是 Metric 偵測與界定影響，Trace 深入 exemplars/代表性 operations。兩者互補；把 user ID 放入 Metrics
+企圖還原每筆 request，會摧毀聚合成本模型。
+</p>
+
+<h2>Metric pipeline 的角色對照</h2>
+<pre><code>MeterProvider（process-level configuration owner）
+  ├─ Resource：誰產生 metrics
+  ├─ MetricReader：何時 collect、以何種 temporality 讀取
+  └─ Exporter：資料送去哪裡
+
+Meter（Instrumentation Scope）
+  └─ Instruments
+       └─ measurements(value + attributes)</code></pre>
+
+<p>
+它與 Tracing 的 Provider/Tracer/Exporter 有家族相似性，但 MetricReader 是關鍵差異：aggregation state 要在 collection 時轉成
+Metric data，再由 exporter 輸出。不要把 SpanProcessor API 原封不動套到 Metrics。
+</p>
+
+<h2>Instrument 不是資料型別，而是數學承諾</h2>
+
+<h3>Counter：只增加的累積量</h3>
+<p>
+記錄 completed requests、bytes sent 等非負增量。Counter 的 monotonicity 讓 consumer 可安全計算 rate/delta；
+用負值「修正」會破壞其語意。若值可上下變化，選別的 instrument。
+</p>
+
+<h3>UpDownCounter：可增加也可減少的累積狀態</h3>
+<p>
+適合 in-flight requests：開始 <code>+1</code>、結束 <code>-1</code>。它記錄變化，不是每次重設 absolute value。
+Lifecycle 若漏掉 finally decrement，狀態會漂移，這是 instrumentation correctness 問題。
+</p>
+
+<h3>Histogram：保留 value distribution 的聚合資訊</h3>
+<p>
+每個 request 記錄 duration，SDK 將 values 聚合成 count、sum、buckets 等。平均值無法區分「全部約 100ms」與
+「多數 10ms、少數 10s」；Histogram 讓你問 threshold counts、quantiles/尾延遲（精度依 aggregation/backend）。
+</p>
+
+<h3>Gauge：某時點的目前值</h3>
+<p>
+Gauge 表達 current measurement，不具 Counter 的 monotonic sum 語意。Synchronous Gauge 在 code path 直接 record；
+Asynchronous Gauge 在 collection 時 callback 觀測目前值。若你只在 scrape/collection 時才知道外部 queue size，async instrument 更自然。
+</p>
+
+<h2>Synchronous 與 asynchronous：何時知道 measurement？</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>模式</th><th>觸發者</th><th>適用資料</th><th>風險</th></tr></thead>
+  <tbody>
+    <tr><td>Synchronous</td><td>Business code 發生事件時呼叫</td><td>request completed、duration、active +/-</td><td>hot path 成本與 attribute cardinality</td></tr>
+    <tr><td>Asynchronous</td><td>SDK collection 時呼叫 callback</td><td>只能查詢目前 aggregated state 的 runtime/external source</td><td>callback 慢、逾時、I/O 阻塞 collection</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+選擇依「資訊何時可取得」，而非喜歡 push 或 pull。若每個 request completion 已知 duration，就直接 Histogram record；
+不必在 collection callback 重新掃 application state。
+</p>
+
+<h2>Attributes 會定義聚合分組</h2>
+<p>每組不同 measurement attributes 會形成不同 aggregation state：</p>
+
+<pre><code>app.checkout.requests{result="success"}
+app.checkout.requests{result="failure"}</code></pre>
+
+<p>
+兩個 result values 產生兩個可分組 series，能計算 failure ratio。若改用 request ID，每個 request 都產生新 combination，
+aggregation state 逼近 request volume，失去 Metrics 的成本優勢。Resource/Scope identity 仍與 Lesson 15/16 相同，
+不要為逃避 cardinality 把 request dimensions 誤放 Resource。
+</p>
+
+<div class="box tip">
+<strong>現行 SDK 保護：</strong>OTel Metrics SDK 對每個 metric stream 的 unique measurement attribute combinations
+設 cardinality limit；超限 measurements 會進入帶 <code>otel.metric.overflow=true</code> 的 overflow point，以保留總值但失去原維度。
+下一課會完整推導這個成本模型。
+</div>
+
+<h2>閱讀第一個 Python Metrics 範例</h2>
+<p>範例位於 <a href="../examples/0021-first-metrics.py"><code>examples/0021-first-metrics.py</code></a>：</p>
+
+<pre><code>reader = PeriodicExportingMetricReader(ConsoleMetricExporter())
+provider = MeterProvider(
+    resource=Resource.create({"service.name": "checkout"}),
+    metric_readers=[reader],
+)
+meter = metrics.get_meter("acme.checkout.application", "0.5.0")</code></pre>
+
+<p>
+Resource 識別 checkout service；Meter name/version 是產生 metrics 的 Instrumentation Scope；Reader/Exporter 建立 collection/output path。
+範例只寫 console，不聯網，也沒有由我執行。
+</p>
+
+<pre><code>active_requests.add(1)
+try:
+    duration.record(duration_ms, {"app.checkout.result": result})
+    request_counter.add(1, {"app.checkout.result": result})
+finally:
+    active_requests.add(-1)</code></pre>
+
+<p>
+同一次 operation 產生三種不同數學語意：active 是可逆狀態、request completion 是 monotonic count、duration 是 distribution sample。
+不是「三個數字都能畫折線」就該用同一 instrument。
+</p>
+
+<h2>SRE debugging lab：數字看起來合理，模型可能已錯</h2>
+
+<h3>Case A：Active requests 長期只升不降</h3>
+<p>
+檢查所有 exit paths 是否對稱 decrement，尤其 exception/cancellation。若 metric instrumentation 沒用 finally，
+它測到的是「累積 start 減少數 completion」的程式 bug，不是實際 active workload。
+</p>
+
+<h3>Case B：平均 latency 穩定，使用者仍抱怨</h3>
+<p>
+平均值可能掩蓋 tail。檢查 Histogram distribution/buckets/quantiles，按低基數 route/result 分組，再用對應時間窗的 Trace
+找慢 requests。不要把每個 trace ID 放進 metric attributes。
+</p>
+
+<h3>Case C：Console 沒有立即印 metric</h3>
+<p>
+MetricReader 依 collection/export 週期輸出，不是每次 <code>add</code> 都同步 print。檢查 reader 是否註冊、process 是否活到 collection、
+shutdown/force flush 是否執行，再查 exporter。這與 Span SimpleProcessor 的即時輸出模型不同。
+</p>
+
+<details>
+  <summary>練習：為 RED + saturation 選 instruments</summary>
+  <ul>
+    <li>Request rate：Counter 的 rate。</li>
+    <li>Error ratio：按 bounded result/status class 分組的 Counter ratio。</li>
+    <li>Duration：Histogram。</li>
+    <li>In-flight saturation：UpDownCounter；若只能定期讀 absolute current state，考慮 Observable instrument。</li>
+  </ul>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 為何 Metrics 適合 alerting？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">它以受控聚合保留時間窗的 rate、ratio、distribution 與 state</button>
+    <button class="choice" data-correct="false">它保留每筆 request 的完整 parent/child topology</button>
+    <button class="choice" data-correct="false">它不需要任何 attributes 或 Resource</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Request duration 最適合哪個 instrument？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Histogram，因為需要觀測值分布</button>
+    <button class="choice" data-correct="false">Counter，因為 duration 永遠只能增加</button>
+    <button class="choice" data-correct="false">Resource，因為每個 service 都有 duration</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 為何 request ID 不適合當 metric attribute？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">每筆 request 幾乎形成獨立 aggregation state，破壞 bounded aggregation</button>
+    <button class="choice" data-correct="false">Metric attributes 只能是 boolean</button>
+    <button class="choice" data-correct="false">Counter 不能有 attributes</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0014-metric-instrument-choice-card.html">Metric Instrument 選擇卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>為你的一個 service 設計 rate、error、duration、saturation 四項 metrics；
+每項寫出 instrument、unit、最多三個 bounded attributes，以及為何不需要 request ID。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0020-baggage-first-principles.html">&larr; Lesson 20: Baggage</a></span>
+  <span><a href="0022-metric-streams-cardinality.html">下一課：Metric streams、Views 與 cardinality &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

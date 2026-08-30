@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>OTLP Delivery Debug Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>OTLP Delivery Debug Card</h1>
+<p class="subtitle">先找 acknowledgment boundary，再分類 outcome</p>
+<ol>
+  <li>誰是 client、誰回 response、該 hop 的 batch identity/time window 是什麼？</li>
+  <li>Full success、partial success、retryable failure、non-retryable failure，屬於哪一類？</li>
+  <li>是否收到 <code>RetryInfo</code> / <code>Retry-After</code>；backoff、jitter、deadline 如何？</li>
+  <li>Queue 長度/容量、oldest age、retry count、dropped count 是否支持推論？</li>
+  <li>Response/ack 是否可能遺失，造成同一 request 重送與 duplicates？</li>
+  <li>Multi-destination 是否各自有 queue/ack 狀態，還是慢端拖住快端？</li>
+  <li>Server accepted 是否只到 Collector memory/queue；下一 hop 的 evidence 在哪？</li>
+</ol>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

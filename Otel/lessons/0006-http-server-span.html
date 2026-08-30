@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 6: HTTP server Span 的標準語義</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>6. HTTP server Span 的標準語義</h1>
+<p class="subtitle">讓不同語言、framework 與團隊產生可共同判讀的證據 · Lesson 6 of N</p>
+
+<h2>為什麼「有 Span」仍然可能無法觀測？</h2>
+<p>
+想像 Python 服務用 <code>method=GET</code>，Java 服務用 <code>verb=GET</code>，Node.js 服務用
+<code>httpMethod=GET</code>；它們都記錄同一件事，但 query、dashboard 與 alert 必須為每個語言寫一套規則。
+資料存在，卻無法可靠地跨服務比較。
+</p>
+<p>
+Semantic Conventions 解決的是<strong>共同語言</strong>：對常見 operation 定義一致的 Span name、kind、
+status 與 attribute 語義。它不是 exporter 或 Collector 設定，而是 instrumentation 與資料消費者之間的契約。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/specs/semconv/http/http-spans/" target="_blank">OpenTelemetry — Semantic conventions for HTTP spans</a></p>
+
+<h2>先固定 server 的責任邊界</h2>
+<p>
+HTTP server Span 表示 server 收到並處理一個 incoming HTTP request 的時間區間，因此
+<code>SpanKind</code> 是 <code>SERVER</code>。它的 parent 通常是 remote client Span；若 upstream
+沒有傳來有效 context，它也可能成為一條新 Trace 的 root。
+</p>
+
+<pre><code>upstream service                       current service
+CLIENT Span: outbound HTTP call  ---> SERVER Span: incoming HTTP request
+          inject trace context            extract context, create child</code></pre>
+
+<p>
+本課只設計右側 server Span。箭頭表示 network call 與 context 傳遞；真正的 propagation 機制留到 Lesson 7。
+</p>
+
+<h2>一個乾淨的 HTTP server Span</h2>
+<pre><code>Span name: GET /v1/users/{userId}
+Span kind: SERVER
+Status: UNSET
+
+Attributes:
+  http.request.method = "GET"
+  http.route = "/v1/users/{userId}"
+  url.path = "/v1/users/42"
+  server.address = "api.example.com"
+  http.response.status_code = 200</code></pre>
+
+<h3>Span name：method + 低基數 target</h3>
+<p>
+當低基數 route 可用時，HTTP Span name 應是 <code>{method} {route}</code>；server 的 target 通常來自
+<code>http.route</code>。Instrumentation 不應預設用實際 URI path 當 target，因為動態 ID 會讓 name
+cardinality 隨 request 增長。
+</p>
+
+<h3><code>http.route</code>：framework 匹配出的模板</h3>
+<p>
+<code>/v1/users/{userId}</code> 是 routing template；<code>/v1/users/42</code> 是這次 request 的
+實際 <code>url.path</code>。route 在 Span 開始時可能尚未由 framework 決定；若稍後才知道，
+instrumentation 應在 Span 結束前補上，並更新 Span name。
+</p>
+
+<h3><code>server.address</code>：請求所指向的 server</h3>
+<p>
+它回答「client 想連到哪個 server address」，不等於 framework route，也不等於 remote client IP。
+在 reverse proxy、load balancer 或 service mesh 存在時，original client、直接 network peer 與目標 host
+可能是三個不同概念；不要用一個含糊的 <code>host</code> key 混在一起。
+</p>
+
+<div class="box tip">
+<strong>精確欄位地圖：</strong><a href="../reference/0001-http-routes-and-cardinality.html">HTTP route、實際 URL 與 cardinality</a>。
+</div>
+
+<h2>Status 為何不能只看數字直覺？</h2>
+<p>
+Status 表示「從這個 Span 所代表的 operation 視角，結果是否為 error」。同一個 HTTP code 在不同角色的語義可能不同：
+server 正確拒絕一個無權限 request，代表 server 成功完成協定責任；client 卻可能認為自己的目的未達成。
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>HTTP response</th><th>SERVER Span 預設判定</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>1xx / 2xx / 3xx</td><td><code>UNSET</code></td><td>正常協定結果；除非另有 network/body error。</td></tr>
+    <tr><td>4xx</td><td><code>UNSET</code></td><td>通常是 client-side condition；server 可能正確完成處理。</td></tr>
+    <tr><td>5xx</td><td><code>ERROR</code></td><td>server 無法正常完成 request。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+這是沒有額外 application context 時的通用規則，不是「404 永遠成功」。例如 application 明確預期資源存在，
+更精確的 instrumentation 可以依 context 判定 Error。關鍵是 status 描述 operation outcome，
+而不是把 HTTP code 機械地複製成成功／失敗標籤。
+</p>
+
+<h2>把欄位映射回 SRE 問題</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>SRE 問題</th><th>證據</th><th>不要誤用</th></tr></thead>
+  <tbody>
+    <tr><td>哪類 API 慢？</td><td>Span name 或 method + route</td><td>不要用實際 path 分組。</td></tr>
+    <tr><td>這次打到哪個實體 path？</td><td><code>url.path</code></td><td>不要當作 route template。</td></tr>
+    <tr><td>server 回了什麼結果？</td><td><code>http.response.status_code</code></td><td>不要把 code 與 Span Status 視為同一欄位。</td></tr>
+    <tr><td>server operation 是否失敗？</td><td>Span Status + <code>error.type</code></td><td>不要假設所有 4xx 是 server error。</td></tr>
+    <tr><td>request 指向哪個 host？</td><td><code>server.address</code></td><td>不要和 client/peer address 混用。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>SRE debugging lab：修復不可聚合的 HTTP telemetry</h2>
+<pre><code>Service A (Python)
+  name = "GET /users/42"
+  kind = INTERNAL
+  attributes = { "method": "GET", "route": "/users/42", "code": 404 }
+  status = ERROR
+
+Service B (Java)
+  name = "handleUser"
+  kind = SERVER
+  attributes = { "http.request.method": "GET",
+                 "http.route": "/users/{userId}",
+                 "http.response.status_code": 404 }
+  status = UNSET</code></pre>
+
+<p>兩個服務處理的是同一個 logical API operation。先找出不能共同聚合的原因，再看修正：</p>
+<details>
+  <summary>參考判讀</summary>
+  <ol>
+    <li>Service A 的 incoming request 應是 <code>SERVER</code>，不是 <code>INTERNAL</code>。</li>
+    <li>Span name 應穩定為 <code>GET /users/{userId}</code>，不能含實際 ID。</li>
+    <li>attributes 應採 canonical keys，且 <code>http.route</code> 必須是 template。</li>
+    <li>若沒有額外 application context，server 對 404 的 Span Status 應保留 <code>UNSET</code>。</li>
+    <li>修正後，兩個語言的 telemetry 才能用相同 query 比較 latency 與 response codes。</li>
+  </ol>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Incoming HTTP request 的 Span kind 應為？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">SERVER，表示接收遠端同步呼叫</button>
+    <button class="choice" data-correct="false">CLIENT，表示送出遠端同步呼叫</button>
+    <button class="choice" data-correct="false">INTERNAL，表示執行本地內部工作</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. <code>GET /users/42</code> 匹配 <code>/users/{userId}</code>，server Span name 應為？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">GET /users/{userId}</button>
+    <button class="choice" data-correct="false">GET /users/42</button>
+    <button class="choice" data-correct="false">handle users request</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 無額外 application context 時，SERVER Span 收到 404 應如何設定 status？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">保留 UNSET，另記 response code</button>
+    <button class="choice" data-correct="false">設為 ERROR，刪除 response code</button>
+    <button class="choice" data-correct="false">設為 OK，刪除 response code</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box ask">
+<strong>有問題就問我：</strong>可以挑你熟悉的一個 API，提供 method、route、實際 URL、response code 與 proxy 架構；
+我會陪你把它映射成標準 server Span，並指出哪些欄位可能含敏感或高基數資料。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0005-span-design-boundaries.html">&larr; Lesson 5: Span 邊界設計</a></span>
+  <span><a href="0007-context-propagation.html">下一課：Context propagation 的必要性 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

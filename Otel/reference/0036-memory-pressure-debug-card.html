@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Collector Memory Pressure Debug Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Collector Memory Pressure Debug Card</h1>
+<p class="subtitle">分清 inflow、retention、GC、refusal 與 host kill</p>
+<ol>
+  <li>核對 container/host limit、limiter hard/soft/spike 與 process heap/RSS 的單位。</li>
+  <li>建立時間線：traffic、queue growth、backend failures、GC、refused items、restart/OOMKill。</li>
+  <li>確認 memory limiter 是每條 pipeline 第一個 processor，前一元件能否 retry/backpressure。</li>
+  <li>找 live retention owner：batch、exporter queue/WAL、tail sampling、connector cache、receiver buffer。</li>
+  <li>看 accepted/refused by signal、queue oldest age、GC CPU/效果；GC 無效表示 live references 仍持有資料。</li>
+  <li>檢查 spike 是否可能在兩次 measurement 間跨過 hard/container limit。</li>
+  <li>先降低 inflow/retention 或擴容，再調 limits；不要只提高 hard limit掩蓋不穩定 queue。</li>
+</ol>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,32 @@
+# Lesson 48 upgrade inventory. Fill with exact evidence; not executable.
+
+current:
+  distribution: otelcol-contrib
+  version: "<current-version>"
+  image_digest: "sha256:<current-digest>"
+  component_ids: [otlp, memory_limiter, batch, routing, span_metrics]
+  feature_gates: []
+
+target:
+  distribution: otelcol-contrib
+  version: "<target-version>"
+  image_digest: "sha256:<target-digest>"
+  component_ids: [otlp, memory_limiter, batch, routing, span_metrics]
+  feature_gates: []
+
+compatibility_review:
+  config_schema_and_deprecations: pending
+  component_stability_by_signal: pending
+  telemetry_semantics_and_defaults: pending
+  internal_metric_names_and_dashboards: pending
+  persistent_queue_or_storage_format: pending
+  stateful_affinity_and_rollout_overlap: pending
+  platform_support: pending
+
+proof:
+  validate_final_config: pending
+  semantic_fixture_diff: pending
+  end_to_end_canary: pending
+  load_and_failure_comparison: pending
+  rollback_or_roll_forward_test: pending
+

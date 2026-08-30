@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 16: Instrumentation Scope 與來源責任</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>16. Instrumentation Scope 與來源責任</h1>
+<p class="subtitle">在 service identity 與 operation 之間，標記誰負責產生 telemetry · Lesson 16 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會理解同一個 service 為何需要多個 Instrumentation Scopes，並能區分 service version、scope version 與 Span attributes。
+你也會用 scope 定位重複埋點或特定 instrumentation library 的行為，但 debug 只是這個資料模型的自然用途。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/instrumentation-scope/" target="_blank">OpenTelemetry — Instrumentation scope</a></p>
+
+<h2>第一性原理：知道「哪個 service」仍不知道「哪段 code」</h2>
+<p>
+一個 checkout service 可能同時包含 HTTP framework 自動埋點、database client instrumentation、cache library 與 application 手動埋點。
+Resource 會把它們都正確標成 <code>service.name=checkout</code>，但這仍無法回答是哪套 telemetry-producing code
+建立某個 Span。
+</p>
+
+<pre><code>Resource：store / checkout / version 2.4.1
+  ├─ Scope: HTTP framework instrumentation 1.2.0
+  │    └─ Span: POST /checkout
+  ├─ Scope: acme.checkout.application 0.3.0
+  │    └─ Span: checkout.validate_cart
+  └─ Scope: cache instrumentation 1.8.2
+       └─ Span: cache.get</code></pre>
+
+<p>
+Instrumentation Scope 是 telemetry producer 的 logical software unit。它可以代表 module、package、class、library 或 framework。
+取得 Tracer、Meter 或 Logger 時指定 scope；由該實例產生的 records 都與 scope 關聯。
+</p>
+
+<h2>Scope identity 是一個 tuple</h2>
+<pre><code>(name, version, schema_url, attributes)
+       required  optional  optional    optional</code></pre>
+
+<ul>
+  <li><strong>Name：</strong>穩定且能唯一識別 producer，通常採 fully qualified module/library name。</li>
+  <li><strong>Version：</strong>該 instrumentation code 的版本。</li>
+  <li><strong>Schema URL：</strong>描述 telemetry schema 對應的版本／位置，供 schema-aware consumer 解讀。</li>
+  <li><strong>Attributes：</strong>描述 scope 本身的額外 metadata；不是 request attributes。</li>
+</ul>
+
+<p>
+本課先實作 name/version。重點不是欄位數量，而是責任歸屬：Scope metadata 描述 producer；Span data 描述 operation；
+Resource 描述產生 telemetry 的 entity。
+</p>
+
+<h2>三種 version 不可互換</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Version</th><th>它版本化什麼？</th><th>例子</th><th>變更原因</th></tr></thead>
+  <tbody>
+    <tr><td><code>service.version</code></td><td>部署中的 service artifact</td><td><code>2.4.1</code></td><td>新 release/deploy</td></tr>
+    <tr><td>scope version</td><td>產生 telemetry 的 module/library/instrumentation</td><td><code>1.8.2</code></td><td>instrumentation package 升級</td></tr>
+    <tr><td>semantic convention/schema version</td><td>欄位語意契約</td><td>由 schema URL 表達</td><td>telemetry schema 演進</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+同一 service release 可以包含多個不同版本的 instrumentation libraries；同一 instrumentation version 也可能部署於多個 service versions。
+把 scope version 寫成 service version，會失去定位 producer regression 的能力。
+</p>
+
+<h2>閱讀 Python 範例</h2>
+<p>範例位於 <a href="../examples/0016-instrumentation-scopes.py"><code>examples/0016-instrumentation-scopes.py</code></a>：</p>
+
+<pre><code>checkout_tracer = trace.get_tracer(
+    "acme.checkout.application", "0.3.0"
+)
+cache_tracer = trace.get_tracer(
+    "acme.cache.instrumentation", "1.8.2"
+)</code></pre>
+
+<p>
+兩個 Tracers 使用同一 Provider，因此共享 Resource、sampler 與 processors；但各自保留 producer identity。
+這不是建立兩個 services，也不是建立兩條 Trace。當第二個 Span 在第一個 current Span 內開始，parent/child 關係仍由 Context 決定。
+</p>
+
+<pre><code>Resource: service.name=checkout, service.version=2.4.1
+
+Span checkout.validate_cart
+  scope.name=acme.checkout.application
+  scope.version=0.3.0
+
+└─ Span cache.get
+     scope.name=acme.cache.instrumentation
+     scope.version=1.8.2</code></pre>
+
+<div class="box tip">
+<strong>關鍵獨立性：</strong>Trace topology 由 trace/span IDs 與 Context 建立；Scope 說明 producer；Resource 說明 entity。
+不同 scopes 的 Spans 完全可以屬於同一條 Trace。
+</div>
+
+<h2>Scope name 如何選？</h2>
+<p>
+Library/framework 應使用自己的 fully qualified name 與 version；若你替不支援 OTel 的 library 寫 instrumentation，
+scope 應識別 instrumentation library 本身。Application code 可用穩定 module/class boundary。
+</p>
+
+<p>避免下列不穩定名稱：</p>
+<ul>
+  <li><code>checkout.request.7f3a...</code>：把 request ID 放入 scope，造成無界 scopes。</li>
+  <li><code>checkout-pod-a7f9</code>：這是 instance identity 問題，不是 producer identity。</li>
+  <li><code>tracer1</code>：過度模糊，跨團隊或升級時無法追責。</li>
+  <li><code>checkout</code> 只因 service.name 也是 checkout：混淆 entity 與 producer。</li>
+</ul>
+
+<h2>SRE debugging lab：用 Scope 找重複與回歸</h2>
+
+<h3>Case A：同一次 HTTP request 出現兩個幾乎相同的 client Spans</h3>
+<p>
+先比較兩筆 Span 的 scope name/version。若一筆來自 framework auto-instrumentation，另一筆來自 application manual wrapper，
+則重複不是 Collector 複製資料的第一證據，而可能是兩個 producers 都觀測同一 operation。
+</p>
+
+<h3>Case B：升級後 database Span names 或 attributes 改變</h3>
+<p>
+同時按 <code>service.version</code> 與 scope version 分組。如果 service artifact 沒變但 scope version 變了，
+調查 instrumentation dependency/schema 演進；若反之，調查 application deploy。兩種 version 是正交維度。
+</p>
+
+<h3>Case C：想關掉某 library 的 telemetry</h3>
+<p>
+Scope 是可靠識別來源的 metadata，但「在 Collector filter 掉」只會阻止下游保存，不能追回 application 已付出的 Span creation/export 成本。
+若目標是降低 source overhead，優先在 instrumentation configuration/SDK 層處理；若目標是下游 routing，才考慮 Collector policy。
+</p>
+
+<details>
+  <summary>練習：三層歸因</summary>
+  <p>看到一筆慢 Span 時，先寫三行：</p>
+  <pre><code>Entity: service.name + service.version + instance
+Producer: scope.name + scope.version
+Operation: span.name + kind + relevant attributes/status</code></pre>
+  <p>每一行都回答不同問題，不要把缺失欄位用另一層猜出來。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 同一 Trace 的 parent 與 child 能否來自不同 Instrumentation Scopes？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">可以；Scope 是 producer identity，不決定 Trace topology</button>
+    <button class="choice" data-correct="false">不可以；每個 Scope 都會建立新 Trace</button>
+    <button class="choice" data-correct="false">只有 service.name 不同時才可以</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Scope version 應代表什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">產生 telemetry 的 instrumentation software 版本</button>
+    <button class="choice" data-correct="false">執行主機 OS 版本</button>
+    <button class="choice" data-correct="false">這次 request 的 API version</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 兩個相似 client Spans 有不同 scopes，最合理的第一個假設是？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">兩套 instrumentation producers 可能同時觀測了同一操作</button>
+    <button class="choice" data-correct="false">Resource 一定遺失</button>
+    <button class="choice" data-correct="false">Trace ID 長度錯誤</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0009-resource-scope-span-card.html">Resource、Scope、Span 三層判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>挑一筆你熟悉的 HTTP 或 database Span，分別寫出合理的 Resource identity、
+Scope name/version 與 Span operation data。我會檢查三層是否有責任重疊。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0015-resource-first-principles.html">&larr; Lesson 15: Resource identity</a></span>
+  <span><a href="0017-span-processing-lifecycle.html">下一課：Span Processor、批次與關閉生命週期 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

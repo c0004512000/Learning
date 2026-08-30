@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 2: Tracing 元件如何一起工作</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>2. Tracing 元件如何一起工作</h1>
+<p class="subtitle">用同一個 Python process 看懂 startup 與 runtime · Lesson 2 of N</p>
+
+<h2>這一課只解一個問題</h2>
+<p>
+看到 <code>Tracer</code>、<code>TracerProvider</code>、<code>SpanProcessor</code> 和
+<code>Exporter</code> 時，你應該能回答：<strong>它們在什麼時間被建立？彼此如何連接？
+每次 request 到來時，資料又沿著哪條路走？</strong>
+</p>
+
+<div class="box">
+<strong>先固定一個具體情境：</strong>把 Checkout application 想成一個會持續執行的
+Python process。它啟動一次，接著可能處理 100 個 checkout requests。<strong>Startup
+是在 process 裡建造一條可重用的 tracing 路徑；runtime 是每個 request 使用這條路徑。</strong>
+本課術語可隨時查閱
+<a href="../GLOSSARY.md#tracing-sdk-building-blocks">Tracing SDK building blocks glossary</a>。
+</div>
+
+<h3>先分清楚兩種東西</h3>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>種類</th>
+      <th>它是什麼</th>
+      <th>在這一課的例子</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>長期存在的元件</strong></td>
+      <td>Startup 建立後留在 process 記憶體中，等待之後的工作。</td>
+      <td>Provider、Processor、Exporter、Tracer</td>
+    </tr>
+    <tr>
+      <td><strong>每次工作的資料</strong></td>
+      <td>Runtime 為某個 operation 新增，結束後交給處理路徑。</td>
+      <td>Span、它的 attributes 和 events</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>圖 1：Startup 建造什麼，誰持有誰？</h2>
+<p>
+先不要把這張圖當成時間順序。它是在回答<strong>物件關係</strong>：application 建立
+<code>TracerProvider</code>，Provider 持有共用設定，並把 <code>SpanProcessor</code>
+接到它的處理路徑；Processor 再使用 <code>Exporter</code> 把資料送出去。
+這條由元件組成的處理路徑，就是常說的 tracing pipeline。
+</p>
+
+<figure class="diagram" aria-labelledby="architecture-caption">
+  <figcaption id="architecture-caption">
+    <strong>架構圖：一次 startup 後，process 內的長期關係</strong><br>
+    <span class="diagram-caption-note">讀法：虛線表示建立、設定或持有關係；圖 2 的左右箭頭才表示 runtime 的時間順序。</span>
+  </figcaption>
+  <div class="diagram-legend">
+    <span class="legend-item"><span class="legend-line dashed"></span>建立／設定／持有</span>
+  </div>
+
+  <div class="diagram-flow">
+    <div class="diagram-node app">
+      <span class="node-kicker">一次</span>
+      <span class="node-name">Application boot</span>
+      <span class="node-note">Checkout process 啟動</span>
+    </div>
+    <div class="diagram-connector dashed">
+      <span>建立／設定</span>
+      <span class="connector-line" aria-hidden="true"></span>
+    </div>
+    <div class="diagram-node provider">
+      <span class="node-kicker">長期元件</span>
+      <span class="node-name">TracerProvider</span>
+      <span class="node-note">共用 tracing 設定的控制中心</span>
+    </div>
+  </div>
+
+  <div class="diagram-ownership">
+    <div class="diagram-label">Provider 建立後保留的 pipeline 關係</div>
+    <div class="diagram-flow">
+      <div class="diagram-node provider">
+        <span class="node-name">TracerProvider</span>
+        <span class="node-note">擁有共用設定</span>
+      </div>
+      <div class="diagram-connector dashed">
+        <span>持有 Processor</span>
+        <span class="connector-line" aria-hidden="true"></span>
+      </div>
+      <div class="diagram-node processor">
+        <span class="node-name">SpanProcessor</span>
+        <span class="node-note">接手結束的 Span</span>
+      </div>
+      <div class="diagram-connector dashed">
+        <span>使用 Exporter</span>
+        <span class="connector-line" aria-hidden="true"></span>
+      </div>
+      <div class="diagram-node exporter">
+        <span class="node-name">Exporter</span>
+        <span class="node-note">送到具體目的地</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="diagram-flow">
+    <div class="diagram-node provider">
+      <span class="node-name">TracerProvider</span>
+      <span class="node-note">提供埋點程式使用的 Tracer</span>
+    </div>
+    <div class="diagram-connector dashed">
+      <span>取得 Tracer</span>
+      <span class="connector-line" aria-hidden="true"></span>
+    </div>
+    <div class="diagram-node tracer">
+      <span class="node-name">Tracer</span>
+      <span class="node-note">runtime 用來建立 Span 的 handle</span>
+    </div>
+  </div>
+</figure>
+
+<p>
+因此，startup 完成後不是「Provider 把每個 Span 傳給 Tracer」。正確的理解是：
+<strong>Provider 先把處理規則與 pipeline 準備好，再提供一個可重複使用的 Tracer；
+runtime 的 instrumentation 透過這個 Tracer 建立 Span。</strong>
+</p>
+
+<h2>圖 2：同一個 process 的時間軸</h2>
+<p>
+這張圖才是<strong>時間順序</strong>。先從左到右看上面的 Startup lane；它走完一次後，
+process 不會消失，而是繼續往下等待 request。下面的 Runtime lane 可以重複很多次。
+</p>
+
+<figure class="diagram" aria-labelledby="timeline-caption">
+  <figcaption id="timeline-caption">
+    <strong>時間軸：Startup 只建造一次，Runtime 重複使用</strong><br>
+    <span class="diagram-caption-note">紅框是每次工作新產生的資料；綠框是 startup 後重用的元件。</span>
+  </figcaption>
+  <div class="diagram-legend">
+    <span class="legend-item"><span class="legend-badge new">紅框</span>每次 request 的新資料</span>
+    <span class="legend-item"><span class="legend-badge reused">綠框</span>已在 startup 建立、之後重用</span>
+  </div>
+
+  <div class="timeline">
+    <div class="timeline-row">
+      <div class="timeline-label">Startup<small>只 1 次</small></div>
+      <div class="timeline-track">
+        <div class="timeline-step">
+          <span class="step-number">1</span>
+          <span class="step-name">Process starts</span>
+          <span class="step-note">Application 開始執行</span>
+        </div>
+        <span class="timeline-arrow" aria-hidden="true">&rarr;</span>
+        <div class="timeline-step reused">
+          <span class="step-number">2</span>
+          <span class="step-name">Create Provider</span>
+          <span class="step-note">建立共用設定中心</span>
+        </div>
+        <span class="timeline-arrow" aria-hidden="true">&rarr;</span>
+        <div class="timeline-step reused">
+          <span class="step-number">3</span>
+          <span class="step-name">Attach Processor + Exporter</span>
+          <span class="step-note">組好 Span 的處理路徑</span>
+        </div>
+        <span class="timeline-arrow" aria-hidden="true">&rarr;</span>
+        <div class="timeline-step reused">
+          <span class="step-number">4</span>
+          <span class="step-name">Get Tracer</span>
+          <span class="step-note">把 runtime 要用的 handle 準備好</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="lifecycle-divider">
+      <span>startup 完成；同一個 process 繼續存活</span>
+    </div>
+
+    <div class="timeline-row">
+      <div class="timeline-label">Runtime<small>每個 request 重複</small></div>
+      <div class="timeline-track">
+        <div class="timeline-step new">
+          <span class="step-number">1</span>
+          <span class="step-name">Request enters</span>
+          <span class="step-note">例如：POST /checkout</span>
+        </div>
+        <span class="timeline-arrow" aria-hidden="true">&rarr;</span>
+        <div class="timeline-step reused">
+          <span class="step-number">2</span>
+          <span class="step-name">同一個 Tracer</span>
+          <span class="step-note">不重新建立 Provider</span>
+        </div>
+        <span class="timeline-arrow" aria-hidden="true">&rarr;</span>
+        <div class="timeline-step new">
+          <span class="step-number">3</span>
+          <span class="step-name">New Span</span>
+          <span class="step-note">追蹤這次 checkout operation</span>
+        </div>
+        <span class="timeline-arrow" aria-hidden="true">&rarr;</span>
+        <div class="timeline-step">
+          <span class="step-number">4</span>
+          <span class="step-name">Business work</span>
+          <span class="step-note">計算金額、呼叫資料庫等</span>
+        </div>
+        <span class="timeline-arrow" aria-hidden="true">&rarr;</span>
+        <div class="timeline-step">
+          <span class="step-number">5</span>
+          <span class="step-name">Span ends</span>
+          <span class="step-note">Span 的資料不再增加</span>
+        </div>
+        <span class="timeline-arrow" aria-hidden="true">&rarr;</span>
+        <div class="timeline-step reused">
+          <span class="step-number">6</span>
+          <span class="step-name">既有 Processor</span>
+          <span class="step-note">Batch processor 放入 queue</span>
+        </div>
+        <span class="timeline-arrow" aria-hidden="true">&rarr;</span>
+        <div class="timeline-step reused">
+          <span class="step-number">7</span>
+          <span class="step-name">既有 Exporter</span>
+          <span class="step-note">印到 terminal 或送往目的地</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="timeline-note">
+    第二個、第三個 request 會再走一次 Runtime lane；不會各自重新建立 Provider、
+    Processor 和 Exporter。一個 request 也可能建立不只一個 Span。
+  </p>
+</figure>
+
+<div class="box tip">
+<strong>用一句話重畫這兩張圖：</strong>
+Startup 建立 <code>Provider &rarr; Processor &rarr; Exporter</code> 的關係，
+並取得 <code>Tracer</code>；每次 runtime request 則使用既有的 <code>Tracer</code>
+建立新的 <code>Span</code>，Span 結束後回到既有的 Processor，再由 Exporter 輸出。
+</div>
+
+<h2>把因果關係拆成 4 個事件</h2>
+<ol>
+  <li><strong>Provider 先存在：</strong>沒有 startup 的設定，Tracer 不知道要採用什麼 SDK 行為。</li>
+  <li><strong>Tracer 才能被重用：</strong>instrumentation 不必知道 queue、batch 或目的地的細節。</li>
+  <li><strong>Span 結束才交接：</strong>Processor 收到的是已完成的 Span 資料，而不是尚未完成的 operation。</li>
+  <li><strong>Batch 可能延後輸出：</strong>Span 已經交給 Processor，不代表 Exporter 會在同一個 CPU 時刻立刻輸出。</li>
+</ol>
+
+<h2>為什麼 OTel 要分成 API 與 SDK？</h2>
+<p>
+假設一個 HTTP library 想在「處理 request」前後建立 Span。這段 instrumentation
+（加上 observability 行為的程式碼）只需要知道如何取得 Tracer、開始和結束 Span；
+它不應該被迫綁定某一家 tracing backend。
+</p>
+<div class="diagram" role="img" aria-label="Tracing API 是共通契約，SDK 是 application 選擇的具體實作">
+  <div class="diagram-flow">
+    <div class="diagram-node app">
+      <span class="node-name">Library / instrumentation</span>
+      <span class="node-note">只描述「我要追蹤這段工作」</span>
+    </div>
+    <div class="diagram-connector dashed">
+      <span>遵循契約</span>
+      <span class="connector-line" aria-hidden="true"></span>
+    </div>
+    <div class="diagram-node provider">
+      <span class="node-name">Tracing API</span>
+      <span class="node-note">vendor-neutral 的共通操作</span>
+    </div>
+    <div class="diagram-connector dashed">
+      <span>由 application 安裝</span>
+      <span class="connector-line" aria-hidden="true"></span>
+    </div>
+    <div class="diagram-node processor">
+      <span class="node-name">SDK</span>
+      <span class="node-note">真正 recording、processing、exporting 的實作</span>
+    </div>
+  </div>
+</div>
+<p>
+在 Python，<code>opentelemetry.trace</code> 是 tracing API 的主要入口；<code>Tracer</code>
+是程式透過 API 取得、用來建立 Span 的物件。<strong>「Tracer API」不是要另外尋找的
+<code>TracerAPI</code> class。</strong> API 定義「程式可以要求什麼」；SDK 實作「這個要求
+如何被記錄、處理與輸出」。
+</p>
+
+<h2>每個元件只解決一個問題</h2>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>元件</th>
+      <th>它解決的問題</th>
+      <th>它不是什麼</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Tracing API</strong></td>
+      <td>提供 vendor-neutral 的共通操作，例如取得 Tracer、開始 Span。</td>
+      <td>不是 storage backend，也不替 application 選 exporter。</td>
+    </tr>
+    <tr>
+      <td><strong>SDK</strong></td>
+      <td>實作 API 的實際行為：record Span、套用設定、處理與輸出。</td>
+      <td>不是單一後端產品。</td>
+    </tr>
+    <tr>
+      <td><strong>TracerProvider</strong></td>
+      <td>application 的 tracing control center；建立 Tracer 並擁有共用 SDK configuration。</td>
+      <td>不是每個 Span 的資料 transport。</td>
+    </tr>
+    <tr>
+      <td><strong>Tracer</strong></td>
+      <td>某段 instrumentation 用來建立 Span 的 handle。</td>
+      <td>不負責儲存、查詢或直接 export Span。</td>
+    </tr>
+    <tr>
+      <td><strong>SpanProcessor</strong></td>
+      <td>在 Span 開始或結束的適當時機接手資料；本課聚焦它在 Span 結束後交給 Exporter 的工作。</td>
+      <td>不是 telemetry 的最終目的地。</td>
+    </tr>
+    <tr>
+      <td><strong>BatchSpanProcessor</strong></td>
+      <td>一種 SpanProcessor：先將結束的 Span 放入暫存 queue，再成批輸出，降低每次 operation 的直接 I/O 成本。</td>
+      <td>不是後端，也不改變 Span 的 parent-child 關係。</td>
+    </tr>
+    <tr>
+      <td><strong>Exporter</strong></td>
+      <td>將 Span 送到一個具體目的地的轉接元件。</td>
+      <td>不決定業務程式要建立哪些 Span。</td>
+    </tr>
+    <tr>
+      <td><strong>ConsoleSpanExporter</strong></td>
+      <td>把 Span 印到 terminal output，提供最快的本機 feedback loop。</td>
+      <td>不是可搜尋、可長期保存的 tracing backend。</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2><code>SDK configuration</code> 到底指什麼？</h2>
+<p>
+它不是一個額外元件，而是 application 在 startup 對 Provider 做的一組選擇：
+使用哪個 SDK、Span 結束後交給哪個 Processor、最後由哪個 Exporter 送往何處，
+以及資料屬於哪個 service。可以把它理解成<strong>建造圖 1 那條處理路徑時的決策集合</strong>。
+</p>
+<p>
+例如，<code>ConsoleSpanExporter</code> 只適合本機 feedback；日後若改成送往 Collector
+的 exporter，主要改動發生在 startup 的 destination configuration。runtime 的
+<code>Tracer</code> 建 Span 原則上保持不變，這就是 API/SDK separation 的實際價值。
+</p>
+
+<h2>用數量檢查自己是否真的看懂</h2>
+<p>假設一個 process 啟動後處理 100 個 checkout requests：</p>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>東西</th>
+      <th>大致數量</th>
+      <th>原因</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>TracerProvider</td>
+      <td>1 個</td>
+      <td>共用 startup 設定中心</td>
+    </tr>
+    <tr>
+      <td>BatchSpanProcessor / Exporter</td>
+      <td>通常各 1 個</td>
+      <td>被多次 runtime operation 重用</td>
+    </tr>
+    <tr>
+      <td>Tracer</td>
+      <td>按埋點程式重用</td>
+      <td>它是建立 Span 的 handle，不是每個 Span 一個</td>
+    </tr>
+    <tr>
+      <td>Span</td>
+      <td>很多個</td>
+      <td>每個 request 可能有一個或多個 operation</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>小測驗：先確認角色與順序</h2>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 100 個 requests 共用同一個 process 時，哪個通常只在 startup 建立一次？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">TracerProvider、Processor、Exporter</button>
+    <button class="choice" data-correct="false">每一個 request 的 Span</button>
+    <button class="choice" data-correct="false">每一個 request 的 attributes</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Span 結束後，哪條因果鏈正確？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Span 結束 &rarr; Processor 接手 &rarr; Exporter 輸出</button>
+    <button class="choice" data-correct="false">Span 結束 &rarr; Provider 查詢 backend &rarr; Tracer 儲存</button>
+    <button class="choice" data-correct="false">Span 結束 &rarr; Exporter 建立 Span &rarr; Processor 查詢</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 圖 1 的 Tracer 在 runtime 扮演什麼角色？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">用來建立每次 operation 的 Span</button>
+    <button class="choice" data-correct="false">保存所有歷史 Trace 的資料庫</button>
+    <button class="choice" data-correct="false">把 Span 直接寫入 terminal 的 exporter</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<h3>回想練習：不要看圖，自己重畫</h3>
+<div class="recall" data-recall data-answer="tracer">
+  <p>Runtime 每次用來建立 Span 的可重複使用 handle 叫做 ______。</p>
+  <input type="text" class="blank" placeholder="填入元件名稱">
+  <button class="check-btn">檢查</button>
+  <div class="feedback"></div>
+</div>
+
+<div class="box ask">
+<strong>進入下一課前：</strong>請用自己的話寫出兩行箭頭：
+第一行描述 startup 如何把 Provider、Processor、Exporter 和 Tracer 連起來；
+第二行描述一次 request 如何從 Tracer 走到 Span、Processor 和 Exporter。
+如果其中任何一個箭頭的「為什麼」說不清楚，先問我，不要急著安裝 SDK。
+</div>
+
+<h2>這一課到此為止</h2>
+<p>
+下一課才會把圖中的物件翻成 Python。那一課會逐行對照這兩張圖，而不是再引入一條
+新的抽象流程。先完成上面的測驗與重畫練習，確定你能分辨「startup 建立的元件」和
+「runtime 產生的 Span」。
+</p>
+
+<div class="box tip">
+<strong>推薦閱讀（主要來源）：</strong>
+<a href="https://opentelemetry.io/docs/languages/python/instrumentation/" target="_blank">OpenTelemetry 官方文件 — Python Manual Instrumentation</a>
+的「Acquire Tracer」與「Creating spans」段落。若想核對 Provider 如何持有設定與 Processor，
+可再看 <a href="https://opentelemetry.io/docs/specs/otel/trace/sdk/" target="_blank">Tracing SDK specification</a> 的
+「Tracer Provider」與「Span Processor」段落。
+</div>
+
+<div class="box ask">
+<strong>有問題就問我：</strong>例如「為什麼一個 request 可以有多個 Span？」
+「Batch queue 滿了會怎樣？」或「Provider 和 Tracer 在記憶體中到底怎麼連接？」
+這些都是進入 Python 實作前值得釐清的問題。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0001-what-is-otel-and-spans.html">&larr; Lesson 1: 從系統問題推導 Trace</a></span>
+  <span><a href="0003-first-python-span.html">下一課：讓第一個 Python Span 出現在眼前 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+# Lesson 46 canary contract. This is a design artifact, not executable config.
+
+identity:
+  service.name: otel-pipeline-canary
+  deployment.environment.name: production
+  canary.id: "<globally-unique-run-id>"
+  canary.sent_at: "<UTC timestamp>"
+
+signals:
+  trace:
+    expected:
+      span_count: 2
+      parent_child_relation: root_to_child
+      status: ok
+  metric:
+    expected:
+      name: canary.pipeline.counter
+      monotonic_increment: 1
+      bounded_attributes: [region, pipeline]
+  log:
+    expected:
+      body: otel-pipeline-canary
+      trace_correlation: same_trace_and_span_id
+
+assertions:
+  arrival_deadline_seconds: 120
+  destinations_exactly: [primary_backend]
+  forbidden_destinations: [other_tenant_backend]
+  required_resource_attributes: [service.name, deployment.environment.name]
+  forbidden_attributes: [auth.token, user.email]
+
+governance:
+  owner: observability-platform
+  ttl_days: 7
+  contains_real_user_data: false
+  cardinality_rule: unique_id_only_on_canary_records_not_metric_dimensions
+

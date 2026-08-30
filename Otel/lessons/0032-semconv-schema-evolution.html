@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 32: Semantic Conventions 與 schema 演進</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>32. Semantic Conventions 與 schema 演進</h1>
+<p class="subtitle">共同語言帶來可攜性；版本化 schema 讓共同語言能安全改進 · Lesson 32 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會理解 Semantic Conventions 不只是 attribute spelling，而是跨 producer/consumer 的語意契約；能區分 SDK、instrumentation scope、semconv、schema
+四種版本，理解 schema URL 的能力邊界，並設計 rolling migration 而不讓 dashboards/alerts 在混合版本期間失明。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/semantic-conventions/" target="_blank">OpenTelemetry — Semantic Conventions</a>、<a href="https://opentelemetry.io/docs/specs/otel/schemas/" target="_blank">Telemetry Schemas</a></p>
+
+<h2>第一性原理：相同 key 只有在相同語意下才可聚合</h2>
+<p>兩套 instrumentation 都輸出：</p>
+
+<pre><code>method = "GET"
+status = 500
+duration = 120</code></pre>
+
+<p>
+Consumer 仍不知道 method 是 HTTP/RPC/DB、status 是 protocol 或 application code、duration unit 是 ms/s、operation boundary 在哪裡。
+共同 key spelling 不足；必須共同定義 namespace、type、unit、value semantics、Span name/kind、何時存在與 requirement level。
+</p>
+
+<p>
+Semantic Conventions（semconv）為常見 HTTP、RPC、DB、messaging、Resource、Metrics、Logs 等定義共同語言，
+讓不同語言/framework 的 producers 產生可由同一 dashboard/query 解讀的 telemetry。
+</p>
+
+<h2>Conventions 約束的不只 Attributes</h2>
+<ul>
+  <li>Attribute names、types、well-known values 與 requirement levels。</li>
+  <li>Span names、SpanKinds 與 error/status recording。</li>
+  <li>Metric instrument names、units、instrument kinds 與 attributes。</li>
+  <li>Log/Event names 與 attributes。</li>
+  <li>Resource entity identity。</li>
+</ul>
+
+<p>
+因此「把 custom key 改成 semconv key」前，要確認 value meaning 與 recording condition 也符合。若把毫秒 value 放進要求 seconds 的 metric，
+名稱正確仍會造成千倍錯誤。
+</p>
+
+<div class="box tip">
+<strong>Custom domain data 仍然必要：</strong>Semconv 不會定義你的 cart rejection reason。使用清楚的自有 namespace
+（例如 <code>app.checkout.*</code>），不要借用已定義的 OTel key 表達不同意思；有標準 convention 時再採用。
+</div>
+
+<h2>四種 version 各自版本化不同東西</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Version</th><th>版本化的對象</th><th>在哪裡觀察</th></tr></thead>
+  <tbody>
+    <tr><td>OTel SDK version</td><td>record/process/export implementation</td><td><code>telemetry.sdk.version</code></td></tr>
+    <tr><td>Instrumentation Scope version</td><td>產生 telemetry 的 library/module</td><td>Scope metadata</td></tr>
+    <tr><td>Semantic Convention version</td><td>共同欄位/operation 語意規範</td><td>release/documentation；producer release notes</td></tr>
+    <tr><td>Schema version/URL</td><td>所 emitted telemetry schema identity 與可用 transformations</td><td>Resource/Scope schema URL in OTLP</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+升級 SDK 不必然升級 instrumentation package；升級 instrumentation 也可能改 semconv emission mode。Debug migration 時四者都要 inventory，
+不能只看 application release version。
+</p>
+
+<h2>為什麼需要 Telemetry Schema？</h2>
+<p>
+Semconv 必須演進：名稱可能修正、namespace 重組、理解更成熟。但 producers 與 consumers 無法同時升級：
+rolling deploy 期間舊/new telemetry 會共存，backend/dashboard 也有自己的發布節奏。
+</p>
+
+<pre><code>Semconv evolves
+   │
+   ├─ Producer A emits old schema
+   ├─ Producer B emits new schema
+   └─ Consumer expects one target schema
+
+Schema URL identifies what each producer emitted;
+schema-aware consumer/translator may convert supported changes.</code></pre>
+
+<p>
+Schema file version化並描述可行 transformations；Schema URL 唯一識別版本。OTLP 可攜帶 schema URL，讓 consumer 不必靠 scope version 猜 schema。
+</p>
+
+<h2>Schema URL 不是魔法開關</h2>
+<p>
+Producer 附 schema URL 只提供 identity。只有 backend/Collector/consumer 明確實作並啟用 schema-aware transformation，欄位才會轉換。
+普通 pipeline 不會因 URL 存在就自動 rename。
+</p>
+
+<p>
+而且 Telemetry Schema 的目標不是完整描述所有可能 types/values；它聚焦讓 semconv 常見變更可轉換。無法無損轉換的變更仍可能是 breaking change，
+必須由 migration policy 處理。
+</p>
+
+<h2>Rolling migration：Consumer compatibility 先行</h2>
+<p>規劃範例位於 <a href="../examples/0032-semconv-migration-plan.yaml"><code>examples/0032-semconv-migration-plan.yaml</code></a>，以 HTTP legacy/new keys 示意：</p>
+
+<pre><code>legacy: http.method
+target: http.request.method
+
+legacy: http.status_code
+target: http.response.status_code</code></pre>
+
+<ol>
+  <li><strong>Inventory：</strong>按 service + scope name/version + schema URL 查看實際 raw fields。</li>
+  <li><strong>Pin target：</strong>由 platform/data contract owner 指定 target semconv/schema。</li>
+  <li><strong>Canary：</strong>升級一個 producer cohort，檢查 OTLP raw data、cardinality、queries。</li>
+  <li><strong>Dual-read：</strong>Dashboards/alerts 暫時接受 old OR new names，避免 rolling deploy 失明。</li>
+  <li><strong>Normalize once：</strong>若用 schema translation，明確指定唯一 owner/target，避免重複改寫。</li>
+  <li><strong>Retire：</strong>等舊 producers 歸零且舊資料 retention window 過後，再移除 compatibility query。</li>
+</ol>
+
+<p>
+通常 consumer dual-read 比 producer dual-write 更安全：producer 同時寫兩套 Metric names 可能雙倍 streams/alerts；Span attributes 雙寫也增加 payload/limits 競爭。
+若特定 instrumentation 官方提供 transition mode，仍需按其文件測試並設退場日期。
+</p>
+
+<h2>Schema translation 的 placement</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>位置</th><th>優點</th><th>風險</th></tr></thead>
+  <tbody>
+    <tr><td>Producer</td><td>Source truth 直接符合 target</td><td>所有 producers 要分批升級</td></tr>
+    <tr><td>Collector</td><td>集中相容不支援 schema 的 backend</td><td>需 state/version policy；錯誤轉換影響大量資料</td></tr>
+    <tr><td>Backend/query</td><td>保留 raw schema、read-time 適配</td><td>每個 consumer/query 複雜度增加</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+不要同時在 producer、Collector、backend 都 rename 同一欄位。每次 transformation 應有 input schema、target schema、owner、idempotency 與 evidence；
+否則可能 new→old→new 或欄位 collision。
+</p>
+
+<h2>Stability 不是「永遠不變」</h2>
+<p>
+Semconv pages 會標示 group/attribute stability 與 requirement level。Development/experimental conventions 可能快速改；stable conventions 有更強相容承諾，
+但仍可能透過 deprecation/schema evolution改善。Production adoption 要 pin 版本、讀 migration notes、用 contract tests 驗證。
+</p>
+
+<p>
+Requirement level 也不是「全部 required 就全部寫」。它描述在 convention applicability 條件下的要求；敏感資料、availability 與語意前置條件仍要遵守。
+</p>
+
+<h2>SRE debugging lab：Instrumentation 升級後 dashboard 歸零</h2>
+
+<h3>Case A：Raw telemetry 有新 key，query 只讀舊 key</h3>
+<p>
+按 scope version/schema URL 比較 canary 與 stable cohorts。先改 query dual-read/normalize，恢復 visibility；再完成 producer rollout，
+不要回滾只是因 dashboard 沒跟上，除非還有真實 semantic regression。
+</p>
+
+<h3>Case B：Old/new keys 同時存在</h3>
+<p>
+可能是 rolling deploy、transition mode、兩套 instrumentation producers 或 Collector duplicate transform。按 Resource instance + Scope 分組找 owner，
+避免 backend 將兩者當兩倍 requests/metrics。
+</p>
+
+<h3>Case C：名稱相同，值分布卻改變</h3>
+<p>
+這比 rename 更危險。檢查 unit、operation boundary、recording condition、status mapping；Schema URL 只能幫助識別契約，
+不能保證 producer bug 不會違反契約。用 known inputs 的 contract test 驗證 values。
+</p>
+
+<details>
+  <summary>練習：設計一個 HTTP semconv 遷移</summary>
+  <p>列出 producers/scopes、old/new keys、target schema、canary cohort、dual-read query、translation owner、old-data retention 與退場條件。
+再寫一個「同名但 unit 錯」的 test，證明只檢查 key existence 不足。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Semantic Conventions 的主要價值是？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">讓不同 producers/consumers 對常見 telemetry 有共同語意契約</button>
+    <button class="choice" data-correct="false">固定所有 backend query 永不改變</button>
+    <button class="choice" data-correct="false">禁止所有 custom domain attributes</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Producer 附上 Schema URL 後會自動轉換欄位嗎？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">不會；仍需 schema-aware consumer/translator 明確處理</button>
+    <button class="choice" data-correct="false">會；任何 Collector 都必定自動 rename</button>
+    <button class="choice" data-correct="false">會；URL 本身就是 processor</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. Rolling migration 為何常先做 consumer dual-read？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">讓 old/new producers 共存時仍可查詢，避免 producer 雙寫成本</button>
+    <button class="choice" data-correct="false">因為 producer 永遠不能升級</button>
+    <button class="choice" data-correct="false">為了移除所有 schema URLs</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0025-semconv-migration-card.html">Semantic Convention 遷移卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>找一個你 backend 目前使用的 HTTP/DB/messaging field，記錄 producer scope/version/schema URL 與 query；
+我會幫你檢查它是 stable contract、custom field，還是隱含依賴。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0031-manual-vs-auto-instrumentation.html">&larr; Lesson 31: Instrumentation 分工</a></span>
+  <span><a href="0033-tail-sampling-first-principles.html">下一課：Tail Sampling 的第一性原理與狀態成本 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

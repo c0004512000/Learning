@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Metric cardinality 預算卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Metric cardinality 預算卡</h1>
+<p class="subtitle">先算組合上限，再允許 measurement dimensions</p>
+
+<pre><code>估計上限 ≈ C₁ × C₂ × ... × Cₙ
+
+route 20 × result 3 × region 4 = 240 combinations
+再加 user_id 100,000 → 理論上限 24,000,000</code></pre>
+
+<h2>上線前檢查</h2>
+<ol>
+  <li>每個 key 描述 measurement，而非 Resource/Scope 嗎？</li>
+  <li>每個 value set 有明確上限與 owner 嗎？</li>
+  <li>是否用了 route template，而非 raw path？</li>
+  <li>View 能否 allowlist 必要 keys？</li>
+  <li>Alert 是否監控 <code>otel.metric.overflow=true</code>？</li>
+</ol>
+
+<p><strong>Overflow：</strong>總量仍可保留，但原 attribute combination 被移除；所有按原維度的 queries 可能低估。</p>
+<p><a href="../lessons/0022-metric-streams-cardinality.html">回到 Lesson 22</a></p>
+</body>
+</html>
+

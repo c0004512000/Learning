@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Resource、Scope、Span 三層判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Resource、Scope、Span 三層判斷卡</h1>
+<p class="subtitle">同一筆 Span 同時回答三種不同問題</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>層級</th><th>核心問題</th><th>典型欄位</th><th>常見誤放</th></tr></thead>
+  <tbody>
+    <tr><td>Resource</td><td>誰產生 telemetry？</td><td><code>service.name</code>、version、instance</td><td>request ID、route</td></tr>
+    <tr><td>Instrumentation Scope</td><td>哪套 instrumentation code 產生？</td><td>scope name、scope version、schema URL</td><td>service version、pod name</td></tr>
+    <tr><td>Span</td><td>這一次 operation 發生什麼？</td><td>name、kind、status、attributes、events</td><td>把 service identity 拼進 span name</td></tr>
+  </tbody>
+</table>
+</div>
+
+<pre><code>service.name=checkout          ← Resource
+scope=acme.cache@1.8.2        ← producer
+span=cache.get, cache.hit=true ← operation</code></pre>
+
+<p><a href="../lessons/0016-instrumentation-scope.html">回到 Lesson 16</a></p>
+</body>
+</html>
+

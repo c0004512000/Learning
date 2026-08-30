@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Span export lifecycle 快速卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Span export lifecycle 快速卡</h1>
+<p class="subtitle">End、enqueue、export、accept、store 是不同事件</p>
+
+<pre><code>Span.end()
+  → Processor OnEnd
+  → [Batch queue]
+  → Exporter serialize/send
+  → Collector receiver accepts
+  → Collector pipeline forwards
+  → Backend stores/indexes</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>事件</th><th>它直接證明</th><th>它不直接證明</th></tr></thead>
+  <tbody>
+    <tr><td>Span ended</td><td>duration/data snapshot 完成</td><td>已離開 process</td></tr>
+    <tr><td>Batch enqueue</td><td>processor 接手 pending data</td><td>export 成功</td></tr>
+    <tr><td>ForceFlush success</td><td>期限內完成 SDK 定義的 pending work</td><td>backend 已可查詢</td></tr>
+    <tr><td>Collector debug output</td><td>到達該 Collector pipeline 出口</td><td>production storage 成功</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>容量直覺：</strong>若持續 <code>arrival rate &gt; drain rate</code>，任何有限 queue 最終都會滿。</p>
+<p><a href="../lessons/0017-span-processing-lifecycle.html">回到 Lesson 17</a></p>
+</body>
+</html>
+

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 22: Metric streams、Views 與 cardinality</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>22. Metric streams、Views 與 cardinality</h1>
+<p class="subtitle">每個 attribute combination 都是 aggregation state；Views 在 SDK 邊界重塑它 · Lesson 22 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會推導 measurement attributes 如何形成 metric points/streams 的 cardinality，估算組合爆炸，理解 SDK overflow 的保護與查詢副作用，
+並使用 Python View allowlist dimensions、調整 Histogram buckets。核心是資料模型與資源成本，不是特定 backend 調參。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/signals/metrics/#views" target="_blank">Metrics — Views and cardinality</a>、<a href="https://opentelemetry-python.readthedocs.io/en/latest/sdk/metrics.view.html" target="_blank">Python Metrics View API</a></p>
+
+<h2>第一性原理：Aggregation 必須為每個分組保存狀態</h2>
+<p>同一 Counter 收到三筆 measurements：</p>
+
+<pre><code>add(1, {route="/checkout", result="success"})
+add(1, {route="/checkout", result="failure"})
+add(1, {route="/cart",     result="success"})</code></pre>
+
+<p>
+若 consumer 要按 route/result 查詢，SDK 必須分別保存三組 aggregation state。Metric cardinality 就是該 stream
+實際出現的 unique measurement attribute combinations 數。成本與 request count 不直接相等；它取決於 distinct combinations。
+</p>
+
+<pre><code>memory cost per stream
+≈ unique attribute combinations
+ × aggregation state size
+
+Histogram state 通常還包含多個 buckets，
+所以同樣 cardinality 下會比單純 Sum 需要更多 state。</code></pre>
+
+<h2>用笛卡兒積估算最壞組合</h2>
+<p>若 dimensions 大致獨立，理論上限可先用各 value cardinality 相乘：</p>
+
+<pre><code>20 routes × 3 results × 4 regions = 240 combinations
+
+再加入 100,000 user IDs：
+20 × 3 × 4 × 100,000 = 24,000,000 combinations</code></pre>
+
+<p>
+實際資料不一定填滿整個乘積，但這個上界能揭露設計是否有爆炸可能。User ID、request ID、trace ID、raw URL path、SQL text
+通常沒有小而穩定的 value set，不應成為 metric measurement dimensions。
+</p>
+
+<div class="box tip">
+<strong>Template 而非 instance：</strong><code>http.route=/checkout/{cart_id}</code> 的值集合由 routing table 限制；
+<code>url.path=/checkout/cart-8cdb</code> 隨每個 cart 改變。兩者看似都描述 HTTP，成本語意完全不同。
+</div>
+
+<h2>Instrument、View 與 Stream 的關係</h2>
+<pre><code>Instrument
+  name + kind + unit + description + Meter scope
+       │ measurements(value, attributes)
+       ▼
+View matching
+  選擇 instrument / scope / unit
+  重命名、改 description、選 attribute keys、改 aggregation
+       ▼
+Metric stream(s)
+  每個 retained attribute combination 各有 aggregation point</code></pre>
+
+<p>
+Instrument 是 application code 的 measurement contract；View 是 SDK owner 的輸出政策。這讓 platform/SRE 能在不改每個 call site 的情況下
+移除不需要 dimensions、調整 buckets、drop instrument 或建立特定輸出 stream。但 View 不能把已失去的 request causality 變回 Trace。
+</p>
+
+<h2>View attribute allowlist：在聚合前降低維度</h2>
+<p>範例位於 <a href="../examples/0022-metric-view.py"><code>examples/0022-metric-view.py</code></a>：</p>
+
+<pre><code>latency_view = View(
+    instrument_name="app.checkout.duration",
+    attribute_keys={"http.route", "app.checkout.result"},
+    aggregation=ExplicitBucketHistogramAggregation(
+        boundaries=[10, 25, 50, 100, 250, 500, 1_000]
+    ),
+)</code></pre>
+
+<p>
+View 只保留 route template 與 bounded result。即使 call site 傳入 raw path/user ID，它們也不參與這個 output stream 的 identity；
+具有相同 route/result 的 measurements 會聚合在一起。這是控制輸出 cardinality，不代表傳入敏感值就沒風險：
+它仍曾存在 application memory，其他 Views/readers 或 logs 可能看到，source 端仍應避免產生不必要資料。
+</p>
+
+<h2>Histogram buckets 是你能回答哪些門檻問題</h2>
+<p>
+Explicit boundaries <code>[10, 25, 50, 100, 250, 500, 1000]</code> ms 會建立對應區間 counts。
+若 SLO threshold 是 300ms，但 buckets 只有 250/500，就無法由 buckets 精確知道 ≤300ms 的 count；只能做區間推估或改 aggregation。
+</p>
+
+<p>
+Buckets 太密會增加每個 attribute combination 的 state/payload；太疏則失去決策解析度。從 SLO thresholds、實際 latency range、
+記憶體與 backend 支援推導，而非複製任意預設。
+</p>
+
+<h2>SDK cardinality limit 與 overflow point</h2>
+<p>
+現行 OTel Metrics model 的預設 cardinality limit 是每個 metric stream 2,000 unique measurement attribute combinations，
+可由 View 覆寫（具體語言 SDK configuration surface 可能不同）。達到限制後，額外 combinations 的 measurements 不直接消失，
+而是聚合到：</n+</p>
+
+<pre><code>{otel.metric.overflow=true}</code></pre>
+
+<p>這同時帶來三個結果：</p>
+<ol>
+  <li><strong>總量保留：</strong>measurement values 仍進 overflow aggregation。</li>
+  <li><strong>記憶體有界：</strong>不再為每個新 combination 建 state。</li>
+  <li><strong>維度遺失：</strong>overflow point 不保留原本整組 measurement attributes。</li>
+</ol>
+
+<div class="box tip">
+<strong>最危險的誤判：</strong>overflow 不只移除那個高基數 key，而是移除整個 attribute combination。
+若原 measurement 是 <code>{raw_path=..., result="failure"}</code>，進 overflow 後連 result 也不在；
+按 <code>result=failure</code> 的 error-rate query 會低估，但全體 request total 仍可保持。
+</div>
+
+<h2>Resource/Scope 不受該 SDK measurement limit，不代表免費</h2>
+<p>
+Metrics cardinality limit 針對 Metrics API 記錄時提供的 measurement attributes；Resource 與 Instrumentation Scope attributes
+不在此限制內，且在 overflow point 仍可查詢。但這不是把 user ID 搬到 Resource 的漏洞：Resource 必須描述 telemetry-producing entity。
+</p>
+
+<p>
+此外，SDK 的 per-process/per-stream limit 與 backend 全域 series 成本是不同邊界。即使每個 process 只有少量 combinations，
+上千個 instances/versions/environments 匯總後仍會形成更多 backend series。語意正確是必要條件，容量仍需端到端估算。
+</p>
+
+<h2>Delta 與 cumulative 對 state 回收的影響</h2>
+<p>
+對 synchronous instruments，delta temporality 每個 collection cycle 後重設該週期 state，因此 limit 約束當期 active combinations；
+cumulative temporality 跨 cycles 保留 state，新 combinations 一旦讓 stream overflow，通常會持續到 process restart。
+</p>
+
+<p>
+Temporality 不是「哪個比較正確」，而是 producer/consumer 如何表達時間累積。後續會專章深入；本課先記住：
+cardinality 不只取決於 key/value，也取決於 aggregation state 保存多久。
+</p>
+
+<h2>SRE debugging lab：總量正常，error alert 卻沉默</h2>
+
+<h3>Case A：檢查 overflow marker</h3>
+<p>
+查詢 <code>otel.metric.overflow=true</code> point 的 count/sum。若持續大於零，代表部分 measurements 已失去原 dimensions。
+先找最近新增的 high-cardinality attribute、route template regression 或 View 變更。
+</p>
+
+<h3>Case B：比較 total 與分組總和</h3>
+<p>
+若全體 total ≈ success + failure + overflow，而 success/failure 分組總和偏低，overflow 正能解釋差額。
+Alert 不能只依賴可能被 overflow 移除的 key；同時應對 overflow 建 data-quality alert。
+</p>
+
+<h3>Case C：View 上線後某 attribute 消失</h3>
+<p>
+先讀 View 的 <code>attribute_keys</code>，確認它是刻意 allowlist。若需要該維度，先算新增後 cardinality budget、確認 value set bounded，
+再調整 View；不要直接放回所有 keys。
+</p>
+
+<details>
+  <summary>練習：計算並重設一個 metric budget</summary>
+  <p>原設計：50 routes × 6 status codes × 3 regions × 20 versions = 18,000 combinations/process。</p>
+  <p>請嘗試：status 改為 5 classes、version 留在 Resource、route 只保留 20 個 templates。說明新的 SDK measurement combination 上限，
+以及 backend 仍會如何受到跨 versions/instances 聚合影響。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Metric cardinality 主要由什麼決定？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">同一 stream 中 unique measurement attribute combinations</button>
+    <button class="choice" data-correct="false">只有 request 總數</button>
+    <button class="choice" data-correct="false">Trace 中 Span 的深度</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Overflow point 保留什麼、失去什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">保留 measurement 總值，失去原 attribute combination</button>
+    <button class="choice" data-correct="false">保留所有 attributes，只丟 value</button>
+    <button class="choice" data-correct="false">同時丟棄所有 measurements 與 Resource</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. View 的 <code>attribute_keys</code> allowlist 在哪裡發揮作用？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">決定該 output stream 用哪些 measurement attributes 建 aggregation identity</button>
+    <button class="choice" data-correct="false">改寫 Trace parent ID</button>
+    <button class="choice" data-correct="false">把 request attributes 變成 Resource identity</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0015-metric-cardinality-card.html">Metric cardinality 預算卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>挑一個現有 metric，列出每個 measurement attribute 的估計 value cardinality，算乘積上界；
+再設計 View allowlist，說明哪些查詢仍可回答、哪些會刻意失去。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0021-metrics-first-principles.html">&larr; Lesson 21: Metrics 第一性原理</a></span>
+  <span><a href="0023-metric-temporality.html">下一課：Metric temporality 與累積狀態 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

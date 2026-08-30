@@ -1,0 +1,32 @@
+# Planning artifact, not Collector configuration.
+domain: HTTP server telemetry
+target_contract: pinned-semconv-version-owned-by-platform-team
+
+known_mappings:
+  - legacy: http.method
+    target: http.request.method
+    value_semantics_reviewed: true
+  - legacy: http.status_code
+    target: http.response.status_code
+    value_semantics_reviewed: true
+
+producer_inventory:
+  - service: checkout
+    scope_name: opentelemetry.instrumentation.<framework>
+    scope_version: capture-at-runtime
+    schema_url: capture-at-runtime
+    emission_mode: legacy_or_target_to_be_observed
+
+migration:
+  - canary one producer version and inspect raw OTLP
+  - make consumers dual-read legacy and target names
+  - choose exactly one normalization owner if translation is required
+  - migrate producers in cohorts
+  - measure legacy-name traffic until it reaches the agreed threshold
+  - remove compatibility queries only after retention windows expire
+
+guardrails:
+  - do not assume schema_url causes automatic translation
+  - do not dual-write metric instruments under two names without a cost review
+  - do not silently change attribute value meaning while only renaming the key
+

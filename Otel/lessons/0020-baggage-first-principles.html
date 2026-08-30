@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 20: Baggage 的用途、傳播與風險</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>20. Baggage 的用途、傳播與風險</h1>
+<p class="subtitle">把 request-scoped context 帶到下游，但不把它誤認為 telemetry 或可信事實 · Lesson 20 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從跨 process 資訊需求推導 Baggage，分清它與 TraceContext、Resource、Span attributes 的角色；
+也能解釋為何 Baggage 會增加 wire cost、跨信任邊界，且不能直接用作 authorization truth。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/signals/baggage/" target="_blank">OpenTelemetry — Baggage</a>、<a href="https://opentelemetry.io/docs/concepts/context-propagation/" target="_blank">Context propagation</a></p>
+
+<h2>第一性原理：下游有時需要上游才知道的 context</h2>
+<p>
+假設 API gateway 知道 account tier，而 database service 想把 tier 加入一筆慢查詢的 telemetry。
+Function parameters 可在同一 process 傳遞，但跨 HTTP/message boundary 後，下游需要可序列化的 carrier mechanism。
+</p>
+
+<pre><code>Gateway knows: app.account.tier=gold
+  → inject into outbound carrier
+  → network / message boundary
+  → downstream extracts Context
+  → downstream may read reviewed Baggage value
+  → instrumentation may explicitly add it to selected telemetry</code></pre>
+
+<p>
+Baggage 是與 Context 一起傳播的 key-value store。它解決「讓 downstream code 取得 request-flow metadata」，
+並不自動代表這些資料已成為 Span、Metric 或 Log 的一部分。
+</p>
+
+<h2>四種看似相近的資料，其實回答不同問題</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>概念</th><th>回答的問題</th><th>會跨 process 傳播？</th><th>會成為 telemetry？</th></tr></thead>
+  <tbody>
+    <tr><td>TraceContext</td><td>目前 Trace/parent identity 與 trace flags 是什麼？</td><td>會，由 propagator inject/extract</td><td>建立 parentage/context</td></tr>
+    <tr><td>Baggage</td><td>下游還需要哪些 request-scoped key-values？</td><td>會，若配置相應 propagator</td><td>不會自動成為 attributes</td></tr>
+    <tr><td>Resource</td><td>哪個 entity 產生 telemetry？</td><td>不是 request header propagation</td><td>Provider records 共用 identity</td></tr>
+    <tr><td>Span attributes</td><td>這一次 operation 有哪些可記錄 facts？</td><td>隨 Span export，不作為下游 execution context</td><td>是</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+最常見誤解是「設了 Baggage，backend 就會自動看到」。Baggage 與 signal attributes 是分離的 stores；
+若要查詢，instrumentation 或受控 processor 必須明確讀取、驗證並複製到某筆 telemetry。
+</p>
+
+<div class="box tip">
+<strong>傳播與記錄分離的價值：</strong>不是所有下游 context 都值得永久保存。這個分層讓你分別控制
+「誰能在 execution path 讀取」與「哪些 observability records 要承擔儲存、索引與隱私成本」。
+</div>
+
+<h2>Baggage 的 Context 也是 immutable value</h2>
+<p>閱讀範例 <a href="../examples/0020-baggage-roundtrip.py"><code>examples/0020-baggage-roundtrip.py</code></a>：</p>
+
+<pre><code>outbound_context = baggage.set_baggage(
+    "app.account.tier", "gold"
+)</code></pre>
+
+<p>
+這不是修改一個 global dictionary，而是回傳包含該 Baggage entry 的 derived Context。
+若忽略回傳值，後續 inject 使用舊 Context，就不會帶出新 entry。這與 Lesson 7 的 context propagation 模型一致。
+</p>
+
+<pre><code>carrier = {}
+propagator.inject(carrier, context=outbound_context)
+
+inbound_context = propagator.extract(carrier)
+tier = baggage.get_baggage(
+    "app.account.tier", context=inbound_context
+)</code></pre>
+
+<p>
+Dictionary 模擬 HTTP headers，不發出網路。Inject 把 in-memory Baggage 轉成 carrier representation；Extract
+把收到的 carrier 解析成新的 Context。Carrier 只是 transport adapter，不是 Context 本身。
+</p>
+
+<h2>Wire cost 會被 fan-out 放大</h2>
+<p>
+Baggage 常以 request headers 傳輸。若 baggage header 大小約為 <code>H</code> bytes，而一次 operation 發出
+<code>N</code> 個 downstream calls，僅此 operation 的額外 outbound bytes 約為：</n+</p>
+
+<pre><code>extra bytes ≈ H × N
+
+再乘 request rate R：
+extra bytes / second ≈ H × N × R</code></pre>
+
+<p>
+這還沒包含 proxy parsing、serialization、memory allocation 與每一 hop 再 fan-out 的成本。因此 Baggage 應小、穩定、白名單化；
+不要放大型 payload、完整 user profile 或「以後也許有用」的資料。
+</p>
+
+<h2>安全模型：Baggage 是跨邊界 input，不是可信 authority</h2>
+<p>
+自動 instrumentation/propagators 可能把 Baggage 帶到多數 outbound requests，甚至第三方 API。它會出現在 headers，
+且 Baggage 本身沒有內建 integrity 保證，inbound value 可能由外部 client 偽造。
+</p>
+
+<ul>
+  <li>不要放 passwords、access tokens、session secrets 或不必要的 PII。</li>
+  <li>在 egress trust boundary 對 keys 做 allowlist/drop，不把內部 context 無條件送給第三方。</li>
+  <li>在 ingress 驗證 key、value、長度與允許來源。</li>
+  <li>不可用 <code>account.role=admin</code> Baggage 直接做 authorization；回到可信 identity system 驗證。</li>
+  <li>複製進 Span attribute 前，再做一次 privacy 與 cardinality review。</li>
+</ul>
+
+<h2>何時值得使用 Baggage？</h2>
+<p>一個候選值需同時通過三關：</p>
+
+<ol>
+  <li><strong>Necessity：</strong>多個 downstream components 確實需要，但無法在當地可靠重建。</li>
+  <li><strong>Boundedness：</strong>keys/values 有有限集合或嚴格長度，wire 成本可預測。</li>
+  <li><strong>Trust policy：</strong>可明確定義 inbound validation、internal propagation 與 external egress handling。</li>
+</ol>
+
+<p>
+例如 account tier 的小型列舉值可能適合；完整 account object 不適合。User ID 即使技術上可傳，也可能涉及高基數與個資，
+需要組織政策與最小化設計，不能因官方示例提到就直接採用。
+</p>
+
+<h2>SRE debugging lab：Baggage 沒出現或不該出現</h2>
+
+<h3>Case A：上游 set 了，下游 get 是 None</h3>
+<p>
+依序驗證：是否保留 <code>set_baggage</code> 回傳的新 Context、inject 是否使用該 Context、carrier 是否真的含 baggage header、
+proxy 是否移除、下游是否配置 Baggage propagator、extract 後 get 是否使用 extracted Context。
+</p>
+
+<h3>Case B：下游能讀到，backend Span 卻沒有 attribute</h3>
+<p>
+這可能完全符合設計：Baggage 不會自動成為 Span attribute。檢查是否有明確 enrichment policy；若新增 copy，
+要先決定允許哪些 keys、在哪些 Spans 記錄，以及如何控制 PII/cardinality。
+</p>
+
+<h3>Case C：第三方收到內部 Baggage</h3>
+<p>
+這是 egress policy failure，不是「header 顯示錯誤」。在 outbound trust boundary 移除非必要 entries 或使用受控 propagator；
+同時盤點 logs/traces 是否已永久記錄敏感值並依事件處理程序處理。
+</p>
+
+<details>
+  <summary>練習：審查三個候選 Baggage items</summary>
+  <ul>
+    <li><code>app.account.tier=gold</code>：小型 enum，可考慮，但仍需驗證與 egress policy。</li>
+    <li><code>authorization=Bearer ...</code>：secret，禁止放 Baggage。</li>
+    <li><code>app.user.id=...</code>：需先做 necessity、privacy、cardinality 與 retention review。</li>
+  </ul>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 設定 Baggage 後，值會自動成為所有 Span attributes 嗎？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">不會；必須由 instrumentation/受控 processor 明確複製</button>
+    <button class="choice" data-correct="false">會；Baggage 和 Span attributes 是同一個 store</button>
+    <button class="choice" data-correct="false">只要有 traceparent 就一定會</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 為何不能直接相信 inbound Baggage 的 role？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">它沒有內建 integrity 保證，可能由不可信來源提供或竄改</button>
+    <button class="choice" data-correct="false">Baggage 只能存 integer</button>
+    <button class="choice" data-correct="false">Baggage 永遠不會跨 process</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 一個 H bytes 的 Baggage 隨 operation fan-out 到 N 個 calls，最低階 wire 增量直覺是？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">約 H × N，且後續 hops/fan-out 可能再放大</button>
+    <button class="choice" data-correct="false">永遠只有 H，與 calls 數無關</button>
+    <button class="choice" data-correct="false">零，因為 headers 不佔 network bytes</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0013-baggage-safety-card.html">Baggage 使用與安全判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>列出你系統中三個想跨服務傳遞的 context values，逐一判斷必要性、最大長度、
+可信來源、允許的 egress destinations，以及是否真的要複製進 telemetry。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0019-links-causality.html">&larr; Lesson 19: Links</a></span>
+  <span><a href="0021-metrics-first-principles.html">下一課：Metrics 的第一性原理與 Traces 分工 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

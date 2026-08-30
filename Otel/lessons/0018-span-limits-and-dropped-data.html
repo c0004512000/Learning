@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 18: Span Limits 與 dropped data</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>18. Span Limits 與 dropped data</h1>
+<p class="subtitle">有限記憶體下的資料保護機制，以及缺失欄位的正確推理 · Lesson 18 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 process safety 推導 OTel SDK 為何限制 attributes、events、links 與 attribute value length，理解 discard 與 truncate
+是兩種不同資料損失，並能用 dropped counts 區分「沒被寫入」與「被 SDK 限制移除」。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/sdk/#span-limits" target="_blank">Trace SDK — Span Limits</a>、<a href="https://opentelemetry.io/docs/specs/otel/common/#attribute-limits" target="_blank">Common Attribute Limits</a>、<a href="https://opentelemetry-python.readthedocs.io/en/latest/sdk/trace.html#opentelemetry.sdk.trace.SpanLimits" target="_blank">Python SpanLimits API</a></p>
+
+<h2>第一性原理：telemetry 是不可信的可變輸入</h2>
+<p>
+Instrumentation 可能來自 application、framework、自動埋點與第三方 libraries。Bug、迴圈或未受控 payload
+都可能在一個 Span 上加入大量 attributes/events/links。若 SDK 無上限地保留，單一 request 就能耗盡 process memory，
+使「觀測系統」反過來擊垮被觀測服務。
+</p>
+
+<pre><code>每個 Span 記憶體成本
+≈ fixed Span state
+ + attribute count × average attribute cost
+ + event count × average event cost
+ + link count × average link cost
+
+process telemetry memory
+≈ 同時 recording Spans × 每個 Span 成本
+ + BatchSpanProcessor pending queue</code></pre>
+
+<p>
+Span Limits 是 SDK 內、per-record collection 的安全界線；Lesson 17 的 batch queue limit 則限制已完成但尚待 export 的 Spans。
+兩者保護不同生命週期階段，不可互相取代。
+</p>
+
+<h2>兩種資料縮減：discard 與 truncate</h2>
+
+<h3>Count limit：超過 collection 容量就 discard element</h3>
+<p>
+例如 Span 最多 128 attributes；加入新的 distinct attribute 若會超過上限，SDK 必須丟棄該 attribute，
+使 collection count 不超過限制。Events、Links，以及每個 Event/Link 的 attributes 也可有各自上限。
+</p>
+
+<h3>Value length limit：保留 key，但 truncate value</h3>
+<p>
+若設定 attribute value length limit，超長 string 或 byte array 會被截短。對 string arrays 或 nested AnyValue，
+限制依規範套用到其元素／值；數值與 boolean 不因字元長度被截斷。
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Limit</th><th>單位</th><th>超限結果</th><th>常見症狀</th></tr></thead>
+  <tbody>
+    <tr><td>Span attribute count</td><td>top-level keys / Span</td><td>額外 attribute discarded</td><td>某些 keys 完全缺少</td></tr>
+    <tr><td>Event count</td><td>events / Span</td><td>額外 event discarded</td><td>時間線缺少 events</td></tr>
+    <tr><td>Link count</td><td>links / Span</td><td>額外 link discarded</td><td>fan-in causal edges 不完整</td></tr>
+    <tr><td>Attribute value length</td><td>characters/bytes per value</td><td>value truncated</td><td>key 存在但內容被截短</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Default 是基準，不是容量規劃答案</h2>
+<p>
+OTel specification 的 common attribute count、Span event count、link count、每 Event/Link attribute count 預設基準皆為 128；
+attribute value length 預設可為無限。各語言 SDK 會提供自己的 configuration surface，model-specific limit 可優先於 global limit。
+</p>
+
+<p>
+不要因為能調高就直接調高。先問哪些欄位有診斷價值、是否應改用 Event、是否包含 payload/PII、是否可在 source 正規化。
+Limits 是最後防線，不是替不受控 instrumentation 背書。
+</p>
+
+<div class="box tip">
+<strong>Cardinality 與 count 不同：</strong>一個 Span 只有 10 個 attributes，仍可能有一個 value 在全系統產生數百萬種取值；
+Span attribute count limit 保護單筆記憶體，不直接解決 backend cardinality 成本。
+</div>
+
+<h2>Dropped counts：保留「資料不完整」這項事實</h2>
+<p>
+Readable/exportable Span 應能提供因 limits 丟棄的 attributes、events、links 數量，OTLP/backend 若保留並展示這些欄位，
+你就能看到類似 <code>dropped_attributes_count</code> 的證據。這不是原始值的復原機制，而是 completeness metadata：
+</p>
+
+<pre><code>dropped count = 0  → 沒有因該 collection limit 丟棄（不保證全鏈路無其他 loss）
+dropped count > 0  → 已知此 record 不完整
+dropped count 缺失 → 不能直接推論為 0；可能是 exporter/backend/UI 未呈現</code></pre>
+
+<p>
+SDK 也可能記錄受限警告，但為避免 log storm，規範限制每筆 record 的相關警告頻率。SRE 不應只靠 application log；
+要同時檢查 exported dropped metadata 與各層轉換行為。
+</p>
+
+<h2>閱讀 Python limits 實驗</h2>
+<p>範例位於 <a href="../examples/0018-span-limits.py"><code>examples/0018-span-limits.py</code></a>，刻意使用不合理的小值：</p>
+
+<pre><code>limits = SpanLimits(
+    max_span_attributes=3,
+    max_events=2,
+    max_event_attributes=2,
+    max_attribute_length=8,
+)
+provider = TracerProvider(span_limits=limits, ...)</code></pre>
+
+<p>
+程式嘗試寫入 5 個 Span attributes、3 個 Events，且每個 Event 有 3 個 attributes；多個 string values 超過 8 characters。
+閱讀時先預測四件事：哪些 collection 會有 drop、哪些 value 會 truncate、哪些 dropped counters 應大於 0、Resource 是否受同一 Span limits 影響。
+</p>
+
+<div class="box tip">
+<strong>不要依賴保留順序：</strong>規範要求 collection 不超限並報 dropped count，但應用邏輯不應假設所有 SDK/backends
+都以相同 oldest/newest 策略呈現 retained elements。若某 attribute 必須存在，應減少競爭並以測試驗證目標 SDK 行為。
+</div>
+
+<h2>SRE debugging lab：backend 少一個欄位，從哪裡開始？</h2>
+
+<h3>Case A：dropped attribute count 大於零</h3>
+<p>
+這是 SDK collection limit 的正面證據。列出 Span 上所有 producers/scopes 與 attribute 數量，找出爆量來源；
+優先移除低價值資料或修正 instrumentation，而不是先把 limit 無限放大。
+</p>
+
+<h3>Case B：key 存在，但 value 尾端不見</h3>
+<p>
+檢查 attribute length limit 與下游 backend field length。用同一 Span 在 SDK console/debug exporter 與 backend 各觀察一次，
+找出首次被截短的邊界。這與 count discard 是不同機制。
+</p>
+
+<h3>Case C：dropped count 是零，backend 仍沒有 key</h3>
+<p>
+零只排除該 record 在 SDK collection count limit 的一種 loss。仍要查 instrumentation condition、sampling/recording、Span end 時機、
+Collector filter/transform、backend ingestion/index policy 與 UI display。沿路比較，不要把 absence 當作 source never wrote 的證明。
+</p>
+
+<details>
+  <summary>練習：設計一個不靠猜的資料完整性實驗</summary>
+  <ol>
+    <li>固定一個 Span，寫入已知數量與已知長度的 attributes/events。</li>
+    <li>使用刻意低 limits，使 drop/truncate 必然發生。</li>
+    <li>先看 SDK console output，再看 Collector debug output。</li>
+    <li>記錄每一層 retained values 與 dropped counts。</li>
+    <li>一次只改一個 limit，驗證因果。</li>
+  </ol>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Span attribute count limit 主要保護什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">單筆 recording data 無界成長造成的 process memory 風險</button>
+    <button class="choice" data-correct="false">所有 backend query 的全域 cardinality</button>
+    <button class="choice" data-correct="false">Trace ID 的隨機性</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Key 存在但 string value 被截短，最直接對應哪類 limit？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Attribute value length limit</button>
+    <button class="choice" data-correct="false">Batch queue size</button>
+    <button class="choice" data-correct="false">Trace sampling ratio</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. <code>dropped_attributes_count=0</code> 能否證明 backend 資料完整？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">不能；它只排除特定 SDK collection-limit drop，仍有其他邊界</button>
+    <button class="choice" data-correct="false">可以；所有下游一定原樣保存</button>
+    <button class="choice" data-correct="false">可以；sampling 也會被設為零</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0011-span-limits-debug-card.html">Span Limits 與缺失資料判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>先不執行範例，預測 Span、Events 各自保留／丟棄多少 elements，哪些 string 會截短；
+再說明為何 Resource attributes 不應被當成這個 SpanLimits 實驗的結果。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0017-span-processing-lifecycle.html">&larr; Lesson 17: Processor lifecycle</a></span>
+  <span><a href="0019-links-causality.html">下一課：Links 與非樹狀因果關係 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

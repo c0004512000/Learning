@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Collector Capacity Incident Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Collector Capacity Incident Card</h1>
+<p class="subtitle">先定位瓶頸與 component class，再決定 scale</p>
+<ol>
+  <li>分 signal/component/destination 量 incoming、completed、failed、refused、bytes。</li>
+  <li>看 queue size、capacity、oldest age 與斜率：在長、持平、還是排空？</li>
+  <li>CPU saturation、memory refusal、network saturation、backend throttle，哪個最早發生？</li>
+  <li>Component 是 stateless、scraper 還是 stateful；新增 replica 需要 target ownership/affinity 嗎？</li>
+  <li>Scale Collector 會提升 completion，還是只增加對已過載 backend 的壓力？</li>
+  <li>Recovery throughput 是否大於 incoming；backlog 的預估 drain time 是多少？</li>
+  <li>Scale-down 前確認 queue 為低、state 可 drain、connection rebalance 與 minimum replicas。</li>
+</ol>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

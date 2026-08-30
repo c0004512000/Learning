@@ -1,0 +1,31 @@
+# Lesson 45 SLO worksheet. Replace with business-approved targets.
+# This is a reasoning artifact, not Collector configuration.
+
+service_boundary:
+  producer_start: application_sdk_export
+  success_end: queryable_in_primary_backend
+  signals: [traces, metrics, logs]
+
+slis:
+  acceptance:
+    question: what fraction of attempted items are not refused at ingress
+    candidate: accepted / (accepted + refused)
+    limitation: does not see clients that could not reach the receiver
+  known_loss:
+    question: what fraction is known dropped at queue or terminal delivery boundaries
+    evidence: [receiver_refused, exporter_enqueue_failed, terminal_non_retryable_loss, partial_rejection]
+  freshness:
+    question: how long from production to queryable backend
+    preferred_probe: end_to_end_synthetic_canary
+  correctness:
+    question: are identity, relationships, units, temporality, and required fields valid
+    preferred_probe: semantic_assertions_on_canary_and_sampled_real_data
+  coverage:
+    question: are expected producers/services still represented
+    preferred_probe: expected_inventory_vs_recent_telemetry
+
+targets:
+  acceptance_28d: "99.99%"
+  freshness_p99: "< 120s"
+  correctness: "100% for security/tenant invariants; define others separately"
+

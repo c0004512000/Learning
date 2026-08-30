@@ -1,0 +1,27 @@
+# Reference fragment only. file_storage is provided by Collector distributions
+# such as contrib; verify your chosen distribution before activation.
+extensions:
+  file_storage:
+    directory: /var/lib/otelcol/storage
+
+exporters:
+  otlp/backend:
+    endpoint: backend.example.invalid:4317
+    sending_queue:
+      enabled: true
+      queue_size: 5000
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 10m
+
+service:
+  extensions: [file_storage]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/backend]
+

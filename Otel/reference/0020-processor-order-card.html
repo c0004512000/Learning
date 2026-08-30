@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Collector Processor 順序判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Collector Processor 順序判斷卡</h1>
+<p class="subtitle">把每個 processor 寫成 precondition → transformation → postcondition</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Processor 類型</th><th>通常的 ordering constraint</th><th>理由</th></tr></thead>
+  <tbody>
+    <tr><td>Memory limiter</td><td>第一個 processor</td><td>儘早 backpressure，降低後續額外配置</td></tr>
+    <tr><td>Enrichment/normalization</td><td>在依賴新欄位的 filter 前</td><td>Filter precondition 必須先成立</td></tr>
+    <tr><td>Redaction/sanitize</td><td>在 buffer/debug/export 前</td><td>敏感資料不應進入後續 sink/queue</td></tr>
+    <tr><td>Drop/sampling</td><td>在 batch 前</td><td>不要先 buffer 最終會丟棄的資料</td></tr>
+    <tr><td>Batch</td><td>通常靠近 exporter</td><td>在最終保留資料上做輸出批次化</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>例外：</strong>「通常」不是盲目模板；若 processors 有不同 preconditions，先畫 dependency graph。</p>
+<p><a href="../lessons/0027-collector-processor-order.html">回到 Lesson 27</a></p>
+</body>
+</html>
+

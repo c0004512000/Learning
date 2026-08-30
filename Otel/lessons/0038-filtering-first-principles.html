@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 38: Filtering 第一性原理</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>38. Filtering 第一性原理</h1>
+<p class="subtitle">Filter 不是「選我要的」的模糊設定；它精確定義被永久丟棄的集合 · Lesson 38 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會用集合與 Boolean logic 推導 filter processor 的 drop semantics；理解 list-level OR、context hierarchy、orphaned telemetry、
+processor order 與 error mode，並能為 production filter 建立 truth table、evidence 與 rollback boundary。
+</p>
+<p class="cite">主要來源：<a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/filterprocessor/README.md" target="_blank">Filter Processor</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/LANGUAGE.md" target="_blank">OTTL Language</a></p>
+
+<h2>第一性原理：Filtering 是集合相減</h2>
+<p>令進入 processor 的 telemetry items 集合為 <code>S</code>，drop predicate 為 <code>P(x)</code>：</p>
+
+<pre><code>D = { x ∈ S | P(x) = true }
+output = S \ D</code></pre>
+
+<p>
+Filter processor 的 condition 命中代表<strong>丟棄</strong>，不是保留。這是最常見的心智反轉。
+若需求是「只保留 ERROR logs」，drop predicate 應描述 complement：「severity 低於 ERROR 的 logs」。
+</p>
+
+<div class="box warning">
+Filter 是 destructive data-plane operation。資料離開 processor 後，後面的 exporter/backend 無法還原。
+先把 drop set 寫成 truth table，再寫 OTTL；不要從複雜否定式開始猜。
+</div>
+
+<h2>多條 Conditions 是聯集（OR）</h2>
+<p>目前 filter processor 的同一 condition list 中，任一條為 true 就 drop：</p>
+
+<pre><code>conditions:
+  P1
+  P2
+
+D = match(P1) ∪ match(P2)
+drop if P1 OR P2</code></pre>
+
+<p>若要「health check 且成功才 drop」，AND 必須放在同一 expression：</p>
+
+<pre><code>span.name == "GET /healthz"
+and span.attributes["http.response.status_code"] == 200</code></pre>
+
+<p>
+若拆成兩列，就會 drop 所有 health spans，外加所有成功 spans，範圍遠大於原意。
+<code>not</code> / <code>and</code> / <code>or</code> 混用時加括號，並至少測 true/false 邊界與 missing attribute。
+</p>
+
+<h2>Selection Level 決定被刪除的單位</h2>
+<p>Telemetry 有 hierarchy；filter 由高層往低層評估：</p>
+
+<pre><code>traces:  resource → scope → span → spanevent
+metrics: resource → scope → metric → datapoint
+logs:    resource → scope → log</code></pre>
+
+<ul>
+  <li>高層 item 命中且被 drop，其下層不再評估。</li>
+  <li>所有 datapoints 被 drop 時，空 metric 也會被 drop。</li>
+  <li>所有 span events 被 drop 時，span 本身仍保留。</li>
+  <li>同一 condition 同時引用高低 contexts 時，通常在較低 context 粒度評估；需閱讀 component 的 inference 規則。</li>
+</ul>
+
+<p>
+例如 <code>resource.env == test OR spanevent.name == timeout</code> 混合 resource 與 spanevent path，會逐 span event 評估；
+它不等同於「env=test 時整個 resource 全刪」。Selection level 必須由 condition 的有效 context 推導。
+</p>
+
+<h2>Orphaned Telemetry：每筆 Item 並非獨立無關</h2>
+<p>
+Trace 是由 parent/child relationships 組成。若 filter 掉 parent span、保留 child，child 的 <code>parent_span_id</code> 仍指向不存在的 span；
+若只刪某服務 spans，整條 distributed trace 變成 partial trace。資料格式未必無效，但因果敘事被截斷。
+</p>
+
+<p>Metrics 也有關係：刪掉特定 datapoints 會改變 aggregation coverage；刪掉帶 exemplar 的 point 會失去 metric→trace bridge。Logs 被刪則可能讓 trace-correlated investigation 缺證據。</p>
+
+<p>因此 filter policy 不只問「省多少量」，還要問：</p>
+
+<ul>
+  <li>被刪 item 是否是其他 item 的 parent/peer/evidence？</li>
+  <li>coverage、error rate、latency distribution 是否因 selection bias 改變？</li>
+  <li>剩餘 telemetry 是否仍支持原本 SLO 與 incident questions？</li>
+</ul>
+
+<h2>Processor Order 改變可觀測語意</h2>
+<pre><code>transform → filter → span_metrics connector
+              │
+              └─ connector 永遠看不到 dropped spans
+
+span_metrics connector → filter derived metrics
+              │
+              └─ connector 先聚合所有進入 spans</code></pre>
+
+<p>
+Filter 放在 tail sampling 前，可能刪掉 sampling policy 判斷需要的 error event/span；放在 connector 前，會改變 derived RED metrics；
+放在 batch 前通常可減少 buffer/network，但越早 destructive，越少 downstream evidence。順序是資料產品語意，不只是效能微調。
+</p>
+
+<h2>Error Mode：Condition 算不出來時怎麼辦</h2>
+<p>
+Filter processor 現行預設 <code>ignore</code>：condition evaluation error 被記錄並繼續；<code>silent</code> 不記錄；
+<code>propagate</code> 會把 error 往上傳，可能讓 payload 被 drop。注意「規則 error」與「condition=false」不同。
+</p>
+
+<p>
+對成本型 noise filter，ignore 常避免因一筆錯型別丟整批資料；對 compliance deny policy，ignore 可能讓本該阻擋的資料通過。
+先選 failure policy，再選 mode，並監控 evaluation errors。
+</p>
+
+<h2>靜態範例：描述 Drop Set</h2>
+<p>閱讀 <a href="../examples/0038-filter-policy.yaml"><code>examples/0038-filter-policy.yaml</code></a>，把每條翻成自然語言：</p>
+
+<ol>
+  <li>Drop 成功的 <code>GET /healthz</code> spans。</li>
+  <li>Drop 所有 <code>load-test</code> resource 下的 spans。</li>
+  <li>Drop 指定 filesystem metric 的 <code>/tmp</code> datapoints。</li>
+  <li>Drop 低於 WARN 且不是 audit 的 logs。</li>
+</ol>
+
+<p>
+範例使用 0.146.0 之後文件所述的 <code>*_conditions</code> 形式，且本課不執行 Collector。
+實際採用前要固定 distribution/version，因 component stability 與 configuration schema 會演進。
+</p>
+
+<h2>SRE 附加練習：上線後錯誤率突然下降</h2>
+<p>「錯誤率下降」可能是好消息，也可能是 denominator/numerator 被 filter 改壞：</p>
+
+<ol>
+  <li>建立變更時間線：filter rollout、traffic、deploy、backend query 是否同時改變。</li>
+  <li>比較 filter 前後 counts；若沒有前置 evidence，先在 canary/shadow path 建立，不要只看 backend output。</li>
+  <li>逐 condition 建 truth table，特別檢查 status missing、錯型別與 Boolean precedence。</li>
+  <li>檢查 filter 位於 span metrics/tail sampling 的前或後；確認 numerator 與 denominator 是否來自同一 population。</li>
+  <li>按 service/route/status 比較 drop ratio，找出不成比例的 selection。</li>
+  <li>達 rollback trigger 就先撤規則，再做根因分析；不要讓未知 data loss 持續。</li>
+</ol>
+
+<p>Production review 可用 <a href="../reference/0031-filter-policy-review-card.html">Filter Policy Review Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>為 health rule 寫四列 truth table：health/非-health × 200/500；標出 drop/keep。</li>
+  <li>把 health 的 AND 拆成兩列，重做 truth table，量化多刪了哪些集合。</li>
+  <li>給一個 metric 三個 datapoints，其中兩個 mountpoint=/tmp；推理 filter 後 metric 是否保留。再令三個全為 /tmp。</li>
+  <li>畫出 parent span 被 drop、child 保留的 trace tree，寫出 backend 使用者會看到的缺口。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>1. Filter processor 的 condition 為 true 通常代表？</strong></p>
+  <label><input type="radio" name="q1" value="a"> 該 evaluation unit 被 drop</label><br>
+  <label><input type="radio" name="q1" value="b"> 該 item 被優先保留</label><br>
+  <label><input type="radio" name="q1" value="c"> 自動送到另一 backend</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>2. 兩條獨立 conditions <code>P1</code>、<code>P2</code> 的 drop set 是？</strong></p>
+  <label><input type="radio" name="q2" value="a"> 只 drop 同時符合兩者</label><br>
+  <label><input type="radio" name="q2" value="b"> 永遠不 drop</label><br>
+  <label><input type="radio" name="q2" value="c"> drop 符合 P1 或 P2 的聯集</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>3. 為何 filter 放在 span metrics connector 前後不等價？</strong></p>
+  <label><input type="radio" name="q3" value="a"> 因為 YAML 不允許交換順序</label><br>
+  <label><input type="radio" name="q3" value="b"> connector 聚合的輸入 population 不同，衍生 metrics 語意因此不同</label><br>
+  <label><input type="radio" name="q3" value="c"> 只有 log pipeline 受影響</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>Filtering 是 <code>S \ D</code>；condition true 定義 drop set。</li>
+  <li>獨立 conditions 是 OR，AND 必須寫在同一 expression 並用 truth table 證明。</li>
+  <li>Context hierarchy 決定 drop 粒度；relationships 讓局部刪除可能造成 partial/orphaned telemetry。</li>
+  <li>Processor order、error mode 與 evidence/rollback 都是 filter policy 的一部分。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0037-ottl-first-principles.html">← Lesson 37</a>
+  <a href="0039-routing-first-principles.html">Lesson 39：Routing 第一性原理 →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

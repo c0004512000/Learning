@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 9: Sampling 為何存在</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>9. Sampling 為何存在</h1>
+<p class="subtitle">在有限資源下保留具有代表性與診斷價值的 Traces · Lesson 9 of N</p>
+
+<h2>先看不可逃避的資源方程式</h2>
+<pre><code>telemetry cost
+≈ requests/second
+× spans/request
+× bytes/span
+× retention
+× processing/indexing factor</code></pre>
+
+<p>
+流量、每個 request 的 Spans、欄位大小或保留期任一項增長，都會放大 application CPU、queue memory、
+network、Collector 與 backend 成本。若大多數 requests 都健康且行為相似，保存 100% Traces
+不一定增加等比例的新知識。
+</p>
+<p>
+Sampling 的目標不是隨機「丟資料省錢」而已；它要在成本限制內，保留能代表整體行為或符合事故價值的 Traces。
+錯誤的 sampling policy 會讓最需要的證據消失，因此 sampling 本身也是 SRE 必須監控與驗證的系統。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/sampling/" target="_blank">OpenTelemetry — Sampling</a></p>
+
+<h2>四個動詞不要混成一件事</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>階段</th><th>發生什麼</th><th>可能仍然失敗嗎？</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Create</strong></td><td>Instrumentation 要求 Tracer 開始一個 Span。</td><td>Sampler 可能決定不 record。</td></tr>
+    <tr><td><strong>Record</strong></td><td>SDK 保存 attributes、events、status 等 Span 資料。</td><td>不代表一定標記 sampled。</td></tr>
+    <tr><td><strong>Sample</strong></td><td>Sampler 決定 Span 是否成為要處理與 export 的樣本。</td><td>後續 queue、network 仍可能丟失。</td></tr>
+    <tr><td><strong>Export</strong></td><td>Processor / Exporter 將完成的資料送往下一站。</td><td>Collector 或 backend 仍可能拒絕、過濾或遺失。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box">
+<strong>重要：</strong>「程式碼有建立 Span」不能推出「backend 一定找得到」；兩者之間至少還有
+sampler、recording、processor queue、exporter、network、Collector processors 與 backend ingestion。
+</div>
+
+<h2>SDK sampler 的三種決策</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>決策</th><th>Record?</th><th>Sample / export?</th><th>適合怎麼理解</th></tr></thead>
+  <tbody>
+    <tr><td><code>DROP</code></td><td>否</td><td>否</td><td>保留最小 propagation 行為，不保存 Span data。</td></tr>
+    <tr><td><code>RECORD_ONLY</code></td><td>是</td><td>否</td><td>本地 record，但 sampled flag 不設為 sampled。</td></tr>
+    <tr><td><code>RECORD_AND_SAMPLE</code></td><td>是</td><td>是</td><td>record 並交給後續 processing/export。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Sampling decision 在 Span 建立時發生，所以 sampler 只能看到當下可用的資訊：parent context、Trace ID、
+Span name/kind，以及建立時提供的 attributes。Span 結束才知道的 error、最終 latency 或後加 attribute，
+head sampler 當下看不到。
+</p>
+
+<h2>Head sampling：早決策，資訊少</h2>
+<p>
+Head sampling 在 Trace 很早期做決策，常見方式是依 Trace ID 與設定比例做一致性 probability sampling。
+優點是簡單、低成本，能在資料進入整條 pipeline 前就降低負荷；代價是看不到 Trace 最終結果。
+</p>
+
+<pre><code>request arrives
+  → root Span starts
+  → HEAD DECISION（此時尚不知道最終 500、總 latency、下游錯誤）
+  → remaining spans execute</code></pre>
+
+<p>
+因此「保留所有 error traces」不能只靠最早期的 head decision 完整做到：error 可能在數秒後、另一個 service
+或深層 child Span 才出現。
+</p>
+
+<h2>Tail sampling：晚決策，資訊多</h2>
+<p>
+Tail sampling 等到看到一條 Trace 的全部或大部分 Spans 後再決定，可以依整體 latency、任一 Span error、
+特定 attribute 或 service 做 policy。這換來更高的診斷選擇能力，也必須付出 stateful buffering、
+等待時間、memory、trace routing 與營運複雜度。
+</p>
+
+<pre><code>many services emit spans
+  → Collector receives and groups by Trace ID
+  → buffer until decision window
+  → TAIL DECISION（可見 errors / latency / attributes）
+  → export selected traces</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>比較</th><th>Head sampling</th><th>Tail sampling</th></tr></thead>
+  <tbody>
+    <tr><td>決策時間</td><td>Trace 開始附近</td><td>Trace 接近完成後</td></tr>
+    <tr><td>可見資訊</td><td>parent、Trace ID、初始欄位</td><td>多個 Spans 的結果與時間</td></tr>
+    <tr><td>資源成本</td><td>較低</td><td>需 buffer 與 state</td></tr>
+    <tr><td>適合策略</td><td>一致比例、上游 decision</td><td>errors、latency、domain criteria</td></tr>
+    <tr><td>主要風險</td><td>錯過晚出現的重要 Trace</td><td>sampler 自身過載或 Trace 不完整</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Parent-based sampling 為何重要？</h2>
+<p>
+若每個 service 各自擲硬幣，可能只保留 Trace 的某些 Spans，形成難以解讀的 partial trace。
+Parent-based sampler 讀取 propagated sampling flag，讓下游通常遵循上游決策；這能維持一條 distributed
+Trace 的一致性，也解釋了 Lesson 7 的 <code>trace-flags</code> 為何需要跨 boundary。
+</p>
+
+<p>
+但 sampled flag 是決策訊號，不是 delivery receipt。<code>01</code> 不能證明 Collector 已收到 Span；
+它只表示這條 context 被標記為 sampled，後續 pipeline 仍須另行觀測。
+</p>
+
+<h2>SRE debugging lab：為何 backend 找不到 Trace？</h2>
+<p>應用 log 有 Trace ID，但 backend 查不到。不要立刻怪 exporter；沿資料生命週期逐站問：</p>
+<ol>
+  <li><strong>Instrumentation：</strong>執行路徑真的建立 Span 了嗎？</li>
+  <li><strong>Sampling：</strong>root / parent decision 是 DROP、RECORD_ONLY 還是 RECORD_AND_SAMPLE？</li>
+  <li><strong>SDK pipeline：</strong>Span 是否 end、Processor queue 是否滿、shutdown 前是否 flush？</li>
+  <li><strong>Export transport：</strong>OTLP request 是否成功，是否 retry / timeout / reject？</li>
+  <li><strong>Collector：</strong>sampling/filter processors 是否 drop，tail buffer 是否過載？</li>
+  <li><strong>Backend：</strong>ingestion、retention、index delay 與 query scope 是否正確？</li>
+</ol>
+
+<details>
+  <summary>三個症狀的優先方向</summary>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>症狀</th><th>先查</th><th>原因</th></tr></thead>
+    <tbody>
+      <tr><td>所有服務都缺同一條 Trace</td><td>root head decision</td><td>上游可能整條 DROP，且下游遵循 parent。</td></tr>
+      <tr><td>只有某 service 長期缺 Span</td><td>該 service instrumentation / pipeline</td><td>不是全域 probability 能自然解釋的固定缺口。</td></tr>
+      <tr><td>error traces 偶爾缺失</td><td>head policy 資訊邊界</td><td>決策時可能尚未知道後續 error。</td></tr>
+    </tbody>
+  </table>
+  </div>
+</details>
+
+<h2>Policy 設計練習</h2>
+<p>對一個高流量 checkout 系統，先不寫設定檔，只寫意圖：</p>
+<ul>
+  <li>健康且快速的 Traces：保留一致的小比例，以估計常態分布。</li>
+  <li>包含 5xx 或 exception 的 Traces：在容量允許下提高保留率。</li>
+  <li>總 latency 超過 SLO threshold 的 Traces：提高保留率。</li>
+  <li>新版本 / canary service：暫時提高保留率，驗證部署風險。</li>
+  <li>Tail sampler 自身：監控 buffer、dropped traces、decision latency 與 uneven routing。</li>
+</ul>
+
+<p>
+這些是 evidence requirements，尚不是 production policy。真正配置前還要量化 traffic、Span size、
+error rate、Collector memory 與最壞情況；先寫「為何保留」，再寫「如何配置」。
+</p>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 為何 head sampler 無法保證保留所有 error traces？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">決策時最終錯誤可能尚未發生</button>
+    <button class="choice" data-correct="false">決策時 Trace ID 尚未產生</button>
+    <button class="choice" data-correct="false">決策時 Exporter 必定已經關閉</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Tail sampling 為何需要較多資源？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">需要暫存並關聯多個 Trace Spans</button>
+    <button class="choice" data-correct="false">需要重新產生所有 Trace IDs</button>
+    <button class="choice" data-correct="false">需要移除所有 propagated contexts</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. <code>trace-flags=01</code> 能證明什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Context 被標記為 sampled</button>
+    <button class="choice" data-correct="false">Backend 已保存完整 Trace</button>
+    <button class="choice" data-correct="false">Collector 已確認所有 Spans</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0005-sampling-debug-card.html">Sampling 決策與缺 Trace debug 卡</a>。
+</div>
+
+<div class="box ask">
+<strong>有問題就問我：</strong>如果你提供大致 requests/sec、平均 spans/request、error rate 與保留目標，
+我們可以先用數量級推導是否需要 sampling；不會直接跳到一份看似 production-ready 的設定。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0008-manual-python-propagation.html">&larr; Lesson 8: Python propagation</a></span>
+  <span><a href="0010-python-sampling-experiment.html">下一課：Python sampling 實驗 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

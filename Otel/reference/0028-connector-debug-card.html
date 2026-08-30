@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Connector 除錯卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Connector 除錯卡</h1>
+<p class="subtitle">把 connector 視為兩條 pipeline 之間有型別、有狀態的 edge</p>
+
+<ol>
+  <li><strong>宣告：</strong>目標 Collector distribution/version 真的包含該 connector 嗎？</li>
+  <li><strong>上游：</strong>connector 是否出現在來源 pipeline 的 <code>exporters</code>？</li>
+  <li><strong>下游：</strong>同一 instance 是否出現在目的 pipeline 的 <code>receivers</code>？</li>
+  <li><strong>型別：</strong>來源/目的 signal pair 是否受支援，例如 traces → metrics？</li>
+  <li><strong>輸入：</strong>上游 connector 前是否真的有 spans；sampling 是否已先丟棄資料？</li>
+  <li><strong>狀態：</strong>flush interval、TTL、cache、cardinality limit、affinity 是否符合預期？</li>
+  <li><strong>輸出：</strong>下游 processor/exporter 的 accepted、failed、dropped evidence 是什麼？</li>
+</ol>
+
+<p><strong>最短定位句：</strong>先證明 edge 左邊有輸入，再證明 edge 產生輸出，最後才查 backend。</p>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

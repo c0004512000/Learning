@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 35: Collector Connectors 與跨 Pipeline 資料流</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>35. Collector Connectors 與跨 Pipeline 資料流</h1>
+<p class="subtitle">Pipeline 是有 signal 型別的資料流；Connector 是兩條 Pipeline 之間的 edge · Lesson 35 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 pipeline 的封閉性推導 connector 為何同時扮演 exporter 與 receiver；能區分 processor、exporter、connector，
+讀懂 traces → metrics 的 span metrics graph，並辨識啟用、型別、sampling、cardinality 與 state ownership 問題。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/components/connector/" target="_blank">Collector Connectors</a>、<a href="https://opentelemetry.io/docs/collector/configuration/" target="_blank">Collector Configuration</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/connector/spanmetricsconnector/README.md" target="_blank">Span Metrics Connector</a></p>
+
+<h2>第一性原理：一條 Pipeline 只處理一種 Signal</h2>
+<p>Collector pipeline 的基本形狀是：</p>
+
+<pre><code>receiver(signal X) → processors(signal X) → exporter(signal X)</code></pre>
+
+<p>
+它有清楚的入口、處理鏈與出口，而且屬於 traces、metrics 或 logs 其中一種 signal。
+因此「讀 spans 並產生 metrics」不是普通 trace processor 能完整表達的事：輸入屬於 trace pipeline，輸出卻必須進入 metrics pipeline。
+</p>
+
+<p>若把 Collector configuration 看成有向圖，pipeline 是一段有型別的路徑，connector 則是跨 pipeline 的 edge：</p>
+
+<pre><code>traces pipeline
+OTLP → processors → [span_metrics as exporter]
+                         │ traces → metrics
+                         ▼
+metrics pipeline
+              [span_metrics as receiver] → processors → metrics backend</code></pre>
+
+<p>
+這解釋了 connector 的雙重角色：它在來源 pipeline 的末端<strong>消費</strong>資料，所以被列為 exporter；
+它在目的 pipeline 的開頭<strong>提供</strong>資料，所以被列為 receiver。它可以保持 signal 型別做 routing/replication，也可以改變型別、產生摘要。
+</p>
+
+<h2>Processor、Exporter、Connector 不可只靠名字判斷</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Component</th><th>資料流角色</th><th>典型用途</th><th>心智問題</th></tr></thead>
+  <tbody>
+    <tr><td>Processor</td><td>一條 pipeline 內部</td><td>filter、transform、batch、sampling</td><td>這筆同 signal 資料如何被改變？</td></tr>
+    <tr><td>Exporter</td><td>pipeline 終點</td><td>送 backend/檔案/另一 Collector</td><td>資料離開這條 pipeline 後去哪？</td></tr>
+    <tr><td>Connector</td><td>一條 pipeline 的 exporter + 另一條的 receiver</td><td>route、replicate、signal-to-signal summary</td><td>哪兩條 typed pipelines 被接起來？</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box warning">
+<strong>宣告不等於啟用：</strong>只在頂層 <code>connectors:</code> 建立 instance，並不會讓資料流動。
+同一 connector 必須同時出現在來源 pipeline 的 <code>exporters</code> 與目的 pipeline 的 <code>receivers</code>，而且 signal pair 必須受該 component 支援。
+</div>
+
+<h2>Span Metrics：把事件樣本聚合成 RED Metrics</h2>
+<p>
+一個 ended Span 是一次 operation 的事件紀錄；metrics 則是依時間與 dimensions 聚合的數值流。
+Span Metrics Connector 讀 spans，依穩定 dimensions 分組，產生 Request、Error、Duration（RED）metrics：
+</p>
+
+<pre><code>calls(service.name, span.name, span.kind, status.code) += 1
+duration(...).record(span.end_time - span.start_time)</code></pre>
+
+<p>
+因此 metric 並非從 backend「猜」出來，而是 connector 持有 aggregation state，把多個離散 spans 壓縮成 counters/histograms。
+這個壓縮換來低成本趨勢與 alerting，但會失去每個 request 的完整細節；需要 exemplar 時，可保留少量 metric datapoint 到 trace 的橋樑。
+</p>
+
+<p>
+可閱讀 <a href="../examples/0035-span-metrics-connector.yaml"><code>examples/0035-span-metrics-connector.yaml</code></a>。
+它是安全的規劃片段，本課不啟動 Collector。請先用圖驗證：<code>span_metrics</code> 在 trace pipeline 是 exporter，
+在 metrics pipeline 是 receiver；trace 仍可同時送到另一 exporter，connector 不必是唯一出口。
+</p>
+
+<h2>衍生 Metrics 的真實語意受輸入集合限制</h2>
+<p>設真實 spans 集合為 <code>T</code>，進入 connector 的集合為 <code>O</code>。connector 只能聚合它看見的資料：</p>
+
+<pre><code>O ⊆ T
+derived_metric = Aggregate(O), not automatically Aggregate(T)</code></pre>
+
+<p>
+若在 connector 前做 10% head sampling，普通計數得到的是 observed spans，而不是天然等於總流量。
+錯誤率也可能偏誤：若 sampling decision 與 error/latency 相關，樣本不再代表母體。
+所以 pipeline order 是 metric semantics 的一部分，不只是效能設定。
+</p>
+
+<div class="box tip">
+<strong>設計問題：</strong>若 RED metrics 要代表全部 requests，讓 connector 看完整合格輸入，或明確採用可校正 sampling 的設計；
+不要在 dashboard 上把「sampled trace count」默默命名成「request count」。
+</div>
+
+<h2>Cardinality：每個 Dimension 都在乘法</h2>
+<p>每組唯一 dimensions 形成不同 metric stream。粗略上界可寫成：</p>
+
+<pre><code>series ≈ services × span_names × span_kinds × status_codes
+         × environments × additional_dimension_values ...</code></pre>
+
+<p>
+把 raw URL、request ID、trace ID、user ID 加入 dimensions，會把 aggregation 退化成近乎「每 request 一條 series」。
+這不只提高 backend 成本，也讓 connector cache/memory 上升。正確修復是先讓 span name 與 dimensions 保持低 cardinality；
+<code>aggregation_cardinality_limit</code> 是防護欄，不是語意修復器。
+</p>
+
+<h2>State、Temporality 與 Single Writer</h2>
+<p>
+Connector 必須持有 calls、histogram buckets、timestamps 與 series cache。Delta temporality 要輸出「自上次 flush 後的增量」；
+Cumulative 要維護從 start time 起的累積。若同一邏輯 metric stream 同時由多個無協調 instances 產生，backend 可能看到重疊、reset 或 out-of-order。
+</p>
+
+<p>
+這與第 34 章相接：需要 aggregation state 的 connector 應有明確 owner 與 routing/identity 策略。
+目前 span metrics connector 會加入 <code>collector.instance.id</code> 來協助維持 writer identity；不要在不理解 single-writer 後果時移除。
+若用多 deployment，還要考慮 service affinity、stable resource identity 與 rollout 時的 stream continuity。
+</p>
+
+<h2>SRE 附加練習：Trace 有了，Metrics 為何沒有？</h2>
+<p>不要直接跳到 backend。沿 graph 的 causal boundary 收集證據：</p>
+
+<ol>
+  <li>確認使用的 Collector distribution/version 包含該 connector；core 與 contrib 的 component 集合不同。</li>
+  <li>確認 connector instance 已在頂層宣告，且同時掛在上游 exporters、下游 receivers。</li>
+  <li>在 connector 前證明有 spans；檢查 filter/sampling 是否先移除資料。</li>
+  <li>等待至少一個合理 flush interval，再檢查 connector 與下游 pipeline 的 accepted/failed/dropped internal telemetry。</li>
+  <li>用 debug exporter 暫時觀察衍生 metrics；若有輸出，再把問題邊界移到 downstream exporter/backend。</li>
+  <li>若只有部分 services 消失，查 resource identity、include scope、routing affinity 與 cardinality overflow。</li>
+</ol>
+
+<p>把這套順序存成 <a href="../reference/0028-connector-debug-card.html">Connector 除錯卡</a>。它的核心不是背 metric 名，而是每次只證明 graph 的一條 edge。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>在範例中刪掉 <code>metrics/derived.receivers: [span_metrics]</code>。畫出還存在的 graph，指出為何 declaration 仍在但 edge 不完整。</li>
+  <li>假設 trace pipeline 在 connector 前只保留 5% spans。寫一句 dashboard label，避免把衍生 calls 誤稱為全流量。</li>
+  <li>比較 <code>http.route=/orders/{id}</code> 與 <code>url.full=/orders/7f8...</code> 當 dimension；估計哪個乘數會失控，說明 why。</li>
+  <li>設計兩個證據點，區分「connector 沒產生 metrics」與「metrics exporter 送不出去」。</li>
+</ol>
+
+<h2>理解檢查</h2>
+
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>1. 為何 connector 要同時出現在兩條 pipelines？</strong></p>
+  <label><input type="radio" name="q1" value="a"> 為了讓 YAML 看起來對稱</label><br>
+  <label><input type="radio" name="q1" value="b"> 它是來源 pipeline 的 exporter，也是目的 pipeline 的 receiver</label><br>
+  <label><input type="radio" name="q1" value="c"> 因為 processor 不能和 exporter 共存</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>2. 在 span metrics connector 前做 10% head sampling，最安全的理解是？</strong></p>
+  <label><input type="radio" name="q2" value="a"> calls 自動仍等於 100% 真實 request count</label><br>
+  <label><input type="radio" name="q2" value="b"> histogram 不受 sampling 影響</label><br>
+  <label><input type="radio" name="q2" value="c"> connector 聚合 observed spans；是否可代表母體取決於 sampling 與校正設計</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>3. Trace debug exporter 有 spans，但衍生 metrics 完全沒有，第一輪最有效的檢查是？</strong></p>
+  <label><input type="radio" name="q3" value="a"> 檢查 connector 的上游 exporter/downstream receiver wiring 與 typed pair</label><br>
+  <label><input type="radio" name="q3" value="b"> 立刻把 backend retention 加倍</label><br>
+  <label><input type="radio" name="q3" value="c"> 把每個 trace ID 加成 metric dimension</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>Pipeline 是單一 signal 的有型別路徑；connector 是兩條 pipelines 間的 edge。</li>
+  <li>Connector 同時是上游 exporter 與下游 receiver；只宣告不會啟用。</li>
+  <li>Span metrics 是對 observed spans 的有狀態聚合；sampling、dimensions、temporality 都改變其語意。</li>
+  <li>除錯時沿 edge 證明 input、state、output，再移往 backend。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0034-agent-gateway-deployment.html">← Lesson 34</a>
+  <a href="0036-otel-configuration-model.html">Lesson 36：Configuration Model →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

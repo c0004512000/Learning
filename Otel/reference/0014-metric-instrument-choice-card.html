@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Metric Instrument 選擇卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Metric Instrument 選擇卡</h1>
+<p class="subtitle">先問可做的數學，再選 API</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>你觀測什麼？</th><th>Instrument</th><th>例子</th></tr></thead>
+  <tbody>
+    <tr><td>只增加的事件／工作總量</td><td>Counter</td><td>completed requests、bytes sent</td></tr>
+    <tr><td>正負變化的累積狀態</td><td>UpDownCounter</td><td>in-flight requests</td></tr>
+    <tr><td>每次觀測值的分布</td><td>Histogram</td><td>duration、payload size</td></tr>
+    <tr><td>當下直接設定的值</td><td>Gauge</td><td>目前溫度</td></tr>
+    <tr><td>只在 collection 時可讀的目前值</td><td>Observable instrument</td><td>外部 queue size、runtime stats</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>不要用 widget 選 instrument：</strong>折線圖能畫 Counter rate、Gauge 與 Histogram quantile，但它們的數學語意不同。</p>
+<p><a href="../lessons/0021-metrics-first-principles.html">回到 Lesson 21</a></p>
+</body>
+</html>
+

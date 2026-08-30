@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 12: 讀懂最小 Collector YAML</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>12. 讀懂最小 Collector YAML</h1>
+<p class="subtitle">把文字設定還原成 active telemetry graph · Lesson 12 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會把一份 Collector YAML 轉成可驗證的資料流，而不是只看 indentation 猜意思。這一課先建立讀圖能力；
+不啟動 Collector、不安裝 binary，也不加入 backend、TLS、Kubernetes 或 production tuning。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/configuration/" target="_blank">OpenTelemetry Collector — Configuration</a></p>
+
+<h2>最小設定</h2>
+<p>檔案位於 <a href="../examples/0012-collector-minimal.yaml"><code>examples/0012-collector-minimal.yaml</code></a>：</p>
+<pre><code>receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+      http:
+        endpoint: 127.0.0.1:4318
+
+processors:
+  batch:
+
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]</code></pre>
+
+<h2>先只讀 declarations</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Identifier</th><th>Type</th><th>Instance name</th><th>設定意圖</th></tr></thead>
+  <tbody>
+    <tr><td><code>otlp</code></td><td>otlp receiver</td><td>default</td><td>在 localhost 接受 OTLP/gRPC 4317 與 OTLP/HTTP 4318。</td></tr>
+    <tr><td><code>batch</code></td><td>batch processor</td><td>default</td><td>將 telemetry 組批再交給下一站。</td></tr>
+    <tr><td><code>debug</code></td><td>debug exporter</td><td>default</td><td>把收到的 telemetry 印到 Collector logging output。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Component identifier 格式是 <code>type[/name]</code>。只有一個 instance 時可只寫 type；若要兩個 OTLP exporters，
+可用 <code>otlp/backend_a</code> 與 <code>otlp/backend_b</code>。斜線後名稱只是 instance identity，
+不會創造新的 component type。
+</p>
+
+<h2>再讀 activation graph</h2>
+<pre><code>service.pipelines.traces
+  receivers:  [otlp]
+  processors: [batch]
+  exporters:  [debug]
+
+還原成：
+OTLP receiver → batch processor → debug exporter</code></pre>
+
+<p>
+這是一條 traces-only pipeline。OTLP receiver 雖能接收多種信號，但 config 沒有 metrics / logs pipelines，
+所以本例只為 Traces 建立 active path。
+</p>
+
+<h2>三個 endpoint 含義不要混</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>位置</th><th>方向</th><th>角色</th></tr></thead>
+  <tbody>
+    <tr><td><code>127.0.0.1:4317</code></td><td>application → Collector</td><td>Receiver 的 OTLP/gRPC listening endpoint。</td></tr>
+    <tr><td><code>127.0.0.1:4318</code></td><td>application → Collector</td><td>Receiver 的 OTLP/HTTP listening endpoint。</td></tr>
+    <tr><td>本例沒有 backend endpoint</td><td>Collector → backend</td><td>因為 debug exporter 寫 logging output，不送 network。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box tip">
+<strong>安全起點：</strong>本機 lab 綁定 <code>127.0.0.1</code>，只接受同一台主機連線。
+改成 <code>0.0.0.0</code> 會擴大 network exposure；只有在容器／遠端 client 確實需要且已設計 firewall、
+authentication 與 TLS 時才應這樣做。
+</div>
+
+<h2>為何先用 debug exporter？</h2>
+<p>
+它建立最短 feedback loop：只要 application 能送到 receiver、config 已啟用 traces pipeline、batch 能 forward，
+你就能在 Collector output 看見 Span。此時尚未引入 backend credentials、DNS、TLS 或 vendor query UI，
+所以失敗假設更少。
+</p>
+<p>
+但 debug exporter 不是 production backend：它不提供長期保存、Trace query、service map 或 retention。
+它是 pipeline probe，不是最終 observability solution。
+</p>
+
+<h2>固定的 config 閱讀演算法</h2>
+<ol>
+  <li><strong>Inventory：</strong>列出頂層 receivers / processors / exporters 的 identifiers。</li>
+  <li><strong>Activation：</strong>逐一讀 <code>service.pipelines</code>，標出 signal type。</li>
+  <li><strong>Resolution：</strong>每個引用是否有對應 declaration？該 component 是否支援此 signal？</li>
+  <li><strong>Order：</strong>依 receivers → processors list order → exporters 畫箭頭。</li>
+  <li><strong>Boundaries：</strong>標出 listening endpoints、outbound destinations、TLS/auth 與 exposure。</li>
+  <li><strong>Evidence：</strong>為每一站決定可觀察的成功／失敗訊號。</li>
+</ol>
+
+<h2>SRE debugging lab：三份看似合理的錯誤 config</h2>
+
+<h3>Case A：定義了，沒有啟用</h3>
+<pre><code>exporters:
+  debug:
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: []</code></pre>
+<p><strong>判讀：</strong>debug component 存在，但沒有 active edge 連到它；不會收到 pipeline data。</p>
+
+<h3>Case B：引用不存在的 instance</h3>
+<pre><code>exporters:
+  debug:
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug/detailed]</code></pre>
+<p><strong>判讀：</strong><code>debug/detailed</code> 是另一個 identifier，不會自動繼承 <code>debug</code> declaration。</p>
+
+<h3>Case C：以為 OTLP receiver 自動啟用三種信號</h3>
+<pre><code>service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]</code></pre>
+<p><strong>判讀：</strong>只有 traces active；metrics / logs 需要各自 pipeline。</p>
+
+<details>
+  <summary>修正的共同原則</summary>
+  <p>
+不要靠 component 的存在推論資料流。以 <code>service.pipelines</code> 為根，解析每個 identifier，
+確認 signal-compatible declarations，再依 list order 畫出 active graph。
+  </p>
+</details>
+
+<h2>還沒執行前，也能做哪些驗證？</h2>
+<ul>
+  <li>YAML key 層級與 list 形狀是否正確。</li>
+  <li>所有 pipeline references 是否有 declaration。</li>
+  <li>本機 lab endpoints 是否只綁 localhost。</li>
+  <li>traces path 是否至少有 receiver 與 exporter。</li>
+  <li>production secrets 是否被硬編碼進 config（本例完全沒有）。</li>
+</ul>
+
+<p>
+真正啟動前還應使用該 Collector distribution 自帶的 <code>validate</code> command，因為不同 distribution
+包含的 components 可能不同。這一步留到容器化 lab；依你的 execution policy，優先使用 Docker image，
+不下載或執行新的 Windows Collector executable。
+</p>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. <code>otlp/backend_a</code> 中斜線後半代表什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">同一 type 的具名 instance</button>
+    <button class="choice" data-correct="false">另一 signal 的固定 protocol</button>
+    <button class="choice" data-correct="false">遠端 backend 的完整 URL</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 哪一段真正把 components 接成 active path？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">service pipelines references</button>
+    <button class="choice" data-correct="false">top-level component declarations</button>
+    <button class="choice" data-correct="false">resource semantic conventions</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 本例 debug exporter 能證明什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Trace 已通過 receiver 與 batch</button>
+    <button class="choice" data-correct="false">Trace 已保存於 production backend</button>
+    <button class="choice" data-correct="false">Trace 已通過 metrics 與 logs</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0006-collector-pipeline-debug-card.html">Collector pipeline 與分站 debug 卡</a>。
+</div>
+
+<div class="box ask">
+<strong>有問題就問我：</strong>請先不執行，將這份 YAML 用箭頭重畫並貼回來；我會檢查你是否正確區分
+declaration、activation、signal type 與 endpoint direction。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0011-collector-pipeline-first-principles.html">&larr; Lesson 11: Collector pipeline</a></span>
+  <span><a href="0013-otlp-app-to-collector.html">下一課：Application 透過 OTLP 送進 Collector &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

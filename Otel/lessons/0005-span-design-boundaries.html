@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 5: Span 邊界與欄位設計</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>5. Span 邊界與欄位設計</h1>
+<p class="subtitle">不是「能埋就埋」，而是保存恰好足夠的因果證據 · Lesson 5 of N</p>
+
+<h2>這一課解決什麼問題？</h2>
+<p>
+OpenTelemetry 允許你自由建立 Span 與 attributes，但自由不等於每個 function 都應該成為 Span。
+每新增一個 Span，都會增加 application 端的建立與處理成本、export 流量、Collector 負荷、
+backend 儲存量，以及 SRE 判讀時的雜訊。
+</p>
+<p>
+因此 Span 設計的第一性問題不是「API 怎麼呼叫」，而是：<strong>未來發生故障時，哪個工作邊界
+需要獨立的 duration、outcome 與 causal position，才能排除假設？</strong>
+</p>
+<p class="cite">官方基礎：<a href="https://opentelemetry.io/docs/concepts/signals/traces/#spans" target="_blank">OpenTelemetry — Spans</a>；跨語言欄位一致性的理由：<a href="https://opentelemetry.io/docs/specs/semconv/general/trace/" target="_blank">Trace Semantic Conventions</a></p>
+
+<h2>從資訊需求推導三種模型</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>你需要保存的證據</th><th>模型</th><th>原因</th></tr></thead>
+  <tbody>
+    <tr><td>一段有開始、結束、duration，且值得成為因果圖節點的工作</td><td><strong>Span</strong></td><td>它有自己的 lifecycle、Span ID、status 與 parent relationship。</td></tr>
+    <tr><td>Span 期間內一個有意義的時間點，例如 retry、cache miss、state transition</td><td><strong>Event</strong></td><td>它依附於 Span，保留 timestamp，但不冒充獨立 operation。</td></tr>
+    <tr><td>描述整段 operation 的穩定事實，例如 item count、route、method</td><td><strong>Attribute</strong></td><td>它是可查詢的 key-value context，不需要自己的時間區間。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box tip">
+<strong>最小充分證據原則：</strong>若只需知道一個值，就用 Attribute；若需知道某事何時發生，
+用 Event；只有當需要獨立 duration、outcome 或 causal node 時，才新增 Span。
+</div>
+
+<h2>Span 邊界的兩個判斷軸</h2>
+<h3>軸一：它有獨立的時間區間嗎？</h3>
+<p>
+「呼叫 payment service」有清楚開始與結束，也有可單獨診斷的 latency，因此適合成為 Span。
+「cart 內有 3 件商品」沒有時間區間，只是 operation 的描述，應是 Attribute。
+</p>
+
+<h3>軸二：它是需要保留的因果節點嗎？</h3>
+<p>
+跨 process 的 HTTP/database call 通常值得成為節點，因為你要知道時間花在本地還是遠端。
+process 內部 function 只有在其 latency、failure 或子操作對 SRE 排障具有獨立意義時，才值得成為
+<code>INTERNAL</code> Span。否則每層 helper function 都建 Span，只會把 call stack 偽裝成有用的 trace。
+</p>
+
+<pre><code>需要獨立 duration / outcome / causal node？
+  ├─ 是 → Span
+  └─ 否 → 發生時間有診斷意義？
+           ├─ 是 → Event
+           └─ 否 → Attribute（或根本不記錄）</code></pre>
+
+<h2>名稱為何必須穩定？</h2>
+<p>
+Span name 應描述一類 operation，而不是某一次 instance。若使用
+<code>GET /users/42</code>、<code>GET /users/99</code> 當名字，backend 會看到大量幾乎相同、
+卻不能自然聚合的 operation。穩定名稱 <code>GET /users/{userId}</code> 保留「這是哪類工作」；
+必要的 instance context 再放到合適的 Attribute，並先評估敏感性與 cardinality。
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>設計</th><th>例子</th><th>後果</th></tr></thead>
+  <tbody>
+    <tr><td>穩定 operation name</td><td><code>GET /users/{userId}</code></td><td>可依 logical operation 聚合 latency 與 errors。</td></tr>
+    <tr><td>動態 instance name</td><td><code>GET /users/42</code></td><td>名稱基數隨使用者增加，查詢與儲存成本上升。</td></tr>
+    <tr><td>沒有診斷語義</td><td><code>handle_request</code></td><td>值穩定但無法區分 operation，聚合結果失去解釋力。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Attribute 的四道守門問題</h2>
+<ol>
+  <li><strong>Queryability：</strong>事故時會用它建立哪個查詢或分組？答不出來，先不要記。</li>
+  <li><strong>Cardinality：</strong>唯一值或值組合會不會隨 user、request、UUID 無界成長？</li>
+  <li><strong>Sensitivity：</strong>是否含 token、email、完整 URL query、payload 或其他個資／機密？</li>
+  <li><strong>Availability：</strong>建立 Span 時是否已知道？建立時加入的 attributes 才能供 head sampler 作決策。</li>
+</ol>
+
+<p>
+高 cardinality 並非一律禁止；Trace 本來就需要高基數 Trace ID。問題是你是否真的需要把某個
+高基數 business value 送進 telemetry、backend 是否能承受，以及它是否造成資料外洩風險。
+設計要回答用途與成本，而不是背「高基數永遠錯」。
+</p>
+
+<h2>把 Lesson 3 的 checkout 重畫一次</h2>
+<pre><code>Span: checkout.calculate_total
+  Attribute: app.cart.item_count = 3
+  Attribute: app.cart.total_cents = 3674
+  Event（只有真的發生時）: pricing_rule_fallback
+    Attribute: app.pricing.rule = "default"
+
+不要建立：
+  Span: sum_item_1
+  Span: sum_item_2
+  Span: sum_item_3</code></pre>
+
+<p>
+逐項加總沒有獨立排障價值時，三個 child Spans 只放大資料量。若日後發現「呼叫外部 pricing engine」
+是獨立 latency 與 failure boundary，再把那段遠端 call 建成 CLIENT Span；這是由證據需求推導模型，
+不是由程式碼縮排推導 Span。
+</p>
+
+<h2>SRE debugging lab：修正一份過度埋點設計</h2>
+<p>某 checkout trace 每個 request 產生以下資料：</p>
+<pre><code>Span name: checkout-user-fbrandon@example.com-order-9f1a...
+Child spans: validate_line_1, validate_line_2, validate_line_3
+Attribute: auth.token = "eyJ..."
+Attribute: item.count = 3
+Event: payment_retry_attempt_2 @ 02:00:00.321Z</code></pre>
+
+<p>請先自己改，再展開以下判讀：</p>
+<details>
+  <summary>參考修正</summary>
+  <ul>
+    <li>Span name 改成穩定的 <code>checkout.process</code>；email、order UUID 不放在 name。</li>
+    <li>若逐項 validation 沒有獨立 duration/outcome 價值，移除 child Spans，保留 item count。</li>
+    <li>移除 <code>auth.token</code>；它是 credential，不應送入 telemetry。</li>
+    <li>payment retry 是有意義的時間點，Event 合理；attempt number 放 Event Attribute。</li>
+  </ul>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 哪個需求最足以支持新增 child Span？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">需要獨立延遲、結果與因果位置</button>
+    <button class="choice" data-correct="false">需要保存一個穩定布林數值</button>
+    <button class="choice" data-correct="false">需要標示一次重試發生時間</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 為何不把 order UUID 放進 Span name？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">破壞操作聚合並增加名稱基數</button>
+    <button class="choice" data-correct="false">阻止產生 Trace 與 Span IDs</button>
+    <button class="choice" data-correct="false">強制 Exporter 改成同步輸出</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 「cache miss 發生的時刻」最適合哪個模型？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">帶時間戳記的一個 Span Event</button>
+    <button class="choice" data-correct="false">帶開始結束的一個 Child Span</button>
+    <button class="choice" data-correct="false">帶服務名稱的一個 New Resource</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0003-span-design-decision-card.html">Span / Event / Attribute 決策卡</a>。
+</div>
+
+<div class="box ask">
+<strong>有問題就問我：</strong>你可以貼一段真實 service flow，我們一起決定哪些 operation 值得成為 Span。
+最有價值的追問通常是：「如果不記這個欄位，我會失去哪個事故假設的驗證能力？」
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0004-read-a-span.html">&larr; Lesson 4: 用五問讀 Span</a></span>
+  <span><a href="0006-http-server-span.html">下一課：HTTP server Span 的標準語義 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

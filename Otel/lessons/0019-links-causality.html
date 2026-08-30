@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 19: Links 與非樹狀因果關係</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>19. Links 與非樹狀因果關係</h1>
+<p class="subtitle">Parent 建立主樹，Links 保存額外因果邊 · Lesson 19 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會理解 parent/child 為何只能表達單一主階層，何時應使用 Link 關聯同一或不同 Trace 的 Span，並能為 batch、queue、fan-in
+選擇不扭曲 causality 的模型。Links 不是 messaging 專用功能，而是一般性的因果關聯資料。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/signals/traces/#span-links" target="_blank">OpenTelemetry Traces — Span Links</a>、<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#specifying-links" target="_blank">Tracing API — Specifying links</a></p>
+
+<h2>第一性原理：樹只有一個 parent，真實因果可以有很多來源</h2>
+<p>
+一個 Span 有零或一個 parent，因此 parent IDs 自然形成 tree。這非常適合同步 nested calls 與單一路徑 continuation：
+</p>
+
+<pre><code>HTTP SERVER span
+  ├─ checkout.validate
+  └─ payment CLIENT span</code></pre>
+
+<p>但假設 worker 等到三則獨立 messages 後才做一個 batch：</p>
+
+<pre><code>message A ─┐
+message B ─┼─causes─→ batch.process
+message C ─┘</code></pre>
+
+<p>
+若任選 A 當 parent，B/C 的因果被抹去；若為每則 message 建一個相同 batch Span，又會虛構三次工作。
+Links 允許一個 Span 關聯一個或多個其他 SpanContexts，表示 causal association，而不改寫主 parentage。
+</p>
+
+<h2>Parent 與 Link 的語意差異</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>面向</th><th>Parent</th><th>Link</th></tr></thead>
+  <tbody>
+    <tr><td>數量</td><td>零或一個</td><td>零到多個（受 Span limits）</td></tr>
+    <tr><td>結構</td><td>建立 Trace 主階層</td><td>建立額外 causal edges</td></tr>
+    <tr><td>Trace ID</td><td>child 通常繼承 parent Trace ID</td><td>linked context 可來自同一或不同 Trace，不改變自身 Trace ID</td></tr>
+    <tr><td>典型問題</td><td>這個 operation 的主要上游是誰？</td><td>還有哪些 operations 對它有因果貢獻？</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Link 不是弱版 parent，也不是任意搜尋 tag。它攜帶 linked SpanContext，至少包含 trace/span identity；Link 自己也可帶 attributes
+描述關聯，例如 input position。Correlation ID 可協助查詢，但沒有 SpanContext 的標準 causal semantics。
+</p>
+
+<h2>同一 Trace 還是新 Trace？先決定 operation lifetime</h2>
+<p>
+Async 不自動等於 Link。若一則 message 明確延續原 operation，consumer 可以 extract producer context 作 parent，讓工作留在同一 Trace。
+若工作長時間解耦、獨立排程，或一個 operation 合併多個來源，常可開始新 Trace，再 Links 回來源。
+</p>
+
+<div class="box tip">
+<strong>決策順序：</strong>先問「這是同一 operation 的 continuation，還是新的 operation 但由舊工作引起？」；
+再問「是否只有一個主要 causal parent？」。不要先看 backend UI 長相再反推資料模型。
+</div>
+
+<h2>為什麼最好在 Span creation 時提供 Links？</h2>
+<p>
+OTel API 允許在 Span 建立時記錄 Links，且 sampler 可把這些 Links 納入 sampling decision。
+後來才追加的 Link 可能已錯過 sampling 時點，因為 head sampling 在 Span creation 時已決定。
+</p>
+
+<pre><code>input_links = [Link(context_a), Link(context_b)]
+
+tracer.start_as_current_span(
+    "batch.process",
+    links=input_links,
+)</code></pre>
+
+<p>
+這與「重要 sampling attributes 應在 creation 提供」是同一原理：sampling decision 只能看到當下已知的 inputs。
+先收集必要 causal contexts，再建立 batch Span，通常比建立後補 Link 更能保留決策資訊。
+</p>
+
+<h2>閱讀 Python fan-in 範例</h2>
+<p>範例位於 <a href="../examples/0019-span-links.py"><code>examples/0019-span-links.py</code></a>：</p>
+
+<pre><code>with tracer.start_as_current_span("message.receive") as first_input:
+    first_context = first_input.get_span_context()
+
+with tracer.start_as_current_span("message.receive") as second_input:
+    second_context = second_input.get_span_context()</code></pre>
+
+<p>
+兩個 blocks 依序完成，離開後 current context 回復，因此它們是不同 root Spans，擁有不同 Trace IDs。
+SpanContext 在 Span 結束後仍可用來建立 Link；Link 表達的是 identity/causality，不要求 linked operation 仍在執行。
+</p>
+
+<pre><code>input_links = [
+    Link(first_context, attributes={"app.input.position": 0}),
+    Link(second_context, attributes={"app.input.position": 1}),
+]
+
+with tracer.start_as_current_span("batch.process", links=input_links):
+    ...</code></pre>
+
+<p>
+此時沒有 current parent，所以 <code>batch.process</code> 是新 Trace 的 root；它的兩個 Links 指回來源 traces。
+若 backend 只畫 parent tree，Links 可能需要在 Span detail 中查看，視覺上沒有連線不等於 telemetry 沒有 Link。
+</p>
+
+<h2>Links 也受有限資源約束</h2>
+<p>
+Lesson 18 的 Link count 與 per-Link attribute limits 在此具體化。若 batch 含十萬 inputs，不應假設單一 Span 能無限保留十萬 Links；
+SDK 可能丟棄超限 links 並提供 <code>dropped_links_count</code>。要設計 representative linking、batch metadata 與成本政策，
+而不是把 queue payload 全部複製進 telemetry。
+</p>
+
+<h2>SRE debugging lab：Trace 為何「斷掉」？</h2>
+
+<h3>Case A：Async worker 是新 Trace，但其實有 Link</h3>
+<p>
+先看 Span detail 的 links，而非只看 parent tree。比較 linked trace/span IDs，回查 producer Trace。
+若 backend UI 不顯示 Links，使用 raw OTLP/debug output 驗證資料層，再把 UI capability 與 instrumentation correctness 分開。
+</p>
+
+<h3>Case B：只有部分 batch inputs 可追溯</h3>
+<p>
+檢查 input contexts 是否都有效、Links 是否在 Span creation 傳入、link count/dropped count 是否超限，以及 producer traces 是否被 sampling 保留。
+Link 可以指向未被 backend 保存的 Trace；consumer Link 存在不保證 linked Span 可查詢。
+</p>
+
+<h3>Case C：把 message ID 當成 Link</h3>
+<p>
+Message ID attribute 可用於搜尋，但不等於 OTel Link。若要標準 causal edge，必須傳遞／保存來源 SpanContext 並建立 Link；
+同時仍可保留 message ID 作 domain debugging，但要控制敏感性與 cardinality 成本。
+</p>
+
+<details>
+  <summary>練習：四種 topology 選擇</summary>
+  <ol>
+    <li>HTTP handler 同步呼叫 DB：parent/child。</li>
+    <li>Producer 發一則 message，consumer 是同一工作延續：propagated context 作 parent。</li>
+    <li>100 messages 聚合成一個 batch：新 Span + multiple bounded Links。</li>
+    <li>一個 request 觸發隔天報表：依 operation boundary 建新 Trace，Link 回來源。</li>
+  </ol>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 為何 fan-in batch 不應任選一個 input 當唯一 parent？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">它會隱藏其他 causal inputs，扭曲實際因果</button>
+    <button class="choice" data-correct="false">Parent 不能跨 process</button>
+    <button class="choice" data-correct="false">Link 會自動讓所有 Spans 同一 Trace ID</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Link 指向另一個 Trace 的 Span 時，新 Span 的 Trace ID 會如何？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">保持自身 Trace ID；Link 只新增 causal association</button>
+    <button class="choice" data-correct="false">自動改成 linked Trace ID</button>
+    <button class="choice" data-correct="false">變成無效 Trace ID</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 為何重要 Links 應盡量在 Span creation 提供？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Sampler 可在建立時考慮它們；事後追加可能已錯過決策</button>
+    <button class="choice" data-correct="false">Span 建立後永遠不能加 Link</button>
+    <button class="choice" data-correct="false">只有 creation Links 才有 trace ID</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0012-parent-or-link-card.html">Parent 還是 Link 判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>選一個你維運過的 queue/batch workflow，畫出 producer、message、consumer/batch；
+逐一說明哪些邊是 parent continuation、哪些是 Link，以及為什麼。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0018-span-limits-and-dropped-data.html">&larr; Lesson 18: Span Limits</a></span>
+  <span><a href="0020-baggage-first-principles.html">下一課：Baggage 的用途、傳播與風險 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

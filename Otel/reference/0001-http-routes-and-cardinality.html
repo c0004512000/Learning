@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Reference: HTTP Span 的 route、實際 URL 與 cardinality</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>HTTP Span：route、實際 URL 與 cardinality</h1>
+<p class="subtitle">Quick reference · 用於判讀 traces 與設計 attributes</p>
+
+<h2>先看一筆實際請求</h2>
+<pre><code>GET https://api.example.com/v1/users/42?include=orders</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>概念</th>
+      <th>本例的值</th>
+      <th>OTel 表達與用途</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>實際 request URL</td>
+      <td><code>https://api.example.com/v1/users/42?include=orders</code></td>
+      <td><code>url.full</code>；常見於 client Span，適合追查一次具體呼叫，但可能含敏感資料且是高基數。</td>
+    </tr>
+    <tr>
+      <td>實際 path</td>
+      <td><code>/v1/users/42</code></td>
+      <td><code>url.path</code>；保留實際 entity ID，因此通常是高基數。</td>
+    </tr>
+    <tr>
+      <td>matched HTTP route</td>
+      <td><code>/v1/users/{userId}</code></td>
+      <td><code>http.route</code>；server framework 的 route template，必須是低基數。</td>
+    </tr>
+    <tr>
+      <td>logical API operation</td>
+      <td><code>GET /v1/users/{userId}</code></td>
+      <td>不是單一 Attribute：<code>http.request.method</code> + <code>http.route</code>；通常也是 server Span name。</td>
+    </tr>
+    <tr>
+      <td>目標 host</td>
+      <td><code>api.example.com</code></td>
+      <td><code>server.address</code>；回答「這個 network call 的目標 server 是誰」。</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box">
+<strong>術語規則：</strong>「API endpoint」在日常對話中可能指 route、method + route、host + path，或完整 URL。記錄與討論時，優先使用上表的精確術語；若說 endpoint，先定義它指的是哪一種。
+</div>
+
+<h2>一個乾淨的 HTTP server Span</h2>
+<pre><code>{
+  "name": "GET /v1/users/{userId}",
+  "kind": "SERVER",
+  "attributes": {
+    "http.request.method": "GET",
+    "http.route": "/v1/users/{userId}",
+    "http.response.status_code": 200
+  }
+}</code></pre>
+<p>
+同一個 route 的 <code>/v1/users/42</code>、<code>/v1/users/99</code> 都會聚合到同一個
+<code>http.route</code>。因此可以穩定地比較此操作的 latency、error rate 與 traffic。
+</p>
+
+<h2>Cardinality（基數）</h2>
+<p>
+一個 Attribute 的 cardinality 是它在某個範圍內的<strong>唯一值數量</strong>。Metric 的 cardinality
+則是每一筆 measurement Attributes 的<strong>唯一組合數量</strong>，不是 Attribute 數量，也不是資料筆數。
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Attribute</th>
+      <th>典型值</th>
+      <th>基數</th>
+      <th>適合作為 metric dimension？</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>http.request.method</code></td>
+      <td><code>GET</code>、<code>POST</code>、<code>DELETE</code></td>
+      <td>低：有限且受控</td>
+      <td>是</td>
+    </tr>
+    <tr>
+      <td><code>http.route</code></td>
+      <td><code>/users/{userId}</code></td>
+      <td>低：route template 數量有限</td>
+      <td>是</td>
+    </tr>
+    <tr>
+      <td><code>http.response.status_code</code></td>
+      <td><code>200</code>、<code>404</code>、<code>500</code></td>
+      <td>通常低：HTTP code 值域受限</td>
+      <td>是</td>
+    </tr>
+    <tr>
+      <td><code>url.path</code></td>
+      <td><code>/users/42</code></td>
+      <td>高：隨 entity 數量成長</td>
+      <td>否</td>
+    </tr>
+    <tr>
+      <td><code>url.full</code></td>
+      <td>完整 URL 與 query</td>
+      <td>高：path/query 組合持續增加</td>
+      <td>否</td>
+    </tr>
+    <tr>
+      <td><code>user.id</code>、<code>trace_id</code></td>
+      <td>使用者或每次請求的唯一 ID</td>
+      <td>高或極高</td>
+      <td>否</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>判別規則</h2>
+<ol>
+  <li>值是否會隨使用者、訂單、請求、UUID、timestamp 或 query value 持續增加？會，即為高基數。</li>
+  <li>值是否是小而可列舉、且不隨流量成長的集合？是，即為低基數。</li>
+  <li>若放進 metric，是否要和其他 Attributes 一起分組？須評估<strong>組合</strong>數量，而非單一 Attribute。</li>
+</ol>
+
+<pre><code>40 routes × 6 methods × 10 status codes
+  = 最多 2,400 種 metric attribute combinations</code></pre>
+
+<p>
+OTel Metrics SDK 預設每個 metric stream 最多追蹤 2,000 個 unique attribute combinations。達到上限後，
+新的組合會匯入帶有 <code>otel.metric.overflow=true</code> 的 overflow data point：總量仍正確，但依原本
+Attributes 分組或篩選的結果會不完整。這是保護上限，不是「2,000 以下必然安全」的定義。
+</p>
+
+<div class="box tip">
+<strong>設計原則：</strong>高基數值不是完全不能放進 trace 或 log；它們可協助單次診斷，但需評估 backend indexing/storage 成本、retention 與 PII/secret redaction。高基數值不應作為 metric measurement Attribute，也不應放進 Span name。
+</div>
+
+<h2>兩個常見錯誤</h2>
+<pre><code>Bad:  http.route = "/v1/users/42"
+Good: http.route = "/v1/users/{userId}"
+
+Bad:  span.name = "GET /v1/users/42"
+Good: span.name = "GET /v1/users/{userId}"</code></pre>
+
+<p class="cite">
+主要來源：
+<a href="https://opentelemetry.io/docs/specs/semconv/registry/attributes/http/" target="_blank">OTel HTTP Attributes</a>
+· <a href="https://opentelemetry.io/docs/specs/semconv/http/http-spans/" target="_blank">OTel HTTP Span Semantic Conventions</a>
+· <a href="https://opentelemetry.io/docs/specs/semconv/registry/attributes/url/" target="_blank">OTel URL Attributes</a>
+· <a href="https://opentelemetry.io/docs/concepts/signals/metrics/#cardinality-limits" target="_blank">OTel Metrics: Cardinality limits</a>
+</p>
+
+<div class="lesson-nav">
+  <span><a href="../lessons/0006-http-server-span.html">&larr; Lesson 6: HTTP server Span</a></span>
+  <span><a href="../GLOSSARY.md">Glossary &rarr;</a></span>
+</div>
+
+</body>
+</html>

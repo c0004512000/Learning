@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 41: OTLP Delivery Semantics</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>41. OTLP Delivery Semantics</h1>
+<p class="subtitle">Acknowledgement 只證明某一 hop 的 server 接受了 request；重試則在 loss 與 duplicate 間取捨 · Lesson 41 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 request/response 與 acknowledgement boundary 推導 full success、partial success、retryable/non-retryable failures、throttling 與 duplicates；
+能區分 hop acceptance 和 end-to-end durability，並用 queue/response evidence 定位 loss、retry storm 與 duplicate。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/specs/otlp/" target="_blank">OTLP Specification</a>、<a href="https://github.com/open-telemetry/opentelemetry-proto/blob/main/docs/specification.md" target="_blank">OTLP Protocol Specification Source</a>、<a href="https://opentelemetry.io/docs/specs/otel/protocol/exporter/" target="_blank">OTLP Exporter Specification</a></p>
+
+<h2>第一性原理：分散式系統看不到「送達」，只能看到 Evidence</h2>
+<p>最簡單的 OTLP interaction 是：</p>
+
+<pre><code>Client -- Export(request batch B) --> Server
+Client <-- response/ack ------------ Server</code></pre>
+
+<p>
+Client 收到 response，才能知道 server 對 B 的判斷。若 connection 在 response 抵達前中斷，client 無法分辨：
+</p>
+
+<ol>
+  <li>Server 完全沒收到 B。</li>
+  <li>Server 收到但尚未處理。</li>
+  <li>Server 已接受 B，只是 response 遺失。</li>
+</ol>
+
+<p>
+若 client 為避免 loss 而重送，第 3 種情況會產生 duplicate；若 client 不重送，第 1 種情況會 loss。
+OTLP 選擇在這種 ambiguity 下通常重送，接受 edge cases 可能 duplicate。它不是 end-to-end exactly-once protocol。
+</p>
+
+<h2>Acknowledgement Boundary：誰說「Accepted」？</h2>
+<pre><code>SDK → Agent → Gateway → Backend storage
+       ack₁     ack₂        ack₃</code></pre>
+
+<p>
+Agent 回 SDK success，表示 Agent 作為該 hop server 接受 request；不自動證明 Gateway 或 backend 已 durable。
+Gateway 回 Agent success也只到 Gateway 的 acceptance boundary。若中間節點先 ack、後續 memory queue 尚未持久化就 crash，仍可能 loss。
+</p>
+
+<p>
+所以每個 hop 都要定義：何時 ack、接受後放在哪個 memory/disk queue、shutdown/crash 時能否恢復、下一 hop 的 retry budget 多大。
+「OTLP exporter success=100%」不能單獨證明 backend query 完整。
+</p>
+
+<h2>四類 Response Outcome</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Outcome</th><th>Server 語意</th><th>Client 動作</th></tr></thead>
+  <tbody>
+    <tr><td>Full success</td><td>該 request telemetry 被 server 接受</td><td>此 destination 的 batch 可 dequeue</td></tr>
+    <tr><td>Partial success</td><td>部分 rejected，或完整接受但帶 warning</td><td>不得 retry 同 request；記 rejected/warning evidence</td></tr>
+    <tr><td>Retryable failure</td><td>暫時無法處理，未承諾接受</td><td>依 backoff/jitter/retry hint 重試</td></tr>
+    <tr><td>Non-retryable failure</td><td>bad data/auth/permission 等，重送相同資料不會好</td><td>不重試；drop 並記錄 evidence</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>靜態決策表：<a href="../examples/0041-otlp-response-decision.yaml"><code>examples/0041-otlp-response-decision.yaml</code></a>。</p>
+
+<h2>Partial Success 為何不能 Retry？</h2>
+<p>
+Partial success response 會提供 rejected spans/datapoints/log records/profiles 數量與可選 error message；也可能 rejected=0、只帶 warning。
+但 response 不提供一份可靠的「哪些 records 可安全重送」清單。重送整個 request 會 duplicate 已接受部分，因此規範要求 client 不重試該 request。
+</p>
+
+<p>
+這代表 partial rejection 是 data loss signal，不能被 2xx/success transport graph 淹沒。SRE 應監控 rejected item counts 與 error messages，
+並修 producer/schema/limits；它不是 exporter retry queue 能自動治癒的 transient failure。
+</p>
+
+<h2>Retryable 與 Non-retryable 由「相同 Request 稍後是否可能成功」區分</h2>
+<p>典型 gRPC retryable 包含 <code>UNAVAILABLE</code>、<code>DEADLINE_EXCEEDED</code>；HTTP 明列 429、502、503、504 應重試。</p>
+
+<p>
+典型 non-retryable 包含 gRPC <code>INVALID_ARGUMENT</code>、<code>UNAUTHENTICATED</code>、<code>PERMISSION_DENIED</code>，
+以及 HTTP 400 bad request。Retry 不能修正 malformed payload、錯 token 或被拒權限；持續重試只會放大負載與延遲。
+</p>
+
+<div class="box tip">
+<strong>判斷句：</strong>不改變 request、credential 或 server state，只等一段時間後，相同 request 是否合理可能成功？
+若答案是否定，應修正原因而不是 retry。
+</div>
+
+<h2><code>RESOURCE_EXHAUSTED</code> 需要 Recovery Signal</h2>
+<p>
+gRPC <code>RESOURCE_EXHAUSTED</code> 只有 server 用 <code>RetryInfo</code> 表示可恢復時，才應視為 retryable；沒有該資訊時應視為 non-retryable。
+因為它可能代表暫時 overload，也可能代表 request 永久超過 size limit。只看 status 名稱會把兩種機制混在一起。
+</p>
+
+<h2>Backpressure：Server 要讓 Client 慢下來</h2>
+<p>
+當 server 跟不上，gRPC 可用 retryable status + <code>RetryInfo.retry_delay</code>；HTTP 可用 429/503 + <code>Retry-After</code>。
+Client 應尊重 hint，並使用 exponential backoff；沒有 hint 時也需 exponential backoff + random jitter，避免所有 clients 同步重試形成 thundering herd。
+</p>
+
+<pre><code>attempt 1 fails → wait ~base + jitter
+attempt 2 fails → wait ~2×base + jitter
+attempt 3 fails → wait ~4×base + jitter
+                         capped by policy</code></pre>
+
+<p>
+Backpressure 不會創造無限 buffer。若 outage 持續超過 queue capacity/retry elapsed time，client 最終仍 drop。
+因此 capacity planning 要比較 incoming rate、queue items/bytes、oldest age、recovery throughput，而非只說「已開 retry」。
+</p>
+
+<h2>Duplicate 是哪一層的問題？</h2>
+<p>同一 telemetry 可能因不同機制重複：</p>
+
+<ul>
+  <li>OTLP request 已被接受但 acknowledgement 遺失，client 重送。</li>
+  <li>Routing <code>copy</code> 或多 exporters 刻意 fan-out 到同一實際 backend。</li>
+  <li>兩個 receivers/agents 重複收同一 log/file/scrape target。</li>
+  <li>Producer 自己重建/重送同一 record。</li>
+</ul>
+
+<p>
+Trace span 有 trace ID + span ID，可協助 backend deduplicate，但不應假設所有 backends/訊號都完全去重。
+Metric 重複對 sums/counters 更危險；logs 可能需要 application event ID 才能可靠辨識。先找 duplicate 產生 boundary，再談 dedup。
+</p>
+
+<h2>Multi-destination 必須各自追蹤 Ack</h2>
+<pre><code>             ┌→ backend A: acked
+batch B ─────┤
+             └→ backend B: retrying
+</code></pre>
+
+<p>
+若一份 telemetry 送多 destinations，每個 destination 應有獨立 queue/ack/retry state；A 成功不代表 B 成功，B 慢也不應迫使 A 重送。
+共享 immutable payload 可降低 memory，但 delivery state 必須分離。事故 dashboard 應按 exporter/destination 維度觀察。
+</p>
+
+<h2>SRE 附加練習：Exporter Success 高但 Backend 缺資料</h2>
+<ol>
+  <li>確定「success」是哪個 hop、哪個 component、哪段時間、哪個 signal。</li>
+  <li>檢查 partial success/rejected evidence；transport success 可能仍含 rejection/warning。</li>
+  <li>沿 Agent→Gateway→Backend 分別比較 accepted/sent/failed/retried/dropped，不跨 boundary 偷換分母。</li>
+  <li>檢查 queue oldest age、capacity、persistent storage 與 restart timeline，找 ack 後/next-hop 前的 vulnerability window。</li>
+  <li>用 stable identifiers/time windows 查 duplicate 或 missing；注意 sampling/filtering 可能是預期 selection。</li>
+  <li>若 outage，驗證 retry hints/backoff 是否被尊重，recovery throughput 是否高於 incoming rate，否則 backlog 永遠清不完。</li>
+</ol>
+
+<p>可使用 <a href="../reference/0034-otlp-delivery-debug-card.html">OTLP Delivery Debug Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>畫 SDK→Agent→Gateway→Backend 四點圖，為每個 ack 寫出「證明」與「不證明」。</li>
+  <li>Request 有 100 spans，partial success rejected=3。說明 client 為何不能重送全部 100，SRE 還需保留哪些 evidence。</li>
+  <li>Server 已接受 B，但 response 在網路中遺失。比較 client retry 與不 retry 的 loss/duplicate trade-off。</li>
+  <li>輸入 10k items/s、outage 10 分鐘，先忽略 batching，計算至少需容納多少 items；再列出為何 bytes/overhead 才是實際 capacity。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>1. Agent 回 SDK full success 最精確的意思是？</strong></p>
+  <label><input type="radio" name="q1" value="a"> Backend 已永久儲存且可查詢</label><br>
+  <label><input type="radio" name="q1" value="b"> 整條鏈完全 exactly-once</label><br>
+  <label><input type="radio" name="q1" value="c"> Agent 在該 hop 接受 request；後續 durability 需另證明</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>2. 收到 populated partial success 時，client 對同一 request 應？</strong></p>
+  <label><input type="radio" name="q2" value="a"> 不重試，記錄 rejected/warning evidence</label><br>
+  <label><input type="radio" name="q2" value="b"> 無限重送整個 request</label><br>
+  <label><input type="radio" name="q2" value="c"> 視為 TLS failure</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>3. 為何 acknowledgement 遺失可能造成 duplicate？</strong></p>
+  <label><input type="radio" name="q3" value="a"> OTLP 每次都產生新的 trace ID</label><br>
+  <label><input type="radio" name="q3" value="b"> Client 不知道 server 是否已接受，為避免 loss 可能重送已接受 request</label><br>
+  <label><input type="radio" name="q3" value="c"> Partial success 要求重送</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>Ack 是 hop-local evidence；full success 不自動證明 end-to-end durable。</li>
+  <li>Partial success 不重試；retryable failures backoff 重試；non-retryable failures drop 並修根因。</li>
+  <li>Response ambiguity 使 loss 與 duplicate 無法同時完全消除；OTLP 接受 edge-case duplicates。</li>
+  <li>Backpressure、queue capacity 與 per-destination acknowledgment 共同決定 delivery reliability。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0040-otlp-security-boundaries.html">← Lesson 40</a>
+  <a href="0042-batching-first-principles.html">Lesson 42：Batching 第一性原理 →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

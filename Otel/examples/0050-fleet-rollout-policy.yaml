@@ -1,0 +1,53 @@
+# Lesson 50 planning artifact — not executable Collector/OpAMP configuration.
+change:
+  revision: "otel-fleet-r50"
+  immutable_content_hash: "sha256:<reviewed-effective-intent>"
+  owner: "observability-platform"
+  risk_class: "high"
+  expires_if_not_started_by: "<timestamp>"
+
+admission:
+  exact_distribution_and_components_recorded: true
+  target_binary_validation_passed: true
+  semantic_fixture_tests_passed: true
+  prohibited_sources_and_destinations_absent: true
+  secrets_referenced_not_embedded: true
+  rollback_revision_proven: true
+
+cohorts:
+  - name: "lab"
+    max_instances: 5
+    dwell: "30m"
+  - name: "canary-one-failure-domain"
+    percent: 1
+    dwell: "60m"
+  - name: "multi-domain"
+    percent: 10
+    dwell: "120m"
+  - name: "broad"
+    percent: 50
+    dwell: "240m"
+
+invariants:
+  control_plane:
+    applied_ratio_min: 0.99
+    failed_ratio_max: 0.001
+    convergence_p99_max: "10m"
+    effective_config_drift_max: 0
+  data_plane:
+    synthetic_signal_success_min: 0.999
+    rejected_items_rate_max: 0
+    queue_utilization_max: 0.70
+    telemetry_gap_max: "2m"
+
+automatic_halt:
+  - "wrong cohort or identity"
+  - "deadline missed"
+  - "effective config drift"
+  - "data-plane SLO regression"
+  - "security policy violation"
+
+rollback:
+  desired_revision: "otel-fleet-last-known-good"
+  verify_with_same_invariants: true
+

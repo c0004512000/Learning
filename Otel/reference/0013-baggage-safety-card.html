@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Baggage 使用與安全判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Baggage 使用與安全判斷卡</h1>
+<p class="subtitle">它是跨邊界傳播的 input，不是可信資料庫</p>
+
+<h2>放入前五問</h2>
+<ol>
+  <li>下游真的需要這個 context 嗎？</li>
+  <li>允許它跨哪些 service／第三方邊界？</li>
+  <li>它是否含 secret、token、PII 或可識別使用者資料？</li>
+  <li>值是否有白名單、格式與長度限制？</li>
+  <li>若要進 telemetry，在哪一層明確複製並控制 cardinality？</li>
+</ol>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>用途</th><th>應否直接信任 Baggage？</th></tr></thead>
+  <tbody>
+    <tr><td>Telemetry enrichment</td><td>先驗證、白名單，再明確複製</td></tr>
+    <tr><td>Authorization / billing truth</td><td>否；回到受信任系統驗證</td></tr>
+    <tr><td>呼叫第三方 API</td><td>預設移除非必要 Baggage</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><a href="../lessons/0020-baggage-first-principles.html">回到 Lesson 20</a></p>
+</body>
+</html>
+

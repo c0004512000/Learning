@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Collector 設定解析卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Collector 設定解析卡</h1>
+<p class="subtitle">Source → Resolve → Merge/Override → Decode → Build Graph → Start</p>
+
+<ol>
+  <li><strong>Source：</strong>實際讀了哪些 file/env/yaml/http(s) config URIs？</li>
+  <li><strong>Resolve：</strong>每個 substitution/reference 最終變成什麼？缺值是否變空字串？</li>
+  <li><strong>Merge：</strong>多來源與 <code>--set</code> 後的 final config 是什麼？</li>
+  <li><strong>Decode：</strong>distribution/version 是否認得 component type 與欄位？</li>
+  <li><strong>Graph：</strong>所有 pipeline reference 是否指向已宣告 instance，signal 型別是否相容？</li>
+  <li><strong>Runtime：</strong>port、DNS、TLS、credentials、permissions 是否可用？</li>
+</ol>
+
+<p><strong>安全原則：</strong>檢查 final config 時遮蔽 secrets；比較結構與來源，不把 credential 寫入 ticket/log。</p>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

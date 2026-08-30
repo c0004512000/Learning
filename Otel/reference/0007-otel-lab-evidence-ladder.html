@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>OTel 最小 lab 證據階梯</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>OTel 最小 lab 證據階梯</h1>
+<p class="subtitle">每一層只證明一件事，避免從「沒看到 Trace」跳到單一結論</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>層級</th><th>成功證據</th><th>它不能單獨證明</th></tr></thead>
+  <tbody>
+    <tr><td>1. Config materialized</td><td>Compose 展開後的 image、mount、port 符合預期</td><td>Collector 已成功啟動</td></tr>
+    <tr><td>2. Collector startup</td><td>Config 被接受，OTLP/HTTP receiver ready</td><td>Host port 可達</td></tr>
+    <tr><td>3. Host-to-container reachability</td><td>Application 不再收到 connection/protocol error</td><td>Span 已通過完整 pipeline</td></tr>
+    <tr><td>4. Receiver accepted telemetry</td><td>Collector 有接收或處理證據</td><td>debug/backend exporter 成功</td></tr>
+    <tr><td>5. Debug exporter output</td><td>預期 service、span、attributes 出現在 Collector log</td><td>Production backend 已保存且可查詢</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>規則：</strong>先找最低一個尚未成立的層級；修復後重跑相同證據，再往上一層。</p>
+<p><a href="../lessons/0014-run-collector-lab-safely.html">回到 Lesson 14</a></p>
+</body>
+</html>
+

@@ -1,0 +1,39 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+      http:
+        endpoint: 127.0.0.1:4318
+
+processors:
+  batch/traces:
+    send_batch_size: 256
+  batch/metrics:
+    send_batch_size: 512
+  batch/logs:
+    send_batch_size: 128
+
+exporters:
+  debug/traces:
+    verbosity: detailed
+  debug/metrics:
+    verbosity: detailed
+  debug/logs:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch/traces]
+      exporters: [debug/traces]
+    metrics:
+      receivers: [otlp]
+      processors: [batch/metrics]
+      exporters: [debug/metrics]
+    logs:
+      receivers: [otlp]
+      processors: [batch/logs]
+      exporters: [debug/logs]
+

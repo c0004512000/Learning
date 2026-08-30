@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Collector SLO Debug Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Collector SLO Debug Card</h1>
+<p class="subtitle">從 violated user outcome 倒推到第一個失敗 boundary</p>
+<ol>
+  <li>說清 SLO boundary、signal、tenant/region、時間窗與 expected population。</li>
+  <li>Availability、known loss、freshness、correctness、coverage，哪個 SLI 壞？</li>
+  <li>Canary 是否也壞；internal telemetry path 是否與 data path 共因失效？</li>
+  <li>逐 hop 比對 receiver accepted/refused、processor selection、queue/enqueue failure、export sent/failed。</li>
+  <li>把 intentional sampling/filter 從 unexpected loss 分母中明確建模。</li>
+  <li>找 first bad boundary，而非最後一個報錯 component。</li>
+  <li>以 error-budget burn 決定 alert urgency；修復後用 end-to-end outcome 關閉 incident。</li>
+</ol>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

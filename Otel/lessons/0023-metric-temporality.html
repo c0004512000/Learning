@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 23: Metric temporality 與累積狀態</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>23. Metric temporality 與累積狀態</h1>
+<p class="subtitle">一個 value 必須連同它涵蓋的時間區間才有意義 · Lesson 23 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會用 time windows 精確區分 cumulative 與 delta temporality，理解 <code>StartTimeUnixNano</code> 如何標示 unbroken sequence、reset 與 gap，
+並能正確推導 rate、辨認重啟後負值與重複累加。Temporality 適用於 additive Sum/Histogram 類資料，不是 dashboard 顯示偏好。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/specs/otel/metrics/data-model/#temporality" target="_blank">OTel Metrics Data Model — Temporality</a>、<a href="https://opentelemetry.io/docs/languages/python/exporters/" target="_blank">Python Exporters — temporality preference</a></p>
+
+<h2>第一性原理：數值沒有 interval，就不知道它累積了什麼</h2>
+<p>看到 <code>request_count=25</code>，至少有兩種解釋：</p>
+
+<pre><code>Cumulative：從 process sequence 起點 T0 到現在 T2，共 25
+Delta：只在上一個 collection T1 到現在 T2 之間，共 25</code></pre>
+
+<p>
+兩者 value 相同、含義完全不同。Temporality 描述 additive quantity 如何相對時間表達：是否包含先前 windows 的 measurements。
+OTLP Sum、Histogram、ExponentialHistogram points 可攜帶 aggregation temporality。
+</p>
+
+<h2>每個 data point 的兩個時間</h2>
+<ul>
+  <li><code>TimeUnixNano</code>：mandatory，這筆 observation 成為 current／window 結束的時間。</li>
+  <li><code>StartTimeUnixNano</code>：optional 但對 additive points 強烈建議，標示 unbroken sequence 或 accumulation window 起點。</li>
+</ul>
+
+<p>以區間表示時使用 <code>(start, end]</code>：左開右閉，避免相鄰 windows 對 boundary measurement 重複計數。</p>
+
+<h2>Cumulative：每一點都回到同一起點</h2>
+<pre><code>T0 ───── T1 ───── T2 ───── T3
+     10      +15      +6
+
+point 1: (T0,T1] = 10
+point 2: (T0,T2] = 25
+point 3: (T0,T3] = 31</code></pre>
+
+<p>
+連續 points 重複相同 start time。Consumer 要算 <code>(T1,T2]</code> 增量，可用 <code>25-10=15</code>，
+但前提是兩點屬於同一 unbroken monotonic sequence。Cumulative sender 必須保留先前 aggregation state，記憶體成本與 cardinality 相關。
+</p>
+
+<h2>Delta：每一點只報相鄰 window</h2>
+<pre><code>point 1: (T0,T1] = 10
+point 2: (T1,T2] = 15
+point 3: (T2,T3] = 6</code></pre>
+
+<p>
+下一點的 start time 對齊前一點的 end time。每點已是該 window 增量；若 consumer 再做相鄰值相減，
+會錯算成 <code>15-10=5</code>。Delta 可讓 producer 在 collection 後釋放某些 aggregation state，但中間 point 遺失時，
+那個 window 的 measurements 不能靠下一個 delta 自然補回。
+</p>
+
+<h2>用同一份 sequence 對照</h2>
+<p>範例資料位於 <a href="../examples/0023-temporality-sequences.json"><code>examples/0023-temporality-sequences.json</code></a>：</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Interval</th><th>Delta value</th><th>Cumulative value</th><th>實際新增</th></tr></thead>
+  <tbody>
+    <tr><td><code>(T0,T1]</code></td><td>10</td><td>10</td><td>10</td></tr>
+    <tr><td><code>(T1,T2]</code></td><td>15</td><td>25</td><td>15</td></tr>
+    <tr><td><code>(T2,T3]</code></td><td>6</td><td>31</td><td>6</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+若 windows 都完整，delta values 相加 <code>10+15+6=31</code>，等於 T3 cumulative value。
+這是 representation 轉換，不是產生新 measurements。
+</p>
+
+<h2>Rate 公式必須先判斷 temporality 與 sequence</h2>
+<pre><code>Delta point rate:
+  rate = delta_value / (end_time - start_time)
+
+Cumulative consecutive points:
+  rate = (current_value - previous_value)
+         / (current_time - previous_time)
+  僅限相同 start time / 已確認同一 unbroken sequence</code></pre>
+
+<p>
+Histogram 也有相同概念：delta buckets/count/sum 只涵蓋當期；cumulative buckets/count/sum 從 sequence start 累積。
+不能把 cumulative bucket snapshots 相加，否則早期 measurements 被重複計數。
+</p>
+
+<h2>Restart：value 下降不一定是負流量</h2>
+<p>Process 在 T3 重啟，新 cumulative point 可能是：</p>
+
+<pre><code>old: start=T0, time=T3, value=31
+new: start=T3, time=T4, value=4</code></pre>
+
+<p>
+若 consumer 忽略 start time，計算 <code>4-31=-27</code>，就製造不存在的負 request rate。
+Start time 改變表示新的 accumulation sequence，應把新點視為 reset 後從零累積 4，而不是從舊值相減。
+</p>
+
+<div class="box tip">
+<strong>Identity 與 reset 一起看：</strong>同一 logical service 的 replicas 各有獨立 process sequences。
+若 Resource identity 無法區分 writers，backend 可能把重疊的 cumulative streams 當成一條，產生 reset/overlap 假象。
+這是 Lesson 15 的 <code>service.instance.id</code> 與 temporality 的交會。
+</div>
+
+<h2>Gap 與 overlap 不是普通數值波動</h2>
+<p>
+若相鄰 delta windows 不對齊，可能是 point 遺失、process reboot 或資料路徑中斷；若兩個 points 的 intervals 重疊，
+可能違反 single-writer principle。Start/end timestamps 讓 consumer 能偵測這些結構錯誤，而不是只看到一串 values。
+</p>
+
+<p>
+Delta-to-cumulative conversion 是 stateful：轉換者要為每個 stream 保存累積值，且所有對應 deltas 必須路由到同一 state owner。
+若 Collector conversion state 重啟或流量在無 shared state 的 replicas 間漂移，輸出會出現 reset/gap，需要被下游正確辨識。
+</p>
+
+<h2>誰選 temporality？</h2>
+<p>
+Application 使用 Counter/Histogram 記錄 measurements；Reader/Exporter 與 backend capability 共同決定輸出 representation。
+Python OTLP Metrics exporter 支援 <code>OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE</code> presets，包含
+<code>CUMULATIVE</code>、<code>DELTA</code>、<code>LOWMEMORY</code>。Preset 對不同 instrument kinds 的映射可能不同，應讀文件／輸出驗證，
+不要從名稱猜所有 instruments 都採同一 temporality。
+</p>
+
+<p>
+選擇要考慮 backend 是否原生接受、reliability、producer state、cardinality、conversion ownership 與 failure semantics。
+「Prometheus 習慣 cumulative」或「delta 比較省 memory」只是線索，不是單獨答案。
+</p>
+
+<h2>SRE debugging lab：三種 temporality 誤讀</h2>
+
+<h3>Case A：Deploy 後出現負 request rate</h3>
+<p>
+先比較前後 points 的 Resource identity、<code>StartTimeUnixNano</code> 與 value。若 start time 改變，是新 sequence；
+修正 query/ingestion 的 reset handling，不要把負值 clamp 成零後就當作解決。</n+</p>
+
+<h3>Case B：Dashboard 流量持續暴增，實際 traffic 穩定</h3>
+<p>
+檢查 consumer 是否把每個 cumulative snapshot 再做 sum-over-time。正確 rate 需要相鄰差值；直接加總
+<code>10+25+31</code> 會把早期 requests 重複計數。
+</p>
+
+<h3>Case C：Delta-to-cumulative 在 Collector restart 後歸零</h3>
+<p>
+這是 conversion state lifecycle。確認 converter 是否有 continuity 設計、downstream 是否識別新的 start time，並監控 gaps/resets。
+不要期待 stateless horizontal replicas 自動共享 per-stream cumulative state。
+</p>
+
+<details>
+  <summary>練習：判斷四筆 points</summary>
+  <pre><code>P1 start=0,  time=10, value=100
+P2 start=0,  time=20, value=160
+P3 start=20, time=30, value=40
+P4 start=30, time=40, value=55</code></pre>
+  <p>若 P1/P2 標記 cumulative，(10,20] 新增為 60。P3/P4 的 start 逐點前進，較像 delta windows，不能用 55-40 推導最後 window。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Cumulative points 的 start time 如何變化？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">同一 unbroken sequence 重複相同 start time</button>
+    <button class="choice" data-correct="false">每點 start 都等於自己的 end</button>
+    <button class="choice" data-correct="false">完全不需要任何 timestamps</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 新 cumulative point 從 31 降到 4，第一個要查什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Start time/Resource identity 是否表示 reset 或新 writer</button>
+    <button class="choice" data-correct="false">直接認定有 -27 requests</button>
+    <button class="choice" data-correct="false">把 Counter 改成 Span Event</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. Delta-to-cumulative conversion 為何需要 state？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">必須為每個 stream 保存先前累積總和與時間連續性</button>
+    <button class="choice" data-correct="false">Delta point 沒有任何 value</button>
+    <button class="choice" data-correct="false">只有 TraceContext 才能做加法</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0016-metric-temporality-card.html">Metric Temporality 與 reset 判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>把你的一條 Counter query 寫出來，標明來源 temporality、start/end timestamps、
+restart handling 與多 replicas 的 aggregation 順序；我會幫你檢查是否重複計數或跨 reset 相減。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0022-metric-streams-cardinality.html">&larr; Lesson 22: Metric cardinality</a></span>
+  <span><a href="0024-exemplars-trace-correlation.html">下一課：Exemplars 串接 Metrics 與 Traces &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

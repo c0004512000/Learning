@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>OTLP Connection Debug Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>OTLP Connection Debug Card</h1>
+<p class="subtitle">一次只證明一層；不要把所有錯誤統稱 TLS</p>
+<ol>
+  <li><strong>Name/route：</strong>DNS、IP、port、service、proxy、network policy。</li>
+  <li><strong>TCP：</strong>拒絕、timeout、reset，與 server 是否真的 bind 該 interface。</li>
+  <li><strong>TLS：</strong>protocol version、trust chain、SAN/hostname、有效期、clock、client certificate。</li>
+  <li><strong>Authentication：</strong>token/cert principal 是否被接受；authentication 不等於 authorization。</li>
+  <li><strong>OTLP：</strong>gRPC vs HTTP、4317 vs 4318、path/content type/compression 是否一致。</li>
+  <li><strong>Pipeline：</strong>receiver accepted、processor dropped、exporter failed/retried/sent。</li>
+</ol>
+<p><strong>禁止捷徑：</strong>不要用 <code>insecure_skip_verify</code> 當永久修復；它會移除 server identity verification。</p>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

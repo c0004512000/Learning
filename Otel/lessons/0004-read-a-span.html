@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 4: 用五個問題讀懂一個 Span</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>4. 用五個問題讀懂一個 Span</h1>
+<p class="subtitle">先讀證據的語義，再讀 exporter 顯示的欄位 · Lesson 4 of N</p>
+
+<h2>為什麼不能從 JSON key 開始背？</h2>
+<p>
+Lesson 3 的 <code>ConsoleSpanExporter</code> 印出一段像 JSON 的文字。它很適合讓人看見資料，
+但那只是 exporter 的<strong>顯示方式</strong>。如果把顯示格式當成 OTel 本身，你會在換 SDK、
+exporter 或 backend 後，因欄位名稱與巢狀位置不同而誤判資料消失。
+</p>
+<p>
+第一性原理是：Span 必須保存足以回答 operation 因果與診斷問題的資訊；SDK、exporter 與
+protocol 再把這份語義投影成不同表示。官方文件也特別提醒，概念頁的 JSON 範例不代表特定格式，
+尤其不是 OTLP/JSON。
+</p>
+<p class="cite">依據：<a href="https://opentelemetry.io/docs/concepts/signals/traces/" target="_blank">OpenTelemetry 官方文件 — Traces</a></p>
+
+<h2>先拆清楚四個層次</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>層次</th><th>解決的問題</th><th>不保證什麼</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Span data model</strong></td><td>定義一個 operation 需要哪些語義：identity、時間、attributes、events、status 等。</td><td>不規定 terminal 要印成哪種 JSON 排版。</td></tr>
+    <tr><td><strong>Semantic Conventions</strong></td><td>定義常見領域的 canonical 名稱與語義，例如 HTTP attributes。</td><td>不是 transport，也不負責傳送資料。</td></tr>
+    <tr><td><strong>Exporter display</strong></td><td>把 SDK 中的資料轉成人可見輸出，方便本機觀察。</td><td>不是跨系統相容的 wire contract。</td></tr>
+    <tr><td><strong>OTLP</strong></td><td>定義 telemetry 在來源、Collector、backend 之間的 encoding、transport 與 delivery。</td><td>不是 Span 在 UI 中必須長怎樣。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box tip">
+<strong>一條不會混淆的因果鏈：</strong>
+instrumentation 建立符合資料模型語義的 Span → Semantic Conventions 讓常見欄位有一致名稱 →
+Exporter 選擇顯示或傳送方式 → 若使用 OTLP，資料依 OTLP 的 Protobuf schema 與 gRPC/HTTP transport 傳輸。
+</div>
+
+<p class="cite">OTLP 的責任邊界依據：<a href="https://opentelemetry.io/docs/specs/otlp/" target="_blank">OpenTelemetry Protocol specification</a></p>
+
+<h2>判讀框架：固定問五個問題</h2>
+<p>以下輸出經過簡化，值只是範例；重點是把欄位還原成診斷問題。</p>
+<pre><code>{
+  "name": "checkout.calculate_total",
+  "context": {
+    "trace_id": "0x7a...91",
+    "span_id": "0x2b...e4",
+    "trace_state": "[]"
+  },
+  "kind": "SpanKind.INTERNAL",
+  "parent_id": null,
+  "start_time": "2026-08-20T02:00:00.100Z",
+  "end_time":   "2026-08-20T02:00:00.103Z",
+  "status": { "status_code": "UNSET" },
+  "attributes": {
+    "app.cart.item_count": 3,
+    "app.cart.total_cents": 3674
+  },
+  "events": [],
+  "resource": {
+    "attributes": { "service.name": "checkout-demo" }
+  }
+}</code></pre>
+
+<h3>1. 它屬於哪條因果鏈？</h3>
+<p>
+先看 <code>trace_id</code>、<code>span_id</code>、<code>parent_id</code>。Trace ID 把多個 Span
+關聯成同一條端到端工作；Span ID 識別目前節點；Parent Span ID 指向直接上游節點。
+此例 <code>parent_id: null</code>，因此它是 root Span。這一步回答的是<strong>關聯與拓撲</strong>，不是結果成功與否。
+</p>
+
+<h3>2. 它觀測哪一段工作？</h3>
+<p>
+看 <code>name</code> 與 <code>kind</code>。name 應描述穩定、可理解的 operation；kind 描述這段工作
+與 process boundary 的角色。此例是 <code>INTERNAL</code>，表示它不是 incoming server call、
+outgoing client call 或 queue producer/consumer boundary，而是 process 內部工作。
+</p>
+
+<h3>3. 它花多久，結果如何？</h3>
+<p>
+duration 是 <code>end_time - start_time</code>，此例約 3 ms。<code>status</code> 回答 operation 的
+整體結果判定；<code>UNSET</code> 是預設狀態，不能讀成「未知所以失敗」。若 operation 發生錯誤，
+instrumentation 應依該領域的 Semantic Conventions 設定 status。
+</p>
+
+<h3>4. 有哪些診斷脈絡？</h3>
+<p>
+<code>attributes</code> 是描述整段 operation 的 key-value metadata。若某件事是 Span 期間內
+「有意義的單一時間點」，才適合用帶 timestamp 的 <code>event</code>。判斷規則不是「資料多就用 event」，
+而是<strong>那個發生時刻是否具有診斷意義</strong>。
+</p>
+
+<h3>5. 誰產生這份 telemetry？</h3>
+<p>
+看 Resource 與 instrumentation scope。<code>service.name=checkout-demo</code> 描述 emitter identity；
+instrumentation scope 則描述是哪一段 library/module instrumentation 建立 Span。它們回答「誰產生」，
+不應和 <code>name</code> 的「這次做什麼」混在一起。
+</p>
+
+<div class="box">
+<strong>重要精度：</strong>Console exporter 可能把 Resource、scope 與 Span 一起印在一個物件中；
+這不代表 Resource 在所有協定表示中都必須是 Span 內的一個 JSON 欄位。OTLP 會用
+ResourceSpans / ScopeSpans 等 envelope 組織資料。請保留語義關係，不要依賴畫面巢狀位置。
+</div>
+
+<h2>SRE debugging 練習：哪一層出了問題？</h2>
+<p>每題先指出「缺少哪種證據」，再決定要查 instrumentation、pipeline 或 backend 顯示。</p>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Backend 中 Span 有 name 和 duration，但同一條 request 的 Spans 無法組成樹。最先檢查哪組欄位？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Trace、Span、Parent 三種 IDs</button>
+    <button class="choice" data-correct="false">Name、Kind、Status 三種語義</button>
+    <button class="choice" data-correct="false">Resource、Scope、Exporter 三種設定</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Console 顯示 <code>resource.attributes.service.name</code>，backend UI 顯示 <code>service.name</code>。最合理的判斷是？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">顯示位置改變，語義可能相同</button>
+    <button class="choice" data-correct="false">資料模型改變，服務必定不同</button>
+    <button class="choice" data-correct="false">傳輸協定失敗，Span 必定遺失</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 想記錄「payment retry 發生在何時」，哪個模型最合適？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">建立帶時間戳的 Span Event</button>
+    <button class="choice" data-correct="false">建立無時間戳的 Span Attribute</button>
+    <button class="choice" data-correct="false">建立另一個新的 Service Resource</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<h3>輸出判讀任務</h3>
+<p>
+重新執行 Lesson 3 的程式，但先不要看本課範例。用自己的輸出依序寫下五行答案：
+「因果鏈、operation、時間與結果、診斷脈絡、emitter」。若找不到某欄位，也要寫下
+「它可能只是沒有被 exporter 顯示，還是真的沒有被設定？」這個分岔問題。
+</p>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0002-span-reading-guide.html">Span 五問判讀卡</a>。
+它是日後看 console、Collector debug exporter 或 tracing backend 時共用的順序。
+</div>
+
+<div class="box ask">
+<strong>有問題就問我：</strong>把你的真實 Span 輸出貼回來，我們會逐欄判讀。特別歡迎追問
+「UNSET 為何不等於 unknown？」「Resource 為何在 OTLP envelope 外層？」或
+「event 和 child Span 的邊界怎麼選？」
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0003-first-python-span.html">&larr; Lesson 3: 第一個 Python Span</a></span>
+  <span><a href="0005-span-design-boundaries.html">下一課：Span 邊界與欄位設計 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

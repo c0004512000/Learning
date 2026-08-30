@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 47: Testing Collector Changes</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>47. Testing Collector Changes</h1>
+<p class="subtitle">Config 可解析，只證明 syntax/schema；production-safe 必須逐層證明語意、容量、故障與 rollout · Lesson 47 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會建立 Collector change 的六層證明：resolve/validate、graph、semantic fixtures、end-to-end、load/failure、canary rollout；
+理解每層能捕捉的 failure class，並在變更前寫好 rollback trigger、state/queue treatment 與 success criteria。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/configuration/" target="_blank">Collector Configuration / Validate</a>、<a href="https://opentelemetry.io/docs/collector/troubleshooting/" target="_blank">Collector Troubleshooting</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/platform-support.md" target="_blank">Collector Test Strategy</a></p>
+
+<h2>第一性原理：測試是在排除 Failure Classes</h2>
+<p>一個 Collector change 可能失敗於不同層：</p>
+
+<pre><code>source/resolution → schema → graph → data semantics
+    → performance → failure recovery → production rollout</code></pre>
+
+<p>
+單一測試無法涵蓋全部。Config validate 通過，不能證明 OTTL condition 正確；一筆 fixture 正確，不能證明 60k spans/s 不 OOM；
+load test 正常，不能證明 backend outage 後 queue 可恢復；staging 正常，也不能證明 production tenant/routing mix。
+</p>
+
+<h2>Gate 1：Exact Distribution + Resolved Config</h2>
+<p>固定 binary/image digest、Collector/contrib version 與 component set，再解析所有 sources/substitutions/overrides：</p>
+
+<ul>
+  <li>同名 component 在 core/contrib/custom distribution 未必存在或版本一致。</li>
+  <li>不要只 validate base fragment；要 validate production 會使用的 final config。</li>
+  <li>敏感值在診斷輸出中遮蔽；比較存在性、來源與 hash。</li>
+  <li>官方 <code>validate</code> command 可檢查 configuration，但本章不執行 binary。</li>
+</ul>
+
+<h2>Gate 2：Graph Invariants</h2>
+<p>把 final config 轉成 active graph，驗證：</p>
+
+<ul>
+  <li>每條 pipeline receiver/processor/exporter reference 都存在且 signal 相容。</li>
+  <li>Connector 同時是上游 exporter、下游 receiver；無意外 cycle/zero-route。</li>
+  <li>Memory limiter first、batch/drop/sampling/connector order 符合語意。</li>
+  <li>Security/auth extensions 已啟用並被 consuming component reference。</li>
+  <li>Stateful component 的 affinity/single-writer ownership 沒被 deployment change 破壞。</li>
+</ul>
+
+<h2>Gate 3：Semantic Fixtures</h2>
+<p>Fixture 是小而精確的 input→expected output contract。每條重要 policy 至少測：</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Input class</th><th>目的</th></tr></thead>
+  <tbody>
+    <tr><td>Representative valid</td><td>happy path transformation/routing</td></tr>
+    <tr><td>Missing attribute</td><td>nil/default/condition 行為</td></tr>
+    <tr><td>Wrong type</td><td>OTTL error mode、partial transform/drop</td></tr>
+    <tr><td>Sensitive value</td><td>redaction fail-open/fail-closed invariant</td></tr>
+    <tr><td>High-cardinality/extreme size</td><td>limits、overflow、request bytes</td></tr>
+    <tr><td>Relationship case</td><td>parent-child、links、logs correlation、metric stream identity</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Assertions 不只看「輸出存在」，也看 forbidden fields/destinations 不存在、count 不 duplicate、原本值是否被錯覆寫。
+對 filter/routing 用 truth table；對 OTTL 逐 statement 算 state transition。
+</p>
+
+<h2>Gate 4：End-to-End Canary</h2>
+<p>
+把第 46 章 canary 從 realistic producer boundary 送過 production-like auth/network/config，到真 backend query。
+這能捕捉 protocol/TLS/auth、backend schema/index/query 與多 hop config mismatch，這些不是 local debug exporter 可證明。
+</p>
+
+<p>同時保留 component boundary evidence，否則 canary 只告訴你「壞了」卻不能定位 first bad edge。</p>
+
+<h2>Gate 5：Load 與 Failure</h2>
+<p>負載測試必須匹配 items + bytes + cardinality + signal mix：</p>
+
+<ul>
+  <li>Steady、peak、burst duration、peak+headroom。</li>
+  <li>CPU/item、allocated bytes/item、batch items/bytes、queue slope/age。</li>
+  <li>Backend request/payload limits、throttle 與 recovery throughput。</li>
+</ul>
+
+<p>Failure test 不是附加彩蛋，而是 reliability contract：</p>
+
+<ul>
+  <li>Backend unavailable/slow/429/503；queue 到哪、何時 drop、多久 drain。</li>
+  <li>Collector restart；memory queue vs persistent queue、graceful shutdown。</li>
+  <li>Network partition/TLS rotation/auth expiry。</li>
+  <li>Scale/rollout；tail sampling/span metrics/metric stream state 是否分裂或 reset。</li>
+</ul>
+
+<h2>Gate 6：Canary Rollout 與 Old/New Comparison</h2>
+<p>
+Staging workload 永遠不完全等於 production。先用少量 instances/tenant/region，將 old/new 在同一 traffic window 比較：
+acceptance/refusal、selection ratio、batch bytes、queue、export failures、freshness、correctness、resource/cardinality 與 cost。
+</p>
+
+<p>
+不要只比較 absolute totals，因 load 可能不同；用 per-input ratios、matched cohorts 與 canary assertions。
+觀察窗口要涵蓋 batch/metric flush、tail sampling decision、retry、backend indexing 與至少一個預期 peak。
+</p>
+
+<h2>Rollback 是 Change Contract 的一部分</h2>
+<p>變更前就寫：</p>
+
+<ul>
+  <li>立即 rollback：cross-tenant routing、redaction/security invariant failure。</li>
+  <li>Burn-rate rollback：unexpected refusal/drop/freshness/error-budget 消耗。</li>
+  <li>Capacity rollback：queue/memory 持續正斜率且無 recovery headroom。</li>
+  <li>Known-good artifact：exact image/config/digest，不是口頭說「上一版」。</li>
+  <li>State/queue：rollback 時 pending queues、WAL、tail state、metric writer overlap 如何處理。</li>
+</ul>
+
+<p>
+Rollback 不是一定無損；binary/schema/storage incompatibility 或 state ownership change 可能讓回退更危險。先測回退路徑，必要時選 roll-forward。
+</p>
+
+<h2>Test Contract Artifact</h2>
+<p>
+使用 <a href="../examples/0047-change-test-contract.yaml"><code>examples/0047-change-test-contract.yaml</code></a> 把 gates 與 triggers 版本化。
+它是 planning artifact，不會執行 CI、Docker 或 Windows executable。實際 automation 可在核准環境用固定 Docker images 實作，以符合 executable policy。
+</p>
+
+<h2>SRE 附加練習：OTTL Rename 變更</h2>
+<p>變更：<code>user.tier</code> → <code>app.user_tier</code>。</p>
+
+<ol>
+  <li>Fixtures：old only、new only、both conflict、neither、wrong type。</li>
+  <li>Assertions：新 key 值、舊 key 是否刪、collision precedence、error mode。</li>
+  <li>Pipeline effects：filter/routing/spanmetrics/dashboard 是否讀 old/new key，order 是否正確。</li>
+  <li>Canary：查 backend 新 key，negative assert 舊 key 不殘留（若契約要求）。</li>
+  <li>Rollout：比較 missing-field ratio、OTTL errors、route/filter selection、metric cardinality。</li>
+  <li>Rollback：若 downstream 已開始只寫/讀新 key，單純退 Collector 是否造成 schema split？</li>
+</ol>
+
+<p>Review 時使用 <a href="../reference/0040-collector-change-review-card.html">Collector Change Review Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>選一個 routing change，為 static、fixture、E2E、load/failure、rollout 各寫一個不可互相替代的 assertion。</li>
+  <li>說明 config validate 為何不能捕捉 <code>condition=true</code> 導致所有資料錯 route。</li>
+  <li>為 backend outage test 寫 input rate、duration、queue budget、expected drops、recovery/drain success criteria。</li>
+  <li>列出一個 rollback 會破壞 state continuity 的案例，提出 drain/overlap/roll-forward 選項。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>1. Config validate 成功最主要證明到哪？</strong></p>
+  <label><input type="radio" name="q1" value="a"> Configuration 可解析/解碼且基本 references 有效，不等於 data semantics 與容量正確</label><br>
+  <label><input type="radio" name="q1" value="b"> Production 永不丟資料</label><br>
+  <label><input type="radio" name="q1" value="c"> Backend query 一定正確</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>2. Semantic fixture 為何必須包含 missing/wrong-type inputs？</strong></p>
+  <label><input type="radio" name="q2" value="a"> 只為增加檔案大小</label><br>
+  <label><input type="radio" name="q2" value="b"> Production attributes 永遠完整同型</label><br>
+  <label><input type="radio" name="q2" value="c"> 它們會觸發 nil/type/error-mode branches，happy path 看不到</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>3. 最危險的 rollback 假設是？</strong></p>
+  <label><input type="radio" name="q3" value="a"> Known-good artifact 要固定</label><br>
+  <label><input type="radio" name="q3" value="b"> 回上一版必然無損，不需考慮 queue/state/schema ownership</label><br>
+  <label><input type="radio" name="q3" value="c"> Security invariant failure要立即處理</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>每層 test 排除不同 failure class；validate 只是起點。</li>
+  <li>Graph invariants、semantic fixtures、E2E canary、load/failure、rollout comparison 缺一不可。</li>
+  <li>測試 workload 要包含 production 的 bytes/cardinality/signal mix 與 failure state。</li>
+  <li>Rollback trigger、known-good artifact 與 state/queue treatment 必須在變更前定義。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0046-synthetic-telemetry-canaries.html">← Lesson 46</a>
+  <a href="0048-upgrading-collector-safely.html">Lesson 48：Upgrading Collector Safely →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

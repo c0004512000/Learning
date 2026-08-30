@@ -1,0 +1,28 @@
+# Lesson 42 static batch configuration. It is not executed by this lesson.
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+
+  filter/noise:
+    error_mode: ignore
+    trace_conditions:
+      - span.name == "GET /healthz" and span.attributes["http.response.status_code"] == 200
+
+  batch/backend:
+    # Trigger a send when pending item count reaches 2048.
+    send_batch_size: 2048
+    # Split so no outgoing batch exceeds 4096 items (not bytes).
+    send_batch_max_size: 4096
+    # Flush low-volume data without waiting forever.
+    timeout: 1s
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      # Limit first, then destructive selection, then batch what remains.
+      processors: [memory_limiter, filter/noise, batch/backend]
+      exporters: [otlp/backend]
+

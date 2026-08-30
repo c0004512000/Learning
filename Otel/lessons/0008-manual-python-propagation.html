@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 8: Python 手動 inject / extract</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>8. Python 手動 inject / extract</h1>
+<p class="subtitle">用一個 dictionary 看見跨 service 因果關係如何成立 · Lesson 8 of N</p>
+
+<h2>為什麼先不用 Flask 或真正網路？</h2>
+<p>
+真正的 HTTP framework 會同時引入 routing、socket、middleware、auto-instrumentation 與多個 process，
+增加工作記憶負擔。本課先用 Python function 模擬兩個 services、用 dictionary 模擬 HTTP headers。
+我們只改變一個變數：context 是否經 carrier 傳遞。
+</p>
+<p>
+這不是 production 架構，而是 controlled experiment。當你能由輸出證明 parent relationship，
+下一步再把同一機制放進 Flask/requests，debug 時才知道應檢查 framework 還是 propagation 本身。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/languages/python/propagation/" target="_blank">OpenTelemetry Python — Propagation</a></p>
+
+<h2>實驗的三個預期不變量</h2>
+<pre><code>Checkout SERVER Span:  trace=T, span=C0, parent=null
+Checkout CLIENT Span:  trace=T, span=C1, parent=C0
+Inventory SERVER Span: trace=T, span=I1, parent=C1</code></pre>
+
+<ol>
+  <li>三個 Span 共用同一個 Trace ID。</li>
+  <li>每個 operation 都有不同 Span ID。</li>
+  <li>Inventory SERVER Span 的 Parent Span ID 等於 Checkout CLIENT Span 的 Span ID。</li>
+</ol>
+
+<h2>執行實驗</h2>
+<p>
+程式在 <a href="../examples/0008-manual-propagation.py"><code>examples/0008-manual-propagation.py</code></a>。
+若你已完成 Lesson 3，同一個 virtual environment 已有需要的套件：
+</p>
+<pre><code>.\.venv\Scripts\python.exe .\examples\0008-manual-propagation.py</code></pre>
+
+<div class="box">
+<strong>安裝界線：</strong>本課不需 Flask、requests、Collector 或新 executable；只使用 Lesson 3 已安裝的
+<code>opentelemetry-api</code> 與 <code>opentelemetry-sdk</code>。
+</div>
+
+<h2>兩個 Provider 為何可以在一個 process？</h2>
+<pre><code>checkout_provider, checkout_tracer = build_tracing(
+    "checkout-demo", "training.checkout"
+)
+inventory_provider, inventory_tracer = build_tracing(
+    "inventory-demo", "training.inventory"
+)</code></pre>
+
+<p>
+真實部署會是兩個 process，各有自己的 Provider 與 Resource。本課為了不引入網路，把兩組 SDK pipeline
+放在同一個 Python process，並刻意不使用 global provider。兩個 <code>service.name</code> 讓 console 輸出仍可區分
+telemetry emitter。這是一個測試替身，不改變 propagation 的資料需求。
+</p>
+
+<h2>Sender：把 current SpanContext inject 到 carrier</h2>
+<pre><code>with checkout_tracer.start_as_current_span(
+    "GET /inventory/{itemId}", kind=SpanKind.CLIENT
+):
+    carrier: dict[str, str] = {}
+    propagate.inject(carrier=carrier)
+    print(f"Outgoing carrier: {carrier}")</code></pre>
+
+<p>
+進入 <code>with</code> 後，CLIENT Span 是 current Span。<code>propagate.inject</code> 讀取 current Context，
+用已設定的 propagator 把必要欄位寫進 dictionary。預期可看到類似：
+</p>
+<pre><code>{'traceparent': '00-&lt;trace-id&gt;-&lt;client-span-id&gt;-01'}</code></pre>
+
+<p>
+Inject 不會 export Span，也不會送網路；它只修改 carrier。真實 HTTP client library 下一步才會把這個
+dictionary 變成 request headers 並送出。
+</p>
+
+<h2>Receiver：先 extract，再建立 SERVER Span</h2>
+<pre><code>remote_context = propagate.extract(carrier=carrier)
+
+with tracer.start_as_current_span(
+    "GET /inventory/{itemId}",
+    context=remote_context,
+    kind=SpanKind.SERVER,
+) as span:
+    ...</code></pre>
+
+<p>
+<code>extract</code> 把 header 字串解析成包含 remote SpanContext 的 Context；建立 SERVER Span 時，
+明確以它作 parent。新的 SERVER Span 會沿用 Trace ID，產生自己的 Span ID，並把 header 中的
+parent-id 設為自己的 Parent Span ID。
+</p>
+
+<div class="box tip">
+<strong>為何明確傳 <code>context=remote_context</code>？</strong>
+因為本課兩個「services」暫時共用同一 thread；若依賴 thread-local current state，可能意外繼承 sender Span，
+掩蓋 carrier 是否真的有效。明確傳入 extracted Context，才能讓實驗只由 carrier 決定 parent。
+</div>
+
+<h2>從 console 輸出驗證，而不是相信程式碼</h2>
+<p>找到三個 Span，以以下順序建立一張表：</p>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>service.name</th><th>name</th><th>kind</th><th>Trace ID</th><th>Span ID</th><th>Parent ID</th></tr></thead>
+  <tbody>
+    <tr><td>checkout-demo</td><td>POST /checkout</td><td>SERVER</td><td>T</td><td>C0</td><td>null</td></tr>
+    <tr><td>checkout-demo</td><td>GET /inventory/{itemId}</td><td>CLIENT</td><td>T</td><td>C1</td><td>C0</td></tr>
+    <tr><td>inventory-demo</td><td>GET /inventory/{itemId}</td><td>SERVER</td><td>T</td><td>I1</td><td>C1</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+實際 ID 每次執行都不同；你驗證的是 equality relationships，不是特定值。這是 SRE debug 的核心：
+把預期寫成不變量，再用 telemetry 證偽，而不是只看 UI 覺得「好像接起來了」。
+</p>
+
+<h2>SRE debugging lab：故意切斷 propagation</h2>
+<p>把以下一行暫時註解：</p>
+<pre><code># propagate.inject(carrier=carrier)</code></pre>
+
+<p>重新執行並預測結果，再核對：</p>
+<details>
+  <summary>預期症狀與原因</summary>
+  <ol>
+    <li><code>carrier</code> 不再有 <code>traceparent</code>。</li>
+    <li><code>extract</code> 找不到 remote SpanContext，不會憑空知道 checkout 的 IDs。</li>
+    <li>Inventory SERVER Span 成為新 Trace 的 root：Trace ID 改變，Parent ID 為 null。</li>
+    <li>兩邊仍可各自 export，所以 console 仍有三個 Spans；壞的是 propagation，不是 exporter。</li>
+  </ol>
+</details>
+
+<p>
+完成後把 inject 恢復。接著可做第二個變體：保留 inject，將 carrier 的 <code>traceparent</code> 改成非法字串。
+Receiver 應安全地忽略無法解析的值，而不是讓 application request 因 telemetry header crash。
+</p>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. <code>propagate.inject</code> 完成後，直接發生了什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Current Context 被寫進 carrier</button>
+    <button class="choice" data-correct="false">Current Span 被送進 backend</button>
+    <button class="choice" data-correct="false">Current Trace 被存進 Collector</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Inventory SERVER Span 應沿用與新建哪些 IDs？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">沿用 Trace ID，新建 Span ID</button>
+    <button class="choice" data-correct="false">新建 Trace ID，沿用 Span ID</button>
+    <button class="choice" data-correct="false">沿用 Trace ID，沿用 Span ID</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 註解 inject 後兩邊仍有 console Spans，證明什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Export 存活，但跨服務因果斷裂</button>
+    <button class="choice" data-correct="false">因果存活，但兩側 Export 斷裂</button>
+    <button class="choice" data-correct="false">Sampling 存活，但兩側 Resource 斷裂</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>Debug 時帶著這張卡：</strong><a href="../reference/0004-context-propagation-debug-card.html">Context propagation debug 卡</a>。
+</div>
+
+<div class="box ask">
+<strong>有問題就問我：</strong>執行後把三個 Span 的 name、Trace ID、Span ID、Parent ID 與 service.name 貼回來；
+我會先只檢查不變量，再一起定位任何不一致。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0007-context-propagation.html">&larr; Lesson 7: Propagation 必要性</a></span>
+  <span><a href="0009-sampling-first-principles.html">下一課：Sampling 為何存在 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

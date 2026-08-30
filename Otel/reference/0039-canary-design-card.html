@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Telemetry Canary Design Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Telemetry Canary Design Card</h1>
+<p class="subtitle">已知輸入 + 唯一 marker + 可查詢 assertions + 安全邊界</p>
+<ol>
+  <li>Canary 從哪個 producer/network/auth path 發出？與真實 traffic 共用哪些 boundary？</li>
+  <li>Trace/metric/log 各自的 exact input 與 correlation 是什麼？</li>
+  <li>Marker 如何唯一、可查、可過期，且不造成 metric cardinality explosion？</li>
+  <li>Arrival、freshness、count、relationship、resource、redaction、routing assertions 是什麼？</li>
+  <li>Negative assertions：不該到哪、不該含什麼、不可 duplicate 幾次？</li>
+  <li>Failure attribution：producer、ingress、policy、egress、backend query 哪一層有 evidence？</li>
+  <li>Canary 自身 scheduler/query/credential 如何監控，避免把 probe failure 誤判 data path failure？</li>
+</ol>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

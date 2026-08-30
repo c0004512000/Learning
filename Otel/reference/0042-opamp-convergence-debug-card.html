@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>OpAMP Convergence Debug Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>OpAMP Convergence Debug Card</h1>
+<p class="subtitle">不要問「設定送到了嗎？」；依序證明 identity、offer、apply、effective state 與 data-plane outcome</p>
+
+<h2>五個不同的事實</h2>
+<ol>
+  <li><strong>Targeted：</strong>Server selector 選中了正確 agent instance。</li>
+  <li><strong>Offered：</strong>ServerToAgent 帶有預期 <code>config_hash</code>。</li>
+  <li><strong>Received：</strong>Agent 回報的 <code>last_remote_config_hash</code> 相符。</li>
+  <li><strong>Applied：</strong><code>remote_config_status=APPLIED</code>；若 FAILED，保存 error message。</li>
+  <li><strong>Effective：</strong>Agent 回報的 effective config 與預期合成結果一致，且資料面 canary 通過。</li>
+</ol>
+
+<h2>症狀 → 下一個證據</h2>
+<table>
+  <thead><tr><th>症狀</th><th>先查</th><th>不要先假設</th></tr></thead>
+  <tbody>
+    <tr><td>Agent 不在線</td><td>TLS/auth、network、instance UID、reconnect、first status report</td><td>Collector pipeline 壞了</td></tr>
+    <tr><td>Server 一直重送</td><td>server hash vs last_remote_config_hash、status compression/sequence gap</td><td>重送本身就是 bug</td></tr>
+    <tr><td>狀態 APPLYING 過久</td><td>apply deadline、Supervisor/agent log、process restart與 health</td><td>已經生效</td></tr>
+    <tr><td>狀態 FAILED</td><td>error message、final config validation、local/remote merge、component availability</td><td>網路問題</td></tr>
+    <tr><td>狀態 APPLIED 但資料消失</td><td>effective config、component health、internal telemetry、synthetic OTLP canary</td><td>控制面成功等於資料面成功</td></tr>
+  </tbody>
+</table>
+
+<h2>停止 rollout 的條件</h2>
+<ul>
+  <li>身份或 cohort 無法唯一證明。</li>
+  <li>新 hash 在 deadline 內未收斂為 APPLIED。</li>
+  <li>Effective config 不符合 reviewed result。</li>
+  <li>Collector health 或 telemetry SLO 退化。</li>
+  <li>Rollback 的舊 hash 也無法收斂。</li>
+</ul>
+
+<p><a href="../lessons/0049-opamp-control-plane.html">回到 Lesson 49</a></p>
+</body>
+</html>
+

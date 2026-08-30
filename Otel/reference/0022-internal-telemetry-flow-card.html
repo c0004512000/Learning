@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Collector internal telemetry 流量判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Collector internal telemetry 流量判斷卡</h1>
+<p class="subtitle">用 counters 的 rate 與 queue state 找第一個失速邊界</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Observed pattern</th><th>優先假設</th></tr></thead>
+  <tbody>
+    <tr><td>accepted ↑，sent ↑，queue stable low</td><td>Collector path 大致有流動</td></tr>
+    <tr><td>accepted ↑，sent flat，queue ↑</td><td>Exporter/downstream drain bottleneck</td></tr>
+    <tr><td>receiver refused ↑</td><td>Pipeline/backpressure 拒絕；client 可能 loss</td></tr>
+    <tr><td>enqueue failed ↑</td><td>Sending queue 無法接收，常見於 queue full</td></tr>
+    <tr><td>send failed ↑，queue stable，sent 仍 ↑</td><td>可能 transient retry；尚不能直接宣稱 loss</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>注意：</strong>OTLP metric 名與 Prometheus exposition 可能有 <code>_total</code>/unit suffix 差異；先看實際 endpoint。</p>
+<p><a href="../lessons/0029-collector-internal-telemetry.html">回到 Lesson 29</a></p>
+</body>
+</html>
+

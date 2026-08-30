@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 29: 用 Collector internal telemetry 觀測觀測系統</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>29. 用 Collector internal telemetry 觀測觀測系統</h1>
+<p class="subtitle">Backend 沒資料只是症狀；accepted、refused、queued、sent 才能定位資料命運 · Lesson 29 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會把 Collector 視為一個有 ingress、processing、queues、egress 與 resources 的服務，使用 internal metrics/logs 建立 evidence chain；
+能解讀 accepted/refused、processor incoming/outgoing、queue size/capacity、enqueue/send failures 與 sent counters，而不把單一 failure counter 等同資料遺失。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/internal-telemetry/" target="_blank">Collector Internal Telemetry</a>、<a href="https://opentelemetry.io/docs/collector/troubleshooting/" target="_blank">Collector Troubleshooting</a></p>
+
+<h2>第一性原理：Observability pipeline 也有自己的未知狀態</h2>
+<p>
+Backend 查不到 Trace，可能是 application 沒產生、SDK sampling/drop、network、receiver refusal、processor filter、queue full、export retry、
+backend reject 或 query 錯誤。只觀察 backend absence，這些假設完全混在一起。
+</p>
+
+<pre><code>Application → Receiver → Processor(s) → Sending queue → Exporter → Backend
+                 │            │              │             │
+              accepted/     in/out       size/capacity   sent/failed
+               refused</code></pre>
+
+<p>
+Internal telemetry 是 Collector 對自己狀態的 observations。它把 end-to-end black box 拆成可檢驗邊界，
+但仍不取代 application SDK 與 backend 自身 telemetry。
+</p>
+
+<h2>預設可見性與安全邊界</h2>
+<p>Collector 預設提供兩個最短 feedback paths：</p>
+<ul>
+  <li>Internal metrics：Prometheus interface，預設 <code>http://127.0.0.1:8888/metrics</code>。</li>
+  <li>Internal logs：預設寫到 <code>stderr</code>。</li>
+</ul>
+
+<p>
+Loopback default 避免無意公開 operational details。Container/Kubernetes 若需遠端 scrape，才設計 bind/publish、NetworkPolicy、authentication/TLS
+與 access control；不能為了方便直接把 internal endpoint 公開到所有網路。
+</p>
+
+<div class="box tip">
+<strong>監控路徑要能在主路徑壞時留下證據：</strong>若 Collector internal telemetry 只透過同一個故障 backend/exporter 送出，
+事故時可能同時失明。保留 local logs、local scrape 或適度獨立的監控路徑，但也避免形成無限自我觀測循環。
+</div>
+
+<h2>Internal telemetry 也需要 Resource identity</h2>
+<p>
+Collector 會為 internal signals 提供 <code>service.name</code>、<code>service.version</code>、<code>service.instance.id</code> 等 Resource attributes。
+多個 Collector replicas 若沒有 instance/deployment identity，queue/reset/CPU data 可能被錯誤合併。
+</p>
+
+<p>範例片段位於 <a href="../examples/0029-internal-telemetry-fragment.yaml"><code>examples/0029-internal-telemetry-fragment.yaml</code></a>：</p>
+
+<pre><code>service:
+  telemetry:
+    resource:
+      service.name: otel-collector-training
+      deployment.environment.name: local
+    logs:
+      level: info
+    metrics:
+      level: detailed</code></pre>
+
+<p>
+Metrics verbosity 有 <code>none/basic/normal/detailed</code>，default 是 normal。Detailed 增加可見性，也可能增加 dimensions/cost；
+應依 troubleshooting 需求選擇。Internal telemetry declarative config schema 仍在演進，實作時必須以 pinned Collector version 文件驗證。
+本片段沒有執行，也沒有改變 listener exposure。
+</p>
+
+<h2>Ingress：accepted 與 refused</h2>
+<p>以 Traces 為例：</p>
+
+<ul>
+  <li><code>otelcol_receiver_accepted_spans</code>：receiver 已成功 ingest 並推入 pipeline 的 Spans。</li>
+  <li><code>otelcol_receiver_refused_spans</code>：無法推入 pipeline 的 Spans。</li>
+</ul>
+
+<p>
+Metrics/Logs 有對應 <code>metric_points</code>/<code>log_records</code> variants。這些是 cumulative Counters，觀察時通常取 rate/increase，
+不是把絕對值當「目前有多少」。Accepted 上升證明資料跨過 receiver boundary，但不保證走到 exporter/backend。
+</p>
+
+<p>
+Refused 持續上升表示 errors 回到 clients；是否實際 loss 取決於 client retry/buffer 與錯誤處理。Refusal 是風險證據，不等於每一筆都已永久消失。
+</p>
+
+<h2>Processors：incoming 與 outgoing 要結合 policy 解讀</h2>
+<ul>
+  <li><code>otelcol_processor_incoming_items</code></li>
+  <li><code>otelcol_processor_outgoing_items</code></li>
+</ul>
+
+<p>
+Filter/sampling processor 的 outgoing 少於 incoming 可能是預期 policy；batch processor 改變 batches/cadence，但不應任意改變 signal semantic counts。
+差值只有在知道 component type、attributes 與配置後才有意義。不要對所有 processors 套「in 必須等於 out」告警。
+</p>
+
+<h2>Sending queue：state 與 failure counters</h2>
+<ul>
+  <li><code>otelcol_exporter_queue_size</code>：目前 queue batches。</li>
+  <li><code>otelcol_exporter_queue_capacity</code>：固定 capacity，單位 batches。</li>
+  <li><code>otelcol_exporter_enqueue_failed_spans</code> 等：Exporter 無法把 items 放進 sending queue。</li>
+</ul>
+
+<p>
+Queue utilization 可近似 <code>size / capacity</code>。單次尖峰不一定異常；持續接近 1 且 enqueue failures 增加，才強烈支持 queue saturation/loss risk。
+Queue size 是 Gauge，要看 current/trend；enqueue failures 是 Counter，要看 rate/increase。
+</p>
+
+<h2>Egress：sent 與 send_failed</h2>
+<ul>
+  <li><code>otelcol_exporter_sent_spans</code> 等：Exporter 成功送往 destination 的 items。</li>
+  <li><code>otelcol_exporter_send_failed_spans</code> 等：送出嘗試失敗的 items。</li>
+</ul>
+
+<p>
+Send failures 不天然等於 data loss，因為 queue/retry 可能稍後成功。判讀要同時看 sent rate、queue trend、retry deadline、enqueue failures 與 backend response。
+若 failed spike 後 sent 上升、queue 回落，較像 transient outage 已恢復；若 queue 滿且 failures 持續，loss risk 高。
+</p>
+
+<h2>Metric naming：先看 transport representation</h2>
+<p>
+官方表列的是 OTLP names，例如 <code>otelcol_exporter_send_failed_spans</code>。Prometheus exporter 對 Sum metrics 通常加
+<code>_total</code>，unit suffix 設定也可能改變 exposition name；不同 Collector 版本的 instrumentation names 曾演進。
+</p>
+
+<p>
+因此 dashboard/query 應先查看實際 <code>/metrics</code> exposition 與 pinned version 文件，不因搜尋不到 raw OTLP name 就判定 Collector 沒 emit。
+升級時把 internal telemetry schema/names 當 compatibility surface 測試。
+</p>
+
+<h2>建立最小 Collector flow dashboard</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Panel/Alert</th><th>主要輸入</th><th>回答的問題</th></tr></thead>
+  <tbody>
+    <tr><td>Ingress rate</td><td>receiver accepted/refused rates</td><td>資料是否到達、是否被入口拒絕？</td></tr>
+    <tr><td>Processor flow</td><td>incoming/outgoing by processor</td><td>哪個 policy/processor 改變數量？</td></tr>
+    <tr><td>Queue utilization</td><td>queue size/capacity</td><td>backlog 是否逼近容量？</td></tr>
+    <tr><td>Egress health</td><td>sent/send_failed/enqueue_failed rates</td><td>downstream 是否成功 drain？</td></tr>
+    <tr><td>Process saturation</td><td>CPU、memory/heap、uptime</td><td>Collector 自身是否資源飽和或重啟？</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Counters 要使用 reset-aware rate/increase；uptime/service.instance.id 能協助辨認 restart。這把 Lesson 23 temporality/reset 與 Collector troubleshooting 接起來。
+</p>
+
+<h2>SRE debugging lab：Backend 沒有新 Traces</h2>
+
+<h3>1. Accepted rate 是零</h3>
+<p>
+問題在 receiver 之前或 activation：application exporter、DNS/network/TLS、endpoint/protocol/path、receiver listening/pipeline reference。
+此時不需先調 backend query。
+</p>
+
+<h3>2. Accepted 上升，processor outgoing 變零</h3>
+<p>
+定位第一個 incoming 有、outgoing 無的 processor；檢查 filter/sampling/order/transform errors。若這是預期 drop policy，則資料缺失符合 config，
+需要檢討 policy 而非 transport。
+</p>
+
+<h3>3. Accepted 上升、queue 上升、sent 接近零</h3>
+<p>
+出口/back-end bottleneck：查 send failures、endpoint/TLS/auth、backend throttling 與 retry。依 Lesson 28 計算 time-to-full，
+先保護 loss budget，再處理根因。
+</p>
+
+<h3>4. Sent 上升，backend query 仍空</h3>
+<p>
+Collector 已完成自己的 egress contract，但仍需查 backend acceptance semantics、tenant/index/routing、retention/query time range 與 ingestion delay。
+Sent 不是「使用者 UI 一定能查到」的保證。
+</p>
+
+<details>
+  <summary>練習：依數字定位</summary>
+  <pre><code>accepted_spans rate = 2,000/s
+refused_spans rate = 0
+queue_size = 900 / capacity 1,000 and rising
+send_failed_spans rate = 1,800/s
+sent_spans rate = 200/s</code></pre>
+  <p>先計算 net backlog 趨勢，估計接近 full；將故障域放在 exporter/downstream，而非 application instrumentation。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. <code>receiver_accepted_spans</code> 上升最多直接證明什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Receiver 已 ingest 並把 Spans 推入 Collector pipeline</button>
+    <button class="choice" data-correct="false">Backend 已完成 indexing</button>
+    <button class="choice" data-correct="false">所有 processors 都未 drop</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. <code>send_failed_spans</code> 增加是否立即等於永久 loss？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">不一定；要結合 retry、queue、sent 與 deadline 判讀</button>
+    <button class="choice" data-correct="false">一定；任何 retry 都無效</button>
+    <button class="choice" data-correct="false">一定不會；queue 是無限的</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. Prometheus 找不到 raw OTLP metric name，最先做什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">查看實際 exposition 的 _total/unit suffix 與 pinned version 命名</button>
+    <button class="choice" data-correct="false">直接關閉 internal telemetry</button>
+    <button class="choice" data-correct="false">把 metric 改成 Span name</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0022-internal-telemetry-flow-card.html">Collector internal telemetry 流量判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>替 Collector 畫一張五層 dashboard 草圖：ingress、processors、queue、egress、process resources；
+每一格列出 signal、metric type、rate/gauge query 與 alert 所代表的最大可證明範圍。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0028-collector-resilience-queues-retries.html">&larr; Lesson 28: Resilience</a></span>
+  <span><a href="0030-end-to-end-debugging-method.html">下一課：端到端 OTel debugging 方法 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 14: 安全執行 Collector lab 與建立證據鏈</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>14. 安全執行 Collector lab 與建立證據鏈</h1>
+<p class="subtitle">先理解 network namespace 與可證明的成功，再談啟動指令 · Lesson 14 of N</p>
+
+<h2>本課成果與執行界線</h2>
+<p>
+你會讀懂一個最小 Collector container lab，特別是 bind address、published port、volume mount 與 pinned image
+各自在保護哪個不變量。這章提供未來可由你選擇執行的步驟與證據，但我沒有替你下載 image、安裝軟體，
+也沒有執行 Docker 或任何 Windows <code>.exe</code>。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/install/docker/" target="_blank">OpenTelemetry Collector — Docker installation</a>、<a href="https://opentelemetry.io/docs/collector/configuration/" target="_blank">Collector configuration</a></p>
+
+<h2>第一性原理：port 屬於 network namespace</h2>
+<p>
+「4318」本身不是全域位置。Windows host 與 Collector container 各有自己的 network namespace；
+同一個 port number 可以在兩邊各自存在。要讓 host application 到達 container，必須同時滿足兩件事：
+</p>
+
+<pre><code>Collector 在 container 內 listen：0.0.0.0:4318
+Docker 在 host 發布：127.0.0.1:4318 → container:4318
+
+Python application 連線：http://127.0.0.1:4318/v1/traces</code></pre>
+
+<p>
+Container config 不能沿用 Lesson 12 的 <code>127.0.0.1:4318</code>：在 container 內，loopback 只指向 container 自己，
+從 Docker bridge 轉進來的封包不一定能抵達 loopback-only listener。因此 lab config 在 container 內 bind
+<code>0.0.0.0</code>；但 host publish 明確限制在 <code>127.0.0.1</code>，不對 LAN 公開。
+</p>
+
+<div class="box tip">
+<strong>不要把兩個 0.0.0.0 混為一談：</strong>container 內 bind all interfaces 是為了接住 Docker forwarding；
+host 端若發布成 <code>0.0.0.0:4318</code>，才會把入口擴展到所有 host interfaces。安全邊界要逐 namespace 判讀。
+</div>
+
+<h2>兩份 lab artifact</h2>
+<ul>
+  <li><a href="../examples/0014-collector-container.yaml"><code>0014-collector-container.yaml</code></a>：Collector active traces graph。</li>
+  <li><a href="../examples/0014-compose.yaml"><code>0014-compose.yaml</code></a>：image、read-only mount 與 host port publication。</li>
+</ul>
+
+<pre><code>services:
+  collector:
+    image: otel/opentelemetry-collector:0.158.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./0014-collector-container.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "127.0.0.1:4318:4318"</code></pre>
+
+<h3>為什麼 pin image version？</h3>
+<p>
+Lab 的目標是建立因果關係。如果使用 floating tag，同一份 YAML 可能在不同日期由不同 Collector build 解讀，
+讓「我的操作」與「外部版本變化」混在一起。Pinning 不是保證永遠安全，而是固定實驗變因；日後升級要明確改版並重驗。
+</p>
+
+<h3>為什麼 config mount 是 read-only？</h3>
+<p>
+Collector 只需讀設定。<code>:ro</code> 把不需要的寫入能力移除，讓 container 不能修改 host 上的教材檔案。
+這是 least privilege 的小型示範，不影響 OTel data model，卻讓 lab 邊界更清楚。
+</p>
+
+<h2>先建立 success contract，再決定是否執行</h2>
+<p>「跑起來」太含糊。本 lab 的完成條件應拆成下列證據：</p>
+
+<ol>
+  <li>Compose model 指向預期的 pinned image、config mount 與 localhost-only port。</li>
+  <li>Collector 接受 config，並顯示 OTLP/HTTP receiver 已 ready。</li>
+  <li>Lesson 13 application 沒有 transport/export failure。</li>
+  <li>Collector debug output 出現 <code>service.name=checkout-demo</code>。</li>
+  <li>同一輸出可找到 <code>checkout.calculate_total</code> 與兩個 cart attributes。</li>
+</ol>
+
+<p>
+每一步只增加一項知識。第 2 步成功不能證明第 3 步；第 3 步沒有 error 也不能取代第 4、5 步的 payload evidence。
+這就是把 observability lab 從「看起來有動」改成可反駁的證據鏈。
+</p>
+
+<h2>未來由你明確選擇執行時的順序</h2>
+<p>以下命令只是教材，不會由我在本課執行：</p>
+
+<pre><code># 1. 只展開並檢查 Compose model
+docker compose -f examples/0014-compose.yaml config
+
+# 2. 啟動 Collector，保留前景 log 作為證據
+docker compose -f examples/0014-compose.yaml up
+
+# 3. 在另一個 terminal 執行 Lesson 13 application
+# （只在你已自行準備相依套件的受控 Python environment 中）
+
+# 4. Lab 結束後停止並移除該 Compose 建立的 container/network
+docker compose -f examples/0014-compose.yaml down</code></pre>
+
+<p>
+第一個命令驗證 Compose model，不驗證 Collector component schema；啟動時 Collector 才會解析 mounted config。
+若你的環境沒有既有 Docker，依政策應先停下來評估，不應轉而下載 Windows Collector binary。
+</p>
+
+<h2>SRE debugging lab：三種「connection refused」以外的失敗</h2>
+
+<h3>Case A：host publish 正確，container listener 卻只 bind loopback</h3>
+<p>
+Compose 顯示 <code>127.0.0.1:4318:4318</code> 並不能證明 container process 接受 bridge traffic。
+查 container config 的 bind address，將 namespace 邊界畫出來，避免只盯 host port mapping。
+</p>
+
+<h3>Case B：Collector log 有 Span，但你認為 application 沒送成功</h3>
+<p>
+Collector debug payload 是比 application「沒有報錯」更高階的正面證據。先核對 service、span name、trace ID 與 attributes，
+再確認是否其實看錯 process 的 console，或把 application console exporter 的舊預期帶進 OTLP lab。
+</p>
+
+<h3>Case C：Collector ready，但沒有 payload</h3>
+<p>
+Ready 只證明 startup/config 的一部分。依序檢查 application 是否 recording、是否 flush、HTTP endpoint 是否含
+<code>/v1/traces</code>、receiver 是否位於 active traces pipeline。不要從 readiness 直接推論 end-to-end success。
+</p>
+
+<details>
+  <summary>證據階梯：先修最低一個失敗層</summary>
+  <ol>
+    <li>Compose model materialized。</li>
+    <li>Collector startup/config accepted。</li>
+    <li>Host-to-container transport reachable。</li>
+    <li>Receiver accepted telemetry。</li>
+    <li>Debug exporter emitted expected payload。</li>
+  </ol>
+  <p>某層未成立時，先不要用更高層的 backend/query 假設解釋。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 為何 container 內 listener 用 <code>0.0.0.0:4318</code>，host publish 仍可限制在 localhost？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">兩者位於不同 network namespaces，bind 與 publish 是不同邊界</button>
+    <button class="choice" data-correct="false">0.0.0.0 永遠只代表 localhost</button>
+    <button class="choice" data-correct="false">OTLP 會自動忽略非 localhost traffic</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Pin image version 的主要學習價值是什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">固定實驗變因，使版本變化成為明確事件</button>
+    <button class="choice" data-correct="false">保證該版本永遠沒有漏洞</button>
+    <button class="choice" data-correct="false">讓 Collector 不再需要 config</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. Collector receiver ready 最多直接證明什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Collector 已完成相應 startup/config 階段</button>
+    <button class="choice" data-correct="false">Application Span 已抵達 debug exporter</button>
+    <button class="choice" data-correct="false">Production backend 已保存 Trace</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0007-otel-lab-evidence-ladder.html">OTel 最小 lab 證據階梯</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>請以「host namespace → published port → container namespace → listener → pipeline」
+重畫一次資料路徑，並指出每一支箭頭要用什麼證據驗證。你不必為了作答先執行任何命令。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0013-otlp-app-to-collector.html">&larr; Lesson 13: App → OTLP → Collector</a></span>
+  <span><a href="0015-resource-first-principles.html">下一課：Resource 與 service identity &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

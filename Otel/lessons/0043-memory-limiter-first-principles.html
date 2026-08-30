@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 43: Memory Limiter 第一性原理</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>43. Memory Limiter 第一性原理</h1>
+<p class="subtitle">有限 memory 下，及早拒收是 feedback；等 OOMKill 則是沒有協調的崩潰 · Lesson 43 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 bounded-resource system 推導 memory limiter 的 soft limit、hard limit、spike headroom、check interval、refusal/backpressure 與 forced GC；
+理解它為何應放第一個 processor，以及如何區分暫時 spike、downstream queue retention、GC pressure 與 OOMKill。
+</p>
+<p class="cite">主要來源：<a href="https://github.com/open-telemetry/opentelemetry-collector/blob/main/processor/memorylimiterprocessor/README.md" target="_blank">Memory Limiter Processor</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector/blob/main/processor/memorylimiterprocessor/documentation.md" target="_blank">Memory Limiter Internal Telemetry</a>、<a href="https://pkg.go.dev/go.opentelemetry.io/collector/processor" target="_blank">Collector Processor Ordering</a></p>
+
+<h2>第一性原理：穩定條件是流入不能長期大於流出</h2>
+<p>把 Collector 中尚未釋放的 telemetry 視為 inventory：</p>
+
+<pre><code>d(backlog)/dt = incoming_rate - completed_or_dropped_rate
+
+if incoming_rate > completed_rate for long enough:
+  backlog ↑ → memory/disk ↑ → resource limit reached</code></pre>
+
+<p>
+Backend outage、slow exporter、tail-sampling pending traces、large batch、connector caches 都可能持有 live references。
+GC 只能回收 unreachable objects；仍被 queue/state 引用的資料不會因強制 GC 消失。
+</p>
+
+<p>
+Memory limiter 的目的不是讓 memory 無限變大後神奇回收，而是在危險前回傳 non-permanent error，促使 upstream retry/backpressure，
+暫時降低 inflow，讓 process 有機會恢復。這是 closed-loop feedback control。
+</p>
+
+<h2>Soft、Hard 與 Spike Headroom</h2>
+<pre><code>hard_limit = limit_mib
+soft_limit = limit_mib - spike_limit_mib
+
+normal       soft-limited                    hard-limited
+0 -------- soft -------------------------- hard -------- container limit
+             refuse new data                refuse + force GC
+             headroom for between-check spike</code></pre>
+
+<p>
+超過 soft limit 後，processor 進 limited mode、拒收並把 error 回給前一 component；降回 soft 以下才恢復正常。
+超過 hard limit 時另外 force GC。<code>spike_limit_mib</code> 不是「到這裡才拒收」，而是 hard-soft 的差，預留兩次 measurement 間的成長空間。
+</p>
+
+<div class="box warning">
+常見誤讀：<code>limit_mib=900</code>、<code>spike_limit_mib=650</code> 的 soft limit 是 250 MiB，不是 650 MiB。
+公式永遠先算：<code>soft = hard - spike</code>。
+</div>
+
+<h2>Check Interval 與 Spike 必須共同設計</h2>
+<p>若每秒最多增加 <code>r</code> MiB，檢查間隔 <code>Δt</code>，最小 headroom 粗略需涵蓋：</p>
+
+<pre><code>expected_between_check_growth ≈ r × Δt + burst_margin</code></pre>
+
+<p>
+Traffic 越 spiky，應縮短 check interval 或增加 spike headroom；否則 memory 可在兩次檢查間直接從 soft 以下跨過 hard/container limit。
+官方建議 1s 是常見起點、spike 約 hard 的 20%，但實際需用 workload burst 與 item bytes 分布驗證。
+</p>
+
+<h2>Hard Limit 不是 Container RSS Limit</h2>
+<p>
+<code>limit_mib</code> 是 process heap allocation 的 target；process 總 memory 還包含 runtime、stacks、native buffers 等，官方文件提醒總用量通常會更高。
+所以 hard limit 必須低於 container/host kill boundary，留出 non-heap 與 measurement/error margin。
+</p>
+
+<p>
+Containerized environment 可考慮 percentage settings（基於可用/cgroup memory）；固定 <code>limit_mib</code> 會優先於 percentage。
+無論何種方式，啟動時記錄實際解析出的 limits，並與 deployment resource limit 一起版本化。
+</p>
+
+<h2>Refusal 不等於已保住資料</h2>
+<p>
+Limited mode 回傳的是 non-permanent error，前一 component 應 retry，receiver 也可向 source 施加 backpressure。
+但 upstream queue/retry 是有限的；若前一 component 不正確重試，或 outage 超過其 retention window，資料仍永久遺失。
+</p>
+
+<pre><code>memory limiter refuses
+  ├─ upstream retries/backpressures → possible recovery
+  └─ upstream cannot retry          → immediate/ eventual loss</code></pre>
+
+<p>
+因此「refused items 增加」代表保護機制啟動，也代表 delivery SLO 已受威脅。它不是健康訊號；要與 receiver refused、upstream retry/drop、queue age 一起看。
+</p>
+
+<h2>為何必須是第一個 Processor</h2>
+<p>推薦順序：</p>
+
+<pre><code>receiver → memory_limiter → drop/sampling → context enrichment → transform → batch → exporter</code></pre>
+
+<p>
+如果前面先做昂貴 transform、建 aggregation state 或 batch，資料已經消耗更多 memory 才被拒絕；feedback 太晚。
+把 limiter 放第一個 processor，能盡早回傳 error 並減少 downstream accumulation。注意 receiver 在呼叫 limiter 前仍可能先 decode/allocate request，
+特別是非 OTLP receivers，所以 limits 還需保留 ingress allocation margin。
+</p>
+
+<h2>Forced GC 的正確解讀</h2>
+<p>
+若 GC 後 memory 明顯下降，壓力含大量 unreachable garbage；若 GC CPU 上升但 memory 不降，多半是 live data 仍被 queue/cache/state 持有。
+此時更頻繁 GC 只會耗 CPU，降低 exporter throughput，甚至讓 backlog 更快增加。現行 limiter 對無效 forced GC 有 backoff 機制。
+</p>
+
+<p>根因修復通常是縮短 retention/queue、恢復 backend、降低 inflow/cardinality、水平擴展 state owners，或增加合理 resource—not 盲目 force GC。</p>
+
+<h2>靜態設定推理</h2>
+<p>閱讀 <a href="../examples/0043-memory-limiter.yaml"><code>examples/0043-memory-limiter.yaml</code></a>：</p>
+
+<ul>
+  <li>Hard target 600 MiB，spike 120 MiB，所以 soft 480 MiB。</li>
+  <li>假設 container 768 MiB，仍保留 168 MiB 給 non-heap/誤差；實際是否足夠需量測。</li>
+  <li>同一 limiter instance 被三條 pipelines reference，共享 process memory view。</li>
+  <li>每條 pipeline 都把 limiter 放在 batch 前。本課不執行 Collector。</li>
+</ul>
+
+<h2>SRE 附加練習：Refusal、Queue Growth、OOMKill</h2>
+<ol>
+  <li>建立同一時間軸：heap/RSS、container working set、GC CPU、accepted/refused、queue size/oldest age、export failures、restart reason。</li>
+  <li>若 queue 先長、backend errors 先發生：downstream retention 是 primary suspect；GC 無法回收 live queue。</li>
+  <li>若 burst 在兩個 checks 間直接 OOMKill、幾乎無 refused evidence：headroom/check interval 或 ingress request 太大。</li>
+  <li>若長時間 soft-limited 且 upstream drop：capacity/inflow 不平衡，不是單純把 soft 調高。</li>
+  <li>若 RSS 高但 Go heap/limiter未高：查 non-heap/native buffers、profiling 與 host metric definition。</li>
+  <li>先降低 inflow、縮 queue/state 或擴容，恢復後再以負載/故障測試驗證 thresholds。</li>
+</ol>
+
+<p>事故中可使用 <a href="../reference/0036-memory-pressure-debug-card.html">Collector Memory Pressure Debug Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li><code>limit_mib=1000</code>、<code>spike_limit_mib=200</code>，算 soft；若目前 850 MiB，預期 mode/action 是什麼？</li>
+  <li>Memory 每秒 burst 增 300 MiB、check interval 2s、headroom 200 MiB。說明為何可能跨 hard。</li>
+  <li>畫 backend outage → exporter queue → live references → GC ineffective → refusal 的 causal chain。</li>
+  <li>假設 upstream 無 retry，說明 memory limiter 保住了 process，卻為何沒有保住 telemetry。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>1. Soft limit 的公式是？</strong></p>
+  <label><input type="radio" name="q1" value="a"> hard + spike</label><br>
+  <label><input type="radio" name="q1" value="b"> hard - spike</label><br>
+  <label><input type="radio" name="q1" value="c"> check_interval × hard</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>2. Forced GC 後 memory 幾乎不降，最合理的第一性推論是？</strong></p>
+  <label><input type="radio" name="q2" value="a"> 一定需要每毫秒 GC</label><br>
+  <label><input type="radio" name="q2" value="b"> TLS certificate 太長</label><br>
+  <label><input type="radio" name="q2" value="c"> 大量 memory 仍被 live queue/cache/state references 持有</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>3. Limiter refusal 為何不保證零資料遺失？</strong></p>
+  <label><input type="radio" name="q3" value="a"> 前一 component/upstream 必須能 retry/backpressure，且 retention window 有限</label><br>
+  <label><input type="radio" name="q3" value="b"> Refusal 會自動寫入所有 backends</label><br>
+  <label><input type="radio" name="q3" value="c"> Refusal 等於 full success</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>Memory pressure 的根是 inflow、completion/drop 與 live retention 的不平衡。</li>
+  <li>Soft=hard-spike；soft 上拒收，hard 上另 force GC，低於 soft 才恢復。</li>
+  <li>Limiter 應在每條 pipeline 的第一個 processor，且 hard 要低於 host/container kill boundary。</li>
+  <li>Refusal 依賴 upstream retry；GC 無法釋放仍被 queue/state 持有的 live data。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0042-batching-first-principles.html">← Lesson 42</a>
+  <a href="0044-collector-capacity-model.html">Lesson 44：Collector Capacity Model →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

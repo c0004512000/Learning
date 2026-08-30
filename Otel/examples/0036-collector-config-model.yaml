@@ -1,0 +1,30 @@
+# Lesson 36: static configuration model example. Do not put real secrets here.
+# This file is for reading; the lesson does not execute the Collector.
+
+receivers:
+  otlp/edge:
+    protocols:
+      grpc:
+        endpoint: ${env:OTLP_GRPC_ENDPOINT:-0.0.0.0:4317}
+
+processors:
+  memory_limiter/safety:
+    check_interval: 1s
+    limit_mib: 512
+  batch/backend:
+    timeout: 5s
+
+exporters:
+  otlp/backend:
+    endpoint: ${env:BACKEND_OTLP_ENDPOINT}
+    headers:
+      # The secret is injected at resolution time, not committed as plaintext.
+      authorization: ${env:BACKEND_AUTH_HEADER}
+
+service:
+  pipelines:
+    traces/prod:
+      receivers: [otlp/edge]
+      processors: [memory_limiter/safety, batch/backend]
+      exporters: [otlp/backend]
+

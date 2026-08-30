@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Fleet Rollout Debug Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Fleet Rollout Debug Card</h1>
+<p class="subtitle">先停止擴散，再把問題分類成 targeting、delivery、apply、effective state 或 data plane</p>
+
+<h2>事故前五問</h2>
+<ol>
+  <li>哪一個 immutable revision/hash？由誰批准？</li>
+  <li>哪些 instance UID 理應在 cohort，實際又有哪些？</li>
+  <li>各群的 desired/received/applied/effective 分布是什麼？</li>
+  <li>失敗是否集中在 distribution、version、region、OS 或 local overlay？</li>
+  <li>synthetic signals、drop/reject、queue 與 backend ingest 何時開始偏移？</li>
+</ol>
+
+<h2>分類與處置</h2>
+<table>
+  <thead><tr><th>類別</th><th>證據</th><th>處置方向</th></tr></thead>
+  <tbody>
+    <tr><td>Targeting</td><td>錯誤 UID/selector/cohort</td><td>立即 halt；恢復原 revision，修 selector</td></tr>
+    <tr><td>Delivery</td><td>received hash 不同或離線</td><td>查 control-plane auth/network/reconnect</td></tr>
+    <tr><td>Apply</td><td>APPLYING timeout / FAILED</td><td>查 validation、能力、Supervisor與 process health</td></tr>
+    <tr><td>Effective drift</td><td>APPLIED 但 final config 不同</td><td>查 precedence、local overlay、secret/provider resolution</td></tr>
+    <tr><td>Data plane</td><td>設定收斂但 canary/SLO 壞</td><td>rollback；依 signal/pipeline/component 定位</td></tr>
+  </tbody>
+</table>
+
+<h2>完成的定義</h2>
+<p>Rollback 指令送出不算完成；last-known-good effective state 收斂，且相同 data-plane invariants 恢復才算。</p>
+<p><a href="../lessons/0050-fleet-configuration-governance.html">回到 Lesson 50</a></p>
+</body>
+</html>
+

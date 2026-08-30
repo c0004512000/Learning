@@ -1,0 +1,33 @@
+# Lesson 40 static mTLS boundary example. It is not executed by this lesson.
+# Paths are placeholders; never commit private keys or real credentials.
+
+receivers:
+  otlp/mtls:
+    protocols:
+      grpc:
+        endpoint: ${env:POD_IP}:4317
+        tls:
+          cert_file: /run/otel-tls/server.crt
+          key_file: /run/otel-tls/server.key
+          # Requiring a certificate signed by this CA enables client verification.
+          client_ca_file: /run/otel-tls/client-ca.crt
+          min_version: "1.2"
+
+exporters:
+  otlp/backend-mtls:
+    endpoint: telemetry-backend.example:4317
+    tls:
+      # Client verifies the backend certificate against this CA.
+      ca_file: /run/backend-tls/server-ca.crt
+      # Client certificate/key are sent only when backend requires mTLS.
+      cert_file: /run/backend-tls/client.crt
+      key_file: /run/backend-tls/client.key
+      min_version: "1.2"
+      insecure_skip_verify: false
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp/mtls]
+      exporters: [otlp/backend-mtls]
+

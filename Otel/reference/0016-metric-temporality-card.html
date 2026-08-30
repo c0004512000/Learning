@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Metric Temporality 與 reset 判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Metric Temporality 與 reset 判斷卡</h1>
+<p class="subtitle">數值必須連同 start/end time window 解讀</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Temporality</th><th>連續 windows</th><th>Rate 直覺</th></tr></thead>
+  <tbody>
+    <tr><td>Cumulative</td><td><code>(T0,T1]</code>、<code>(T0,T2]</code></td><td><code>(v2-v1)/(T2-T1)</code>，只限同一 unbroken sequence</td></tr>
+    <tr><td>Delta</td><td><code>(T0,T1]</code>、<code>(T1,T2]</code></td><td><code>v/(end-start)</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>看到負 rate 前先查</h2>
+<ol>
+  <li><code>StartTimeUnixNano</code> 是否改變？</li>
+  <li>Process／Collector 是否重啟？</li>
+  <li>是否有 gap、out-of-order 或 overlapping writers？</li>
+  <li>Consumer 是否把 delta/cumulative 用錯公式？</li>
+</ol>
+
+<p><a href="../lessons/0023-metric-temporality.html">回到 Lesson 23</a></p>
+</body>
+</html>
+

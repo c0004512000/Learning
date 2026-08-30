@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 46: Synthetic Telemetry Canaries</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>46. Synthetic Telemetry Canaries</h1>
+<p class="subtitle">用已知輸入與可驗證輸出，直接量測 pipeline outcome · Lesson 46 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 observability gap 推導 synthetic canary 的 input contract、marker、positive/negative assertions、freshness 與 failure attribution；
+能設計同時覆蓋 traces/metrics/logs、routing/redaction/correlation 的低成本 probe，並避免 canary 自身與 production path 的盲點。
+</p>
+<p class="cite">主要來源：<a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/cmd/telemetrygen/README.md" target="_blank">OpenTelemetry telemetrygen</a>、<a href="https://opentelemetry.io/docs/collector/internal-telemetry/" target="_blank">Collector Internal Telemetry</a>、<a href="https://opentelemetry.io/docs/collector/troubleshooting/" target="_blank">Collector Troubleshooting</a></p>
+
+<h2>第一性原理：未知 Input 無法證明 Output Completeness</h2>
+<p>
+真實 production traffic 的「應該有多少 telemetry」通常未知：sampling、retries、user load、deploy 都在變。
+Internal metrics 能證明 component boundary，但若整條 pipeline 或 monitoring path 同時壞，仍可能沒有可信 end-to-end evidence。
+</p>
+
+<p>Canary 把問題改造成 controlled experiment：</p>
+
+<pre><code>known input I at time t₀
+  → real telemetry path
+  → query backend for marker M
+  → assert output O before deadline t₁
+
+if O != expected(I), investigate first failed boundary</code></pre>
+
+<p>
+它不是大量 load test，而是小、持續、可重複的 proof。關鍵不在 generator 工具，而在 input 與 expected output 的契約。
+</p>
+
+<h2>Canary 必須覆蓋真實 Boundary</h2>
+<p>Canary 放置位置決定能證明什麼：</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>起點</th><th>覆蓋</th><th>Blind spot</th></tr></thead>
+  <tbody>
+    <tr><td>Gateway localhost</td><td>Gateway processor/export/backend</td><td>SDK、agent、network、auth ingress</td></tr>
+    <tr><td>Agent node</td><td>Agent→gateway→backend</td><td>Application SDK/instrumentation</td></tr>
+    <tr><td>Canary application</td><td>SDK→agent/gateway→backend query</td><td>只代表該 runtime/network identity</td></tr>
+    <tr><td>每 region/tenant class</td><td>分段 routing/auth topology</td><td>成本與 governance 增加</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>最少要有一個真正從 producer side 發出、經 production auth/routing、最後由 backend query 驗證的 canary；component-local probes 可輔助定位。</p>
+
+<h2>Marker：可關聯，不可污染 Cardinality</h2>
+<p>每次 run 需要 globally unique <code>canary.id</code> 與 UTC <code>sent_at</code>，用來：</p>
+
+<ul>
+  <li>精確查詢本次 trace/log。</li>
+  <li>偵測 duplicate 與錯送 destination。</li>
+  <li>計算 queryable freshness。</li>
+  <li>區分 canary scheduler 重送與 pipeline retry。</li>
+</ul>
+
+<p>
+但 unique ID 不可作 metric dimension，否則每次 probe 建新 time series。Metric 可用固定低-cardinality attributes，
+run identity 放在 trace/log 或 exemplar/correlation 中；canary data 要有短 retention/TTL。
+</p>
+
+<h2>Positive 與 Negative Assertions</h2>
+<p>「有看到一筆」證明太弱。完整 contract 至少包含：</p>
+
+<ul>
+  <li><strong>Arrival：</strong>deadline 內可查。</li>
+  <li><strong>Count：</strong>期望 2 spans/1 log，而非 0 或 duplicate 4。</li>
+  <li><strong>Relationship：</strong>parent-child、trace/log correlation 保持。</li>
+  <li><strong>Identity：</strong>resource/service/environment/tenant 正確。</li>
+  <li><strong>Transformation：</strong>normalized fields 有、legacy key 已移除。</li>
+  <li><strong>Redaction：</strong>forbidden sensitive attributes 不存在。</li>
+  <li><strong>Routing：</strong>應到 primary；不可到 other tenant/backend。</li>
+  <li><strong>Metric semantics：</strong>counter increment、unit/temporality/attributes 合法。</li>
+</ul>
+
+<p>Negative assertion 很重要：只查 primary 有資料，無法證明資料沒有外洩到錯 tenant。</p>
+
+<h2>Cross-signal Canary</h2>
+<pre><code>one synthetic operation
+  ├─ root + child spans
+  ├─ correlated log with same trace/span context
+  └─ bounded metric increment (+ optional exemplar)
+</code></pre>
+
+<p>
+這可同時驗證 propagation、logs correlation、span/metric route 與 multi-signal freshness。
+但 signals export intervals 不同，deadline/queries 應分別設定，不能要求 log、trace、metric 同毫秒出現。
+</p>
+
+<h2>Canary Contract Artifact</h2>
+<p>
+閱讀 <a href="../examples/0046-canary-contract.yaml"><code>examples/0046-canary-contract.yaml</code></a>。
+它定義 identity、signals、assertions 與 governance，是設計文件而非可執行設定。OpenTelemetry contrib 提供 alpha 的 <code>telemetrygen</code> 可產生 traces/metrics/logs，
+但本課不下載、安裝或執行工具；未來實作時也應固定 image/version，而不是使用漂移的 latest。
+</p>
+
+<h2>Probe 也可能壞：避免 False Positive/Negative</h2>
+<p>Canary system 有自己的 dependencies：</p>
+
+<ul>
+  <li>Scheduler 沒執行：看起來像 pipeline 沒資料。</li>
+  <li>Query credential/endpoint 壞：資料已到但 verifier 查不到。</li>
+  <li>Clock skew：freshness 被高估/低估。</li>
+  <li>Query eventual consistency：deadline 太緊造成 false alert。</li>
+  <li>Canary 被特殊 allowlist：真實 traffic 壞但 canary 綠。</li>
+</ul>
+
+<p>
+所以至少記錄 send attempt/ack、run ID、query attempt/error 與 state machine；用不同來源監控 scheduler，並讓 canary 盡量走與 production 相同 policy，只有資料內容是安全 synthetic。
+</p>
+
+<h2>SRE 附加練習：Canary Trace 到了，Log 沒到</h2>
+<ol>
+  <li>確認同一 run ID 的 producer 是否真的 emit/export log，且 log 帶 trace context。</li>
+  <li>分 signal 查 SDK exporter、Agent receiver accepted、log-specific filter/parser、Gateway pipeline 與 exporter destination。</li>
+  <li>比較 trace/log routing predicates；是否 severity/filter 把 canary log intentional drop。</li>
+  <li>查 log exporter queue/send/partial rejection 與 backend indexing/query delay。</li>
+  <li>驗證 query 語法不是用錯 resource vs log attribute。</li>
+  <li>修復後重新用新 run ID，確認 positive arrival 與 forbidden destination negative assertion。</li>
+</ol>
+
+<p>設計與事故可用 <a href="../reference/0039-canary-design-card.html">Telemetry Canary Design Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>為一個 prod/eu pipeline 寫 canary 的 producer start、auth identity、expected destination 與 forbidden destination。</li>
+  <li>設計兩個 positive、兩個 negative assertions，其中至少一個驗證 redaction。</li>
+  <li>說明為何 run UUID 適合 trace/log attribute，卻不適合 metric dimension。</li>
+  <li>Canary missing 時畫出 generator、OTLP path、backend query 三個 failure domains及各自 evidence。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>1. Synthetic canary 的核心價值是？</strong></p>
+  <label><input type="radio" name="q1" value="a"> 讓 Collector CPU 永遠 100%</label><br>
+  <label><input type="radio" name="q1" value="b"> 以已知 input 與 expected output 直接驗證端到端 outcome</label><br>
+  <label><input type="radio" name="q1" value="c"> 取代所有真實 telemetry</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>2. 為何每次 run 的 UUID 不應放進 metric dimension？</strong></p>
+  <label><input type="radio" name="q2" value="a"> UUID 無法當字串</label><br>
+  <label><input type="radio" name="q2" value="b"> Metric 不支援 attributes</label><br>
+  <label><input type="radio" name="q2" value="c"> 每次產生新 series，造成無界 cardinality</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>3. 只證明 primary backend 有 canary，還缺哪種重要 assertion？</strong></p>
+  <label><input type="radio" name="q3" value="a"> Forbidden destination 沒有同一 canary，避免錯送/跨 tenant 外洩</label><br>
+  <label><input type="radio" name="q3" value="b"> Collector 設定檔行數</label><br>
+  <label><input type="radio" name="q3" value="c"> CPU 型號</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>Canary 是 known input 經真實 path 到 expected output 的持續實驗。</li>
+  <li>Marker 要唯一可查，但不可污染 metric cardinality；資料要 synthetic、低量、可過期。</li>
+  <li>Assertions 應覆蓋 arrival、count、relationships、identity、redaction、routing 與 negative outcomes。</li>
+  <li>Canary system 也需自我監控，且起點/identity 要覆蓋真實 production boundary。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0045-collector-slo-design.html">← Lesson 45</a>
+  <a href="0047-testing-collector-changes.html">Lesson 47：Testing Collector Changes →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

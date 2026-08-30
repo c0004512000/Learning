@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Collector 多信號 debug matrix</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Collector 多信號 debug matrix</h1>
+<p class="subtitle">已成功的 signal 是排除證據，不只是好消息</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Traces</th><th>Metrics</th><th>Logs</th><th>優先調查</th></tr></thead>
+  <tbody>
+    <tr><td>有</td><td>無</td><td>有</td><td>App MeterProvider/Reader、<code>metrics</code> pipeline</td></tr>
+    <tr><td>有</td><td>有</td><td>無</td><td>Logging bridge、logs exporter、<code>logs</code> pipeline</td></tr>
+    <tr><td>無</td><td>無</td><td>無</td><td>Shared endpoint/reachability、receiver、Collector process</td></tr>
+    <tr><td>間歇</td><td>間歇</td><td>大量</td><td>Shared CPU/memory/network 與 log pressure</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>仍需注意：</strong>一個 signal 成功不保證同 port 的另一 protocol path、application exporter 或 pipeline 正確。</p>
+<p><a href="../lessons/0026-collector-multisignal-pipelines.html">回到 Lesson 26</a></p>
+</body>
+</html>
+

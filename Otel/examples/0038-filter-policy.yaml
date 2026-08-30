@@ -1,0 +1,20 @@
+# Lesson 38 static filter policy. It is not executed by this lesson.
+# The *_conditions form applies to filterprocessor 0.146.0 and later.
+
+processors:
+  filter/bounded-noise:
+    error_mode: ignore
+
+    # Separate list entries are OR-ed: if any condition is true, drop the span.
+    trace_conditions:
+      - span.name == "GET /healthz" and span.attributes["http.response.status_code"] == 200
+      - resource.attributes["deployment.environment.name"] == "load-test"
+
+    # Drop only matching datapoints; if a metric loses all datapoints, it is dropped.
+    metric_conditions:
+      - metric.name == "system.filesystem.usage" and datapoint.attributes["mountpoint"] == "/tmp"
+
+    # Keep WARN and above; drop lower severity records unless explicitly marked audit.
+    log_conditions:
+      - log.severity_number < SEVERITY_NUMBER_WARN and log.attributes["audit"] != true
+

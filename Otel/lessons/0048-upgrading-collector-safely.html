@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 48: Upgrading Collector Safely</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>48. Upgrading Collector Safely</h1>
+<p class="subtitle">Collector 版本只是容器標籤；真正遷移的是 component set、config、semantics、state 與 operational evidence · Lesson 48 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會把 Collector upgrade 拆成 artifact、distribution/component inventory、configuration schema、data semantics、state/storage 與 observability contract；
+能設計跨版本 diff、canary rollout、rollback/roll-forward，並理解 distribution version 不等於每個 component 都 stable。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/" target="_blank">OpenTelemetry Collector Status</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector/blob/main/VERSIONING.md" target="_blank">Collector Versioning and Stability</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector-releases" target="_blank">Official Collector Distributions</a></p>
+
+<h2>第一性原理：版本是多個契約的集合</h2>
+<pre><code>upgrade = binary/framework
+        + included component factories
+        + component config schemas/defaults
+        + telemetry transformation semantics
+        + state/storage formats
+        + internal telemetry names/attributes
+        + platform/runtime behavior</code></pre>
+
+<p>
+只把 image tag 從 A 改 B，實際同時改了上述多個契約。啟動成功只證明部分 config/runtime；
+資料仍可能因 default、semantic convention、routing、sampling、metric temporality 或 internal metric rename 而悄悄改變。
+</p>
+
+<h2>Distribution 與 Component Stability 要分開</h2>
+<p>
+官方 releases 組裝 core（otelcol）、contrib、k8s、OTLP 等 distributions。它們包含的 component set 不同；custom distribution 又可完全不同。
+同一個 Collector distribution 內，各 components 對 traces/metrics/logs 的 stability 也可不同。
+</p>
+
+<p>
+因此「Collector image 是官方的」不等於你使用的 routing/span_metrics/tail_sampling feature 已 stable。
+升級 inventory 必須記 distribution、digest、每個 component ID、signal stability、feature gates 與 config fields，而非只記版本號。
+</p>
+
+<h2>Pin Immutable Artifact，不用 Floating Tag 當證據</h2>
+<p>
+Production artifact 應以 image digest/verified release asset 表示。Tag 可被誤用或漂移，<code>latest</code> 更不能重建事故現場。
+升級紀錄至少保存 current/target digest、distribution manifest、config source revisions 與 final non-secret config hash。
+</p>
+
+<p>官方 releases repository 也提醒其 Git tags 用於觸發 release、可能因 release issue 調整；部署證據應以實際發布 artifact digest 為準。</p>
+
+<h2>Changelog 要讀完整的跨越區間</h2>
+<p>從 A 跳到 D，必須讀 A→B→C→D 的 core、contrib 與 releases notes，搜尋：</p>
+
+<ul>
+  <li>Breaking changes、removed/deprecated components/fields/aliases。</li>
+  <li>Default changes與 feature-gate lifecycle。</li>
+  <li>Component rename（例如 lower_snake_case migration）。</li>
+  <li>Data semantic/name/unit/temporality/resource identity changes。</li>
+  <li>Queue/retry/batch/TLS/auth/storage behavior changes。</li>
+  <li>Internal metric names、verbosity、Prometheus suffix/dot conversion。</li>
+  <li>Security fixes、known issues、platform support。</li>
+</ul>
+
+<p>只讀目標版本 release headline，會漏掉中間版本先 deprecate、後 remove 的變化。</p>
+
+<h2>Target Binary 必須驗證 Final Config</h2>
+<p>
+Schema compatibility 由 target component factories 決定。用 target distribution resolve production 的全部 file/env/provider/override，
+再 validate final config；current binary validate current config 不能證明 target 可用。
+</p>
+
+<p>
+還要 diff default expansion：未明寫的 field 在 target 可能換 default。高風險 settings（error mode、TLS verification、sampling、queue、temporality、units）應明確寫出，不靠隱含 default。
+本課不執行任何 Collector binary。
+</p>
+
+<h2>Semantic Diff 比 Text Diff 更重要</h2>
+<p>同一 input fixtures 同時送 current/target isolated environments，比較：</p>
+
+<ul>
+  <li>Items/counts、resource/scope/attributes、span relationships。</li>
+  <li>Filter/sampling/routing selection sets。</li>
+  <li>Metric names/units/types/temporality/start timestamps/cardinality。</li>
+  <li>Logs body/severity/correlation 與 redaction。</li>
+  <li>OTLP partial rejection、batch/request bytes、retry classification。</li>
+</ul>
+
+<p>
+Text config 沒變，不代表 output 沒變；component implementation/default 可能改。反過來，config migration text 大改，也可能保持等價 output。升級 success criterion 是契約 outcome。
+</p>
+
+<h2>State 與 Storage 決定 Rollback 是否安全</h2>
+<p>Upgrade/rollback 可能跨越：</p>
+
+<ul>
+  <li>Persistent exporter queue/WAL/storage schema。</li>
+  <li>Tail sampling pending trace/decision cache。</li>
+  <li>Span metrics/cumulative conversion state與 writer identity。</li>
+  <li>Routing hash ring/backend membership。</li>
+</ul>
+
+<p>
+若新版本寫入舊版本不懂的 storage format，rollback 可能啟動失敗或遺失 queue。Stateful rolling overlap 也可能造成同 key 多 writers、trace split、metric reset。
+需從 component/storage 文件證明 backward compatibility；無法證明時，設計 drain、fresh storage、blue/green 或 roll-forward。
+</p>
+
+<h2>Internal Telemetry 也有 Consumer Contract</h2>
+<p>
+Dashboards/alerts/autoscalers/runbooks 都是 Collector internal telemetry 的 consumers。升級若改 metric 名、suffix、labels 或 verbosity，
+資料路徑可能健康但監控全盲。Canary upgrade 必須同時驗證：</p>
+
+<ul>
+  <li>必要 internal metrics/logs 仍產生。</li>
+  <li>Prometheus/OTLP representation 與 queries 相容。</li>
+  <li>Alert rules 在 test signal 下會 fire/recover。</li>
+  <li>Autoscaling inputs 不變或已同步 migration。</li>
+</ul>
+
+<h2>Upgrade Inventory</h2>
+<p>
+使用 <a href="../examples/0048-upgrade-inventory.yaml"><code>examples/0048-upgrade-inventory.yaml</code></a> 保存 current/target exact evidence、compatibility review 與 proof status。
+它是不可執行的 planning artifact。
+</p>
+
+<h2>SRE 附加練習：Canary 綠，但 Metrics Reset</h2>
+<ol>
+  <li>確認 reset 由 source process、Collector temporality/state、writer identity 或 backend ingest 哪層產生。</li>
+  <li>比對 current/target component defaults、feature gates、start timestamps 與 resource attributes。</li>
+  <li>檢查 rolling overlap 是否讓 old/new 同時寫同 stream；load-balancing affinity 是否 rebalance。</li>
+  <li>確認 canary 是否只驗 trace/log arrival，根本沒 assert metric continuity。</li>
+  <li>停止擴 rollout；依 storage/state compatibility 選 rollback、drain 或 roll-forward。</li>
+  <li>補 metric continuity fixture/canary 與 internal dashboard migration gate。</li>
+</ol>
+
+<p>升級 review 可用 <a href="../reference/0041-collector-upgrade-card.html">Collector Upgrade Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>為現有 config 列 component inventory：type/name、distribution availability、signal stability、stateful/stateless。</li>
+  <li>選一個 default change，設計 current/target fixture output assertion，不依賴 config text。</li>
+  <li>寫出 rolling upgrade 中 old/new overlap 對 tail sampling 或 metric writer 的風險與避險方案。</li>
+  <li>列出三個 internal telemetry consumers，為每個寫 upgrade compatibility test。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>1. 為何 distribution version 不能代表所有 components 都 stable？</strong></p>
+  <label><input type="radio" name="q1" value="a"> Distribution 不包含 component</label><br>
+  <label><input type="radio" name="q1" value="b"> 每個 component/feature 可按 signal 有自己的 stability level</label><br>
+  <label><input type="radio" name="q1" value="c"> Stable 只由檔名決定</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>2. 升級時最有力的相容性證明是？</strong></p>
+  <label><input type="radio" name="q2" value="a"> Config text 沒改</label><br>
+  <label><input type="radio" name="q2" value="b"> Target pod 能啟動</label><br>
+  <label><input type="radio" name="q2" value="c"> Exact target artifact 對 fixtures/canary/load/failure 產生符合契約的 semantic outcomes</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>3. 什麼情況讓 rollback 未必安全？</strong></p>
+  <label><input type="radio" name="q3" value="a"> 新版已改寫 storage/state/schema，舊版不保證向後讀取或 ownership 已改變</label><br>
+  <label><input type="radio" name="q3" value="b"> Artifact 有 digest</label><br>
+  <label><input type="radio" name="q3" value="c"> 有 canary cohort</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>Upgrade 同時改 binary、component set/schema/defaults、data semantics、state/storage 與 internal telemetry。</li>
+  <li>Pin digest、讀完整跨越 changelogs，按 component/signal stability 建 inventory。</li>
+  <li>Target binary validate final config；semantic diff/canary/load/failure 才證明 outcome。</li>
+  <li>Rollback 前必須證明 state/storage compatibility；否則用 drain、blue/green 或 roll-forward。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0047-testing-collector-changes.html">← Lesson 47</a>
+  <a href="0049-opamp-control-plane.html">Lesson 49：OpAMP Control Plane →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

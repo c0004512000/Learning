@@ -1,0 +1,15 @@
+{
+  "cumulative": [
+    {"start": "T0", "time": "T1", "value": 10, "covers": "(T0,T1]"},
+    {"start": "T0", "time": "T2", "value": 25, "covers": "(T0,T2]"},
+    {"start": "T0", "time": "T3", "value": 31, "covers": "(T0,T3]"},
+    {"start": "T3", "time": "T4", "value": 4, "covers": "(T3,T4]", "note": "new process sequence"}
+  ],
+  "delta": [
+    {"start": "T0", "time": "T1", "value": 10, "covers": "(T0,T1]"},
+    {"start": "T1", "time": "T2", "value": 15, "covers": "(T1,T2]"},
+    {"start": "T2", "time": "T3", "value": 6, "covers": "(T2,T3]"},
+    {"start": "T3", "time": "T4", "value": 4, "covers": "(T3,T4]", "note": "new process sequence"}
+  ]
+}
+

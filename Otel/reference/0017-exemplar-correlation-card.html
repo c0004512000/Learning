@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Exemplar correlation 判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Exemplar correlation 判斷卡</h1>
+<p class="subtitle">Metric point → representative measurement → Trace</p>
+
+<pre><code>Histogram bucket/count/sum
+  └─ Exemplar
+       value + timestamp
+       trace_id + span_id (optional)
+       filtered attributes (optional)
+            └─ Trace backend lookup</code></pre>
+
+<h2>Exemplar 沒出現時</h2>
+<ol>
+  <li>Measurement 是否在有效 current Context 中記錄？</li>
+  <li>TraceBased filter 下，current Span 是否 sampled？</li>
+  <li>Reservoir 是否選中該 eligible measurement？</li>
+  <li>Exporter/Collector/backend 是否保留 exemplars？</li>
+  <li>UI/query 是否支援顯示？</li>
+</ol>
+
+<p><strong>不要：</strong>把 trace ID 當 metric attribute；那會為每筆 request 建新 series。</p>
+<p><a href="../lessons/0024-exemplars-trace-correlation.html">回到 Lesson 24</a></p>
+</body>
+</html>
+

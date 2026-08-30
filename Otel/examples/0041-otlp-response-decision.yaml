@@ -1,0 +1,27 @@
+# Lesson 41 reasoning table, not Collector configuration and not executable.
+
+outcomes:
+  full_success:
+    meaning: server accepted the request at this hop
+    client_action: remove acknowledged batch from this destination queue
+    caveat: does not prove final backend durability beyond the acknowledging server
+
+  partial_success:
+    meaning: server accepted part of the request and reports rejected item count or warning
+    client_action: do_not_retry_the_request
+    evidence: preserve rejected count and error message
+
+  retryable_failure:
+    examples:
+      grpc: [UNAVAILABLE, DEADLINE_EXCEEDED]
+      http: [429, 502, 503, 504]
+    client_action: retry_same_batch_with_backoff_and_jitter
+    caveat: lost acknowledgement can produce duplicates
+
+  non_retryable_failure:
+    examples:
+      grpc: [INVALID_ARGUMENT, UNAUTHENTICATED, PERMISSION_DENIED]
+      http: [400]
+    client_action: drop_batch_and_increment_drop_evidence
+    caveat: fix data, protocol, identity, or permission before resending new data
+

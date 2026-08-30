@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 33: Tail Sampling 的第一性原理與狀態成本</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>33. Tail Sampling 的第一性原理與狀態成本</h1>
+<p class="subtitle">用事後資訊換更好的保留決策，也承擔完整性、記憶體、路由與延遲 · Lesson 33 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從資訊何時可知推導 head/tail sampling 差異，理解 Tail Sampling 為何需要按 trace_id 聚合、等待與同 Trace affinity routing，
+能估算 pending trace memory，並設計 error/latency/baseline policies 而不把 biased sample 當全量 SLO 資料。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/sampling/" target="_blank">OpenTelemetry — Sampling</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/v0.158.0/processor/tailsamplingprocessor" target="_blank">Tail Sampling Processor</a></p>
+
+<h2>第一性原理：決策品質受限於決策當下已知資訊</h2>
+<p>Root Span 剛建立時，尚不知道：</p>
+<ul>
+  <li>整條 Trace 最後是否 Error；</li>
+  <li>總 latency 是否超過 1 秒；</li>
+  <li>下游是否 fallback/retry exhausted；</li>
+  <li>Trace 會有幾個 Spans；</li>
+  <li>稍後才加入的 attributes/events。</li>
+</ul>
+
+<p>
+Head sampling 必須在 Span/Trace 開始時決定，狀態少、立即、易於 propagation 一致，但看不到未來。
+Tail sampling 延後決策，先收集一段時間的整條 Trace，再依 outcome/latency/attributes 判斷。
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>面向</th><th>Head sampling</th><th>Tail sampling</th></tr></thead>
+  <tbody>
+    <tr><td>Decision time</td><td>Root/Span creation</td><td>Spans 抵達 Collector 後等待/聚合</td></tr>
+    <tr><td>可見資訊</td><td>Parent Context + creation-time attrs/links</td><td>已抵達的 Trace-wide spans/outcomes</td></tr>
+    <tr><td>Source/export cost</td><td>Dropped traces 可早期省 recording/export</td><td>候選 Spans 先跨網路到 tail sampler</td></tr>
+    <tr><td>State</td><td>很少 per-trace pending state</td><td>需保存 pending traces、decisions、late-span cache</td></tr>
+    <tr><td>Routing</td><td>Sampled flag 隨 Context 傳播</td><td>同一 trace 的所有 Spans 必須匯聚同一 sampler instance</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Tail sampler 無法復活 source 已丟掉的 Spans</h2>
+<pre><code>SDK head sampler drops Span
+  → Span 不 recording/export
+  → Collector 永遠收不到
+  → Tail policy 無資料可判斷</code></pre>
+
+<p>
+若要在 Collector 做 tail decision，上游 SDK/agents 必須保留並 export 足夠的候選 population。常見做法是 source 採高/全量 head sampling，
+再由 tail sampler drop；但這會把 recording、serialization、network 與 Collector ingress 成本前移。不能同時宣稱「source 只送 1%」又期待 tail sampler
+從另外 99% 中保留 errors。
+</p>
+
+<h2>為何同一 Trace 必須到同一 Collector instance？</h2>
+<p>
+Tail sampling processor 以 trace_id group Spans。若 load balancer round-robin 每個 OTLP batch，而同一 Trace 的 Spans 被分到 A/B：
+</p>
+
+<pre><code>Collector A sees: root + service X
+Collector B sees: service Y error + DB span
+
+A may drop because it sees no error
+B may sample an incomplete trace or make a different decision</code></pre>
+
+<p>
+因此 tail-sampling tier 前必須做 trace_id-affinity routing，讓同一 Trace 落到同一 instance。水平擴展時 hash ring/instance changes
+仍會影響 in-flight traces；需要考慮 rollout、autoscaling 與 failure behavior，不只是 steady-state hashing。
+</p>
+
+<div class="box tip">
+<strong>Agent → Gateway 模式：</strong>Local agents 可接收/batch，Gateway tier 依 trace ID 路由到 tail-sampling instances。
+若直接由每個 app round-robin 多個 samplers，Trace completeness 很容易破壞。下一章會從部署 pattern 展開。
+</div>
+
+<h2>Decision wait：完整性與延遲/記憶體的交換</h2>
+<p>
+Default trace-complete strategy 會累積資料，等 <code>decision_wait</code> timer（或其他 acceleration）再評估。
+Wait 太短：長 Trace/late spans 尚未到，policy 用 partial data；Wait 太長：memory 與 backend visibility latency 增加。
+</p>
+
+<pre><code>pending trace count ≈ new traces/sec × decision_wait_sec
+
+pending bytes ≈ new traces/sec
+                × decision_wait_sec
+                × average bytes/trace
+                + indexes/caches/runtime overhead</code></pre>
+
+<p>
+例：1,000 new traces/s、10s wait、平均 20 KiB/trace，原始 Span data 就約 200,000 KiB（約 195 MiB），尚未含 overhead、skew、large traces。
+Capacity 必須用 p95/p99 trace size 與 burst rate 壓測，不只平均。
+</p>
+
+<h2><code>num_traces</code> 與 maximum trace size 是保護界線</h2>
+<p>
+<code>num_traces</code> 限制 memory 中 pending trace 數；若 workload × wait 超過它，舊 traces 可能提早決策/evict，完整性下降。
+單一巨大 Trace 也能吃掉大量 memory，現行 processor 提供 <code>maximum_trace_size_bytes</code> 類保護，超限 Trace 可被立即 drop。
+</p>
+
+<p>
+Limits 不是容量規劃替代品。若長期 pending requirement 超過 budget，應降低 candidate rate、縮短 wait、增加有 affinity 的 sampler capacity、
+限制 pathological traces 或重新評估 tail policy。
+</p>
+
+<h2>Policy 設計：保留稀有價值，也保留 unbiased baseline</h2>
+<p>範例位於 <a href="../examples/0033-tail-sampling-fragment.yaml"><code>examples/0033-tail-sampling-fragment.yaml</code></a>：</p>
+
+<pre><code>policies:
+  - name: keep-errors
+    type: status_code
+    status_code: {status_codes: [ERROR]}
+  - name: keep-slow
+    type: latency
+    latency: {threshold_ms: 1000}
+  - name: baseline
+    type: probabilistic
+    probabilistic: {sampling_percentage: 5}</code></pre>
+
+<p>
+Error/slow policies提高高價值 traces 的保留率；probabilistic baseline 保留一部分正常 population，讓比較與新 failure modes 仍有樣本。
+Policy interaction/ordering 要按 processor版本文件驗證，尤其 explicit drop/not/composite rules，不靠直覺猜 OR/AND。
+</p>
+
+<div class="box tip">
+<strong>Selection bias：</strong>若 100% errors、5% successes 被保留，sample 中 error ratio 遠高於真實系統。
+不要用 sampled Trace count 計算全量 error rate/SLO；使用 Metrics 作總體統計，Trace 用於診斷。若要估計，必須保留並使用 sampling probability/weight 語意。
+</div>
+
+<h2>Processor order：依賴 Context 的 enrichment 要在 tail sampling 前</h2>
+<p>
+Tail sampling 會按 trace ID 重組 Spans 成新 batches，原始 receiver context 可能不再可用。官方指引要求依賴 context 的 processors
+（例如 Kubernetes attributes）放在它之前。典型推導：</n+</p>
+
+<pre><code>memory_limiter
+  → context-dependent enrichment
+  → sanitize sensitive fields
+  → tail_sampling
+  → batch
+  → exporter</code></pre>
+
+<p>
+Sanitize 越早越能避免敏感資料留在 pending trace memory；batch 在 sampling 後，只 buffer retained traces。實際 chain 仍要依 preconditions/semantics 驗證。
+</p>
+
+<h2>Late Spans 與 decision cache</h2>
+<p>
+Decision 後仍可能收到相同 trace_id 的 late Span。若 sampled/non-sampled decision cache 保留該 trace ID，processor 可對 late data 維持一致決策；
+cache 太小/未啟用，late Spans 可能重新進入 pending 或與原決策不一致。Cache 保存 identity/decision，不等於保存完整 Trace data，也有 memory budget。
+</p>
+
+<h2>SRE debugging lab：Error Trace 為何仍沒被保留？</h2>
+
+<h3>Case A：Error Span 到另一個 sampler instance</h3>
+<p>
+按 trace_id 查看 gateway routing/instance internal telemetry；確認所有 Spans affinity。若 root 與 error 分裂，調 policy無效，先修 routing。
+</p>
+
+<h3>Case B：Status policy 看不到 ERROR</h3>
+<p>
+檢查 instrumentation 是否真的 set Span Status=ERROR；HTTP 5xx attribute 存在不必然代表 status field 已正確設定，依 semantic convention/instrumentation版本驗證。
+Policy 若讀 status_code，不能從 log severity 猜。
+</p>
+
+<h3>Case C：Collector memory 高且 traces 不完整</h3>
+<p>
+量測 new trace rate、decision wait、trace size distribution、pending/evicted counts、decision cache、large traces與 GC。用公式估算後與 process limit對比；
+只加 memory 可能延後問題，若 all-spans routing 或 arrival rate 長期超出設計仍會復發。
+</p>
+
+<h3>Case D：Backend 延遲固定增加約 10 秒</h3>
+<p>
+這可能是 <code>decision_wait=10s</code> 的設計結果，不是 exporter慢。比較 tail decision timestamp、queue/export latency，分解 visibility delay。</p>
+
+<details>
+  <summary>練習：估算 Tail Sampling tier</summary>
+  <p>Peak 2,500 traces/s、decision wait 15s、p95 30 KiB/trace。先算 pending trace count 與原始 bytes；
+再加入 2x burst/headroom，討論 num_traces、memory limit、instance count、trace affinity 與 rollout strategy。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Tail Sampling 為何能優先保留 errors？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">它延後決策，能檢查已抵達 Trace 的 outcome/status</button>
+    <button class="choice" data-correct="false">它在 root 建立前已知道未來</button>
+    <button class="choice" data-correct="false">它把 Metrics 轉成所有 missing Spans</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 同一 Trace 的 Spans 為何要到同一 sampler instance？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Processor 需按 trace_id 聚合完整資料，才能一致決策</button>
+    <button class="choice" data-correct="false">OTLP 只允許一個 Collector process</button>
+    <button class="choice" data-correct="false">不同 services 必須共用 Span ID</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 為何不能用 tail-sampled Trace counts 直接算 error rate？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Policy 對 errors/successes 保留機率不同，sample 有 selection bias</button>
+    <button class="choice" data-correct="false">Trace 完全沒有 status</button>
+    <button class="choice" data-correct="false">Metric temporality 會改 Trace ID</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0026-tail-sampling-design-card.html">Tail Sampling 設計卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>用你的一個 service traffic profile 寫 new traces/s、duration/arrival delay、trace size、error/slow rates；
+設計 head/tail 分工、affinity routing、policies 與 memory budget，我會幫你挑出隱含假設。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0032-semconv-schema-evolution.html">&larr; Lesson 32: Semconv/schema</a></span>
+  <span><a href="0034-agent-gateway-deployment.html">下一課：Agent、Gateway 與部署邊界 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Collector resilience budget 卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Collector resilience budget 卡</h1>
+<p class="subtitle">Queue 是有限時間預算，不是資料不滅保證</p>
+
+<pre><code>net fill rate = arrival rate λ − successful drain rate μ
+
+若 λ > μ：
+time to full ≈ free capacity / (λ − μ)
+
+恢復後若 μ &gt; λ：
+time to drain backlog ≈ backlog / (μ − λ)</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>機制</th><th>主要吸收</th><th>仍會失敗於</th></tr></thead>
+  <tbody>
+    <tr><td>Retry</td><td>短暫可重試錯誤</td><td>永久錯誤、期限耗盡</td></tr>
+    <tr><td>In-memory queue</td><td>短期 downstream slowdown/outage</td><td>queue full、Collector crash</td></tr>
+    <tr><td>WAL/persistent queue</td><td>Collector restart/crash</td><td>disk full/failure、volume 遺失、retry expiry</td></tr>
+    <tr><td>External message queue</td><td>較長 decoupling/durability</td><td>broker/retention/misconfig，且增加操作成本</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><a href="../lessons/0028-collector-resilience-queues-retries.html">回到 Lesson 28</a></p>
+</body>
+</html>
+

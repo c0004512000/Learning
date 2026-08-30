@@ -1,0 +1,18 @@
+# Lesson 37 static OTTL example. It is not executed by this lesson.
+# transformprocessor is part of the Collector contrib distribution.
+
+processors:
+  transform/normalize:
+    error_mode: ignore
+    trace_statements:
+      - set(resource.attributes["deployment.environment.name"], "unknown") where resource.attributes["deployment.environment.name"] == nil
+      - set(span.attributes["app.user_tier"], span.attributes["user.tier"]) where span.attributes["user.tier"] != nil
+      - delete_key(span.attributes, "user.tier") where span.attributes["user.tier"] != nil
+      - set(span.attributes["http.request.method"], ConvertCase(span.attributes["http.request.method"], "upper")) where span.attributes["http.request.method"] != nil
+
+  transform/sanitize:
+    error_mode: propagate
+    log_statements:
+      - delete_key(log.attributes, "auth.token")
+      - delete_key(log.attributes, "user.email") where log.attributes["privacy.class"] == "restricted"
+

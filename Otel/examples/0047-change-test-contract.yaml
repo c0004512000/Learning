@@ -1,0 +1,33 @@
+# Lesson 47 test contract. This is a planning artifact, not executable CI.
+
+change:
+  id: change-otel-collector-example
+  scope: "normalize service identity and adjust batch limits"
+  owner: observability-platform
+
+gates:
+  static:
+    - exact_distribution_and_version_pinned
+    - final_config_resolves_without_secrets_in_output
+    - component_schema_and_graph_validate
+  semantic_fixtures:
+    - representative_input_matches_expected_output
+    - missing_and_wrong_type_inputs_follow_error_policy
+    - security_and_tenant_invariants_hold
+  end_to_end:
+    - trace_metric_log_canaries_arrive_before_deadline
+    - forbidden_destinations_and_attributes_absent
+  load_and_failure:
+    - peak_plus_headroom_has_no_unexpected_refusal_or_drop
+    - backend_outage_respects_queue_retry_and_recovery_budget
+    - restart_and_scale_preserve_required_state_invariants
+  rollout:
+    - canary_instances_first
+    - compare_old_and_new_by_same_workload_window
+
+rollback_triggers:
+  - unexpected_cross_tenant_route
+  - security_redaction_invariant_failure
+  - sustained_error_budget_burn_above_policy
+  - queue_or_memory_growth_without_positive_drain_rate
+

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Collector Change Review Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Collector Change Review Card</h1>
+<p class="subtitle">每一層測不同 failure；通過上一層不代表下一層</p>
+<ol>
+  <li><strong>Resolve/validate：</strong>exact binary、final config、schema、reference graph。</li>
+  <li><strong>Fixtures：</strong>representative/missing/wrong-type/sensitive/high-cardinality inputs。</li>
+  <li><strong>End-to-end：</strong>三 signals、routing、redaction、relationships、freshness。</li>
+  <li><strong>Load：</strong>steady/peak/burst、items+bytes、CPU/memory/queue、backend limits。</li>
+  <li><strong>Failure：</strong>backend outage、throttle、restart、network partition、state rebalance。</li>
+  <li><strong>Rollout：</strong>canary cohort、old/new comparison、minimum observation window。</li>
+  <li><strong>Rollback：</strong>trigger、authority、known-good artifact、state/queue treatment。</li>
+</ol>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

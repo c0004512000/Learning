@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 1: 從系統問題推導 OTel、Trace 與 Span</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>1. 從系統問題推導 OTel、Trace 與 Span</h1>
+<p class="subtitle">先理解需要什麼證據，再認識工具與資料模型 · Lesson 1 of N</p>
+
+<h2>出發點：SRE 想回答的是「為什麼？」</h2>
+<p>
+假設使用者說：「結帳很慢。」服務可能仍然健康、CPU 也可能正常；問題可能在 API Gateway、
+Checkout Service、資料庫、或某個外部 payment call。系統的內部狀態無法直接看見，
+你只能從系統發出的<strong>輸出</strong>推論發生了什麼。
+</p>
+<p>
+這就是 observability 的第一性原理：<strong>不必預先知道故障模式，也能用系統輸出提出並回答
+「為什麼會這樣？」</strong>。為了做到這件事，程式必須產生有足夠語意的 telemetry。
+</p>
+<p class="cite">
+依據：<a href="https://opentelemetry.io/docs/concepts/observability-primer/" target="_blank">OpenTelemetry 官方文件 — Observability Primer</a>
+</p>
+
+<div class="box">
+<strong>重要界線：</strong>dashboard、query UI 與 alert rule 不會自己創造 observability。
+它們只能處理已經存在的 telemetry。若程式沒有輸出可用證據，再好的 backend 也無法還原原因。
+</div>
+
+<h2>為什麼本課先學 Trace，而不是一次塞進三大支柱？</h2>
+<p>
+Metrics、logs 與 traces 都是 telemetry，但回答的問題不同。你現在不需要先精通它們：
+只要先理解這個差別，就知道為何 Trace 是分散式除錯的好起點。
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Signal</th>
+      <th>先回答的問題</th>
+      <th>本課的界線</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Metric</td>
+      <td>系統整體是否異常？例如 request 是否變慢、錯誤是否變多？</td>
+      <td>後續獨立學 Prometheus 與 metrics data model。</td>
+    </tr>
+    <tr>
+      <td>Log</td>
+      <td>某個 component 當時說了什麼細節？</td>
+      <td>後續學 log correlation 與結構化欄位。</td>
+    </tr>
+    <tr>
+      <td>Trace</td>
+      <td>這一次工作經過哪些步驟？哪一步造成延遲或失敗？</td>
+      <td><strong>本課只深入這一列。</strong></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Metric 很適合告訴你「結帳變慢了」；單筆 log 很適合告訴你「資料庫 timeout」。
+但要還原<strong>哪一個 request 依序呼叫了哪些 component</strong>，需要能保留因果關係的 Trace。
+這不是三種資料誰比較好，而是它們保留的證據不同。
+</p>
+
+<h2>把「因果關係」拆成最小資料需求</h2>
+<p>
+考慮一個 checkout request：
+</p>
+<pre><code>Browser -> API Gateway -> Checkout Service -> Payment Service -> Database</code></pre>
+<p>若要回答「為什麼它花了 2 秒」，每一段工作至少需要留下：</p>
+<ol>
+  <li><strong>它是什麼工作？</strong> 例如 <code>POST /checkout</code> 或 database query。</li>
+  <li><strong>何時開始與結束？</strong> 才能得到 duration。</li>
+  <li><strong>它屬於哪一次端到端 operation？</strong> 才能把不同 process 的資料放在一起。</li>
+  <li><strong>它由哪一段工作引發？</strong> 才能建立因果順序與巢狀結構。</li>
+  <li><strong>還有什麼背景？</strong> 例如 route、status code、錯誤類型。</li>
+</ol>
+<p>
+這五項需求直接導出 OTel 的 Trace data model；它不是任意設計的一串欄位。
+</p>
+
+<h2>Trace 與 Span：因果模型的兩個層級</h2>
+<p>
+<strong>Span</strong> 是一個有起訖時間的工作單元，例如一次 HTTP request、資料庫查詢或函式執行。
+<strong>Trace</strong> 則是一個端到端 operation 中所有相關 Span 的樹。
+</p>
+<pre><code>Trace ID: T
+
+API Gateway        Span A (parent: none)
+└─ Checkout         Span B (parent: A)
+   ├─ Payment       Span C (parent: B)
+   └─ Database      Span D (parent: B)</code></pre>
+<p>
+所有 Span 共用 <code>Trace ID</code>，因此知道它們屬於同一條端到端路徑；
+child Span 的 <code>Parent Span ID</code> 指向直接 parent 的 <code>Span ID</code>，
+因此知道誰引發誰。沒有 parent 的 Span 是 root span。
+</p>
+<p class="cite">
+資料模型依據：<a href="https://opentelemetry.io/docs/concepts/signals/traces/" target="_blank">OpenTelemetry 官方文件 — Traces</a>
+</p>
+
+<div class="box tip">
+<strong>最實用的心智模型：</strong>Trace 不是「很多 log 串在一起」而已；
+它是跨 process 仍能保存 <strong>identity、time、context 與 hierarchy</strong> 的結構化工作紀錄。
+這些關係才讓你畫出時間對齊的工作樹，並找出造成整次 request 變慢的那條因果鏈。
+</div>
+
+<h2>OTel 解決的問題，以及它刻意不解決的問題</h2>
+<p>
+有了這個模型，下一個問題是：每個 library、service 和 backend 都用不同埋點 API、欄位名稱與傳輸格式，
+要如何保留可攜性？<strong>OpenTelemetry（OTel）</strong>提供 vendor-neutral 的 specification、API、SDK、
+semantic conventions 與 Collector，統一 telemetry 的產生、處理與輸出方式。
+</p>
+<pre><code>instrumented application
+  -> OTel API / SDK / Collector
+  -> storage, query, visualization backend</code></pre>
+<p>
+OTel <strong>不是</strong> storage backend、dashboard 或 alerting system。它讓你在程式碼中保留同一套
+instrumentation，而把資料目的地留給 exporter 與 backend 設定決定。這個解耦是避免 vendor lock-in、
+並支援日後自建 observability agent 的基礎。
+</p>
+<p class="cite">
+依據：<a href="https://opentelemetry.io/docs/what-is-opentelemetry/" target="_blank">OpenTelemetry 官方文件 — What is OpenTelemetry?</a>
+</p>
+
+<h2>把需求對照到一個 Span</h2>
+<p>下面是為了閱讀而簡化的表示法，<strong>不是</strong> OTLP/JSON wire format：</p>
+<pre><code>{
+  "name": "GET /checkout",
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "spanId": "00f067aa0ba902b7",
+  "parentSpanId": null,
+  "startTimeUnixNano": 1700000000000000000,
+  "endTimeUnixNano":   1700000000250000000,
+  "attributes": {
+    "http.request.method": "GET",
+    "http.response.status_code": 200,
+    "http.route": "/checkout"
+  }
+}</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>欄位</th>
+      <th>回答的問題</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>name</code></td>
+      <td>這是什麼有意義的 operation？</td>
+    </tr>
+    <tr>
+      <td><code>traceId</code></td>
+      <td>它屬於哪一個端到端 operation？</td>
+    </tr>
+    <tr>
+      <td><code>spanId</code> / <code>parentSpanId</code></td>
+      <td>它在因果樹中的位置是什麼？</td>
+    </tr>
+    <tr>
+      <td>start / end time</td>
+      <td>這段工作花了多久？</td>
+    </tr>
+    <tr>
+      <td><code>attributes</code></td>
+      <td>哪種 HTTP operation、route、結果或 domain context 能幫助查詢？</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p class="cite">
+延伸快速參考：<a href="../reference/0001-http-routes-and-cardinality.html">HTTP Span 的 route、實際 URL 與 cardinality</a>
+</p>
+
+<h2>練習：檢查你是否掌握因果關係</h2>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Metric 顯示 checkout latency 上升時，Trace 額外提供的核心證據是什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">單一 request 的因果路徑、步驟順序與各段時間</button>
+    <button class="choice" data-correct="false">所有 request 的長期聚合總數與平均值</button>
+    <button class="choice" data-correct="false">backend 使用的儲存引擎與 dashboard 版面</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Span B 的 <code>traceId</code> 與 Span A 相同，且 B 的 <code>parentSpanId</code> 等於 A 的 <code>spanId</code>。正確關係是什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">A 是 parent Span，B 是同一 Trace 中的 child Span</button>
+    <button class="choice" data-correct="false">B 是 parent Span，A 是另一條 Trace 的 root Span</button>
+    <button class="choice" data-correct="false">A 與 B 只有相同 Attributes，沒有因果關係</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 你把 Jaeger backend 換成另一個 backend 時，OTel 的核心價值是什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">保留 instrumentation，改變 exporter 或 backend destination 設定</button>
+    <button class="choice" data-correct="false">保留 dashboard，讓 backend 自動重寫 application code</button>
+    <button class="choice" data-correct="false">移除 telemetry，讓新的 backend 推測所有請求關係</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<h3>回想練習</h3>
+<div class="recall" data-recall data-answer="parent span id|parentspanid|Parent Span ID|ParentSpanId">
+<p>child Span 用哪一個欄位指向直接 parent 的 <code>Span ID</code>？</p>
+<input type="text" class="blank" placeholder="填入欄位名稱">
+<button class="check-btn">檢查</button>
+<div class="feedback"></div>
+</div>
+
+<h2>課程地圖：只在真正需要時建立前置主題</h2>
+<p>
+目前路徑是 <strong>本課的因果模型 → Python manual instrumentation → Span data model 與 Semantic Conventions
+→ Context propagation</strong>。這裡不假設 Kubernetes、networking 或 Prometheus 知識；它們會在成為理解瓶頸時，
+各自建立可回鏈的專題：HTTP/networking 用於 propagation，Prometheus 用於 metrics aggregation，
+Kubernetes 用於 Resource metadata 與 Collector deployment。
+</p>
+
+<div class="box tip">
+<strong>推薦閱讀（主要來源）：</strong>
+先讀 <a href="https://opentelemetry.io/docs/concepts/observability-primer/" target="_blank">Observability Primer</a>
+的「What is Observability?」與「Understanding distributed tracing」；
+再讀 <a href="https://opentelemetry.io/docs/what-is-opentelemetry/" target="_blank">What is OpenTelemetry?</a>。
+</div>
+
+<div class="box ask">
+<strong>有不懂的地方嗎？</strong> 可以直接問「為什麼 metric 不能取代 Trace？」
+「Trace 的 parent 關係如何跨 process 成立？」或「為何 OTel 不做 backend？」；
+這些問題比背名詞更接近 SRE 真正需要的判斷能力。
+</div>
+
+<div class="lesson-nav">
+  <span>&larr; 這是第一課</span>
+  <span><a href="0002-tracing-building-blocks.html">下一課：Trace 的組成元件與資料旅程 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

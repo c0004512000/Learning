@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>OTel 第一個失敗邊界判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>第一個失敗邊界判斷卡</h1>
+<p class="subtitle">不要問「哪裡可能壞」；問「最後一個已證明成功在哪裡」</p>
+
+<ol>
+  <li>精確定義 signal、entity、record/stream、time window。</li>
+  <li>畫 source → SDK → transport → Collector → backend → query。</li>
+  <li>每條箭頭寫 success contract 與正面證據。</li>
+  <li>找最低已通過層，測試緊鄰下一層。</li>
+  <li>一次只改一個變因，保留 before/after evidence。</li>
+  <li>修復後從 source 到 query 重走 contract，避免局部假成功。</li>
+</ol>
+
+<p><strong>禁忌：</strong>Backend 查不到 ≠ source 沒產生；沒有 error log ≠ export 成功；ready ≠ payload 通過。</p>
+<p><a href="../lessons/0030-end-to-end-debugging-method.html">回到 Lesson 30</a></p>
+</body>
+</html>
+

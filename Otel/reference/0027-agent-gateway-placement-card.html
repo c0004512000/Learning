@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Agent/Gateway Placement 判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Agent/Gateway Placement 判斷卡</h1>
+<p class="subtitle">依 locality、state、credentials 與 failure radius 放置責任</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>需求</th><th>較自然位置</th><th>理由</th></tr></thead>
+  <tbody>
+    <tr><td>Tail local files/host stats</td><td>Agent</td><td>資料與 metadata locality</td></tr>
+    <tr><td>Earliest secret removal</td><td>Agent/source-near</td><td>縮短敏感資料停留/傳輸</td></tr>
+    <tr><td>Central backend credentials/routing</td><td>Gateway</td><td>減少分散 secrets/policy drift</td></tr>
+    <tr><td>Tail sampling</td><td>Affinity-routed Gateway tier</td><td>需要完整 Trace state</td></tr>
+    <tr><td>Service-wide span-to-metrics aggregation</td><td>Service-affinity Gateway</td><td>單一 state owner</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>每多一 hop：</strong>新增 latency、queue/retry、failure mode、duplicate ambiguity 與 internal telemetry。</p>
+<p><a href="../lessons/0034-agent-gateway-deployment.html">回到 Lesson 34</a></p>
+</body>
+</html>
+

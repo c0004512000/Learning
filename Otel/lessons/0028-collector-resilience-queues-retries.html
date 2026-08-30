@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 28: Collector queues、retries 與故障時資料命運</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>28. Collector queues、retries 與故障時資料命運</h1>
+<p class="subtitle">Resilience 是有限的時間、容量與持久性預算，不是「永不丟資料」開關 · Lesson 28 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 arrival/drain rates 推導 sending queue 的 outage budget，分清 retry、in-memory queue、persistent WAL 與 external message queue
+各自處理的 failure mode；也能判斷 queue 滿、retry 到期、Collector crash、disk failure 時資料會去哪裡。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/resiliency/" target="_blank">OpenTelemetry Collector — Resiliency</a></p>
+
+<h2>第一性原理：Downstream 不能收時，只有四種命運</h2>
+<p>一批 telemetry 到達 exporter，而 backend 暫時不可用。資料只能：</p>
+
+<ol>
+  <li>在 caller/request path 等待（把故障壓力往上游傳）。</li>
+  <li>暫存在有限 memory/disk/broker 中。</li>
+  <li>稍後重試傳輸。</li>
+  <li>在某個容量／時間界線後被拒絕或丟棄。</li>
+</ol>
+
+<p>
+沒有第五種「無限免費保存」。Resilience configuration 只是選擇在哪裡等待、等多久、消耗什麼資源、失敗時誰收到 backpressure。
+</p>
+
+<h2>Retry 與 Queue 解決不同問題</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>機制</th><th>核心責任</th><th>不負責</th></tr></thead>
+  <tbody>
+    <tr><td>Retry</td><td>對 transient failure 安排下一次嘗試，通常 exponential backoff + jitter</td><td>無限保存、修正 credentials/schema 等 permanent error</td></tr>
+    <tr><td>Sending queue</td><td>讓新舊 export requests 在 downstream 變慢時暫存</td><td>創造 downstream throughput、無限 outage</td></tr>
+    <tr><td>Persistent storage/WAL</td><td>讓 queued data 跨 Collector process crash/restart</td><td>保護 disk/volume 故障、保證 backend acceptance</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Retry without queue 仍需某處持有待重試資料；Queue without retry 只是在第一次失敗後排隊，卻沒有合理重新送出策略。
+兩者組合形成短期 outage absorption，但仍受 capacity 與 retry deadline 約束。
+</p>
+
+<h2>Queue 是 outage time budget</h2>
+<p>令：</p>
+<ul>
+  <li><code>λ</code>：每秒進入 sending queue 的 export requests/batches。</li>
+  <li><code>μ</code>：每秒成功送出的 requests/batches。</li>
+  <li><code>C</code>：目前剩餘 queue capacity，使用與 queue_size 相同單位。</li>
+</ul>
+
+<pre><code>net fill rate = λ − μ
+
+若 λ > μ：
+time-to-full ≈ C / (λ − μ)
+
+完全 outage 時 μ = 0：
+time-to-full ≈ C / λ</code></pre>
+
+<p>
+例如 free capacity 5,000 requests、arrival 100/s、downstream 完全停止，約 50 秒就滿，不是「queue_size=5000 所以可撐很久」。
+實際每個 request 內 record 數與 bytes 可變，memory/disk budget 還要以 payload distribution 估算。
+</p>
+
+<h2>Recovery 也需要 surplus throughput</h2>
+<p>Backend 恢復時，新資料仍以 λ 抵達。只有 <code>μ &gt; λ</code> 才能清 backlog：</p>
+
+<pre><code>drain surplus = μ − λ
+time-to-drain ≈ backlog / (μ − λ)</code></pre>
+
+<p>
+若平常 exporter capacity 剛好等於 arrival，outage 後 queue 永遠不會下降；只是不再繼續長。Capacity planning 必須保留 recovery headroom，
+並考慮 retry burst。Jitter 的價值是避免大量 Collectors 同時重試造成 thundering herd。
+</p>
+
+<div class="box tip">
+<strong>Queue 增大是時間，不是 throughput：</strong>它能吸收更長 burst/outage，卻不能修復 <code>λ ≥ μ</code> 的長期不平衡；
+還會增加 memory/disk、oldest-data latency 與 recovery time。
+</div>
+
+<h2>In-memory queue：保護 downstream outage，不保護 Collector crash</h2>
+<p>
+Exporter sending queue 通常先在 memory buffer。Backend 短暫不可用時，資料留在 queue 並重試；queue full 或 retry maximum elapsed time
+耗盡後會發生 loss/rejection。Collector process crash/被 kill 時，memory 內 pending data 一起消失。
+</p>
+
+<p>
+適合可接受少量 loss、短期 outage、且重啟風險低的路徑。Queue capacity 要與 Collector memory limit、batch size、payload bytes 一起評估，
+不能只看 item count。
+</p>
+
+<h2>Persistent queue/WAL：把 pending state 放到 durable volume</h2>
+<p>
+使用 <code>file_storage</code> extension，sending queue 可在嘗試 export 前把資料寫入 WAL，Collector restart 後重新讀取並繼續。
+這改善 process crash failure mode，但新增：</n+</p>
+
+<ul>
+  <li>disk I/O latency 與 capacity planning；</li>
+  <li>directory permissions、volume mount 與 lifecycle；</li>
+  <li>disk full/failure/corruption 與 storage monitoring；</li>
+  <li>舊資料重播與 retry deadline 的互動。</li>
+</ul>
+
+<p>
+Container filesystem 若不是 persistent volume，container 被刪除時 WAL 仍可能消失。設定 <code>storage: file_storage</code>
+只是 reference；extension 還必須在 <code>service.extensions</code> 啟用。
+</p>
+
+<h2>閱讀 resilience config fragment</h2>
+<p>範例位於 <a href="../examples/0028-exporter-resilience-fragment.yaml"><code>examples/0028-exporter-resilience-fragment.yaml</code></a>：</p>
+
+<pre><code>sending_queue:
+  enabled: true
+  queue_size: 5000
+  storage: file_storage
+retry_on_failure:
+  enabled: true
+  initial_interval: 5s
+  max_interval: 30s
+  max_elapsed_time: 10m</code></pre>
+
+<p>
+這是非執行 reference fragment：endpoint 使用保留的 <code>.invalid</code> domain，沒有 credentials；<code>file_storage</code>
+需選擇包含它的 Collector distribution（例如 contrib）並配置 durable volume。依你的政策，本課沒有下載/執行 Collector 或 Docker。
+</p>
+
+<h2>External message queue：更強 decoupling，也多一個分散式系統</h2>
+<p>
+Agent Collector 可 export 到 Kafka 類 broker，Gateway 再 consume。Consumer/Gateway outage 時由 broker retention 吸收 backlog；
+但 Kafka 本身也需要 availability、capacity、partitioning、security、retention 與操作專業。若 broker down，producer 端仍需 local resilience。
+</p>
+
+<p>
+只有當 durability/跨區隔離需求值得額外運維成本時才加入。不要因為「telemetry 很重要」就無條件把 message queue 放進每條路徑。
+</p>
+
+<h2>Delivery semantic：Retry 可能造成 duplicate attempts</h2>
+<p>
+若 exporter 已把 batch 送達，但 acknowledgment 在回程丟失，sender 無法知道 backend 是否接受；retry 可能再次送出。
+Queue/WAL/retry 本身不等於 exactly-once guarantee。是否 deduplicate、用什麼 identity、哪些 signals 可安全重聚合，要看 protocol/backend。
+</p>
+
+<p>
+因此 resilience 需同時看 loss 與 duplicate 風險。Logs/Spans 重複會增加成本與查詢雜訊；Metrics cumulative/delta 重複 ingestion
+可能扭曲數值，consumer 的 single-writer/idempotency 行為特別重要。
+</p>
+
+<h2>SRE debugging lab：Backend 恢復了，Queue 為何不降？</h2>
+
+<h3>Case A：Drain capacity 沒有高於 arrival</h3>
+<p>
+同時量測 queue size/capacity、incoming rate、successful send rate、send latency/failures。若 <code>μ≈λ</code>，queue 穩定但不下降；
+需要暫時/長期提高 drain throughput、降低 input/sample 或增加 parallel capacity，而非只等。
+</p>
+
+<h3>Case B：Retry deadline 先於 outage recovery</h3>
+<p>
+資料在 queue 中但 oldest requests 超過 <code>max_elapsed_time</code> 被放棄。將 retry duration 與可接受 outage/RPO 對齊；
+拉長會增加保存需求，不是免費提高可靠性。
+</p>
+
+<h3>Case C：Collector restart 後 Queue 歸零</h3>
+<p>
+若使用 memory queue，這是預期 failure mode。若宣稱有 WAL，檢查 storage extension 是否啟用、queue 是否引用、directory 是否真正 persistent、
+權限/disk 是否健康，以及新 instance 是否掛載同一正確 volume。
+</p>
+
+<details>
+  <summary>練習：算 outage 與 recovery budget</summary>
+  <p>Arrival 200 batches/s，queue free capacity 36,000；backend outage 時 μ=0。計算多久滿。</p>
+  <p>恢復後 exporter 可送 500/s，arrival 仍 200/s；若 backlog 已 30,000，計算理想多久清完，並列出現實中會拉長時間的因素。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Queue size 加倍最直接增加什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">可吸收的 backlog/outage 時間與資源消耗</button>
+    <button class="choice" data-correct="false">Backend successful drain rate</button>
+    <button class="choice" data-correct="false">Exactly-once guarantee</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. WAL 主要新增哪個 failure protection？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">Pending queue data 可跨 Collector process crash/restart</button>
+    <button class="choice" data-correct="false">Backend 永遠不會拒絕資料</button>
+    <button class="choice" data-correct="false">Disk 永遠不會滿</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. Recovery 時 μ 等於 λ，backlog 會如何？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">理想上不再增長，但也沒有 surplus capacity 清除</button>
+    <button class="choice" data-correct="false">立即歸零</button>
+    <button class="choice" data-correct="false">自動轉成 Trace sampling</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0021-collector-resilience-budget-card.html">Collector resilience budget 卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>用你系統的 peak arrival、正常/降級 drain、可接受 RPO/outage、Collector memory/disk budget，
+算一版 queue/retry/WAL 設計；列出它明確不保證的 failure modes。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0027-collector-processor-order.html">&larr; Lesson 27: Processor order</a></span>
+  <span><a href="0029-collector-internal-telemetry.html">下一課：用 Collector internal telemetry 觀測觀測系統 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

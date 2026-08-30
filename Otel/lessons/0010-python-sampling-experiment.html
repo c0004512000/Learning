@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 10: Python sampling 實驗</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>10. Python sampling 實驗</h1>
+<p class="subtitle">直接觀察 recording、sampled flag、child consistency 與 export · Lesson 10 of N</p>
+
+<h2>這次實驗要證明什麼？</h2>
+<p>
+Lesson 9 說明 sampled decision 不等於「程式碼有沒有呼叫 start Span」。本課固定同一段 instrumentation，
+只替換 Provider 的 sampler，觀察四個結果：
+</p>
+<ol>
+  <li><code>Span.is_recording()</code> 是否為 true。</li>
+  <li><code>trace_flags.sampled</code> 是否為 true。</li>
+  <li>Child Span 是否遵循 parent decision。</li>
+  <li><code>ConsoleSpanExporter</code> 是否收到並印出 Span。</li>
+</ol>
+
+<p class="cite">API 依據：<a href="https://opentelemetry-python.readthedocs.io/en/latest/sdk/trace.sampling.html" target="_blank">OpenTelemetry Python SDK — trace.sampling</a>；概念依據：<a href="https://opentelemetry.io/docs/concepts/sampling/" target="_blank">OpenTelemetry — Sampling</a></p>
+
+<h2>三組 sampler</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Case</th><th>Python sampler</th><th>Root decision</th><th>Child behavior</th></tr></thead>
+  <tbody>
+    <tr><td>always_on</td><td><code>DEFAULT_ON</code></td><td>沒有 parent 時 sample</td><td>遵循 sampled parent</td></tr>
+    <tr><td>always_off</td><td><code>DEFAULT_OFF</code></td><td>沒有 parent 時 drop</td><td>遵循 not-sampled parent</td></tr>
+    <tr><td>ratio_25</td><td><code>ParentBasedTraceIdRatio(0.25)</code></td><td>依 Trace ID 與 25% rate</td><td>遵循 root decision</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+這裡不用單獨的 <code>ALWAYS_ON</code> / <code>ALWAYS_OFF</code>，而用 parent-based defaults；
+原因是 distributed tracing 希望 child 通常繼承 parent sampling decision，而不是每個 Span 各自重新決定。
+</p>
+
+<h2>執行</h2>
+<p>程式在 <a href="../examples/0010-sampling-experiment.py"><code>examples/0010-sampling-experiment.py</code></a>：</p>
+<pre><code>.\.venv\Scripts\python.exe .\examples\0010-sampling-experiment.py</code></pre>
+
+<div class="box">
+<strong>執行前預測：</strong>先寫下 always_on / always_off 各自的 recording、sampled、console export；
+再猜 12 條 ratio traces 會保留幾條。實際數字不必剛好 3，因為 25% 是長期比例，不是每四條保證一條。
+</div>
+
+<h2>Sampler 在哪裡接入？</h2>
+<pre><code>provider = TracerProvider(
+    sampler=sampler,
+    resource=Resource.create({"service.name": f"sampling-{label}"}),
+)</code></pre>
+
+<p>
+Sampler 是 Provider 的共用 SDK configuration；每個新 root Span 都透過它做 decision。
+這也說明為何 application startup 決策會影響所有 runtime requests，而不是每個 business function
+自己挑選 exporter 或 sampler。
+</p>
+
+<h2>初始 Attributes 為何放在 Span 建立時？</h2>
+<pre><code>with tracer.start_as_current_span(
+    "checkout.request",
+    attributes={"app.case": label, "app.iteration": index},
+) as root:</code></pre>
+
+<p>
+Sampler decision 發生在 Span creation。若 custom sampler 需要某個 attribute，該值必須在建立時提供；
+進入 <code>with</code> 後才 <code>set_attribute</code>，對已做完的 head decision 太晚。
+本課的 built-in ratio sampler 只依 rate / Trace ID，但這個時序對未來設計 custom policy 很重要。
+</p>
+
+<h2>讀兩個不同訊號</h2>
+<pre><code>root.is_recording()
+root.get_span_context().trace_flags.sampled</code></pre>
+
+<ul>
+  <li><code>is_recording()</code> 回答 SDK 是否保存這個 Span 的資料。</li>
+  <li><code>trace_flags.sampled</code> 回答 SpanContext 是否標記為 sampled，並可由 propagation 傳給下游。</li>
+</ul>
+
+<p>
+不要用「console 有沒有 JSON」取代這兩個觀察值。Console output 還受到 Span 是否 end、Processor 是否 flush、
+Exporter 是否成功影響；本課同時印 decision state，才能區分 sampling 與 export。
+</p>
+
+<h2>Parent-based consistency 的證據</h2>
+<pre><code>with tracer.start_as_current_span("checkout.request") as root:
+    with tracer.start_as_current_span("checkout.validate") as child:
+        ...</code></pre>
+
+<p>
+每一列輸出中，root sampled 與 child sampled 應相同。對 ratio case 而言，是 root 依 Trace ID 做一次概率決策，
+child 再明確遵循 local parent。這個「明確遵循」很重要：上游可能使用不同 rate 或 custom policy；
+下游不應只因自己的 sampler 設定不同，就推翻已經 propagation 過來的決策。
+</p>
+
+<h2>預期結果</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Case</th><th>is_recording</th><th>sampled</th><th>Console Span JSON</th></tr></thead>
+  <tbody>
+    <tr><td>always_on</td><td>true</td><td>true</td><td>root 與 child 都會出現</td></tr>
+    <tr><td>always_off</td><td>false</td><td>false</td><td>不會出現</td></tr>
+    <tr><td>ratio_25</td><td>依 root decision</td><td>依 root decision</td><td>只出現 sampled traces</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>SRE debugging lab 1：有 Trace ID，為何沒有 export？</h2>
+<p>
+觀察 always_off：程式仍能取得 SpanContext 並印出 sampled=false，但 ConsoleSpanExporter 沒有該 case 的 Span JSON。
+這證明「有 context 可 propagation」與「Span 被 record/export」是可分離的需求。
+</p>
+
+<h2>SRE debugging lab 2：一個會誤導你的對照</h2>
+<p>
+將 ratio case 暫時從 <code>ParentBasedTraceIdRatio(0.25)</code> 改為
+<code>TraceIdRatioBased(0.25)</code>，並補上對應 import。你可能仍看到 root 與 child decision 相同。
+這是否證明 sampler 有讀 parent？
+</p>
+<details>
+  <summary>為何這個結果不能證明 parent semantics</summary>
+  <p>
+<code>TraceIdRatioBased</code> 依 Trace ID 做 deterministic decision，而同一 Trace 的 root/child 共用 Trace ID；
+即使它沒採用 parent decision，也可能算出相同結果。要證明 ParentBased，必須提供一個已帶 sampled/not-sampled
+flag 的 remote parent，並讓下游 root policy 與上游 decision 衝突。這提醒你：測試必須能區分兩個 competing
+hypotheses，看到相同輸出不等於機制相同。
+  </p>
+</details>
+
+<h2>數據解讀陷阱</h2>
+<ul>
+  <li>12 條只是一個小樣本；0、2、3、5 條 sampled 都不能證明 25% 實作錯誤。</li>
+  <li>要驗證 rate，應用大量 root traces，計算 confidence interval，而不是看一次 console。</li>
+  <li>要驗證完整性，應檢查同一 Trace 的 parent/child sampled decisions，而不是只數 Span 總量。</li>
+  <li>要驗證 delivery，還需看 Processor、Exporter、Collector 與 backend 指標。</li>
+</ul>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. <code>DEFAULT_OFF</code> 下 instrumentation 仍呼叫 start Span，預期如何？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">不 recording、不 sampled、不 export</button>
+    <button class="choice" data-correct="false">有 recording、有 sampled、有 export</button>
+    <button class="choice" data-correct="false">有 recording、沒 sampled、有 export</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 為何 ratio case 用 ParentBased sampler？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">讓 child 遵循 parent sampling decision</button>
+    <button class="choice" data-correct="false">讓 child 重建 parent Trace ID</button>
+    <button class="choice" data-correct="false">讓 child 跳過 Span Processor</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 12 條中 sampled 不是 3 條，最合理的解釋是？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">小樣本不保證精確符合長期比例</button>
+    <button class="choice" data-correct="false">Sampler 必定遺失所有 Trace IDs</button>
+    <button class="choice" data-correct="false">Exporter 必定重寫所有 sampling flags</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0005-sampling-debug-card.html">Sampling 決策與缺 Trace debug 卡</a>。
+</div>
+
+<div class="box ask">
+<strong>有問題就問我：</strong>貼回每個 case 的摘要列與一組 sampled root/child IDs；
+我會分別檢查 decision、parent consistency 與 export，而不把三者混在一起。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0009-sampling-first-principles.html">&larr; Lesson 9: Sampling 第一性原理</a></span>
+  <span><a href="0011-collector-pipeline-first-principles.html">下一課：Collector pipeline 為何存在 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

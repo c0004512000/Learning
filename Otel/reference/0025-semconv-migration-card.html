@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Semantic Convention 遷移卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Semantic Convention 遷移卡</h1>
+<p class="subtitle">先版本化契約，再允許 producers/consumers 獨立演進</p>
+
+<ol>
+  <li>Inventory：service、scope name/version、schema URL、實際欄位。</li>
+  <li>Contract：pin target semconv/schema 與 owner。</li>
+  <li>Canary：看 raw OTLP，不只看 UI alias。</li>
+  <li>Compatibility：consumer dual-read 或單一 schema translation owner。</li>
+  <li>Rollout：按 cohort 觀察 old/new traffic 與 query correctness。</li>
+  <li>Retire：等 producers 與 retention window 都完成再刪舊查詢。</li>
+</ol>
+
+<p><strong>Schema URL：</strong>描述 producer schema identity；沒有 schema-aware translator 時，不會自動改欄位。</p>
+<p><a href="../lessons/0032-semconv-schema-evolution.html">回到 Lesson 32</a></p>
+</body>
+</html>
+

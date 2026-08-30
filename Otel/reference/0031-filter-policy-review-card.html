@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Filter Policy Review Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Filter Policy Review Card</h1>
+<p class="subtitle">Filter 的輸出是 S \ D；先定義 D，再證明不會誤刪</p>
+<ol>
+  <li><strong>Intent：</strong>要 drop 的集合能用一句正向句子描述嗎？</li>
+  <li><strong>Boolean：</strong>list 間 OR、單條內 and/or/not 與括號是否符合 truth table？</li>
+  <li><strong>Level：</strong>drop resource/span/event/metric/datapoint/log 的哪一層？</li>
+  <li><strong>Relationships：</strong>會不會造成 orphan span、partial trace 或失去 exemplar/debug evidence？</li>
+  <li><strong>Order：</strong>filter 前後的 transform、sampling、connector 哪些看得到被丟資料？</li>
+  <li><strong>Evidence：</strong>上線前後 accepted/sent、drop ratio、service/error coverage 如何比較？</li>
+  <li><strong>Rollback：</strong>規則、owner、expiry、rollback trigger 是否明確？</li>
+</ol>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

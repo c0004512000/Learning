@@ -1,0 +1,42 @@
+# Lesson 35 planning fragment. It is intentionally not executed by the lesson.
+# span_metrics is provided by the Collector contrib distribution.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+connectors:
+  span_metrics:
+    aggregation_temporality: AGGREGATION_TEMPORALITY_DELTA
+    metrics_flush_interval: 30s
+    histogram:
+      explicit:
+        buckets: [5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2s, 5s]
+    dimensions:
+      # Keep dimensions stable and bounded. Never add request_id or raw URL.
+      - name: deployment.environment.name
+      - name: http.request.method
+    aggregation_cardinality_limit: 10000
+    exemplars:
+      enabled: true
+
+exporters:
+  debug/traces:
+    verbosity: basic
+  debug/metrics:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces/source:
+      receivers: [otlp]
+      # The connector is an exporter from this trace pipeline.
+      exporters: [debug/traces, span_metrics]
+
+    metrics/derived:
+      # The same connector is a receiver into this metrics pipeline.
+      receivers: [span_metrics]
+      exporters: [debug/metrics]
+

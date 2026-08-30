@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Sampling 決策與缺 Trace debug 卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Sampling 決策與缺 Trace debug 卡</h1>
+<p class="subtitle">Sampled 是決策，不是 delivery receipt</p>
+
+<h2>三種 SDK 決策</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Decision</th><th>Record</th><th>Sample / export</th></tr></thead>
+  <tbody>
+    <tr><td>DROP</td><td>否</td><td>否</td></tr>
+    <tr><td>RECORD_ONLY</td><td>是</td><td>否</td></tr>
+    <tr><td>RECORD_AND_SAMPLE</td><td>是</td><td>是</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Head vs Tail</h2>
+<pre><code>Head：早決策、低成本、看不到最終 outcome
+Tail：晚決策、可看 errors/latency、需要 state 與 buffer</code></pre>
+
+<h2>Backend 缺 Trace：六站檢查</h2>
+<ol>
+  <li>Instrumentation 有建立 Span？</li>
+  <li>Sampler decision 是什麼？</li>
+  <li>Span 有 end，queue / flush 正常？</li>
+  <li>OTLP transport 成功？</li>
+  <li>Collector processor 有 drop？</li>
+  <li>Backend ingestion / retention / query 正確？</li>
+</ol>
+
+<div class="box">
+<strong>不變量：</strong><code>trace-flags=01</code> 表示 sampled decision；不保證 Processor、Exporter、
+Collector 或 backend 已成功處理資料。
+</div>
+
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/sampling/" target="_blank">OpenTelemetry — Sampling</a></p>
+
+<div class="lesson-nav">
+  <span><a href="../lessons/0009-sampling-first-principles.html">&larr; 回 Lesson 9</a></span>
+  <span><a href="0004-context-propagation-debug-card.html">Propagation debug 卡 &rarr;</a></span>
+</div>
+</body>
+</html>

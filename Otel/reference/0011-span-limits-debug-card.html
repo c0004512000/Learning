@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Span Limits 與缺失資料判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Span Limits 與缺失資料判斷卡</h1>
+<p class="subtitle">「看不到欄位」是一個症狀，不是一個根因</p>
+
+<ol>
+  <li>Instrumentation 是否真的呼叫 set/add？</li>
+  <li>該 Span 是否 recording，且寫入發生在 end 前？</li>
+  <li>SDK count/value-length limits 是否 discard 或 truncate？</li>
+  <li>Processor/exporter/protocol 是否保留 dropped counts 與值？</li>
+  <li>Collector processors 是否 filter/transform？</li>
+  <li>Backend ingestion/index/UI 是否另有限制？</li>
+</ol>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Evidence</th><th>較支持的假設</th></tr></thead>
+  <tbody>
+    <tr><td><code>dropped_attributes_count &gt; 0</code></td><td>collection count limit 已生效</td></tr>
+    <tr><td>值存在但尾端被截短</td><td>attribute value length limit</td></tr>
+    <tr><td>SDK output 完整、backend UI 缺少</td><td>下游 transform/index/display 邊界</td></tr>
+    <tr><td>Span 未 recording</td><td>sampling/SDK configuration，尚未進入 limit 問題</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><a href="../lessons/0018-span-limits-and-dropped-data.html">回到 Lesson 18</a></p>
+</body>
+</html>
+

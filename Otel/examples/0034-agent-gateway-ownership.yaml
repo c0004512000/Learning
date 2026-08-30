@@ -1,0 +1,37 @@
+# Architecture/ownership artifact, not executable Collector configuration.
+application:
+  sends_to: local-agent
+  owns:
+    - instrumentation semantics
+    - SDK head-sampling decision
+    - Resource service identity
+
+local-agent:
+  proximity: same-host-or-node
+  owns:
+    - host/file/container-local receivers
+    - earliest required sanitization
+    - trusted local resource enrichment
+    - bounded queue/retry to gateway
+  avoids:
+    - independent tail-sampling decisions
+    - backend credentials when centralization is required
+
+gateway-tier-1:
+  owns:
+    - shared OTLP endpoint
+    - authentication and tenant routing
+    - trace-id-aware routing to stateful samplers
+
+gateway-tier-2:
+  owns:
+    - tail sampling with complete-trace affinity
+    - centralized backend export credentials
+    - backend-specific routing and resilience
+
+global_invariants:
+  - every transformation has exactly one owner unless idempotency is proven
+  - every metric stream has one logical writer
+  - every queue has an outage and recovery budget
+  - stateful processing uses an explicit routing key
+

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Log correlation 與重複資料判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Log correlation 與重複資料判斷卡</h1>
+<p class="subtitle">先找 emission path，再找 current Context</p>
+
+<h2>沒有 trace_id</h2>
+<ol>
+  <li>Log emit 時是否真的位於 current Span 內？</li>
+  <li>Async/thread boundary 是否保留 Context？</li>
+  <li>Logging bridge 是否擷取 trace fields？</li>
+  <li>Exporter/Collector/backend mapping 是否保留？</li>
+</ol>
+
+<h2>同一 log 出現兩次</h2>
+<ol>
+  <li>同一 logger 是否有多個 handlers？</li>
+  <li><code>logger.propagate</code> 是否又送到 root handler？</li>
+  <li>是否同時 direct OTLP 與 stdout/file collection？</li>
+  <li>Collector 是否有重複 receivers/routes？</li>
+</ol>
+
+<p><a href="../lessons/0025-logs-first-principles.html">回到 Lesson 25</a></p>
+</body>
+</html>
+

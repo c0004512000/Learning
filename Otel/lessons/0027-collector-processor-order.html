@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 27: Collector Processor 順序與不變量</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>27. Collector Processor 順序與不變量</h1>
+<p class="subtitle">把 processor chain 視為有前置條件的函數合成，而不是 YAML 名單 · Lesson 27 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會以 precondition、transformation、postcondition 推導 Collector processor 順序，理解 memory limiter、sanitize/enrich/filter/sampling、batch
+為何通常有 ordering constraints；也能以資料不變量驗證 chain，而非只確認 Collector 啟動成功。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/collector/components/processor/" target="_blank">Collector Processors</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector/tree/v0.158.0/processor/memorylimiterprocessor" target="_blank">Memory Limiter Processor</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector/tree/v0.158.0/processor/batchprocessor" target="_blank">Batch Processor</a></p>
+
+<h2>第一性原理：Processor 是函數，函數通常不交換</h2>
+<pre><code>output = Batch(Sanitize(MemoryLimit(input)))
+
+通常不等於：
+output = Sanitize(MemoryLimit(Batch(input)))</code></pre>
+
+<p>
+每個 processor 讀取目前資料、可能修改/丟棄/拒絕，再交給下一個。List order 就是執行 order。
+若 B 的條件依賴 A 新增的 attribute，必須 <code>A → B</code>；若資料在 B 之前就被丟掉，A 的成本可能白付。
+</p>
+
+<h2>用三欄描述每個 transformation</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Processor</th><th>Precondition</th><th>Transformation / Postcondition</th></tr></thead>
+  <tbody>
+    <tr><td>Resource enrichment</td><td>可從環境/現有 attrs 識別 entity</td><td>補齊經驗證的 Resource identity</td></tr>
+    <tr><td>Filter/drop</td><td>判斷用欄位已存在且 normalized</td><td>不符合 policy 的 records 不再下傳</td></tr>
+    <tr><td>Sanitize/redact</td><td>已知敏感 keys/values 的位置</td><td>後續資料不再包含 forbidden content</td></tr>
+    <tr><td>Memory limiter</td><td>有明確 process memory budget</td><td>超過 soft limit 時拒絕並 backpressure</td></tr>
+    <tr><td>Batch</td><td>已決定最終要保留/送出的 records</td><td>以 size/time 將輸出組批</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+把 processors 寫成這三欄，就能從 dependency 建 order。單看名稱「filter 比 enrich 重要」沒有意義；
+要問 filter expression 是否依賴 enrich 的結果，以及哪個順序最少做無效工作。
+</p>
+
+<h2>Memory limiter 為何建議放第一個 processor？</h2>
+<p>
+Memory limiter 定期檢查 Collector process memory。超過 soft limit 時，它向前一個 pipeline component 回傳 non-permanent error，
+讓支援的 receiver retry/backpressure；超過 hard limit 還可能 force GC。放第一個 processor可更早拒絕，避免資料先經其他 processors
+產生更多 allocations/state。
+</p>
+
+<pre><code>receiver
+  → memory_limiter  ← 儘早拒絕/backpressure
+  → other transforms
+  → batch
+  → exporter</code></pre>
+
+<div class="box tip">
+<strong>它不是防 OOM 魔法：</strong>資料抵達 limiter 前已可能配置 memory；若 upstream 不重試，被拒絕資料仍會永久遺失；
+若 exporter queue/live references 持有大量資料，forced GC 也未必釋放。Capacity sizing、queue/export health 與 host/container limit 仍必要。
+</div>
+
+<h2>Batch 為何通常在 drop/sampling 後？</h2>
+<p>
+Batch 的目的在最終輸出資料上提升壓縮並減少 outgoing connections。若先 batch 再 sampling/filter，會先 buffer 最終要丟棄的 records，
+增加 memory 與等待。官方 processor 指引明確建議 batch 在 memory limiter 與 sampling processors 後。
+</p>
+
+<p>
+此外 <code>send_batch_size</code> 是觸發送出的 threshold，不是 hard maximum；若 downstream 有 payload size ceiling，
+要用 <code>send_batch_max_size</code> 強制拆分。把 trigger 誤認為 cap，可能出現「設 512 卻送出更大 batch」的困惑。
+</p>
+
+<h2>Sanitize 應在 buffer 與任何 sink 之前</h2>
+<p>
+若 policy 禁止 authorization header 離開 ingress，刪除動作應在 batch queue、debug exporter 與 production exporter 前。
+即使最終 exporter 前會刪，若先 batch，敏感值仍曾停留 queue/memory；若先 debug exporter，則已洩漏到 Collector log。
+</p>
+
+<pre><code>memory_limiter
+  → attributes/sanitize
+  → sampling/filter（若有）
+  → batch
+  → exporters</code></pre>
+
+<p>
+但若 sanitize key 必須先經 normalization 才能辨識，normalization 又成為 sanitize 的 precondition。
+正確作法是最小化原始敏感資料的停留，並以實際 field path 測試，不是死背固定清單。
+</p>
+
+<h2>閱讀最小有序 config</h2>
+<p>範例位於 <a href="../examples/0027-processor-order.yaml"><code>examples/0027-processor-order.yaml</code></a>：</p>
+
+<pre><code>processors:
+  memory_limiter: ...
+  attributes/sanitize: ...
+  batch: ...
+
+service:
+  pipelines:
+    traces:
+      processors: [memory_limiter, attributes/sanitize, batch]</code></pre>
+
+<p>
+Declarations 的 YAML 順序不決定 execution；真正順序是 pipeline list。範例只做 host-local 靜態教材，沒有執行；
+memory values 與 batch sizes 不是 production sizing recommendation。
+</p>
+
+<h2>用不變量驗證，不只看「啟動成功」</h2>
+<ol>
+  <li><strong>Identity：</strong><code>service.name</code> 等必要 Resource 欄位仍存在且正確。</li>
+  <li><strong>Correlation：</strong>trace/span IDs、Log correlation、Exemplars 未被不當破壞。</li>
+  <li><strong>Security：</strong>forbidden headers/PII 在任何 exporter 前已不存在。</li>
+  <li><strong>Signal semantics：</strong>Metric unit/temporality、Span kind/status、Log timestamp/severity 未被錯改。</li>
+  <li><strong>Volume：</strong>filter/sampling 後 retained/drop counts 符合預期。</li>
+  <li><strong>Resilience：</strong>limiter/refusal/retry、batch/export latency 有 internal telemetry evidence。</li>
+</ol>
+
+<p>
+Config validation 只能證明 schema/references 等結構；以上 postconditions 需要 deterministic test telemetry 與 processor/export evidence。
+</p>
+
+<h2>SRE debugging lab：處理後資料為何不符預期？</h2>
+
+<h3>Case A：Filter 把所有資料丟掉</h3>
+<p>
+檢查 expression 依賴的 attribute 在 filter 前是否已存在、type 是否相同、normalization 是否在後面才做，以及 include/exclude 邏輯是否反轉。
+用一筆固定 test record，逐個 processor 推導 state，不從最終空結果猜。
+</p>
+
+<h3>Case B：Authorization 仍出現在 debug output</h3>
+<p>
+確認實際 key/path/case、sanitize instance 是否被該 pipeline 引用、其順序是否在 debug exporter 前，以及資料是否走另一條未 sanitize pipeline。
+立即停止把真實 secrets 寫 debug；用 synthetic marker 驗證修正。
+</p>
+
+<h3>Case C：Memory limiter 反覆觸發</h3>
+<p>
+查看 input rate、processor/exporter queue、downstream outage、process/host memory limit、GC effectiveness 與 receiver retry/drop。
+直接提高 limit 可能只延後 OOM；先找 live state owner 與 sustained arrival/drain imbalance。
+</p>
+
+<details>
+  <summary>練習：為五個 processors 排序</summary>
+  <p>候選：memory limiter、Kubernetes enrichment、filter production only、PII sanitize、batch。</p>
+  <p>先畫依賴：filter 需要 enrichment 的 environment；sanitize 不需該欄位。提出順序並說明每一步 pre/postcondition，
+再討論 sanitize 是否應在 enrichment 前以縮短敏感資料停留。</p>
+</details>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. Pipeline list 中 A 在 B 前，最重要的含義是？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">B 接收的是 A 已轉換／過濾後的資料</button>
+    <button class="choice" data-correct="false">Top-level declaration 會被 B 覆寫</button>
+    <button class="choice" data-correct="false">A 與 B 一定可交換</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. 為何 batch 通常在 sampling/filter 後？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">避免先 buffer 最終會被丟棄的資料</button>
+    <button class="choice" data-correct="false">Batch 會決定 Trace ID</button>
+    <button class="choice" data-correct="false">Filter 只能讀 batch size</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. <code>send_batch_size=512</code> 是否保證 batch 最大只有 512？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">不保證；它是 trigger，hard cap 要看 send_batch_max_size</button>
+    <button class="choice" data-correct="false">保證；任何情況都不會超過</button>
+    <button class="choice" data-correct="false">它代表 512 MiB memory limit</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="box tip">
+<strong>快速參考：</strong><a href="../reference/0020-processor-order-card.html">Collector Processor 順序判斷卡</a>。
+</div>
+
+<div class="box ask">
+<strong>回傳給我的練習：</strong>貼一條你現有／理想的 processor chain；為每個 component 寫 precondition、transformation、postcondition，
+並指出哪兩個互換後會改變結果以及具體原因。
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0026-collector-multisignal-pipelines.html">&larr; Lesson 26: 多信號 pipelines</a></span>
+  <span><a href="0028-collector-resilience-queues-retries.html">下一課：Collector queues、retries 與故障時資料命運 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

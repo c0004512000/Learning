@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Routing Proof Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Routing Proof Card</h1>
+<p class="subtitle">對每種代表性輸入，算出 ordered evaluation 與 destination set</p>
+<ol>
+  <li>列出 input identity、signal、metadata 與缺值情況。</li>
+  <li>依 table order 評估每條 predicate。</li>
+  <li><code>copy</code>：加入 destination，原資料繼續；<code>move</code>：加入 destination，停止後續評估。</li>
+  <li>未被 move 的剩餘資料，確認是否進入 <code>default_pipelines</code>。</li>
+  <li>記下可能 destination set、duplicate、zero-route 與 error fallback。</li>
+  <li>確認每個目的 pipeline 都以同一 connector 為 receiver，且 signal 型別一致。</li>
+  <li>安全路由只採信已驗證 identity；app 可自行填的 attribute 不等於 authorization。</li>
+</ol>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

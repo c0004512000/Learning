@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 37: OTTL 第一性原理</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>37. OTTL 第一性原理</h1>
+<p class="subtitle">把每條語句視為：在特定 telemetry context 中，符合條件才執行的一次 mutation · Lesson 37 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 OTel 巢狀資料模型推導 OTTL 的 context、path、editor/converter、condition、statement order 與 error mode；
+能在不執行設定的情況下追蹤 mutation，並知道 production rollout 前要證明哪些 invariants。
+</p>
+<p class="cite">主要來源：<a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl" target="_blank">OTTL</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/LANGUAGE.md" target="_blank">OTTL Language</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/transformprocessor/README.md" target="_blank">Transform Processor</a></p>
+
+<h2>第一性原理：Telemetry 不是扁平 key-value</h2>
+<p>一個 span 所處的資料大致有多層 ownership：</p>
+
+<pre><code>Resource attributes        service/process/host identity
+  └─ Scope attributes     instrumentation library identity
+      └─ Span             operation fields + span attributes
+          └─ Span Event   event fields + event attributes</code></pre>
+
+<p>
+Metrics 也有 resource → scope → metric → datapoint；logs 則有 resource → scope → log record。
+相同字串 key 若位於不同層，就有不同生命週期與語意。修改 <code>resource.attributes["service.name"]</code>
+與修改 <code>span.attributes["service.name"]</code> 不是同一件事。
+</p>
+
+<p>OTTL（OpenTelemetry Transformation Language）是一個 telemetry-specific DSL，不是通用程式語言。其核心模型可簡化為：</p>
+
+<pre><code>statement = editor(target, value...) [where boolean_expression]
+
+for each item in the chosen context:
+  if condition is absent or true:
+    mutate the item</code></pre>
+
+<h2>Context 決定「現在的一筆」與可見 Paths</h2>
+<p>
+Context 不只控制可讀欄位，也控制 statement 被執行的粒度。Span context 通常對每個 span 評估；datapoint context 對每個 datapoint；
+resource context 則位於更高層。Transform processor 允許的常見 path prefixes 為：
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Statement group</th><th>可用的主要 contexts</th><th>例子</th></tr></thead>
+  <tbody>
+    <tr><td><code>trace_statements</code></td><td>resource、scope、span、spanevent</td><td><code>span.name</code></td></tr>
+    <tr><td><code>metric_statements</code></td><td>resource、scope、metric、datapoint</td><td><code>datapoint.attributes["region"]</code></td></tr>
+    <tr><td><code>log_statements</code></td><td>resource、scope、log</td><td><code>log.body</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+因此把 <code>span.attributes</code> 放進 <code>log_statements</code> 不是「找不到 key」而已，而是 context/path 不相容。
+有些 components 會 inference context；複雜規則仍應先明確寫下希望的 evaluation unit。
+</p>
+
+<h2>Path：指向欄位，不是隨意的字串</h2>
+<pre><code>resource.attributes["service.name"]
+span.name
+span.attributes["http.request.method"]
+log.body
+datapoint.attributes["host.name"]</code></pre>
+
+<p>
+點號通常分隔結構欄位；方括號用 key/index 存取 map/slice。Map key 不存在時通常得到 <code>nil</code>，
+所以可用 <code>where ... == nil</code> 做 defaulting。但 nil、string、int、map 不是同一型別；function 對錯型別可能回 error。
+</p>
+
+<h2>Editor 改資料，Converter 算出值</h2>
+<p>一條 OTTL statement 有一個主要 editor invocation；converter 可嵌在 argument 中提供值：</p>
+
+<pre><code>set(
+  span.attributes["http.request.method"],
+  ConvertCase(span.attributes["http.request.method"], "upper")
+) where span.attributes["http.request.method"] != nil</code></pre>
+
+<p>
+<code>set</code> 是 editor：改變 target。<code>ConvertCase</code> 是 converter：讀 input、回傳新值。
+可用 functions 由使用 OTTL 的 component 提供；看見網路上的 OTTL function 範例，不代表你的 component/distribution/version 一定支援。
+</p>
+
+<h2>Condition：控制 mutation domain</h2>
+<p><code>where</code> 應被理解為 predicate，不是註解：</p>
+
+<pre><code>set(resource.attributes["deployment.environment.name"], "unknown")
+where resource.attributes["deployment.environment.name"] == nil</code></pre>
+
+<p>
+這條語句保存既有值，只填 missing。若移除 condition，所有 environments 都被改成 unknown，破壞 identity。
+Boolean expressions 支援 <code>not</code>、<code>and</code>、<code>or</code> 與括號；其中 <code>not</code> 優先於 <code>and</code>，<code>and</code> 優先於 <code>or</code>。
+Production 規則應用括號表達意圖，不依賴讀者記 precedence。
+</p>
+
+<h2>Statement Order：每一步都讀前一步的結果</h2>
+<p>範例 <a href="../examples/0037-ottl-transform.yaml"><code>examples/0037-ottl-transform.yaml</code></a> 先 copy 再 delete：</p>
+
+<pre><code>before: user.tier = "gold", app.user_tier missing
+1 copy: app.user_tier = "gold"
+2 delete: user.tier missing
+after:  app.user_tier = "gold"</code></pre>
+
+<p>
+若順序反轉，第二步再讀 <code>user.tier</code> 只會得到 nil，rename 失敗。
+所以多條 statements 是 state transition sequence；review 時要逐步更新 state，不可把每條當成同時執行。
+</p>
+
+<h2>Error Mode 是資料可靠性政策</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Mode</th><th>遇到 statement error</th><th>主要 trade-off</th></tr></thead>
+  <tbody>
+    <tr><td><code>ignore</code></td><td>記錄 error，繼續後續 statement</td><td>可用性高，但可能輸出部分轉換資料</td></tr>
+    <tr><td><code>silent</code></td><td>不記 error，繼續</td><td>噪音低，但規則失效可能長期不可見</td></tr>
+    <tr><td><code>propagate</code></td><td>把 error 回傳 pipeline</td><td>fail closed；可能造成整個 payload dropped</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+Transform processor 目前 top-level 預設為 <code>ignore</code>，但不要依賴未寫出的 default；明確選擇並寫出理由。
+像 normalization 常偏向 ignore + observable errors；法規要求的 secret removal 可能偏向 propagate/fail closed，避免未清洗資料外送。
+沒有單一 mode 永遠正確，決策取決於「錯時寧願 loss 還是寧願不完整 mutation」。
+</p>
+
+<h2>Transform、Filter、Routing 的意圖不同</h2>
+<ul>
+  <li><strong>Transform：</strong>保留 telemetry item，但修改/新增/刪除欄位。</li>
+  <li><strong>Filter：</strong>predicate 命中時丟棄 item；其條件語意常是 OR，必須讀 component 文件。</li>
+  <li><strong>Routing：</strong>predicate 決定 item 前往哪條 pipeline；不等於 field mutation。</li>
+</ul>
+
+<p>
+三者都可使用 OTTL，不代表語意相同。OTTL 提供 expression language；component 定義「expression 結果拿來做什麼」。
+</p>
+
+<h2>SRE 附加練習：規則上線後 Service 消失</h2>
+<p>假設 backend 中某些 services 不再出現，Collector 仍 running。用因果順序查：</p>
+
+<ol>
+  <li>取得 rollout 前後 exact statements、component/version、error mode 與 pipeline order。</li>
+  <li>選一筆可重現 input，寫出 resource/scope/span 的初始 state。</li>
+  <li>逐 statement 評估 context、condition、input type 與 mutation 後 state。</li>
+  <li>確認是否誤改/刪 <code>service.name</code>、是否產生空值或高 cardinality identity。</li>
+  <li>檢查 OTTL errors 與 processor accepted/dropped evidence；短時間 debug logging 可能顯示 initial/after TransformContext，但非常 verbose 且可能含敏感資料。</li>
+  <li>先 canary 修復，用 invariant 驗證「每筆 resource 都有合法 service.name」，再逐步 rollout。</li>
+</ol>
+
+<div class="box warning">
+OTTL debug context 可能包含完整 telemetry attributes/body。只在受控環境短時間啟用，限制存取與 retention，並先考慮資料敏感性。
+</div>
+
+<p>Review 時可使用 <a href="../reference/0030-ottl-review-card.html">OTTL Review Card</a>。</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>對範例的四條 trace statements，手算 input：<code>user.tier=gold</code>、method=<code>get</code>、environment missing 的 final state。</li>
+  <li>把 copy/delete 順序反轉，再手算一次；說明哪個 invariant 被破壞。</li>
+  <li>令 method 是整數 7，推理 converter error 在 ignore 與 propagate 下對 payload 的差異。</li>
+  <li>為 sanitize processor 寫三列 truth table：token present、email restricted、兩者都 missing。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>1. 為什麼 OTTL context 不只是 path 的前綴？</strong></p>
+  <label><input type="radio" name="q1" value="a"> 它只決定 YAML 縮排</label><br>
+  <label><input type="radio" name="q1" value="b"> 它決定 evaluation unit、可見欄位與可修改 target</label><br>
+  <label><input type="radio" name="q1" value="c"> 它只選擇 exporter endpoint</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>2. Rename attribute 最安全的基本順序是？</strong></p>
+  <label><input type="radio" name="q2" value="a"> 先把舊值 set 到新 key，確認條件後再 delete 舊 key</label><br>
+  <label><input type="radio" name="q2" value="b"> 先 delete 舊 key，再從舊 key 讀值</label><br>
+  <label><input type="radio" name="q2" value="c"> 順序完全不影響</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>3. 對必須阻止 secret 外送的 mutation，選 error mode 時最重要的是？</strong></p>
+  <label><input type="radio" name="q3" value="a"> 永遠選 silent</label><br>
+  <label><input type="radio" name="q3" value="b"> 永遠選 ignore</label><br>
+  <label><input type="radio" name="q3" value="c"> 明確決定 error 時容許未清洗資料或寧願 drop，並監控該結果</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>OTTL statement 是特定 context 中、可帶 condition 的 mutation。</li>
+  <li>Context、path 與型別共同決定一條語句能否正確讀寫資料。</li>
+  <li>Statements 依序改變 state；error mode 決定錯誤時的 loss/partial-transform policy。</li>
+  <li>OTTL 是 expression DSL；transform、filter、routing 各自賦予結果不同操作語意。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0036-otel-configuration-model.html">← Lesson 36</a>
+  <a href="0038-filtering-first-principles.html">Lesson 38：Filtering 第一性原理 →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

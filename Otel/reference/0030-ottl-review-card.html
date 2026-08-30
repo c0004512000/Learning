@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>OTTL Review Card</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>OTTL Review Card</h1>
+<p class="subtitle">每條 statement 都回答六個問題</p>
+<ol>
+  <li><strong>Context：</strong>目前迭代的是 resource、span、spanevent、metric、datapoint 還是 log？</li>
+  <li><strong>Target：</strong>哪個 path 會被修改或刪除？</li>
+  <li><strong>Input type：</strong>function 期待什麼型別；nil/錯型別時怎樣？</li>
+  <li><strong>Condition：</strong><code>where</code> 為 false 時必須保持什麼不變？</li>
+  <li><strong>Order：</strong>前一條 mutation 是否改變後一條的 input/condition？</li>
+  <li><strong>Error mode：</strong>ignore、silent、propagate 對可見性與 loss 的影響？</li>
+</ol>
+<p><strong>安全檢查：</strong>用代表性、missing、錯型別、敏感值、極端 cardinality 五組輸入做 truth table。</p>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
+

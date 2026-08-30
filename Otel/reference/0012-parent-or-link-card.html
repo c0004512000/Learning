@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Parent 還是 Link 判斷卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<h1>Parent 還是 Link？</h1>
+<p class="subtitle">先描述 causality，再選 telemetry topology</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>情境</th><th>較合理的模型</th><th>原因</th></tr></thead>
+  <tbody>
+    <tr><td>同步 nested call</td><td>Parent/child</td><td>單一主要執行脈絡</td></tr>
+    <tr><td>一則 message 延續原工作，保留同一 Trace</td><td>Extracted context 作 parent</td><td>跨 process continuation</td></tr>
+    <tr><td>多則 messages 合成一個 batch</td><td>新 Span + multiple Links</td><td>多個 causal inputs，parent 只能一個</td></tr>
+    <tr><td>延遲／獨立排程的新工作</td><td>新 Trace + Link（視語意）</td><td>保留關聯但不偽裝成單一 nested lifetime</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>檢查：</strong>Link 不會改變新 Span 的 trace ID，也不把 linked Span 變成 parent。</p>
+<p><a href="../lessons/0019-links-causality.html">回到 Lesson 19</a></p>
+</body>
+</html>
+

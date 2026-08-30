@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 40: OTLP Security Boundaries</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>40. OTLP Security Boundaries</h1>
+<p class="subtitle">加密、完整性、peer identity、authorization 與 availability 是不同問題 · Lesson 40 of N</p>
+
+<h2>本課成果</h2>
+<p>
+你會從 threat model 推導 OTLP receiver/exporter 的 TLS、mTLS、authentication 與 network exposure；
+能解釋 <code>insecure</code>、<code>insecure_skip_verify</code>、CA/cert/key 的方向性，並分層定位連線、TLS、auth、protocol 與 pipeline 問題。
+</p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/security/" target="_blank">OpenTelemetry Security</a>、<a href="https://opentelemetry.io/docs/security/config-best-practices/" target="_blank">Collector Configuration Security</a>、<a href="https://github.com/open-telemetry/opentelemetry-collector/blob/main/config/configtls/README.md" target="_blank">Collector TLS Configuration</a>、<a href="https://opentelemetry.io/docs/collector/extend/custom-component/extension/authenticator/" target="_blank">Authenticator Architecture</a></p>
+
+<h2>第一性原理：先列 Asset、Adversary、Guarantee</h2>
+<p>Telemetry 可能包含 service topology、user identifiers、query fragments、errors、tokens 或商業事件。對一條 OTLP hop，先問：</p>
+
+<ul>
+  <li><strong>Confidentiality：</strong>旁觀者能否讀 payload？</li>
+  <li><strong>Integrity：</strong>傳輸中能否被竄改而不被發現？</li>
+  <li><strong>Server identity：</strong>client 是否真的連到預期 Collector/backend？</li>
+  <li><strong>Client identity：</strong>receiver 是否知道誰在送？</li>
+  <li><strong>Authorization：</strong>該 identity 被允許送哪些 signal/tenant/volume？</li>
+  <li><strong>Availability：</strong>誰能耗盡 connection、CPU、memory、queue？</li>
+</ul>
+
+<p>
+沒有單一開關同時回答所有問題。TLS 主要提供 encrypted/integrity-protected channel 與 server authentication；
+mTLS 再讓 server 驗證 client certificate。Bearer/OIDC 等 authenticator 可建立應用層 principal；authorization、rate limit、data minimization 仍需額外 policy。
+</p>
+
+<h2>單向 TLS：Client 驗證 Server</h2>
+<pre><code>Client                              Server
+  -- ClientHello -------------------->
+  <- certificate + proof ------------
+  verify chain + hostname/SAN
+  == encrypted channel established ==</code></pre>
+
+<p>
+Client 使用 trusted root CA 驗證 server certificate chain，並驗證連線 hostname 是否在 certificate SAN 中。
+成功後能合理相信 endpoint identity，且後續 payload 加密/完整性保護。它不代表 server 知道 client 是誰；任何能連線的 client 仍可能送資料。
+</p>
+
+<h2>mTLS：Server 也驗證 Client Certificate</h2>
+<pre><code>Client cert/key                    Server cert/key
+       \                              /
+        mutual certificate verification
+                 ↓
+        encrypted authenticated channel</code></pre>
+
+<p>
+Receiver 的 <code>client_ca_file</code> 指定用來驗證 client certificate 的 CA，並要求/驗證 client cert。
+Exporter 作為 client 時，<code>cert_file</code> + <code>key_file</code> 提供 client identity；<code>ca_file</code> 則用來驗證 server。
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>位置</th><th>檔案</th><th>用途</th></tr></thead>
+  <tbody>
+    <tr><td>Receiver/server</td><td>server cert + private key</td><td>向 clients 證明 server identity</td></tr>
+    <tr><td>Receiver/server</td><td>client CA</td><td>驗證 incoming client certificates</td></tr>
+    <tr><td>Exporter/client</td><td>server CA</td><td>驗證 backend certificate</td></tr>
+    <tr><td>Exporter/client</td><td>client cert + private key</td><td>backend 要求 mTLS 時證明 client identity</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>閱讀 <a href="../examples/0040-otlp-mtls-boundary.yaml"><code>examples/0040-otlp-mtls-boundary.yaml</code></a>；它只含 placeholder paths，本課不執行 Collector，也不包含真實 keys。</p>
+
+<h2><code>insecure</code> 與 <code>insecure_skip_verify</code> 不同</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Client setting</th><th>Encryption</th><th>Server certificate verification</th><th>主要風險</th></tr></thead>
+  <tbody>
+    <tr><td>正常 TLS</td><td>有</td><td>有</td><td>需正確 CA/SAN/clock</td></tr>
+    <tr><td><code>insecure: true</code></td><td>無</td><td>無</td><td>明文與竄改風險</td></tr>
+    <tr><td><code>insecure_skip_verify: true</code></td><td>有</td><td>跳過</td><td>不能可靠辨識 server，可能遭 MITM</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+「有加密」不等於「加密給正確對象」。<code>insecure_skip_verify</code> 常讓測試暫時通過，卻把 trust failure 隱藏掉；
+Production 修復應補正 CA chain、SAN、DNS 或 clock，而不是永久跳過 verification。
+</p>
+
+<h2>Authentication Extension 的位置</h2>
+<p>
+Collector authenticators 由 extensions 實作。Server authenticator 掛到 receiver，攔截 incoming HTTP/gRPC request；
+client authenticator 掛到 exporter，替 outgoing request 加 authentication material。只有在 distribution 包含 extension、
+<code>service.extensions</code> 啟用，且 receiver/exporter reference 它時才有效。
+</p>
+
+<p>
+Token-based auth 必須搭配 TLS，否則 bearer token 可能被網路旁觀者取得。mTLS certificate verified 也只建立 certificate principal；
+是否允許該 principal 寫 tenant A、最大 rate 為何、certificate revocation/rotation 怎麼做，是 authorization/lifecycle policy。
+</p>
+
+<h2>Bind Address 是 Attack Surface</h2>
+<p>
+Receiver bind <code>127.0.0.1</code>、Pod IP、node interface 或 <code>0.0.0.0</code>，決定哪些 network paths 能到達它。
+官方安全建議是只 bind 所需 interface，並搭配 firewall/network policy/auth；現行 Collector server default 已傾向 localhost，
+但 deployment manifests 常顯式改回 broad bind。
+</p>
+
+<p>
+TLS/auth 不能阻止所有 authenticated client 發送過量 payload。還需要 connection/request size/concurrency controls、memory limiter、bounded queues、
+resource limits 與 internal telemetry。Security 包含 availability，不只 confidentiality。
+</p>
+
+<h2>TLS 不會清洗 Payload</h2>
+<p>
+TLS 保護資料在 hop 上傳輸，backend 解密後仍看得到完整內容。若 span/log 含 password、session token、PII，TLS 不會讓它變安全資料。
+正確順序是 data minimization at source，必要時在可信邊界內 redaction/transform，再經 authenticated encrypted channel 送出。
+</p>
+
+<pre><code>collect minimum → sanitize in trusted boundary → authorize destination → encrypt in transit</code></pre>
+
+<h2>Certificate Rotation 是時間問題</h2>
+<p>
+Certificates 有 not-before/not-after，keys/CA 也會輪替。Rotation 設計需回答：新舊 trust bundle 重疊多久、cert/key 是否原子更新、
+component 是否 reload、既有 connection 何時重建、clock skew 多大、失敗如何 rollback。
+只測「今天能 handshake」不能證明下週 rotation 安全。
+</p>
+
+<h2>SRE 附加練習：分層定位 OTLP 連線失敗</h2>
+<p>不要先改成 insecure。依最底層可證明 boundary 往上查：</p>
+
+<ol>
+  <li><strong>Name/route：</strong>client 實際解析哪個 IP/port？Service/proxy/network policy 指向誰？</li>
+  <li><strong>TCP：</strong>receiver 是否 bind 正確 interface；是 refused、timeout 還是 reset？</li>
+  <li><strong>TLS：</strong>版本、CA chain、SAN/hostname、有效期、clock、client cert/key 是否匹配。</li>
+  <li><strong>Authentication：</strong>server 是否接受 principal/token；401/Unauthenticated 與 TLS handshake failure 不同。</li>
+  <li><strong>OTLP protocol：</strong>gRPC/HTTP、4317/4318、path、content type、compression 是否一致。</li>
+  <li><strong>Pipeline：</strong>receiver accepted 後，processor/filter/exporter 是否 drop/fail/retry。</li>
+</ol>
+
+<p>
+每層保留 timestamp、client/server identity、endpoint 與 error class，但不要把 token/private key/完整敏感 payload 貼入 ticket。
+可使用 <a href="../reference/0033-otlp-connection-debug-card.html">OTLP Connection Debug Card</a>。
+</p>
+
+<h2>動手推理（不執行）</h2>
+<ol>
+  <li>在範例中標出哪個 CA 驗證 client、哪個 CA 驗證 backend server，以及兩把 private keys 各屬於誰。</li>
+  <li>情境：certificate chain trusted，但 SAN 只有 <code>collector.internal</code>，client 連 <code>10.0.0.8</code>。指出失敗 guarantee 與正確修復方向。</li>
+  <li>情境：TLS 成功但 server 回 Unauthenticated。說明為何跳過 certificate verification 無法修好應用層 auth。</li>
+  <li>為 CA rotation 畫 old-only → overlap → new-only 三階段，列出每階段 client/server trust requirement。</li>
+</ol>
+
+<h2>理解檢查</h2>
+<div class="quiz" data-quiz data-answer="b">
+  <p><strong>1. 單向 TLS 成功最直接證明什麼？</strong></p>
+  <label><input type="radio" name="q1" value="a"> Server 已授權 client 可寫任何 tenant</label><br>
+  <label><input type="radio" name="q1" value="b"> Client 驗證 server identity，且 channel 有加密與完整性保護</label><br>
+  <label><input type="radio" name="q1" value="c"> Payload 不含敏感資料</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="c">
+  <p><strong>2. <code>insecure_skip_verify: true</code> 的關鍵風險是？</strong></p>
+  <label><input type="radio" name="q2" value="a"> 一定完全不加密</label><br>
+  <label><input type="radio" name="q2" value="b"> 自動啟用 mTLS</label><br>
+  <label><input type="radio" name="q2" value="c"> 雖可能加密，但 server identity 未可靠驗證，可能連到冒充者</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<div class="quiz" data-quiz data-answer="a">
+  <p><strong>3. Receiver 端 <code>client_ca_file</code> 的作用是？</strong></p>
+  <label><input type="radio" name="q3" value="a"> 驗證 incoming client certificate，要求/驗證 client cert</label><br>
+  <label><input type="radio" name="q3" value="b"> 替所有 telemetry 自動刪除 PII</label><br>
+  <label><input type="radio" name="q3" value="c"> 決定 trace sampling rate</label><br>
+  <button type="button">檢查</button><span class="feedback"></span>
+</div>
+
+<h2>本課總結</h2>
+<ul>
+  <li>Confidentiality、integrity、server/client identity、authorization、availability 是不同 guarantees。</li>
+  <li>TLS 驗 server；mTLS 再驗 client；authorization 與 payload sanitization 仍需獨立設計。</li>
+  <li><code>insecure</code> 關掉 TLS；<code>insecure_skip_verify</code> 移除 server verification，兩者都不是 production 修復。</li>
+  <li>除錯順序是 network → TLS → auth → OTLP → pipeline，保留證據且不洩漏 credentials。</li>
+</ul>
+
+<nav class="lesson-nav">
+  <a href="0039-routing-first-principles.html">← Lesson 39</a>
+  <a href="0041-otlp-delivery-semantics.html">Lesson 41：OTLP Delivery Semantics →</a>
+</nav>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
