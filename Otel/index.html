@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="OpenTelemetry learning notes, lessons, and experiments.">
+  <title>Otel / Learning Log</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #080b10;
+      --panel: #10161f;
+      --panel-2: #131d27;
+      --line: #263543;
+      --muted: #8ea1ad;
+      --text: #e8f0f2;
+      --cyan: #72f1dc;
+      --cyan-dim: #1d8f89;
+      --amber: #ffc857;
+      --danger: #ff7f66;
+      --shadow: 0 24px 80px rgba(0,0,0,.35);
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 88% 6%, rgba(114,241,220,.09), transparent 28rem),
+        radial-gradient(circle at 5% 38%, rgba(255,200,87,.06), transparent 25rem),
+        var(--bg);
+      font-family: "DM Sans", system-ui, sans-serif;
+    }
+    a { color: inherit; }
+    .shell { width: min(1160px, calc(100% - 40px)); margin: 0 auto; }
+    .topbar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 28px 0; border-bottom: 1px solid rgba(142,161,173,.18);
+    }
+    .brand { display: flex; gap: 12px; align-items: center; text-decoration: none; }
+    .mark {
+      width: 29px; height: 29px; border: 1px solid var(--cyan); border-radius: 50%;
+      position: relative; box-shadow: 0 0 26px rgba(114,241,220,.22);
+    }
+    .mark::before, .mark::after {
+      content: ""; position: absolute; left: 5px; right: 5px; height: 1px;
+      background: var(--cyan); transform: rotate(32deg);
+    }
+    .mark::before { top: 10px; } .mark::after { top: 17px; transform: rotate(-32deg); }
+    .brand strong { font-family: "Space Mono", monospace; font-size: .86rem; letter-spacing: .12em; }
+    .brand span, .eyebrow, .mono { font-family: "Space Mono", monospace; }
+    .brand span { color: var(--muted); font-size: .72rem; }
+    .toplink { color: var(--muted); font-size: .82rem; text-decoration: none; }
+    .toplink:hover { color: var(--cyan); }
+    .hero { padding: clamp(64px, 11vw, 132px) 0 78px; display: grid; grid-template-columns: 1.25fr .75fr; gap: 58px; align-items: end; }
+    .eyebrow { color: var(--cyan); font-size: .71rem; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { max-width: 760px; margin: 18px 0 22px; font-size: clamp(3.2rem, 8vw, 7.5rem); line-height: .91; letter-spacing: -.075em; font-weight: 700; }
+    h1 em { color: var(--cyan); font-style: normal; }
+    .lede { max-width: 590px; color: #b6c5c9; font-size: clamp(1rem, 2vw, 1.18rem); line-height: 1.7; }
+    .signal-card {
+      border: 1px solid var(--line); background: linear-gradient(145deg, rgba(19,29,39,.94), rgba(9,13,18,.9));
+      box-shadow: var(--shadow); padding: 22px; position: relative; overflow: hidden;
+    }
+    .signal-card::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 23px, rgba(114,241,220,.045) 24px 25px); pointer-events: none; }
+    .signal-head { display: flex; justify-content: space-between; color: var(--muted); font: .68rem "Space Mono", monospace; letter-spacing: .1em; }
+    .pulse { color: var(--cyan); }
+    .wave { height: 104px; display: flex; align-items: center; gap: 4px; margin: 18px 0; }
+    .wave i { display: block; width: 4px; background: var(--cyan); opacity: .75; animation: breathe 1.8s ease-in-out infinite; }
+    .wave i:nth-child(3n) { background: var(--amber); }
+    .wave i:nth-child(1) { height: 18%; } .wave i:nth-child(2) { height: 42%; } .wave i:nth-child(3) { height: 68%; }
+    .wave i:nth-child(4) { height: 32%; } .wave i:nth-child(5) { height: 84%; } .wave i:nth-child(6) { height: 52%; }
+    .wave i:nth-child(7) { height: 22%; } .wave i:nth-child(8) { height: 62%; } .wave i:nth-child(9) { height: 94%; }
+    .wave i:nth-child(10) { height: 46%; } .wave i:nth-child(11) { height: 28%; } .wave i:nth-child(12) { height: 72%; }
+    .wave i:nth-child(13) { height: 36%; } .wave i:nth-child(14) { height: 58%; } .wave i:nth-child(15) { height: 86%; }
+    @keyframes breathe { 50% { transform: scaleY(.55); opacity: .38; } }
+    .signal-foot { color: var(--muted); font: .72rem "Space Mono", monospace; }
+    .signal-foot b { color: var(--text); font-weight: 400; }
+    .index-section { border-top: 1px solid rgba(142,161,173,.2); padding: 28px 0 100px; }
+    .section-head { display: flex; justify-content: space-between; gap: 20px; align-items: end; margin-bottom: 22px; }
+    h2 { margin: 0; font-size: clamp(1.55rem, 3vw, 2.2rem); letter-spacing: -.04em; }
+    .section-note { color: var(--muted); font-size: .88rem; line-height: 1.5; max-width: 390px; text-align: right; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 28px; }
+    .count { color: var(--muted); font: .72rem "Space Mono", monospace; }
+    .search {
+      width: min(330px, 100%); border: 1px solid var(--line); background: #0c1219; color: var(--text);
+      padding: 12px 14px; font: .8rem "Space Mono", monospace; outline: none;
+    }
+    .search:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(114,241,220,.11); }
+    .groups { display: grid; gap: 28px; }
+    .group-label { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; color: var(--muted); font: .72rem "Space Mono", monospace; text-transform: uppercase; letter-spacing: .08em; }
+    .group-label::before { content: ""; width: 22px; height: 1px; background: var(--cyan-dim); }
+    .lesson-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+    .lesson {
+      display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 76px;
+      padding: 16px 18px; border: 1px solid var(--line); background: rgba(16,22,31,.78);
+      text-decoration: none; transition: border-color .18s, transform .18s, background .18s;
+    }
+    .lesson:hover { border-color: var(--cyan-dim); background: var(--panel-2); transform: translateY(-2px); }
+    .lesson:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+    .lesson-title { font-size: .98rem; font-weight: 600; }
+    .lesson-path { margin-top: 6px; color: var(--muted); font: .67rem "Space Mono", monospace; overflow-wrap: anywhere; }
+    .arrow { color: var(--cyan); font-size: 1.25rem; }
+    .state { border: 1px dashed var(--line); padding: 32px; color: var(--muted); line-height: 1.65; }
+    .state strong { color: var(--text); }
+    footer { padding: 22px 0 32px; border-top: 1px solid rgba(142,161,173,.18); color: var(--muted); font: .68rem "Space Mono", monospace; display: flex; justify-content: space-between; gap: 20px; }
+    @media (max-width: 820px) {
+      .hero { grid-template-columns: 1fr; gap: 42px; padding-top: 74px; }
+      h1 { max-width: 620px; }
+      .section-head, .toolbar { align-items: flex-start; flex-direction: column; }
+      .section-note { text-align: left; }
+      .search { width: 100%; }
+    }
+    @media (max-width: 560px) {
+      .shell { width: min(100% - 28px, 1160px); }
+      .topbar { padding: 20px 0; }
+      .brand span, .toplink { display: none; }
+      .hero { padding: 60px 0 58px; }
+      h1 { font-size: clamp(3rem, 17vw, 5rem); }
+      .lesson-list { grid-template-columns: 1fr; }
+      footer { flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="./">
+        <span class="mark" aria-hidden="true"></span>
+        <strong>OTEL</strong>
+        <span>/ learning log</span>
+      </a>
+      <a class="toplink" href="https://github.com/c0004512000/Learning-Repo" target="_blank" rel="noreferrer">view repository ↗</a>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <div class="eyebrow">OpenTelemetry / field notes</div>
+          <h1>Trace the signal.<br><em>Learn the system.</em></h1>
+          <p class="lede">A living index for lessons, experiments, and the small discoveries that make observability click.</p>
+        </div>
+        <aside class="signal-card" aria-label="Live index status">
+          <div class="signal-head"><span>INDEX STATUS</span><span class="pulse">● LIVE</span></div>
+          <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="signal-foot">SOURCE <b>main / Otel / lessons</b></div>
+        </aside>
+      </section>
+
+      <section class="index-section" id="lessons">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Directory</div>
+            <h2>Lessons, mapped.</h2>
+          </div>
+          <p class="section-note">Every document inside <span class="mono">lessons/</span>, grouped by folder and linked to its live file.</p>
+        </div>
+        <div class="toolbar">
+          <div class="count" id="count">SCANNING LESSONS…</div>
+          <label>
+            <span class="eyebrow" style="display:block;margin-bottom:7px">Filter</span>
+            <input class="search" id="search" type="search" placeholder="search lessons…" autocomplete="off">
+          </label>
+        </div>
+        <div id="lessonIndex" class="groups" aria-live="polite">
+          <div class="state">Reading the repository tree…</div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>c0004512000 / Learning-Repo / Otel</span>
+      <span>built for curious systems</span>
+    </footer>
+  </div>
+
+  <script>
+    const owner = "c0004512000";
+    const repo = "Learning-Repo";
+    const branch = "main";
+    const root = "Otel/lessons";
+    const index = document.getElementById("lessonIndex");
+    const count = document.getElementById("count");
+    const search = document.getElementById("search");
+    let allLessons = [];
+
+    function humanize(filename) {
+      return filename.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").replace(/\b\w/g, function(letter) { return letter.toUpperCase(); });
+    }
+
+    function encodePath(path) {
+      return path.split("/").map(encodeURIComponent).join("/");
+    }
+
+    async function readTree(path) {
+      const endpoint = "https://api.github.com/repos/" + owner + "/" + repo + "/contents/" + encodePath(path) + "?ref=" + branch;
+      const response = await fetch(endpoint, { headers: { Accept: "application/vnd.github+json" } });
+      if (!response.ok) throw new Error("lessons directory is not available yet");
+      const entries = await response.json();
+      const files = [];
+      for (const entry of entries.sort(function(a, b) { return a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1; })) {
+        if (entry.type === "dir") files.push.apply(files, await readTree(entry.path));
+        else if (/\.(md|html?|pdf)$/i.test(entry.name)) files.push({ name: entry.name, path: entry.path });
+      }
+      return files;
+    }
+
+    function render(files) {
+      const query = search.value.trim().toLowerCase();
+      const visible = files.filter(function(file) {
+        return (file.name + " " + file.path).toLowerCase().includes(query);
+      });
+      count.textContent = String(visible.length).padStart(2, "0") + " LESSON" + (visible.length === 1 ? "" : "S") + (query ? " / FILTERED" : "");
+      if (!visible.length) {
+        index.innerHTML = '<div class="state"><strong>No matching lessons.</strong><br>Push files into <span class="mono">Otel/lessons/</span> and they will appear here automatically.</div>';
+        return;
+      }
+      const groups = {};
+      visible.forEach(function(file) {
+        const parts = file.path.split("/");
+        const group = parts.slice(2, -1).join(" / ") || "root";
+        (groups[group] ||= []).push(file);
+      });
+      index.innerHTML = Object.keys(groups).sort().map(function(group) {
+        const cards = groups[group].map(function(file) {
+          const isHtml = /\.html?$/i.test(file.name);
+          const relative = file.path.slice(root.length + 1);
+          const href = isHtml ? "./lessons/" + encodePath(relative) : "https://github.com/" + owner + "/" + repo + "/blob/" + branch + "/" + encodePath(file.path);
+          return '<a class="lesson" href="' + href + '" ' + (isHtml ? "" : 'target="_blank" rel="noreferrer"') + '><span><span class="lesson-title">' + humanize(file.name) + '</span><span class="lesson-path">' + file.path + '</span></span><span class="arrow" aria-hidden="true">↗</span></a>';
+        }).join("");
+        return '<section><div class="group-label">' + group + '</div><div class="lesson-list">' + cards + '</div></section>';
+      }).join("");
+    }
+
+    search.addEventListener("input", function() { render(allLessons); });
+    readTree(root).then(function(files) {
+      allLessons = files;
+      render(allLessons);
+    }).catch(function() {
+      count.textContent = "WAITING FOR LESSONS";
+      index.innerHTML = '<div class="state"><strong>No lesson files found yet.</strong><br>Push your first document into <span class="mono">Otel/lessons/</span> and refresh this page.</div>';
+    });
+  </script>
+</body>
+</html>
