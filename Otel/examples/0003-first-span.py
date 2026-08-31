@@ -3,13 +3,13 @@
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExporter
 
 
 def configure_tracing() -> TracerProvider:
     resource = Resource.create({"service.name": "checkout-demo"})
     provider = TracerProvider(resource=resource)
-    provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+    provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
     trace.set_tracer_provider(provider)
     return provider
 
@@ -28,9 +28,6 @@ def main() -> None:
     tracer = trace.get_tracer("training.checkout", "0.1.0")
 
     calculate_total([1999, 1250, 425], tracer)
-
-    # A short-lived script must flush its queued span before the process exits.
-    provider.force_flush()
     provider.shutdown()
 
 
