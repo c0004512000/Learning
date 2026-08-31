@@ -32,48 +32,6 @@ _Avoid_: Span ID metadata
 將 Span Context 序列化到跨 execution boundary 的 carrier，並在接收端取出，讓新的 Span 延續原本的 Trace 關係；HTTP 預設使用 W3C `traceparent` header。
 _Avoid_: Sending the entire span
 
-## Tracing SDK building blocks
-
-**Instrumentation**:
-在 application 或 library 中加入產生 telemetry 的程式碼，讓特定 operation 被 Span 或其他 signal 描述。
-_Avoid_: Backend configuration
-
-**Tracing API**:
-不綁定 vendor 的操作契約；埋點程式透過它取得 Tracer、建立 Span，而不必知道資料最後送去哪裡。
-_Avoid_: Tracing backend
-
-**SDK**:
-Tracing API 的具體實作；負責依設定記錄 Span、交給 Processor 處理，再由 Exporter 輸出。
-_Avoid_: Storage backend
-
-**TracerProvider**:
-通常在 application startup 建立的 tracing 設定擁有者；它建立或提供 Tracer，並持有共用的 SDK configuration。
-_Avoid_: Span transport
-
-**Tracer**:
-由 TracerProvider 提供、供埋點程式重複使用的操作入口；它用來建立 Span，不是資料庫或 Exporter。
-_Avoid_: Trace database
-
-**SpanProcessor**:
-SDK 中接手 Span lifecycle 資料的元件；本課聚焦 Span 結束後，它如何把已完成的 Span 交給 Exporter。
-_Avoid_: Final destination
-
-**BatchSpanProcessor**:
-一種 SpanProcessor；先把結束的 Span 放入暫存佇列，再以批次方式交給 Exporter，以降低每次 operation 的直接輸出成本。
-_Avoid_: Trace backend
-
-**Exporter**:
-把 SDK 產生的 telemetry 轉送到具體目的地的 adapter；目的地可以是 terminal、Collector 或其他 backend。
-_Avoid_: Span creator
-
-**ConsoleSpanExporter**:
-把 Span 輸出到 terminal 的 Exporter，適合本機觀察資料結構與除錯；它不是可查詢、可長期保存的 tracing backend。
-_Avoid_: Production trace database
-
-**Tracing pipeline**:
-SDK 中由 Provider、Processor 與 Exporter 組成的可重用處理路徑；Span 結束後沿著這條路徑被處理並輸出。
-_Avoid_: Trace parent-child tree
-
 ## HTTP attributes and aggregation
 
 **HTTP route**:
