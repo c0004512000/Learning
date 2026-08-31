@@ -2,418 +2,330 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>Lesson 2: 從 Python 看懂 Tracing API、SDK、Provider 與 Tracer</title>
+<title>Lesson 2: 從 Span 推導 Tracer 與 TracerProvider</title>
 <link rel="stylesheet" href="../assets/style.css">
 <script src="../assets/theme.js"></script>
 </head>
 <body>
 
-<h1>2. 從 Python 看懂 Tracing API、SDK、Provider 與 Tracer</h1>
-<p class="subtitle">先看程式裡「誰從哪裡 import、誰呼叫誰」，再談抽象名詞 · Lesson 2 of N</p>
+<h1>2. 從 Span 推導 Tracer 與 TracerProvider</h1>
+<p class="subtitle">先從已經看得懂的 Span 開始，再問「誰建立它？」· Lesson 2 of N</p>
 
 <h2>這一課只要拿下一個勝利</h2>
 <p>
-看完後，你應該能打開一段 OpenTelemetry Python 程式，指出：
-<strong>哪一段是 API、哪一段是 SDK、TracerProvider 在 startup 做什麼、Tracer 在 runtime 做什麼。</strong>
+看完後，你應該能不用背架構圖，自己從 <strong>Span</strong> 推導出
+<strong>Tracer</strong> 與 <strong>TracerProvider</strong> 為什麼需要存在，並看懂
+<code>get_tracer()</code> 與 <code>start_as_current_span()</code> 在做什麼。
 </p>
 
 <div class="box">
-<strong>先不要背整條 pipeline。</strong>
-你上次卡住的原因，是 <code>Tracing API</code>、<code>SDK</code>、<code>TracerProvider</code>、
-<code>Tracer</code>、<code>SpanProcessor</code>、<code>Exporter</code> 被當成同一層級的名詞一起介紹。
-其實它們不是同一種東西。本課先把「層」和「物件」拆開。
+<strong>本課刻意不先講 Processor、Exporter。</strong>
+它們只有在下一課真的遇到「Span 建好了，但我要怎麼把它看見？」時才有存在的理由。
 </div>
 
-<h2>第一步：API 與 SDK 甚至是兩個不同的 Python package</h2>
+<h2>1. 先從 Span 開始：我們到底要產生什麼？</h2>
+<p>
+Lesson 1 已經知道，<strong>Span 是某一次工作的觀測資料</strong>。
+假設程式正在執行：
+</p>
 
-<pre><code>pip install opentelemetry-api
-pip install opentelemetry-sdk</code></pre>
+<pre><code>calculate_total()</code></pre>
 
-<p>再看最關鍵的兩個 import：</p>
+<p>如果我們想觀測這一次執行，就需要留下類似：</p>
 
-<pre><code># API：埋點程式呼叫的公開操作
-from opentelemetry import trace
+<pre><code>name = "calculate_total"
+start_time = ...
+end_time = ...
+duration = ...
+attributes = ...</code></pre>
 
-# SDK：application 啟動時選擇的具體實作
-from opentelemetry.sdk.trace import TracerProvider</code></pre>
+<p>這一份「描述某一次工作」的資料，就是 Span。</p>
 
-<div class="table-wrap">
-<table>
-  <thead>
-    <tr>
-      <th>你現在看到的東西</th>
-      <th>它屬於哪一層</th>
-      <th>程式為什麼碰它</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>trace.get_tracer(...)</code></td>
-      <td><strong>Tracing API</strong></td>
-      <td>埋點程式要求「給我一個可以建立 Span 的 Tracer」</td>
-    </tr>
-    <tr>
-      <td><code>tracer.start_as_current_span(...)</code></td>
-      <td><strong>Tracing API</strong></td>
-      <td>埋點程式要求「開始描述這段工作」</td>
-    </tr>
-    <tr>
-      <td><code>TracerProvider()</code></td>
-      <td><strong>Tracing SDK implementation</strong></td>
-      <td>application 建立真正負責 tracing 行為與設定的 provider</td>
-    </tr>
-  </tbody>
-</table>
-</div>
+<pre><code>calculate_total 第 1 次執行  -> Span A
+calculate_total 第 2 次執行  -> Span B
+calculate_total 第 3 次執行  -> Span C</code></pre>
 
 <p class="cite">
-來源：
-<a href="https://opentelemetry.io/docs/languages/python/instrumentation/" target="_blank">OpenTelemetry Python — Manual Instrumentation</a>。
-官方明確區分：application 用 SDK 初始化 OpenTelemetry，再用 API 做 instrumentation。
+來源：<a href="https://opentelemetry.io/docs/concepts/signals/traces/" target="_blank">OpenTelemetry — Traces</a>
 </p>
 
-<h2>如果只有 API，會發生什麼？</h2>
-
-<p>先看一段完全合法的 instrumentation：</p>
-
-<pre><code>from opentelemetry import trace
-
-tracer = trace.get_tracer("checkout")
-
-with tracer.start_as_current_span("checkout.calculate_total"):
-    total = 100 + 200</code></pre>
-
+<h2>2. 下一個必要問題：Python 程式要怎麼建立 Span？</h2>
 <p>
-這段程式知道怎麼「要求開始一個 Span」，但它完全沒有說：
-要不要真的記錄？要怎麼處理？最後送去哪裡？
+既然我們需要 Span，那程式裡一定要有某個東西負責建立它。
+OpenTelemetry 把這個物件叫做 <strong>Tracer</strong>。
 </p>
+
+<pre><code>span = tracer.start_span("calculate_total")</code></pre>
+
+<p>先不要替 Tracer 加更多責任。現在只記：</p>
+
+<div class="box tip">
+<strong>Tracer = 程式拿來建立 Span 的物件。</strong>
+</div>
 
 <figure class="diagram">
-  <figcaption>
-    <strong>只有 API：程式可以提出 tracing 操作，但沒有 application 安裝的 SDK 行為</strong>
-  </figcaption>
+  <figcaption><strong>這個箭頭只有一個意思：建立</strong></figcaption>
   <div class="diagram-flow">
-    <div class="diagram-node app">
-      <span class="node-name">你的 business code</span>
-      <span class="node-note"><code>start_as_current_span(...)</code></span>
+    <div class="diagram-node tracer">
+      <span class="node-name">Tracer</span>
+      <span class="node-note">程式持有的物件</span>
     </div>
     <div class="diagram-connector">
-      <span>呼叫 API</span>
+      <span>start_span(...)</span>
       <span class="connector-line" aria-hidden="true"></span>
     </div>
-    <div class="diagram-node tracer">
-      <span class="node-name">Tracing API</span>
-      <span class="node-note">定義可以做哪些 tracing 操作</span>
+    <div class="diagram-node app">
+      <span class="node-name">Span</span>
+      <span class="node-note">某一次工作的觀測資料</span>
     </div>
   </div>
 </figure>
 
-<div class="box tip">
-<strong>關鍵事實：</strong>
-在沒有安裝／設定 SDK 的情況下，Trace API 的一般行為是 no-op：
-程式仍能呼叫 API，但新的 Span 不會被真正記錄與輸出。
-這也是為什麼一個 library 可以安全地只依賴 API，而不替使用它的 application 決定 tracing backend。
-</div>
-
-<p class="cite">
-來源：
-<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#behavior-of-the-api-in-the-absence-of-an-installed-sdk" target="_blank">
-OpenTelemetry Trace API Specification — Behavior without an SDK
-</a>。
+<h2>3. 用 Python Logger 對照 Tracer</h2>
+<p>
+如果你用過 Python logging，這個結構其實很熟悉：
 </p>
 
-<h2>那 SDK 到底補上了什麼？</h2>
+<pre><code>import logging
 
-<p>application startup 時加上這三行：</p>
+logger = logging.getLogger("checkout")
+logger.info("calculating total")</code></pre>
 
-<pre><code>provider = TracerProvider()
-trace.set_tracer_provider(provider)
+<p>
+<code>Logger</code> 不是那一筆 log 本身；它是程式拿來產生 log record 的物件。
+Tracer 在 tracing 世界裡扮演非常相似的角色。
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Logging</th><th>Tracing</th></tr></thead>
+  <tbody>
+    <tr><td><code>Logger</code></td><td><code>Tracer</code></td></tr>
+    <tr><td>產生 Log Record</td><td>建立 Span</td></tr>
+    <tr><td><code>logger.info(...)</code></td><td><code>tracer.start_span(...)</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box">
+<strong>類比的邊界：</strong>Logger 與 Tracer 的內部實作並不相同；這個類比只用來抓住角色：
+「程式持有一個物件，再用它產生某種 telemetry」。
+</div>
+
+<h2>4. 那 Tracer 從哪裡來？</h2>
+<p>
+Python logging 常見寫法是：</p>
+
+<pre><code>logger = logging.getLogger("checkout")</code></pre>
+
+<p>Tracing 的使用方式也很像：</p>
+
+<pre><code>from opentelemetry import trace
 
 tracer = trace.get_tracer("checkout")</code></pre>
 
-<p>先只看這三行，不要管 Processor 或 Exporter。</p>
-
-<figure class="diagram">
-  <figcaption>
-    <strong>真正的關係：API 是入口；SDK Provider 被註冊在 API 背後</strong>
-  </figcaption>
-
-  <div class="diagram-flow">
-    <div class="diagram-node provider">
-      <span class="node-kicker">startup</span>
-      <span class="node-name">SDK TracerProvider</span>
-      <span class="node-note"><code>provider = TracerProvider()</code></span>
-    </div>
-    <div class="diagram-connector dashed">
-      <span>註冊成 global provider</span>
-      <span class="connector-line" aria-hidden="true"></span>
-    </div>
-    <div class="diagram-node tracer">
-      <span class="node-name">Tracing API</span>
-      <span class="node-note"><code>trace.set_tracer_provider(provider)</code></span>
-    </div>
-  </div>
-
-  <div class="diagram-flow">
-    <div class="diagram-node app">
-      <span class="node-kicker">runtime / instrumentation</span>
-      <span class="node-name">你的程式</span>
-      <span class="node-note"><code>trace.get_tracer("checkout")</code></span>
-    </div>
-    <div class="diagram-connector">
-      <span>向 API 要 Tracer</span>
-      <span class="connector-line" aria-hidden="true"></span>
-    </div>
-    <div class="diagram-node provider">
-      <span class="node-name">已註冊的 Provider</span>
-      <span class="node-note">提供對應的 Tracer</span>
-    </div>
-    <div class="diagram-connector">
-      <span>回傳</span>
-      <span class="connector-line" aria-hidden="true"></span>
-    </div>
-    <div class="diagram-node tracer">
-      <span class="node-name">Tracer</span>
-      <span class="node-note">之後拿來建立 Span</span>
-    </div>
-  </div>
-</figure>
-
 <p>
-所以 <strong>API 不是另一個 tracing engine</strong>。
-API 是 application / library 用來提出 tracing 操作的公開介面；
-SDK 則提供被 application 安裝進去的具體 tracing 行為。
+現在先把它直接讀成：<strong>「給我一個 checkout 這組程式碼使用的 Tracer。」</strong>
+它不是在「取得一條 Trace」，也不是去 backend 查資料。
 </p>
 
-<h2>TracerProvider 跟 Tracer 為什麼不能只留一個？</h2>
+<pre><code>get_tracer("checkout")
+        |
+        v
+      Tracer
+        |
+        | start_span("calculate_total")
+        v
+       Span</code></pre>
 
-<p>直接看它們在程式中的生命週期：</p>
+<h3><code>"checkout"</code> 跟 <code>"calculate_total"</code> 差在哪？</h3>
 
-<pre><code># startup：通常做一次
-provider = TracerProvider()
-trace.set_tracer_provider(provider)
-
-# instrumentation：取得後重複使用
-checkout_tracer = trace.get_tracer("checkout")
-db_tracer = trace.get_tracer("database")</code></pre>
-
-<figure class="diagram">
-  <figcaption>
-    <strong>一個 Provider 可以提供多個 Tracer</strong>
-  </figcaption>
-  <div class="diagram-ownership">
-    <div class="diagram-label">process 裡的概念關係</div>
-    <pre><code>TracerProvider
-├── Tracer("checkout")
-├── Tracer("database")
-└── Tracer("payment")</code></pre>
-  </div>
-</figure>
+<pre><code>tracer = trace.get_tracer("checkout")
+span = tracer.start_span("calculate_total")</code></pre>
 
 <div class="table-wrap">
 <table>
-  <thead>
-    <tr>
-      <th></th>
-      <th>TracerProvider</th>
-      <th>Tracer</th>
-    </tr>
-  </thead>
+  <thead><tr><th>名稱</th><th>回答的問題</th></tr></thead>
   <tbody>
-    <tr>
-      <td><strong>主要時機</strong></td>
-      <td>application startup</td>
-      <td>instrumentation runtime</td>
-    </tr>
-    <tr>
-      <td><strong>主要責任</strong></td>
-      <td>持有／提供這組 tracing 的共用設定與 Tracer</td>
-      <td>提供建立 Span 的操作入口</td>
-    </tr>
-    <tr>
-      <td><strong>你會寫的程式</strong></td>
-      <td><code>TracerProvider()</code></td>
-      <td><code>tracer.start_as_current_span(...)</code></td>
-    </tr>
-    <tr>
-      <td><strong>它會直接 export 嗎？</strong></td>
-      <td>不直接 export</td>
-      <td>不直接 export</td>
-    </tr>
+    <tr><td><code>"checkout"</code></td><td>哪一組程式碼在使用這個 Tracer？</td></tr>
+    <tr><td><code>"calculate_total"</code></td><td>這一個 Span 描述的是什麼工作？</td></tr>
   </tbody>
 </table>
 </div>
 
-<div class="box">
-<strong>名稱上的陷阱：</strong>
-OpenTelemetry specification 裡的 <code>TracerProvider</code> 是一個 API contract；
-而 Python 的 <code>opentelemetry.sdk.trace.TracerProvider</code> 是 SDK 提供、你真的會 instantiate 的具體實作。
-不要把「角色名稱」和「Python class 從哪個 package import」混成同一件事。
-</div>
+<p>
+官方正式名稱會把第一個稱作 <strong>instrumentation scope name</strong>；
+例如通常可以使用 package、module 或 instrumentation library 的名稱。
+現在先把它理解成「誰在產生這些 Span」即可。
+</p>
 
 <p class="cite">
-來源：
-<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#tracerprovider" target="_blank">Tracing API — TracerProvider</a>、
-<a href="https://opentelemetry.io/docs/specs/otel/trace/sdk/#tracer-creation" target="_blank">Tracing SDK — Tracer Creation</a>。
+來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#get-a-tracer" target="_blank">OpenTelemetry Trace API — Get a Tracer</a>
 </p>
 
-<h2>現在才加入 Processor 與 Exporter</h2>
+<h2>5. 現在才有理由問：誰負責提供這些 Tracer？</h2>
+<p>
+一個 application 不一定只有一個 Tracer：
+</p>
+
+<pre><code>checkout_tracer = trace.get_tracer("myapp.checkout")
+db_tracer       = trace.get_tracer("sqlalchemy")
+http_tracer     = trace.get_tracer("requests")</code></pre>
 
 <p>
-到這裡，你已經知道 Span 是怎麼被建立的。下一個問題才是：
-<strong>Span 結束後，SDK 要怎麼把它送出 process？</strong>
+如果 application 裡很多地方都需要 Tracer，而且它們應該共享 tracing 的設定，
+那就需要一個 application 層級的物件負責這件事。
+這個角色才叫 <strong>TracerProvider</strong>。
 </p>
 
-<pre><code>from opentelemetry.sdk.trace.export import (
-    BatchSpanProcessor,
-    ConsoleSpanExporter,
-)
-
-processor = BatchSpanProcessor(ConsoleSpanExporter())
-provider.add_span_processor(processor)</code></pre>
-
-<p>這裡最容易被名字騙到，所以先分「角色」與「具體實作」：</p>
-
-<pre><code>SpanProcessor          ← 一種 SDK 角色 / extension point
-└── BatchSpanProcessor ← 其中一種具體實作：queue + batch
-
-SpanExporter           ← 一種 SDK 角色 / extension point
-└── ConsoleSpanExporter← 其中一種具體實作：寫到 terminal</code></pre>
+<div class="box tip">
+<strong>TracerProvider = 管理這組 tracing 的共用設定，並提供 Tracer 的物件。</strong>
+</div>
 
 <figure class="diagram">
-  <figcaption>
-    <strong>Span 結束後才走的處理路徑</strong>
-  </figcaption>
-  <div class="diagram-flow">
-    <div class="diagram-node app">
-      <span class="node-name">Span ends</span>
-      <span class="node-note">這次 operation 的資料完成</span>
-    </div>
-    <div class="diagram-connector">
-      <span>SDK lifecycle</span>
-      <span class="connector-line" aria-hidden="true"></span>
-    </div>
-    <div class="diagram-node processor">
-      <span class="node-name">BatchSpanProcessor</span>
-      <span class="node-note">先進 queue，再批次交付</span>
-    </div>
-    <div class="diagram-connector">
-      <span>export batch</span>
-      <span class="connector-line" aria-hidden="true"></span>
-    </div>
-    <div class="diagram-node exporter">
-      <span class="node-name">ConsoleSpanExporter</span>
-      <span class="node-note">把 Span 寫到 terminal</span>
-    </div>
+  <figcaption><strong>現在才把三層放在一起</strong></figcaption>
+  <div class="diagram-ownership">
+    <pre><code>TracerProvider
+   |
+   | 提供 Tracer
+   v
+ Tracer
+   |
+   | 建立 Span
+   v
+  Span</code></pre>
   </div>
 </figure>
 
 <p>
-因此 <code>BatchSpanProcessor</code> 不是「另一種 Tracer」，
-<code>ConsoleSpanExporter</code> 也不是「Trace 儲存庫」。
-前者處理 Span lifecycle 與批次交付；後者只是把資料輸出到一個具體目的地。
+官方 specification 也把 <code>TracerProvider</code> 定義為取得 Tracer 的地方，
+並要求 tracing 的共用 configuration 由 Provider 持有，而不是散落在每個 Tracer 上。
 </p>
 
-<h2>把全部組回一支最小 Python 程式</h2>
+<p class="cite">
+來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#tracerprovider" target="_blank">OpenTelemetry Trace API — TracerProvider</a>、
+<a href="https://opentelemetry.io/docs/specs/otel/trace/sdk/#configuration" target="_blank">Tracing SDK — Configuration</a>
+</p>
+
+<h2>6. 把它翻成真正的 Python</h2>
+<p>現在這三行才不再只是陌生語法：</p>
 
 <pre><code>from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (
-    BatchSpanProcessor,
-    ConsoleSpanExporter,
-)
 
-# ── SDK configuration：application startup ──
 provider = TracerProvider()
-processor = BatchSpanProcessor(ConsoleSpanExporter())
-provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
+tracer = trace.get_tracer("myapp.checkout")</code></pre>
 
-# ── Tracing API：instrumentation/runtime ──
-tracer = trace.get_tracer("training.checkout")
+<p>逐行翻成人話：</p>
 
-with tracer.start_as_current_span("checkout.calculate_total"):
-    total = 100 + 200</code></pre>
+<pre><code>provider = TracerProvider()
+# 建立 application tracing 的管理者
 
-<div class="box tip">
-<strong>讀這支程式時，不要再背「A → B → C → D」。</strong><br>
-先問兩題：
-<ol>
-  <li>這行是在 <strong>設定 SDK 行為</strong>，還是在 <strong>透過 API 描述我要觀測的工作</strong>？</li>
-  <li>這個名字是「抽象角色」，還是這次 Python 程式真的 instantiate 的「具體 implementation」？</li>
-</ol>
-</div>
+trace.set_tracer_provider(provider)
+# 告訴 OTel：之後取得 Tracer 時使用這個 Provider
 
-<h2>SRE Debug 視角：Span 沒出現在 terminal 時，怎麼拆？</h2>
+tracer = trace.get_tracer("myapp.checkout")
+# 取得給 myapp.checkout 這組程式碼使用的 Tracer</code></pre>
 
-<p>不要從「OTel 壞了」開始猜。沿著責任邊界檢查：</p>
+<p>接著才是 runtime：</p>
 
-<pre><code>1. instrumentation 有沒有真的執行？
-   └─ tracer.start_as_current_span(...) 有走到嗎？
-
-2. Span 有沒有被 SDK 記錄？
-   └─ span.is_recording() 是 True 嗎？
-
-3. Provider 有沒有掛 Processor？
-   └─ provider.add_span_processor(...) 有設定嗎？
-
-4. Processor 後面有沒有正確 Exporter？
-   └─ ConsoleSpanExporter() 是否真的被接上？</code></pre>
+<pre><code>with tracer.start_as_current_span("calculate_total") as span:
+    total = sum(prices)</code></pre>
 
 <p>
-這就是之後 debug Collector、OTLP 或 production pipeline 時要養成的思路：
-<strong>先確認資料在哪一個責任邊界消失，而不是一次猜整條鏈。</strong>
+進入 <code>with</code> 時建立並開始 Span；離開 block 時 Span 結束。
+這就是下一課真正會執行的核心。
 </p>
 
-<h2>回想練習</h2>
-
-<div class="recall" data-recall data-answer="API|api">
-<p>business instrumentation 呼叫 <code>start_as_current_span(...)</code>，主要是在使用 ______ 層。</p>
-<input type="text" class="blank" placeholder="API 或 SDK">
-<button class="check-btn">檢查</button>
-<div class="feedback"></div>
+<h2>7. Trace 跟 Tracer 千萬不要混在一起</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>名詞</th><th>它是什麼</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Trace</strong></td><td>同一次端到端 operation 的多個相關 Span 所形成的因果結構。</td></tr>
+    <tr><td><strong>Tracer</strong></td><td>程式裡拿來建立 Span 的物件。</td></tr>
+  </tbody>
+</table>
 </div>
 
-<div class="recall" data-recall data-answer="TracerProvider|tracerprovider">
-<p>application startup 時，哪個物件被建立並註冊，之後負責提供 Tracer？ ______</p>
-<input type="text" class="blank" placeholder="填入類別名稱">
-<button class="check-btn">檢查</button>
-<div class="feedback"></div>
+<p>
+所以 <code>trace.get_tracer()</code> 的意思不是「取得 Trace」，而是「透過 tracing API 取得 Tracer」。
+真正的 Trace 是 Span 被建立並透過 Trace ID / parent 關係串起來後形成的資料。
+</p>
+
+<h2>8. 到現在才補 API / SDK 的位置</h2>
+<p>
+現在物件角色已經清楚，再看 package boundary 就簡單很多：
+</p>
+
+<pre><code># instrumentation 呼叫的公開 tracing 操作
+from opentelemetry import trace
+
+# application 安裝的具體 tracing implementation
+from opentelemetry.sdk.trace import TracerProvider</code></pre>
+
+<p>
+<strong>API</strong> 是 instrumentation code 可以呼叫的操作介面；
+<strong>SDK</strong> 則提供真正記錄 Span、套用 tracing configuration 的實作。
+如果 application 沒有安裝 SDK provider，API 仍能被 library 呼叫，但預設不會產生可輸出的 recorded telemetry。
+</p>
+
+<p class="cite">
+來源：<a href="https://opentelemetry.io/docs/languages/python/instrumentation/" target="_blank">OpenTelemetry Python — Manual Instrumentation</a>、
+<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#behavior-of-the-api-in-the-absence-of-an-installed-sdk" target="_blank">Trace API — Behavior without an SDK</a>
+</p>
+
+<h2>練習：不要背名詞，從需要反推</h2>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 程式已經知道「我要觀測 calculate_total 這一次執行」，下一個最直接需要的物件是什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">一個能建立 Span 的 Tracer</button>
+    <button class="choice" data-correct="false">一個儲存 Trace 的 backend</button>
+    <button class="choice" data-correct="false">一個提供 HTTP endpoint 的 Provider</button>
+  </div>
+  <div class="feedback"></div>
 </div>
 
-<div class="recall" data-recall data-answer="BatchSpanProcessor|batchspanprocessor">
-<p><code>SpanProcessor</code> 是角色；本課使用的具體 queue + batch 實作叫做 ______。</p>
-<input type="text" class="blank" placeholder="填入類別名稱">
-<button class="check-btn">檢查</button>
-<div class="feedback"></div>
+<div class="quiz" data-quiz>
+  <div class="question">Q2. <code>trace.get_tracer("myapp.checkout")</code> 最接近哪個意思？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">取得給這組程式碼建立 Span 使用的 Tracer</button>
+    <button class="choice" data-correct="false">從 backend 取得名叫 checkout 的一條 Trace</button>
+    <button class="choice" data-correct="false">建立一個名叫 checkout 的 Span</button>
+  </div>
+  <div class="feedback"></div>
 </div>
 
-<h2>這一課真正要留下的四句話</h2>
-
-<div class="box">
-<ol>
-  <li><strong>Tracing API</strong> 是 instrumentation code 使用的操作介面。</li>
-  <li><strong>SDK</strong> 是 application 安裝並設定在 API 背後的具體 tracing 實作。</li>
-  <li><strong>TracerProvider</strong> 管共用 tracing 行為並提供 Tracer；<strong>Tracer</strong> 被 instrumentation 用來建立 Span。</li>
-  <li><strong>BatchSpanProcessor</strong> 與 <strong>ConsoleSpanExporter</strong> 是 SDK 裡兩個具體實作，負責 Span 結束後的處理與輸出。</li>
-</ol>
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 為什麼還需要 TracerProvider，而不是只留下 Tracer？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">多個 Tracer 需要共享由 application 管理的 tracing 設定</button>
+    <button class="choice" data-correct="false">TracerProvider 是專門用來儲存所有 Trace 的 database</button>
+    <button class="choice" data-correct="false">TracerProvider 是 Collector 對外開放的 HTTP endpoint</button>
+  </div>
+  <div class="feedback"></div>
 </div>
 
+<h2>最後 Recap：每個名詞只留一句話</h2>
 <div class="box tip">
-<strong>推薦閱讀（主要來源）：</strong><br>
-<a href="https://opentelemetry.io/docs/languages/python/instrumentation/" target="_blank">OpenTelemetry Python — Manual Instrumentation</a><br>
-先只看 Setup、Acquire Tracer、Creating spans。不要一次往後讀完整頁。
+<p><strong>Span：</strong>某一次工作的觀測資料。</p>
+<p><strong>Trace：</strong>同一次端到端 operation 中，彼此有因果關係的一組 Span。</p>
+<p><strong>Tracer：</strong>程式拿來建立 Span 的物件。</p>
+<p><strong>TracerProvider：</strong>管理 application 的共用 tracing 設定，並提供 Tracer 的物件。</p>
+<p><strong>Tracing API：</strong>instrumentation code 呼叫 tracing 功能的公開介面。</p>
+<p><strong>Tracing SDK：</strong>真正執行 recording 與 tracing configuration 的具體實作。</p>
 </div>
 
 <div class="box ask">
-<strong>看完後直接用你自己的話回答我：</strong><br>
-「為什麼 application 已經有 TracerProvider 了，還需要另外取得 Tracer？」<br>
-如果這題還答不出來，就代表 Lesson 2 還沒完成；我會繼續從這個斷點教，而不是往 Lesson 3 推。
+<strong>如果其中一句你無法用自己的話重講，就停在這裡問我。</strong>
+不要先往 Processor / Exporter 前進；下一課只會從「Span 已經能建立，那我要怎麼看到它？」繼續推。
 </div>
 
 <div class="lesson-nav">
-  <span><a href="0001-what-is-otel-and-spans.html">&larr; Lesson 1: OTel 與 Span</a></span>
-  <span><a href="0003-first-python-span.html">下一課：第一個 Python Span &rarr;</a></span>
+  <span><a href="0001-what-is-otel-and-spans.html">&larr; Lesson 1: Trace 與 Span</a></span>
+  <span><a href="0003-first-python-span.html">下一課：讓第一個 Python Span 出現在眼前 &rarr;</a></span>
 </div>
 
 <script src="../assets/quiz.js"></script>
