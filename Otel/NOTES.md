@@ -11,6 +11,7 @@
 - 2026-08-31 Lesson 2 學習回饋：使用者看完原版後仍無法理解 Tracing API、SDK、TracerProvider、Tracer、SpanProcessor、BatchSpanProcessor、Exporter、ConsoleSpanExporter；單純文字定義與「未知名詞方框互連」的圖無法建立心智模型。這些術語在使用者能自行解釋前，不得加入 GLOSSARY。
 - 使用者對「從已理解的具體結果逐層反推必要元件」的教學方式反應良好；例如先從 Span 問「誰建立它？」推導 Tracer，再問「誰提供/管理 Tracer？」推導 TracerProvider。熟悉的結構類比（如 Python Logger）可作輔助，但不得取代精確定義。
 - 每篇概念課結尾應提供一個簡短 Recap，以一句話重新定義本課核心名詞，方便快速複習。
+- `/teach` 對話中的追問、質疑與被修正的心智模型不能只留在聊天紀錄；一旦它改變了教材的正確解釋、學習順序或已建立的理解，應回填到 GitHub Learning workspace：優先修正既有 lesson，必要時新增 reference，符合 learning-record 條件時建立 learning record。不要把每句聊天做成 activity log。
 
 ## Teaching principles
 
@@ -24,6 +25,8 @@
 
 - 使用者對 OTel 的底層資料模型有高度興趣,尤其是 Span 的欄位格式、常用 key 的語義、判讀方式、attributes 的用途,以及 context propagation 的運作。
 - 2026-09-01 Lesson 2 再次重構：不再從 API/SDK 開始，而是依序從 Span → Tracer → TracerProvider 推導；API/SDK 僅在上述角色已建立後做位置說明。Processor/Exporter 完全移到 Lesson 3，等「Span 已建立但如何看見/送出？」這個需求出現後才引入。
+- 2026-09-01 Lesson 2 follow-up 修正：不要把 `get_tracer(name)` 教成「一段程式碼需要一個 Tracer」。同一個 Tracer 可以建立很多不同 Span；`name` 識別的是 Instrumentation Scope（telemetry 的邏輯產生來源），Tracer 本身不是 Trace tree 的節點。
+- 2026-09-01 TracerProvider follow-up 修正：Provider 的必要性不能推導成「因為有很多 Tracer」。即使只有一個 Tracer，Provider 仍是 stateful configuration owner 與 Tracer access point；常見 Provider-level 設定先理解 Resource、Sampler、SpanProcessor，再延伸 SpanLimits、IdGenerator。
 - Lesson 3 使用 `SimpleSpanProcessor` + `ConsoleSpanExporter` 建立最短可見 feedback loop；`BatchSpanProcessor` 的 queue/batch/timer 行為延後到真正需要討論 production performance/reliability 時再教。
 - 不可用未定義的 OTel 元件名稱組成線性流程圖。每個新術語必須先說明它解決的問題、責任邊界與和相鄰元件的關係，再出現在程式碼或完整架構圖中。
 - 深入課程必須區分:顯示用 JSON / Console 輸出、OTLP wire format、Span data model 與 Semantic Conventions；並涵蓋低 cardinality、敏感資料與 queryability 的取捨。
