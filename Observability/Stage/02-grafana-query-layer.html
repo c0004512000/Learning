@@ -1,8 +1,79 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>02. Grafana Query Layer</title><style>body{font-family:Georgia,"Times New Roman",serif;max-width:42rem;margin:3rem auto;padding:0 1.5rem;line-height:1.65;background:#fdfdfb;color:#1a1a1a}h1{font-size:2rem;border-bottom:1px solid #d8d3c8;padding-bottom:.5rem}h2{margin-top:2.4rem}.box,.quiz{border:1px solid #d8d3c8;border-radius:8px;padding:1rem 1.2rem;margin:1.4rem 0;background:#fffdf8}.box{border-left:4px solid #4a6fa5}pre{background:#f4f1ea;padding:1rem;border:1px solid #d8d3c8;border-radius:6px;overflow:auto}code{font-family:monospace}.lesson-nav{display:flex;justify-content:space-between;gap:1rem;border-top:1px solid #d8d3c8;margin-top:3rem;padding-top:1rem}a{color:#a3372e}.quiz .choices{display:flex;flex-direction:column;gap:.5rem}.choice{padding:.6rem;text-align:left;background:#fff;border:1px solid #d8d3c8;border-radius:5px}.correct{background:#eaf5ec}.incorrect{background:#f9eceb}@media(prefers-color-scheme:dark){body{background:#171716;color:#ece9e2}.box,.quiz{background:#1e1e1b;border-color:#4c4943}pre{background:#24231f;border-color:#4c4943}.choice{background:#171716;color:#ece9e2;border-color:#4c4943}a{color:#f19a8f}}</style></head><body><h1>02. Reference：Grafana Datasource → Variable → Query → Panel</h1><h2 id="datasource">1. Datasource：Grafana 去哪裡問</h2><p>Datasource 保存 backend type、URL、query options 與 UID。Dashboard target 再用 UID 綁到 datasource。</p><pre><code>Panel target
-  datasource.uid = "prometheus"
-        ↓
-Grafana datasource
-  type = prometheus
-  url  = http://prometheus-server.prometheus.svc.cluster.local
-        ↓
-Prometheus query API</code></pre><h2>2. Variable：使用者要看哪個範圍</h2><p>例如 <code>label_values(namespace)</code> 先取得可選值，再把選中的值放進 <code>$Namespace</code>。</p><h2>3. Query：從 backend 選什麼、算什麼</h2><p>PromQL 操作 time series；LogQL 操作 log streams；TraceQL 操作 traces/spans。Grafana 不會自動把三種 query language 互換。</p><h2>4. Panel：怎麼呈現 query result</h2><p>Panel 決定 time series、stat、table、unit、legend、threshold、field overrides、transformations 等 presentation。</p><h2>5. Layout：用什麼順序支援 troubleshooting</h2><p>Row、section、panel order 是 information architecture，而不是 telemetry generation。</p><div class="box"><strong>回主線：</strong><p><a href="01-microservice-dashboard.html#after-query-reference">← 回到 01 · MicroService 原本離開的位置</a></p></div><div class="quiz" data-quiz><strong>把 panel unit 從 bytes 改成 GiB，會改變 Prometheus 裡的原始 series 嗎？</strong><div class="choices"><button class="choice" data-correct="true">不會，只改 presentation</button><button class="choice" data-correct="false">會，Prometheus 會重寫資料</button></div><p class="feedback"></p><details><summary>查看答案</summary><p>不會。Unit 是 Grafana presentation 設定。</p></details></div><div class="lesson-nav"><a href="01-microservice-dashboard.html">← 01 · MicroService</a><a href="03-prometheus-node-lifecycle.html">03 · Node metrics lifecycle →</a></div><script>document.addEventListener('DOMContentLoaded',()=>document.querySelectorAll('[data-quiz]').forEach(q=>{let done=false;const f=q.querySelector('.feedback');q.querySelectorAll('.choice').forEach(b=>b.addEventListener('click',()=>{if(done)return;done=true;const ok=b.dataset.correct==='true';q.querySelectorAll('.choice').forEach(x=>{if(x.dataset.correct==='true')x.classList.add('correct');else if(x===b)x.classList.add('incorrect')});f.textContent=ok?'✓ 正確':'✗ 再想想'}))}))</script></body></html>
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark"><title>02. Grafana：Datasource → Variable → Query → Panel</title><link rel="stylesheet" href="../../Otel/assets/style.css">
+<script src="../../Otel/assets/theme.js"></script>
+<style>
+.status{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.08rem .42rem;font-size:.75rem;white-space:nowrap}
+.status.proven{border-color:var(--success);color:var(--success)}
+.status.model{border-color:var(--info);color:var(--info)}
+.status.gap{border-color:var(--accent);color:var(--accent)}
+.flow-stack{display:flex;flex-direction:column;gap:.55rem}
+.flow-arrow{text-align:center;color:var(--muted);font-size:.8rem}
+.flow-arrow::after{content:"↓";display:block;color:var(--success);font-size:1.25rem;line-height:1}
+.section-map{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:1.2rem 0}
+.section-map a{display:block;border:1px solid var(--line);border-radius:6px;padding:.75rem .85rem;background:var(--panel)}
+.fact{font-family:"SF Mono",Consolas,monospace;font-size:.82rem;color:var(--muted)}
+.anchor-target{scroll-margin-top:5rem}
+details.answer-fallback{margin-top:.9rem;padding-top:.7rem;border-top:1px dashed var(--line)}
+details.answer-fallback summary{cursor:pointer;color:var(--accent);font-weight:600}
+@media(max-width:680px){.section-map{grid-template-columns:1fr}}
+</style></head>
+<body><h1>02. Grafana：Datasource → Variable → Query → Panel</h1><p class="subtitle">拆開 Grafana 的 connection、query 與 presentation 責任</p>
+<div class="box tip"><strong>這一章只談 Grafana 自己的責任邊界。</strong>資料已經存在 backend 後，Grafana 要做五件事：建立 datasource connection、取得 variable 值、執行 panel query、把結果做 field/transform 設定、最後用 panel/layout 呈現。</div>
+
+<h2 id="datasource">1. Datasource：Grafana 要去哪裡問</h2>
+<p>以 Stage Prometheus 為例：</p>
+<pre><code>name   = Prometheus
+type   = prometheus
+uid    = prometheus
+url    = http://prometheus-server.prometheus.svc.cluster.local
+access = proxy
+method = GET</code></pre>
+<p><span class="status proven">Stage 已證實</span> 這表示 browser 不需要直接連 cluster-internal Prometheus URL；Grafana server 依 datasource 設定代為 query。Datasource 本身不保存 metrics。</p>
+
+<h2>2. Variable：先產生「可選條件」</h2>
+<p>例如 MicroService Dashboard 的：</p>
+<pre><code>Namespace = label_values(namespace)
+node      = label_values(node)</code></pre>
+<p>Variable query 先取得可選值。使用者選了某個 namespace 後，Grafana 把它保存成 <code>$Namespace</code>，再在 panel query 執行前做 interpolation。</p>
+
+<h2>3. Panel target：真正決定查哪個 backend</h2>
+<pre><code>panel
+└─ targets[]
+   ├─ datasource.uid = "prometheus"
+   ├─ refId = "A"
+   └─ expr = rate(container_cpu_usage_seconds_total{...}[3m])</code></pre>
+<p>所以一個 Dashboard 可以混合多個 backend：每個 target 都能指到不同 datasource UID。MicroService Dashboard 正是這樣同時使用 Prometheus、Loki、Tempo。</p>
+
+<h2>4. Query language：Backend 的資料模型決定你能問什麼</h2>
+<div class="table-wrap"><table><thead><tr><th>Backend</th><th>Query language</th><th>主要操作對象</th><th>這個 Dashboard 的例子</th></tr></thead><tbody>
+<tr><td>Prometheus</td><td>PromQL</td><td>Time series + labels</td><td><code>rate()</code>、<code>sum by()</code>、container/node metrics</td></tr>
+<tr><td>Loki</td><td>LogQL</td><td>Log streams + labels + log lines</td><td><code>count_over_time()</code>、severity filter</td></tr>
+<tr><td>Tempo</td><td>TraceQL</td><td>Traces / spans / resource & span attributes</td><td>duration、status、HTTP/DB attributes</td></tr>
+</tbody></table></div>
+
+<h2>5. Panel presentation：Query result 怎麼變成畫面</h2>
+<p>Panel 再決定 visualization type、unit、legend、threshold、field overrides、transformations、options。這一層可以改「怎麼看」，但不會回頭修改 backend 裡的 telemetry。</p>
+<div class="box"><strong>例子：</strong>把 memory panel 的 unit 從 bytes 改成 GiB，只是 Grafana presentation；Prometheus 裡原本的 <code>node_memory_MemAvailable_bytes</code> samples 不會被改寫。</div>
+
+<h2>6. Layout：Panel 順序本身也是設計</h2>
+<p>MicroService Dashboard 先放 Logs / DB / API，再放 Pod / Cluster resources，代表作者把它設計成一個 troubleshooting surface。Layout 不產生資料，但會影響人怎麼從 symptom 走到 evidence。</p>
+
+<h2>UI 上實際怎麼建立</h2>
+<ol><li><strong>Connections / Data sources：</strong>新增 Prometheus、Loki、Tempo，設定 URL 與必要 auth/options。</li>
+<li><strong>Dashboard settings → Variables：</strong>建立 <code>Namespace</code>、<code>Job</code> 等 variables。</li>
+<li><strong>Add visualization：</strong>選 datasource，寫 PromQL / LogQL / TraceQL target。</li>
+<li><strong>Panel options：</strong>設定 title、legend、unit、threshold、field overrides、transformations。</li>
+<li><strong>Rows / layout：</strong>依 operational question 分組並安排閱讀順序。</li></ol>
+
+<div class="box tip"><strong>UI 是 editor，不是魔法。</strong>你在 UI 做的這些操作最後都會落到 Dashboard JSON：datasource UID、variables、targets、fieldConfig、options、grid position。也因此我們可以 reverse engineer 現有 Dashboard。</div>
+
+<p><a href="01-microservice-dashboard.html#after-grafana-layer">← 回到 01 · MicroService Dashboard 原本的主線位置</a></p>
+<div class="quiz" data-quiz>
+<div class="question">Panel target 裡的 datasource UID 失效，最可能發生什麼？</div>
+<div class="choices"><button class="choice" data-correct="false" data-feedback-correct="✓ 正確。Datasource UID 是 Dashboard target 與 Grafana connection definition 的綁定鍵；stale UID 可以讓 panel 壞掉，但不代表 backend 資料被刪除。" data-feedback-incorrect="✗ Datasource UID 是 Dashboard target 與 Grafana connection definition 的綁定鍵；stale UID 可以讓 panel 壞掉，但不代表 backend 資料被刪除。">Backend 的歷史資料會被刪掉</button><button class="choice" data-correct="true" data-feedback-correct="✓ 正確。Datasource UID 是 Dashboard target 與 Grafana connection definition 的綁定鍵；stale UID 可以讓 panel 壞掉，但不代表 backend 資料被刪除。" data-feedback-incorrect="✗ Datasource UID 是 Dashboard target 與 Grafana connection definition 的綁定鍵；stale UID 可以讓 panel 壞掉，但不代表 backend 資料被刪除。">Panel 無法透過該 UID 找到正確 datasource，即使 backend 本身可能仍有資料</button><button class="choice" data-correct="false" data-feedback-correct="✓ 正確。Datasource UID 是 Dashboard target 與 Grafana connection definition 的綁定鍵；stale UID 可以讓 panel 壞掉，但不代表 backend 資料被刪除。" data-feedback-incorrect="✗ Datasource UID 是 Dashboard target 與 Grafana connection definition 的綁定鍵；stale UID 可以讓 panel 壞掉，但不代表 backend 資料被刪除。">Grafana 會自動改成任意 Prometheus</button></div><div class="feedback"></div>
+<details class="answer-fallback"><summary>查看答案與解釋</summary><p>Datasource UID 是 Dashboard target 與 Grafana connection definition 的綁定鍵；stale UID 可以讓 panel 壞掉，但不代表 backend 資料被刪除。</p></details>
+</div>
+<div class="lesson-nav"><span><a href="01-microservice-dashboard.html">&larr; 01 · MicroService Dashboard</a></span><span><a href="03-prometheus-node-lifecycle.html">03 · Node metrics lifecycle &rarr;</a></span></div>
+<script src="../../Otel/assets/quiz.js"></script></body></html>
