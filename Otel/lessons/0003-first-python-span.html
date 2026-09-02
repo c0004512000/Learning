@@ -14,9 +14,14 @@
 <h2>這一課只要拿下一個勝利</h2>
 <p>
 Lesson 2 已經建立：<strong>TracerProvider 提供 Tracer，Tracer 建立 Span。</strong>
-這一課把它跑起來，並補齊兩個真正會在實作時遇到的問題：
-<strong>什麼資訊值得放進 Span？Span 到底什麼時候算結束？</strong>
+這一課把它跑起來，並只補齊實作第一個 Span 時立即需要的問題：
+<strong>怎麼讓 Span 被輸出、什麼資訊值得放進 Span、Span 什麼時候算結束。</strong>
 </p>
+
+<div class="box">
+<strong>本課只使用已經建立必要性的概念。</strong>
+如果某個 telemetry 模型不是理解第一個 Span 的必要條件，就延後到它真正有用時再介紹。
+</div>
 
 <h2>1. 先只使用你已經懂的三個角色</h2>
 <pre><code>from opentelemetry import trace
@@ -37,9 +42,7 @@ with tracer.start_as_current_span("checkout.calculate_total"):
     v
    Span</code></pre>
 
-<p>
-現在 Span 可以被建立，但還沒有任何元件把完成的 Span 變成 terminal 上可見的輸出。
-</p>
+<p>現在 Span 可以被建立，但還沒有任何元件把完成的 Span 變成 terminal 上可見的輸出。</p>
 
 <h2>2. 從「我要看見 Span」推出 Exporter</h2>
 <p>
@@ -80,9 +83,7 @@ terminal</code></pre>
 </p>
 
 <h2>4. Processor 為什麼掛在 TracerProvider？</h2>
-<p>
-Lesson 2 已經知道，application 共用的 tracing configuration 放在 TracerProvider，所以 Processor 也註冊在 Provider：
-</p>
+<p>Lesson 2 已經知道，application 共用的 tracing configuration 放在 TracerProvider，所以 Processor 也註冊在 Provider：</p>
 
 <pre><code>provider = TracerProvider()
 provider.add_span_processor(
@@ -120,51 +121,51 @@ provider = TracerProvider(resource=resource)</code></pre>
 
 <h2>6. 什麼時候我才應該替 Span 加 Attribute？</h2>
 <p>
-不要從「程式裡有哪些變數」開始想。先問：
-<strong>這份資訊能不能幫我查詢、分組、比較，或在事故時排除假設？</strong>
+先只問一件事：<strong>這個值是不是「這一次 operation」的資訊，而且未來真的有查詢或 debug 價值？</strong>
 </p>
 
-<pre><code>這份資訊描述整段 operation 的性質或結果？
-  ├─ 否 → 某一個有意義的時間點？ → Event
-  │        需要自己的 duration / outcome？ → Child Span
-  │        都不是 → 通常不要記
-  │
-  └─ 是 → 我之後會拿它 filter / group / debug 嗎？
-           ├─ 是 → Attribute
-           └─ 否 → 通常不要記</code></pre>
+<pre><code>我想記一個值
+   |
+   v
+它描述的是「這一次 Span 所代表的 operation」嗎？
+   |
+   +-- 否 → 先不要放進 Attribute
+   |
+   +-- 是
+        |
+        v
+事故時我會拿它 filter / group / compare / debug 嗎？
+        |
+        +-- 否 → 通常不要記
+        |
+        +-- 是 → Attribute</code></pre>
 
 <div class="table-wrap">
 <table>
-  <thead><tr><th>資訊</th><th>適合的模型</th><th>理由</th></tr></thead>
+  <thead><tr><th>資訊</th><th>現在怎麼判斷</th><th>理由</th></tr></thead>
   <tbody>
-    <tr><td><code>cart.item_count=3</code></td><td>Attribute</td><td>描述這次 operation 的背景，可用於比較與除錯。</td></tr>
-    <tr><td><code>retry.started</code></td><td>Event</td><td>重點是「什麼時候發生」。</td></tr>
-    <tr><td>呼叫 payment service</td><td>Child Span</td><td>它有自己的 duration、outcome 與 causal position。</td></tr>
-    <tr><td><code>service.name</code></td><td>Resource</td><td>所有 Span 共用的 producer identity。</td></tr>
+    <tr><td><code>cart.item_count=3</code></td><td>可以是 Attribute</td><td>描述這次計算處理多少 item，可能用來比較 latency。</td></tr>
+    <tr><td><code>cart.total_cents=3674</code></td><td>模型上可以，但不一定值得記</td><td>要先有明確 troubleshooting/query 用途。</td></tr>
+    <tr><td><code>service.name=checkout-demo</code></td><td>不是 Span Attribute 的首選</td><td>它描述所有 telemetry 共用的 producer identity，已放在 Resource。</td></tr>
+    <tr><td>某個暫時 local variable</td><td>通常不要記</td><td>「程式裡存在」不等於「對 observability 有價值」。</td></tr>
   </tbody>
 </table>
 </div>
-
-<p>
-所以本課的：
-</p>
 
 <pre><code>span.set_attribute("app.cart.item_count", len(prices))
 span.set_attribute("app.cart.total_cents", total)</code></pre>
 
 <p>
-資料模型上都可以是 Attribute，因為它們描述這一次 <code>calculate_total</code> operation。
-但這只是教學範例：<strong>production 不應為了「資料看起來完整」就把所有值都記進去。</strong>
-如果某欄位沒有明確查詢／除錯價值，或含敏感資料、成本過高，就不要記。
+這兩個值都描述這一次 <code>calculate_total</code>，所以資料模型上可以放 Attribute；
+但 production 不應為了讓資料看起來完整就把所有變數塞進 Span。
+如果沒有明確的查詢／除錯價值，或涉及敏感資料、過高成本，就不要記。
 </p>
 
 <div class="box tip">
-<strong>Attribute 的一句話：</strong>描述「這一次 operation」的可查 key-value metadata。
+<strong>Attribute：</strong>附在 Span 上，用來描述「這一次 operation」且值得查詢的 key-value metadata。
 </div>
 
-<p>
-延伸快速卡：<a href="../reference/0003-span-design-decision-card.html">Span / Event / Attribute 決策卡</a>
-</p>
+<p>延伸快速卡：<a href="../reference/0003-span-design-decision-card.html">Span Attribute 決策卡</a></p>
 
 <p class="cite">
 來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#set-attributes" target="_blank">Trace API — Set Attributes</a>、
@@ -173,11 +174,9 @@ span.set_attribute("app.cart.total_cents", total)</code></pre>
 
 <h2>7. Span 到底什麼時候算「結束」？</h2>
 <p>
-先回到 Span 的本質：Span 描述一段 operation，而且它需要 start time 與 end time。
+Span 描述一段 operation，而且它需要 start time 與 end time。
 <strong>當你要描述的 operation 完成時，就應該 End Span。</strong>
 </p>
-
-<p>Python 最常見的兩種方式：</p>
 
 <h3>A. 用 <code>with</code>：離開 block 自動 End</h3>
 <pre><code>with tracer.start_as_current_span("checkout.calculate_total") as span:
@@ -185,11 +184,9 @@ span.set_attribute("app.cart.total_cents", total)</code></pre>
     total = sum(prices)
     # 這裡 Span 還在進行
 
-# 程式走到這裡：with block 已離開 → Span 已 End</code></pre>
+# 走到這裡：with block 已離開 → Span 已 End</code></pre>
 
-<p>
-這也是你目前範例使用的方式。即使 block 因 exception 離開，context manager 也負責結束這個 Span。
-</p>
+<p>這也是目前範例使用的方式。即使 block 因 exception 離開，context manager 也會負責結束這個 Span。</p>
 
 <h3>B. 手動建立：你自己呼叫 <code>end()</code></h3>
 <pre><code>span = tracer.start_span("checkout.calculate_total")
@@ -198,13 +195,10 @@ try:
 finally:
     span.end()</code></pre>
 
-<p>
-如果你用這種寫法卻忘了 <code>span.end()</code>，這個 Span 的 lifecycle 就沒有被正確收尾。
-OTel specification 明確要求：被建立的 recording Span 必須被結束。
-</p>
+<p>如果忘了 <code>span.end()</code>，這個 Span 的 lifecycle 就沒有被正確收尾。</p>
 
 <div class="box tip">
-<strong>Span End 的一句話：</strong>告訴 SDK「這個 operation 到這裡完成」，固定 end time / duration，並觸發後續 SpanProcessor lifecycle。
+<strong>Span End：</strong>告訴 SDK「這個 operation 到這裡完成」，固定 end time / duration，並觸發後續 SpanProcessor lifecycle。
 </div>
 
 <p class="cite">
@@ -221,7 +215,7 @@ OTel specification 明確要求：被建立的 recording Span 必須被結束。
   <tbody>
     <tr><td>控制流程已離開 <code>with</code></td><td>這個 context-managed Span 已呼叫 End。</td></tr>
     <tr><td>你確認程式走過 <code>span.end()</code></td><td>手動 Span 已收到 End。</td></tr>
-    <tr><td><code>span.is_recording()</code> 在 End 後為 false</td><td>SDK 通常已不再接受新的 attribute/event/status。</td></tr>
+    <tr><td><code>span.is_recording()</code> 在 End 後為 false</td><td>Span 已不再處於 recording 狀態。</td></tr>
     <tr><td>SimpleSpanProcessor + ConsoleSpanExporter 印出 Span</td><td>Span 已 End，而且 Processor/Exporter 路徑至少走到 console。</td></tr>
   </tbody>
 </table>
@@ -229,12 +223,10 @@ OTel specification 明確要求：被建立的 recording Span 必須被結束。
 
 <div class="box">
 <strong>反過來不成立：</strong>terminal 沒看到 Span，不代表它一定沒 End。
-也可能是 Processor 沒註冊、Exporter 沒連好、sampling/recording 行為或 stdout 可見性出了問題。
+也可能是 Processor 沒註冊、Exporter 沒連好、recording/sampling 行為或 stdout 可見性出了問題。
 </div>
 
-<p>
-延伸快速卡：<a href="../reference/0010-span-export-lifecycle-card.html">Span lifecycle / export 快速卡</a>
-</p>
+<p>延伸快速卡：<a href="../reference/0010-span-export-lifecycle-card.html">Span lifecycle / export 快速卡</a></p>
 
 <h2>9. 現在才組成完整的 Python 範例</h2>
 <pre><code>from opentelemetry import trace
@@ -263,9 +255,7 @@ with tracer.start_as_current_span("checkout.calculate_total") as span:
 
 # 到這裡 Span 已 End；SimpleSpanProcessor 已有機會把它交給 ConsoleSpanExporter</code></pre>
 
-<p>
-實際檔案：<a href="../examples/0003-first-span.py"><code>examples/0003-first-span.py</code></a>
-</p>
+<p>實際檔案：<a href="../examples/0003-first-span.py"><code>examples/0003-first-span.py</code></a></p>
 
 <h2>10. 執行它</h2>
 <pre><code>python -m venv .venv
@@ -304,60 +294,48 @@ with tracer.start_as_current_span("checkout.calculate_total") as span:
 4. SpanProcessor 有沒有連到正確 Exporter？
 5. Exporter 的 stdout / network destination 是否真的可見？</code></pre>
 
-<p>
-核心習慣：<strong>先找 telemetry 最後在哪個已知節點存在，再檢查它到下一個節點的交接。</strong>
-</p>
+<p>核心習慣：<strong>先找 telemetry 最後在哪個已知節點存在，再檢查它到下一個節點的交接。</strong></p>
 
-<h2>練習：檢查真正的理解</h2>
+<h2>練習：只檢查本課已經建立的概念</h2>
 <div class="quiz" data-quiz>
-  <div class="question">Q1. <code>cart.item_count=3</code> 為什麼適合當 Attribute？</div>
+  <div class="question">Q1. 為什麼 <code>cart.item_count</code> 可以是 Span Attribute？</div>
   <div class="choices">
-    <button class="choice" data-correct="true">它描述這次 operation 的可查背景資訊</button>
-    <button class="choice" data-correct="false">它需要自己的 duration 與 parent relationship</button>
-    <button class="choice" data-correct="false">它是所有 service 共用的 producer identity</button>
+    <button class="choice" data-correct="true">它描述這一次 operation，而且可能對查詢或 debug 有價值</button>
+    <button class="choice" data-correct="false">因為所有 local variable 都應該寫進 Span</button>
+    <button class="choice" data-correct="false">因為 Attribute 是用來設定 service identity</button>
   </div>
   <div class="feedback"></div>
 </div>
 
 <div class="quiz" data-quiz>
-  <div class="question">Q2. 使用 <code>with tracer.start_as_current_span(...)</code> 時，Span 最直接在什麼時候 End？</div>
+  <div class="question">Q2. 使用 <code>with tracer.start_as_current_span(...)</code> 時，Span 什麼時候 End？</div>
   <div class="choices">
-    <button class="choice" data-correct="true">程式離開 with block 時</button>
-    <button class="choice" data-correct="false">TracerProvider 建立時</button>
-    <button class="choice" data-correct="false">Backend 查詢 Span 時</button>
+    <button class="choice" data-correct="true">離開 with block 時</button>
+    <button class="choice" data-correct="false">呼叫 get_tracer() 時</button>
+    <button class="choice" data-correct="false">Backend 查到資料時</button>
   </div>
   <div class="feedback"></div>
 </div>
 
 <div class="quiz" data-quiz>
-  <div class="question">Q3. terminal 沒有看到 ConsoleSpanExporter 輸出，能不能直接斷定 Span 沒有 End？</div>
+  <div class="question">Q3. Terminal 沒有看到 Span，可以直接判定 Span 沒有 End 嗎？</div>
   <div class="choices">
-    <button class="choice" data-correct="true">不能，還要區分 Processor、Exporter 與輸出可見性</button>
-    <button class="choice" data-correct="false">可以，沒有輸出就代表 End 一定沒執行</button>
-    <button class="choice" data-correct="false">可以，因為 End 本身會直接寫 stdout</button>
+    <button class="choice" data-correct="true">不行，還要分開檢查 Processor、Exporter 與輸出路徑</button>
+    <button class="choice" data-correct="false">可以，沒有 console output 就一定代表 Span 還在執行</button>
   </div>
   <div class="feedback"></div>
 </div>
 
 <h2>最後 Recap：每個名詞只留一句話</h2>
 <div class="box tip">
-<p><strong>Span：</strong>某一次 operation 的觀測資料，包含 start/end time 與診斷 metadata。</p>
-<p><strong>Attribute：</strong>描述這一次 operation、可用於查詢與除錯的 key-value metadata。</p>
-<p><strong>Span End：</strong>宣告 operation 完成、固定 end time / duration，並觸發後續 processing lifecycle。</p>
-<p><strong>SpanProcessor：</strong>接收 Span lifecycle，並把完成的 Span交給後續處理。</p>
-<p><strong>SpanExporter：</strong>把可輸出的 Span 資料送到某個目的地。</p>
-<p><strong>Resource：</strong>描述產生 telemetry 的 service / entity 共用 identity。</p>
-</div>
-
-<div class="box ask">
-<strong>如果你還不能回答兩題，就先停在這裡：</strong>
-「為什麼這個值是 Attribute 而不是 Event / Child Span？」以及「這個 Span 的 operation 到哪一行才真正完成？」
-</div>
-
-<div class="box tip">
-<strong>推薦閱讀：</strong>
-<a href="https://opentelemetry.io/docs/languages/python/instrumentation/" target="_blank">OpenTelemetry Python — Manual Instrumentation</a>、
-<a href="https://opentelemetry.io/docs/specs/otel/trace/api/" target="_blank">OpenTelemetry Trace API Specification</a>。
+<p><strong>Span：</strong>某一次工作的觀測資料。</p>
+<p><strong>Tracer：</strong>程式拿來建立 Span 的物件。</p>
+<p><strong>TracerProvider：</strong>管理 application 共用 tracing 設定，並提供 Tracer。</p>
+<p><strong>Resource：</strong>描述產生 telemetry 的實體或服務的共用 metadata。</p>
+<p><strong>Attribute：</strong>描述這一次 operation、且值得查詢的 key-value metadata。</p>
+<p><strong>Span End：</strong>宣告這次 operation 已完成，固定 end time / duration，並觸發後續 processing。</p>
+<p><strong>SpanProcessor：</strong>接收 Span lifecycle，並把完成的 Span 交給後續 exporter。</p>
+<p><strong>SpanExporter：</strong>把可輸出的 Span 資料送往某個目的地。</p>
 </div>
 
 <div class="lesson-nav">
