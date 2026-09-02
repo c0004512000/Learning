@@ -1,10 +1,95 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>04. Node Exporter Full</title><style>body{font-family:Georgia,"Times New Roman",serif;max-width:42rem;margin:3rem auto;padding:0 1.5rem;line-height:1.65;background:#fdfdfb;color:#1a1a1a}h1{font-size:2rem;border-bottom:1px solid #d8d3c8;padding-bottom:.5rem}h2{margin-top:2.4rem}.box,.quiz{border:1px solid #d8d3c8;border-radius:8px;padding:1rem 1.2rem;margin:1.4rem 0;background:#fffdf8}.box{border-left:4px solid #2e6b3e}pre{background:#f4f1ea;padding:1rem;border:1px solid #d8d3c8;border-radius:6px;overflow:auto}code{font-family:monospace}.lesson-nav{display:flex;justify-content:space-between;gap:1rem;border-top:1px solid #d8d3c8;margin-top:3rem;padding-top:1rem}a{color:#a3372e}.quiz .choices{display:flex;flex-direction:column;gap:.5rem}.choice{padding:.6rem;text-align:left;background:#fff;border:1px solid #d8d3c8;border-radius:5px}.correct{background:#eaf5ec}.incorrect{background:#f9eceb}@media(prefers-color-scheme:dark){body{background:#171716;color:#ece9e2}.box,.quiz{background:#1e1e1b;border-color:#4c4943}pre{background:#24231f;border-color:#4c4943}.choice{background:#171716;color:#ece9e2;border-color:#4c4943}a{color:#f19a8f}}</style></head><body><h1>04. Node Exporter Full：一台 Node 如何變成 128 個 Panels</h1><div class="box"><strong>心智模型：</strong> Node Exporter 產生 <code>node_*</code> metrics → Prometheus 保存 time series → Grafana 用 PromQL 組合出 CPU、Memory、Disk、Network 等視圖。</div><h2>Dashboard 依賴的資料</h2><pre><code># CPU busy
-rate(node_cpu_seconds_total{mode="idle",instance="$node",job="$job"}[$__rate_interval])
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark"><title>04. Node Exporter Full：從 node_* metrics 到 128 個 Panels</title><link rel="stylesheet" href="../../Otel/assets/style.css">
+<script src="../../Otel/assets/theme.js"></script>
+<style>
+.status{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.08rem .42rem;font-size:.75rem;white-space:nowrap}
+.status.proven{border-color:var(--success);color:var(--success)}
+.status.model{border-color:var(--info);color:var(--info)}
+.status.gap{border-color:var(--accent);color:var(--accent)}
+.flow-stack{display:flex;flex-direction:column;gap:.55rem}
+.flow-arrow{text-align:center;color:var(--muted);font-size:.8rem}
+.flow-arrow::after{content:"↓";display:block;color:var(--success);font-size:1.25rem;line-height:1}
+.section-map{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:1.2rem 0}
+.section-map a{display:block;border:1px solid var(--line);border-radius:6px;padding:.75rem .85rem;background:var(--panel)}
+.fact{font-family:"SF Mono",Consolas,monospace;font-size:.82rem;color:var(--muted)}
+.anchor-target{scroll-margin-top:5rem}
+details.answer-fallback{margin-top:.9rem;padding-top:.7rem;border-top:1px dashed var(--line)}
+details.answer-fallback summary{cursor:pointer;color:var(--accent);font-weight:600}
+@media(max-width:680px){.section-map{grid-template-columns:1fr}}
+</style></head>
+<body><h1>04. Node Exporter Full：從 node_* metrics 到 128 個 Panels</h1><p class="subtitle">把 Node metrics lifecycle 套回 Taiwan Stage 的實際 Dashboard JSON</p>
+<div class="box tip"><strong>現在把上一章套回真實 Dashboard。</strong>Stage inventory 顯示 Node Exporter Full UID 是 <code>rYdddlPWk</code>，共有 <strong>128 個 panels、16 個 row sections、4 個 variables</strong>。Panel 類型以 graph 為主，另外有 gauge 與 stat。</div>
 
-# RAM
-node_memory_MemAvailable_bytes{instance="$node",job="$job"}
-node_memory_MemTotal_bytes{instance="$node",job="$job"}
+<h2>Dashboard 的四個 variables</h2>
+<div class="table-wrap"><table><thead><tr><th>Variable</th><th>Query / 值</th><th>作用</th></tr></thead><tbody>
+<tr><td><code>DS_PROMETHEUS</code></td><td>datasource type = Prometheus</td><td>選 datasource</td></tr>
+<tr><td><code>job</code></td><td><code>label_values(node_uname_info, job)</code></td><td>先選 Node Exporter scrape job</td></tr>
+<tr><td><code>node</code></td><td><code>label_values(node_uname_info{job="$job"}, instance)</code></td><td>再從該 job 選 instance</td></tr>
+<tr><td><code>diskdevices</code></td><td><code>[a-z]+|nvme[0-9]+n[0-9]+</code></td><td>Hidden regex，用於 disk device filter</td></tr>
+</tbody></table></div>
+<p><code>node</code> 依賴 <code>$job</code>，所以這是 chained variable：先縮小 job，再產生 instance 選項。</p>
 
-# Filesystem
-node_filesystem_avail_bytes{instance="$node",job="$job",mountpoint="/"}</code></pre><p>Dashboard 沒有直接取得一個叫「CPU Busy」的 metric；它用 PromQL 從較原始的 counters / gauges 計算視圖。</p><h2>Variables</h2><pre><code>job  = label_values(node_uname_info, job)
-node = label_values(node_uname_info{job="$job"}, instance)</code></pre><p>第二個 variable 依賴第一個，因此是 chained variable。</p><div class="box"><strong>Stage 目前的重要異常：</strong> Dashboard JSON 大量引用 Prometheus datasource UID <code>becxci96j0tfkc</code>，但最新 datasource inventory 找不到這個 UID，因此這一層存在 stale datasource reference。</div><h2>128 個 Panels 為什麼合理？</h2><p>Node health 不是一個指標：CPU、memory、filesystem、network、disk I/O、load、uptime 都是不同 operational questions。Dashboard layout 的工作就是把這些問題組成 troubleshooting surface。</p><div class="quiz" data-quiz><strong>CPU Busy 是 node-exporter 直接輸出的 metric 嗎？</strong><div class="choices"><button class="choice" data-correct="false">是</button><button class="choice" data-correct="true">不是，是 Grafana/PromQL 從 node_cpu_seconds_total 計算</button></div><p class="feedback"></p><details><summary>查看答案</summary><p>不是。Node Exporter 暴露較原始的 node metrics；PromQL 再計算 Dashboard 要呈現的數值。</p></details></div><div class="lesson-nav"><a href="03-prometheus-node-lifecycle.html">← 03 · Node metrics lifecycle</a><a href="00-start-here.html">回 00 · Start here →</a></div><script>document.addEventListener('DOMContentLoaded',()=>document.querySelectorAll('[data-quiz]').forEach(q=>{let done=false;const f=q.querySelector('.feedback');q.querySelectorAll('.choice').forEach(b=>b.addEventListener('click',()=>{if(done)return;done=true;const ok=b.dataset.correct==='true';q.querySelectorAll('.choice').forEach(x=>{if(x.dataset.correct==='true')x.classList.add('correct');else if(x===b)x.classList.add('incorrect')});f.textContent=ok?'✓ 正確':'✗ 再想想'}))}))</script></body></html>
+<h2>CPU Busy 並不是 Node Exporter 直接給的欄位</h2>
+<pre><code>(((count(count(node_cpu_seconds_total{instance="$node",job="$job"}) by (cpu)))
+ - avg(sum by (mode)(
+     rate(node_cpu_seconds_total{
+       mode="idle",
+       instance="$node",
+       job="$job"
+     }[$__rate_interval])
+   ))) * 100)
+ / count(count(node_cpu_seconds_total{instance="$node",job="$job"}) by (cpu))</code></pre>
+<p>這段先用 <code>rate()</code> 算 idle CPU time 的變化，再從 total CPU capacity 推成 Busy percentage。也就是：</p>
+<pre><code>Node Exporter 原始 counter
+        ↓
+Prometheus time series
+        ↓
+PromQL rate + aggregation + arithmetic
+        ↓
+Grafana 的 CPU Busy 視圖</code></pre>
+
+<h2>Memory、Filesystem 也是同樣模式</h2>
+<pre><code># RAM Used
+100 - (
+  node_memory_MemAvailable_bytes{instance="$node",job="$job"} * 100
+  / node_memory_MemTotal_bytes{instance="$node",job="$job"}
+)
+
+# Root FS Used
+100 - (
+  node_filesystem_avail_bytes{
+    instance="$node",job="$job",mountpoint="/",fstype!="rootfs"
+  } * 100
+  / node_filesystem_size_bytes{
+    instance="$node",job="$job",mountpoint="/",fstype!="rootfs"
+  }
+)</code></pre>
+
+<h2>16 個 row sections 其實是一張 troubleshooting map</h2>
+<div class="table-wrap"><table><thead><tr><th>主題</th><th>Rows</th><th>觀測面</th></tr></thead><tbody>
+<tr><td>Quick / Overview</td><td>Quick CPU / Mem / Disk、Basic CPU / Mem / Net / Disk、CPU / Memory / Net / Disk</td><td>先快速判斷哪類資源異常</td></tr>
+<tr><td>Memory</td><td>Memory Meminfo、Memory Vmstat</td><td>Memory 組成、paging / vm statistics</td></tr>
+<tr><td>System</td><td>System Timesync、System Processes、System Misc、Systemd</td><td>Clock、process、system service/runtime</td></tr>
+<tr><td>Hardware / Storage</td><td>Hardware Misc、Storage Disk、Storage Filesystem</td><td>Disk I/O、filesystem capacity、hardware</td></tr>
+<tr><td>Network</td><td>Network Traffic、Network Sockstat、Network Netstat</td><td>Throughput、socket、TCP/IP statistics</td></tr>
+<tr><td>Exporter</td><td>Node Exporter</td><td>Exporter 自身狀態</td></tr>
+</tbody></table></div>
+
+<h2>Stage 現在真正的 Grafana 問題：stale datasource UID</h2>
+<div class="box"><span class="status proven">Dashboard JSON 已證實</span> Node Exporter Full 的大量 targets 與 <code>job</code>/<code>node</code> variables 都綁定 Prometheus datasource UID <code>becxci96j0tfkc</code>。<strong>最新 Stage datasource inventory 中找不到這個 UID。</strong></div>
+<p>這個現象的邊界要講清楚：</p>
+<ul><li>它能證明：這份 Dashboard definition 的 datasource binding 已經 stale / dangling。</li><li>它不能證明：Prometheus backend 沒有 Node metrics。</li><li>它也不能證明：Node Exporter ingestion 本身壞掉。</li></ul>
+<p>修復方向是在 Grafana 端把 variables / panel targets 改綁到實際有效的 Prometheus datasource，然後再用 <code>node_uname_info</code>、<code>node_cpu_seconds_total</code> 等 query 驗證資料與 labels。</p>
+
+<h2>如果要從零重建這個 Dashboard，真正順序是</h2>
+<ol><li>先證明 Node Exporter 在每個目標 Node 上產生 <code>node_*</code> metrics。</li><li>讓 Prometheus discovery + scrape 建立正確的 <code>job</code>/<code>instance</code> series。</li><li>在 Grafana 建立有效 Prometheus datasource。</li><li>建立 <code>job → node</code> chained variables。</li><li>逐類建立 CPU、Memory、Filesystem、Network、Disk PromQL。</li><li>最後才是 panel type、unit、legend、threshold 與 row layout。</li></ol>
+
+<div class="quiz" data-quiz>
+<div class="question">Node Exporter Full 的 datasource UID 已經 stale，可以直接推論 Node Exporter 沒有在收資料嗎？</div>
+<div class="choices"><button class="choice" data-correct="false" data-feedback-correct="✓ 正確。Stale UID 是 Grafana configuration 問題。要判斷 Node Exporter / Prometheus ingestion，仍需檢查 runtime target 與 backend series。" data-feedback-incorrect="✗ Stale UID 是 Grafana configuration 問題。要判斷 Node Exporter / Prometheus ingestion，仍需檢查 runtime target 與 backend series。">可以</button><button class="choice" data-correct="true" data-feedback-correct="✓ 正確。Stale UID 是 Grafana configuration 問題。要判斷 Node Exporter / Prometheus ingestion，仍需檢查 runtime target 與 backend series。" data-feedback-incorrect="✗ Stale UID 是 Grafana configuration 問題。要判斷 Node Exporter / Prometheus ingestion，仍需檢查 runtime target 與 backend series。">不可以；這只能定位到 Grafana datasource binding 層</button></div><div class="feedback"></div>
+<details class="answer-fallback"><summary>查看答案與解釋</summary><p>Stale UID 是 Grafana configuration 問題。要判斷 Node Exporter / Prometheus ingestion，仍需檢查 runtime target 與 backend series。</p></details>
+</div>
+<div class="lesson-nav"><span><a href="03-prometheus-node-lifecycle.html">&larr; 03 · Node metrics lifecycle</a></span><span><a href="00-start-here.html">回 00 · Start here &rarr;</a></span></div>
+<script src="../../Otel/assets/quiz.js"></script></body></html>
