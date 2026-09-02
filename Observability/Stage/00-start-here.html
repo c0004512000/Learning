@@ -1,186 +1,69 @@
 <!doctype html>
 <html lang="zh-Hant">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>00. Taiwan Stage Grafana：從資料誕生到 Dashboard</title>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark"><title>00. Taiwan Stage Grafana：從資料誕生到 Dashboard</title><link rel="stylesheet" href="../../Otel/assets/style.css">
+<script src="../../Otel/assets/theme.js"></script>
 <style>
-:root{color-scheme:light;--ink:#1a1a1a;--paper:#fdfdfb;--muted:#6b6b6b;--accent:#a3372e;--line:#d8d3c8;--code-bg:#f4f1ea;--panel:#fffdf8;--success:#2e6b3e;--fail:#a3372e;--info:#4a6fa5;--correct-bg:#eaf5ec;--incorrect-bg:#f9eceb;--max-width:42rem}
-:root[data-theme="dark"]{color-scheme:dark;--ink:#ece9e2;--paper:#171716;--muted:#b8b1a7;--accent:#f19a8f;--line:#4c4943;--code-bg:#24231f;--panel:#1e1e1b;--success:#91d39d;--fail:#f59c92;--info:#9cc4ff;--correct-bg:#1e3926;--incorrect-bg:#422521}
-@media(prefers-color-scheme:dark){:root:not([data-theme]){color-scheme:dark;--ink:#ece9e2;--paper:#171716;--muted:#b8b1a7;--accent:#f19a8f;--line:#4c4943;--code-bg:#24231f;--panel:#1e1e1b;--success:#91d39d;--fail:#f59c92;--info:#9cc4ff;--correct-bg:#1e3926;--incorrect-bg:#422521}}
-*{box-sizing:border-box}html{font-size:18px}body{background:var(--paper);color:var(--ink);font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"PT Serif",serif;line-height:1.6;max-width:var(--max-width);margin:3rem auto 6rem;padding:0 1.5rem}
-h1,h2,h3{font-weight:600;line-height:1.25}h1{font-size:2rem;border-bottom:1px solid var(--line);padding-bottom:.5rem;margin-bottom:.25rem}.subtitle{color:var(--muted);font-style:italic;margin-top:0;margin-bottom:2rem}h2{font-size:1.4rem;margin-top:2.5rem}h3{font-size:1.1rem;margin-top:1.5rem}p{margin:1em 0}a{color:var(--accent);text-decoration:none;border-bottom:1px solid currentColor}a:hover{opacity:.75}
-code,pre{font-family:"SF Mono",Consolas,"Cascadia Code",Menlo,monospace;font-size:.9rem}code{background:var(--code-bg);padding:.1em .35em;border-radius:3px}pre{background:var(--code-bg);padding:1rem 1.2rem;border-radius:6px;overflow-x:auto;border:1px solid var(--line)}pre code{background:none;padding:0}
-.box{border:1px solid var(--line);border-left:4px solid var(--accent);background:var(--code-bg);padding:1rem 1.3rem;margin:1.5rem 0;border-radius:4px}.box.tip{border-left-color:var(--success)}.box.ask{border-left-color:var(--info)}
-.table-wrap{margin:1.5rem 0;overflow-x:auto}.table-wrap table{width:100%;min-width:38rem;border-collapse:collapse;font-size:.9rem}.table-wrap th,.table-wrap td{padding:.65rem .55rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.table-wrap th{color:var(--muted);font-weight:600}
-.diagram{margin:1.5rem 0;padding:1rem;border:1px solid var(--line);border-radius:8px;background:var(--panel)}.diagram-flow{display:flex;align-items:stretch;gap:.45rem}.diagram-node{flex:1 1 0;min-width:7.8rem;padding:.65rem .7rem;border:1px solid var(--line);border-top:3px solid var(--info);border-radius:6px;background:var(--paper);text-align:center}.diagram-node.source{border-top-color:var(--accent)}.diagram-node.backend{border-top-color:var(--success)}.diagram-node.ui{border-top-color:var(--muted)}.node-kicker{display:block;color:var(--muted);font-size:.72rem}.node-name{display:block;font-weight:600}.node-note{display:block;color:var(--muted);font-size:.78rem;line-height:1.35}.diagram-connector{flex:0 1 5rem;min-width:3rem;align-self:center;color:var(--muted);font-size:.76rem;text-align:center}.connector-line{border-top:2px solid var(--success);margin-top:.35rem}
-.status{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.08rem .4rem;font-size:.75rem;white-space:nowrap}.status.proven{color:var(--success);border-color:var(--success)}.status.expected{color:var(--info);border-color:var(--info)}.status.gap{color:var(--accent);border-color:var(--accent)}
-.quiz{border:1px solid var(--line);border-radius:6px;padding:1.2rem 1.4rem;margin:1.5rem 0;background:var(--panel)}.quiz .question{font-weight:600;margin-bottom:.8rem}.quiz .choices{display:flex;flex-direction:column;gap:.5rem}.quiz button.choice{color:var(--ink);text-align:left;font-family:inherit;font-size:1rem;padding:.55rem .9rem;border:1px solid var(--line);border-radius:5px;background:var(--paper);cursor:pointer}.quiz button.choice.correct{border-color:var(--success);background:var(--correct-bg)}.quiz button.choice.incorrect{border-color:var(--fail);background:var(--incorrect-bg)}.quiz .feedback{margin-top:.8rem;font-size:.95rem;min-height:1.2em}.quiz .feedback.correct{color:var(--success)}.quiz .feedback.incorrect{color:var(--fail)}details.answer-fallback{margin-top:.9rem;border-top:1px dashed var(--line);padding-top:.7rem}details.answer-fallback summary{cursor:pointer;color:var(--accent);font-weight:600}
-.lesson-nav{display:flex;justify-content:space-between;gap:1rem;margin-top:3rem;padding-top:1rem;border-top:1px solid var(--line);font-size:.9rem}.theme-toggle{position:fixed;top:1rem;right:1rem;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:.45rem .75rem;cursor:pointer}
-@media(max-width:680px){.diagram-flow{flex-direction:column}.diagram-node{min-width:0;width:100%}.diagram-connector{width:100%}.lesson-nav{flex-direction:column}}
-</style>
-<script>(function(){'use strict';const storageKey='otel-teaching-theme';const root=document.documentElement;const mediaQuery=window.matchMedia('(prefers-color-scheme: dark)');function getStoredTheme(){try{const t=localStorage.getItem(storageKey);return t==='light'||t==='dark'?t:null}catch(e){return null}}function saveTheme(t){try{localStorage.setItem(storageKey,t)}catch(e){}}function resolvedTheme(){return root.dataset.theme||(mediaQuery.matches?'dark':'light')}function updateToggle(b){const dark=resolvedTheme()==='dark';b.textContent=dark?'☀ 切換為淺色模式':'☾ 切換為深色模式';b.setAttribute('aria-pressed',String(dark))}function createToggle(){const b=document.createElement('button');b.type='button';b.className='theme-toggle no-print';b.addEventListener('click',()=>{const n=resolvedTheme()==='dark'?'light':'dark';root.dataset.theme=n;saveTheme(n);updateToggle(b)});document.body.append(b);updateToggle(b)}const saved=getStoredTheme();if(saved)root.dataset.theme=saved;if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',createToggle,{once:true});else createToggle();})();</script>
-</head>
-<body>
-<h1>00. 從資料誕生到 Dashboard</h1>
-<p class="subtitle">先建立 Taiwan Stage Tier 1 scope 的完整 observability lifecycle 心智模型</p>
+.status{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.08rem .42rem;font-size:.75rem;white-space:nowrap}
+.status.proven{border-color:var(--success);color:var(--success)}
+.status.model{border-color:var(--info);color:var(--info)}
+.status.gap{border-color:var(--accent);color:var(--accent)}
+.flow-stack{display:flex;flex-direction:column;gap:.55rem}
+.flow-arrow{text-align:center;color:var(--muted);font-size:.8rem}
+.flow-arrow::after{content:"↓";display:block;color:var(--success);font-size:1.25rem;line-height:1}
+.section-map{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:1.2rem 0}
+.section-map a{display:block;border:1px solid var(--line);border-radius:6px;padding:.75rem .85rem;background:var(--panel)}
+.fact{font-family:"SF Mono",Consolas,monospace;font-size:.82rem;color:var(--muted)}
+.anchor-target{scroll-margin-top:5rem}
+details.answer-fallback{margin-top:.9rem;padding-top:.7rem;border-top:1px dashed var(--line)}
+details.answer-fallback summary{cursor:pointer;color:var(--accent);font-weight:600}
+@media(max-width:680px){.section-map{grid-template-columns:1fr}}
+</style></head>
+<body><h1>00. Taiwan Stage Grafana：從資料誕生到 Dashboard</h1><p class="subtitle">先建立完整 observability lifecycle，再進入兩個 Tier 1 scope Dashboard</p>
+<div class="box tip"><strong>先建立因果鏈：</strong>Grafana Dashboard 是最後一站，不是資料來源。要真正知道一個 Dashboard 為什麼有資料，必須一路追到「誰產生 telemetry、誰收集、誰保存、Grafana 如何查、最後怎麼畫」。</div>
 
-<div class="box tip"><strong>這一章只回答一件事：</strong>你在 Grafana 看到一條 CPU 線、一筆 Log、或一條 Trace 之前，資料到底經過了哪些角色？先把這條因果鏈建立起來，後面看 Helm values、Prometheus scrape config、Grafana datasource 和 PromQL 才不會只是背設定。</div>
+<h2>這一題的 scope</h2>
+<p>目前只聚焦兩個 Dashboard：<strong>MicroService Dashboard</strong> 與 <strong>Node Exporter Full</strong>。這只是本次學習範圍，不代表 Taiwan Stage Kubernetes Dashboard 的正式分類。</p>
 
-<h2>先從畫面往回推</h2>
-<p>你現在 scope 裡有兩個 Dashboard：<strong>MicroService Dashboard</strong> 與 <strong>Node Exporter Full</strong>。它們表面上都是 Grafana 頁面，但背後依賴的資料來源不一樣。</p>
+<h2>完整 lifecycle：順序只有一個</h2>
+<div class="flow-stack" aria-label="Observability data lifecycle">
+<div class="diagram-node app"><span class="node-kicker">1 · Generation</span><span class="node-name">Node / Pod / Application</span><span class="node-note">系統狀態、container 使用量、application logs、spans 在這一層產生或被暴露</span></div>
+<div class="flow-arrow">產生 telemetry / 暴露 metrics</div>
+<div class="diagram-node processor"><span class="node-kicker">2 · Collection</span><span class="node-name">Exporter / Agent / Collector / Scraper</span><span class="node-note">讀取、接收、enrich、filter、轉送或 scrape</span></div>
+<div class="flow-arrow">ingest / remote write / push / scrape result</div>
+<div class="diagram-node processor"><span class="node-kicker">3 · Backend</span><span class="node-name">Prometheus / Loki / Tempo</span><span class="node-note">保存 telemetry，建立可查詢的資料模型與 API</span></div>
+<div class="flow-arrow">Grafana 透過 datasource 連線</div>
+<div class="diagram-node provider"><span class="node-kicker">4 · Datasource</span><span class="node-name">Grafana Backend Connection</span><span class="node-note">type、URL、UID、auth / query options；它不保存 telemetry</span></div>
+<div class="flow-arrow">panel target 發出 query</div>
+<div class="diagram-node exporter"><span class="node-kicker">5 · Query</span><span class="node-name">PromQL / LogQL / TraceQL</span><span class="node-note">filter、rate、aggregate、duration、status；variables 在這裡被代入</span></div>
+<div class="flow-arrow">query result</div>
+<div class="diagram-node tracer"><span class="node-kicker">6 · Visualization</span><span class="node-name">Grafana Panel / Layout</span><span class="node-note">Time series、table、stat、threshold、legend、field overrides、transformations</span></div>
+</div>
 
-<div class="table-wrap"><table><thead><tr><th>Dashboard</th><th>它真正依賴的資料</th><th>Stage Grafana 目前看到的 backend</th></tr></thead><tbody>
-<tr><td><strong>MicroService Dashboard</strong></td><td>Pod/Container metrics、Node metrics、application logs、application traces、部分 span-metrics</td><td>Prometheus + Loki + Tempo</td></tr>
-<tr><td><strong>Node Exporter Full</strong></td><td>Linux host / node metrics，例如 CPU、Memory、Filesystem、Network、Load</td><td>Prometheus 類 datasource；目前 dashboard 內存在 stale UID 綁定問題</td></tr>
+<h2>兩個 Dashboard 在這條鏈上的差異</h2>
+<div class="table-wrap"><table><thead><tr><th>Dashboard</th><th>Backend</th><th>主要資料</th><th>Stage 已證實</th></tr></thead><tbody>
+<tr><td><strong>MicroService Dashboard</strong></td><td>Prometheus + Loki + Tempo</td><td>Pod/Container/Node metrics、logs、traces、span-metrics</td><td><span class="status proven">Grafana JSON 已證實</span></td></tr>
+<tr><td><strong>Node Exporter Full</strong></td><td>Prometheus 類 datasource</td><td><code>node_*</code> host metrics</td><td><span class="status proven">Dashboard JSON</span> <span class="status gap">datasource UID stale</span></td></tr>
 </tbody></table></div>
 
-<p>第一個重要結論：<strong>Grafana 本身不是 telemetry backend。</strong>它不負責長期保存這些 CPU samples、logs 或 traces；它只是透過 datasource 去 backend 查資料，再把 query result 畫成 panel。</p>
+<h2>先理解「有資料」到底需要什麼</h2>
+<p>以 Node CPU 為例，Grafana 上的 CPU Busy 不是一個神奇的 Dashboard 欄位。要出現那條線，至少要同時成立：</p>
+<ol><li>Node 的 CPU 狀態可被讀取。</li><li>Node Exporter 類元件把它暴露成 <code>node_cpu_seconds_total</code>。</li><li>Prometheus 成功 scrape，series 被寫入 TSDB。</li><li>Grafana datasource 指向正確的 Prometheus。</li><li>PromQL 使用正確的 <code>job</code>/<code>instance</code> labels。</li><li>Panel 把 query result 轉成你看到的視圖。</li></ol>
+<p>任何一層斷掉，都可能表現成「Dashboard 沒資料」。因此 debugging 也應沿著同一條鏈逐站證明，而不是從 Grafana 猜。</p>
 
-<h2>一條完整生命週期有六層</h2>
-<figure class="diagram">
-<div class="diagram-flow">
-<div class="diagram-node source"><span class="node-kicker">1 · Generation</span><span class="node-name">Node / Pod / Application</span><span class="node-note">產生或暴露 metrics、logs、traces</span></div>
-<div class="diagram-connector">collect / scrape<div class="connector-line"></div></div>
-<div class="diagram-node"><span class="node-kicker">2 · Collection</span><span class="node-name">Exporter / Agent / Collector</span><span class="node-note">讀取、接收、附加 metadata、轉送</span></div>
-<div class="diagram-connector">ingest<div class="connector-line"></div></div>
-<div class="diagram-node backend"><span class="node-kicker">3 · Backend</span><span class="node-name">Prometheus / Loki / Tempo</span><span class="node-note">保存並提供 query API</span></div>
+<h2>接下來怎麼讀</h2>
+<div class="section-map">
+<a href="01-microservice-dashboard.html"><strong>01 · MicroService Dashboard</strong><br><span class="fact">先用真實 Dashboard 看三種信號如何組合</span></a>
+<a href="02-grafana-query-layer.html"><strong>02 · Grafana Query Layer</strong><br><span class="fact">Datasource → Variable → Query → Panel</span></a>
+<a href="03-prometheus-node-lifecycle.html"><strong>03 · Node metrics lifecycle</strong><br><span class="fact">從 Linux host 到 Prometheus time series</span></a>
+<a href="04-node-exporter-full.html"><strong>04 · Node Exporter Full</strong><br><span class="fact">把 lifecycle 套回 128 個 panels</span></a>
 </div>
-<div class="diagram-flow" style="margin-top:.8rem">
-<div class="diagram-node ui"><span class="node-kicker">6 · Visualization</span><span class="node-name">Grafana Panel / Layout</span><span class="node-note">Time series、table、stat、threshold、legend</span></div>
-<div class="diagram-connector">render<div class="connector-line"></div></div>
-<div class="diagram-node ui"><span class="node-kicker">5 · Query</span><span class="node-name">PromQL / LogQL / TraceQL</span><span class="node-note">filter、aggregate、rate、duration、status</span></div>
-<div class="diagram-connector">query<div class="connector-line"></div></div>
-<div class="diagram-node"><span class="node-kicker">4 · Datasource</span><span class="node-name">Grafana connection</span><span class="node-note">backend type + URL + UID + options</span></div>
-</div>
-</figure>
 
-<p>如果你 debug 一個「Dashboard 沒資料」問題，這六層就是你的檢查順序。不要一開始只盯 Grafana。資料可能根本沒有生成、沒有被 scrape、被 collector drop、backend 沒 ingest、datasource 指錯，或 PromQL filter 把它全部篩掉。</p>
-
-<h2>Metrics 路徑：你看到 CPU 之前發生什麼？</h2>
-<p>以 <code>Node Exporter Full</code> 的 CPU panel 為例，Dashboard 查的不是一個叫「CPU Busy」的 metric。它查的是較原始的 <code>node_cpu_seconds_total</code>，再用 PromQL 的 <code>rate()</code>、aggregation 與算術算出 CPU Busy。</p>
-
-<pre><code>Linux host state
-   ↓
-node-exporter 暴露 node_cpu_seconds_total
-   ↓ scrape
-Prometheus 儲存 time series
-   ↓ PromQL
-rate(node_cpu_seconds_total{mode="idle"}[...])
-   ↓ calculation
-CPU Busy %
-   ↓
-Grafana panel</code></pre>
-
-<p>這裡每一層責任都不同：Node Exporter 把 host state 轉成 Prometheus metrics；Prometheus 負責 scrape 與保存；PromQL 負責把原始 series 算成你要看的 operational signal；Grafana 只負責呈現。</p>
-
-<div class="box"><span class="status expected">通用模型</span> 上面是 Node Exporter + Prometheus 的標準資料模型。<strong>Taiwan Stage 實際是哪個 Helm release、DaemonSet、ServiceMonitor、scrape job、port 與 relabel config，目前還需要 runtime/source-of-truth 證據。</strong>後面章節會明確把「一般機制」與「Stage 已證實設定」分開。</div>
-
-<h2>Pod / Container metrics 路徑：為什麼 MicroService Dashboard 能看 Pod CPU？</h2>
-<p>MicroService Dashboard 的 Pod CPU panel 實際使用：</p>
-
-<pre><code>rate(
-  container_cpu_usage_seconds_total{
-    pod=~"(?i:(^$Job-.*))",
-    namespace=~"$Namespace",
-    kubernetes_io_hostname=~"$node"
-  }[3m]
-)</code></pre>
-
-<p>這段 query 已經暴露三件事情：第一，backend 裡必須存在 <code>container_cpu_usage_seconds_total</code>；第二，這些 series 必須帶有 <code>pod</code>、<code>namespace</code>、<code>kubernetes_io_hostname</code> 等 labels；第三，Grafana variables <code>$Job</code>、<code>$Namespace</code>、<code>$node</code> 會被插入 PromQL。</p>
-
-<p>也就是說，Dashboard 能不能工作，不只取決於「有沒有 CPU metric」，還取決於<strong>metric label schema 是否符合 query 的假設</strong>。</p>
-
-<h2>Logs 路徑：同一個 Namespace filter 為什麼又能查 Loki？</h2>
-<p>MicroService Dashboard 的 Error log query 使用 Loki：</p>
-
-<pre><code>sum by(service_name) (
-  count_over_time({
-    service_name=~"$Job",
-    k8s_namespace_name=~"$Namespace"
-  } | severity_text = "Error" [1m])
-)</code></pre>
-
-<p>這裡的 Namespace label 不是 Prometheus 的 <code>namespace</code>，而是 Loki stream 裡的 <code>k8s_namespace_name</code>。所以「同一個 UI filter」其實只是同一個變數值，被 Dashboard 分別插入不同 backend 的不同欄位。</p>
-
-<div class="box"><span class="status proven">Stage Grafana 已證實</span> Loki datasource UID 是 <code>loki123</code>，URL 指向 <code>loki-query-frontend.loki.svc.cluster.local:3100</code>。但「log 最初由哪個 agent 收、在哪一層補上 <code>k8s_namespace_name</code>」仍要再用 Stage runtime config 證明。</div>
-
-<h2>Traces 路徑：Grafana 怎麼知道要找哪條 Trace？</h2>
-<p>MicroService Dashboard 的 Tempo query 會直接查 span/resource attributes，例如：</p>
-
-<pre><code>{
-  resource.service.name =~ "$Job"
-  && span.http.request.method =~ "$Method"
-  && ("$Namespace" = ".*"
-      || resource.k8s.namespace.name =~ "$Namespace")
-}</code></pre>
-
-<p>這代表 Trace 在進入 Tempo 之前，至少必須已經帶有 <code>service.name</code>、HTTP attributes，以及 Kubernetes namespace resource attribute。這些欄位可能來自 application instrumentation、SDK Resource、Collector processor 或其他 enrichment；<strong>光看 Dashboard 只能證明它「依賴這些欄位」，不能證明是哪一層產生。</strong></p>
-
-<div class="box"><span class="status proven">Stage Grafana 已證實</span> Tempo datasource UID 是 <code>temp123</code>，URL 指向 <code>tempo-distributed-v3-query-frontend.tempo-v3.svc.cluster.local:3200</code>；Datasource 還配置了 traces-to-logs → Loki、service map → Prometheus。</div>
-
-<h2>Datasource 層到底做什麼？</h2>
-<p>你在 Grafana UI 新增 Prometheus datasource 時，本質上不是「把 Prometheus 的資料匯進 Grafana」，而是建立一個 connection definition：</p>
-
-<pre><code>type: prometheus
-uid: prometheus
-url: http://prometheus-server.prometheus.svc.cluster.local
-access: proxy
-httpMethod: GET</code></pre>
-
-<p>之後 Dashboard panel target 只需要引用 datasource UID <code>prometheus</code>，Grafana 就知道這條 PromQL 要送去哪一個 backend。</p>
-
-<p>這也解釋了 Node Exporter Full 現在的一個實際問題：它大量 panel target 綁定 UID <code>becxci96j0tfkc</code>，但最新 Stage datasource inventory 裡找不到這個 UID。換句話說，<strong>即使 Prometheus backend 本身有完整 node metrics，Dashboard 仍可能因 datasource binding stale 而失效。</strong></p>
-
-<h2>最後一層才是 Panel 與 Layout</h2>
-<p>到了這裡資料才真正變成你在 Grafana 上看到的畫面。Panel 還會決定：</p>
-<ul>
-<li>用 time series、stat、table 還是其他 visualization；</li>
-<li>數值 unit 是 bytes、percent、seconds；</li>
-<li>legend 如何命名；</li>
-<li>threshold 怎麼標示；</li>
-<li>多個 query 是否做 transformation；</li>
-<li>整個 Dashboard 用哪些 row/section 來安排 troubleshooting 順序。</li>
-</ul>
-
-<p>所以一個 Dashboard 的「生成」不是在 Grafana 裡按幾個 UI 就完成。真正完整的生命週期是：</p>
-
-<pre><code>資料產生
-→ 被收集 / scrape
-→ metadata 被建立
-→ backend ingest / store
-→ Grafana datasource 能連到 backend
-→ variable 取得 filter 值
-→ PromQL / LogQL / TraceQL 查詢
-→ panel visualization
-→ dashboard layout</code></pre>
-
-<h2>目前哪些部分已經證明，哪些還沒有？</h2>
-<div class="table-wrap"><table><thead><tr><th>Lifecycle 層</th><th>目前狀態</th><th>我們已有的證據</th></tr></thead><tbody>
-<tr><td>Grafana Dashboard JSON</td><td><span class="status proven">已證實</span></td><td>兩個 Dashboard 的 panels、variables、queries、datasource UID 已取得</td></tr>
-<tr><td>Grafana datasource</td><td><span class="status proven">已證實</span></td><td>Prometheus / Loki / Tempo URL 與 UID 已取得</td></tr>
-<tr><td>PromQL / LogQL / TraceQL</td><td><span class="status proven">已證實</span></td><td>實際 query 已從 Dashboard JSON 抽出</td></tr>
-<tr><td>Node Exporter Full datasource binding</td><td><span class="status gap">有異常</span></td><td>Dashboard 使用的 UID 在最新 datasource inventory 不存在</td></tr>
-<tr><td>Stage node-exporter Helm / DaemonSet</td><td><span class="status gap">待證明</span></td><td>需要 Kubernetes runtime / Helm source-of-truth</td></tr>
-<tr><td>Stage Prometheus scrape discovery</td><td><span class="status gap">待證明</span></td><td>需要 ServiceMonitor / annotations / scrape_config / targets</td></tr>
-<tr><td>Logs enrichment path</td><td><span class="status gap">待證明</span></td><td>需要確認誰建立 <code>k8s_namespace_name</code></td></tr>
-<tr><td>Trace enrichment path</td><td><span class="status gap">待證明</span></td><td>需要確認誰建立 <code>resource.k8s.namespace.name</code></td></tr>
-</tbody></table></div>
-
+<div class="box"><span class="status model">通用機制</span> 與 <span class="status proven">Stage 已證實</span> 會刻意分開。Dashboard JSON 可以證明 Grafana 端期待哪些 metric、labels、datasource 與 query；但不能單獨證明 Stage 是用哪份 Helm values、哪個 ServiceMonitor 或哪個 Collector processor 建出來的。沒有證據的地方會明確標成 <span class="status gap">待 source-of-truth</span>。</div>
 <div class="quiz" data-quiz>
-<div class="question">如果 Prometheus 裡其實有 <code>node_cpu_seconds_total</code>，但 Grafana panel 綁到一個已不存在的 datasource UID，最可能發生什麼？</div>
-<div class="choices">
-<button class="choice" data-correct="false">Prometheus 會自動建立新的 UID</button>
-<button class="choice" data-correct="true">Backend 有資料，但 Dashboard 仍可能查不到，因為 Grafana 不知道要把 query 送去哪裡</button>
-<button class="choice" data-correct="false">Node Exporter 會停止產生 metrics</button>
+<div class="question">如果 Grafana panel 完全沒資料，第一個合理結論是什麼？</div>
+<div class="choices"><button class="choice" data-correct="false" data-feedback-correct="✓ 正確。「沒資料」只是最末端症狀。需要沿 Generation → Collection → Backend → Datasource → Query → Visualization 逐站驗證。" data-feedback-incorrect="✗ 「沒資料」只是最末端症狀。需要沿 Generation → Collection → Backend → Datasource → Query → Visualization 逐站驗證。">Prometheus 一定壞了</button><button class="choice" data-correct="true" data-feedback-correct="✓ 正確。「沒資料」只是最末端症狀。需要沿 Generation → Collection → Backend → Datasource → Query → Visualization 逐站驗證。" data-feedback-incorrect="✗ 「沒資料」只是最末端症狀。需要沿 Generation → Collection → Backend → Datasource → Query → Visualization 逐站驗證。">只能知道最後畫面沒有資料，還不能定位哪一層壞掉</button><button class="choice" data-correct="false" data-feedback-correct="✓ 正確。「沒資料」只是最末端症狀。需要沿 Generation → Collection → Backend → Datasource → Query → Visualization 逐站驗證。" data-feedback-incorrect="✗ 「沒資料」只是最末端症狀。需要沿 Generation → Collection → Backend → Datasource → Query → Visualization 逐站驗證。">一定是 PromQL 寫錯</button></div><div class="feedback"></div>
+<details class="answer-fallback"><summary>查看答案與解釋</summary><p>「沒資料」只是最末端症狀。需要沿 Generation → Collection → Backend → Datasource → Query → Visualization 逐站驗證。</p></details>
 </div>
-<div class="feedback"></div>
-<details class="answer-fallback"><summary>查看答案</summary><p>第二個。這正是為什麼 observability debug 要分層：data generation/backend 正常，不代表 Grafana binding 一定正常。</p></details>
-</div>
-
-<div class="box ask"><strong>下一章：</strong>現在我們已經知道整條生命週期長什麼樣，下一步才把 <strong>MicroService Dashboard</strong> 拆開，看它怎麼用同一組 UI variables 同時控制 Prometheus、Loki 與 Tempo。</div>
-
-<div class="lesson-nav"><span></span><span><a href="01-microservice-dashboard.html">01 · MicroService Dashboard →</a></span></div>
-<script>(function(){function initQuiz(q){const bs=q.querySelectorAll('button.choice'),f=q.querySelector('.feedback');let answered=false;bs.forEach(btn=>btn.addEventListener('click',()=>{if(answered)return;answered=true;const ok=btn.getAttribute('data-correct')==='true';bs.forEach(b=>{if(b.getAttribute('data-correct')==='true')b.classList.add('correct');else if(b===btn)b.classList.add('incorrect');b.disabled=true});if(f){f.textContent=ok?'✓ 正確!':'✗ 再想想 — 正確答案已標示為綠色。';f.className='feedback '+(ok?'correct':'incorrect')}}))}document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('[data-quiz]').forEach(initQuiz)});})();</script>
-</body>
-</html>
+<div class="lesson-nav"><span></span><span><a href="01-microservice-dashboard.html">01 · MicroService Dashboard &rarr;</a></span></div>
+<script src="../../Otel/assets/quiz.js"></script></body></html>
