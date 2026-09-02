@@ -12,6 +12,7 @@
 - 使用者對「從已理解的具體結果逐層反推必要元件」的教學方式反應良好；例如先從 Span 問「誰建立它？」推導 Tracer，再問「誰提供/管理 Tracer？」推導 TracerProvider。熟悉的結構類比（如 Python Logger）可作輔助，但不得取代精確定義。
 - 每篇概念課結尾應提供一個簡短 Recap，以一句話重新定義本課核心名詞，方便快速複習。
 - `/teach` 對話中的追問、質疑與被修正的心智模型不能只留在聊天紀錄；一旦它改變了教材的正確解釋、學習順序或已建立的理解，應回填到 GitHub Learning workspace：優先修正既有 lesson，必要時新增 reference，符合 learning-record 條件時建立 learning record。不要把每句聊天做成 activity log。
+- 2026-09-03 Lesson 3 學習缺口：使用者能沿 Provider → Tracer → Span → Processor → Exporter 閱讀範例，但不清楚「什麼時候該加 Span Attribute」與「debug 時如何知道 Span 是否真的 End」。Lesson 3 必須把 Attribute/Event/Child Span/Resource 的選擇邏輯，以及 Python `with` / `span.end()` 的 lifecycle 證據講清楚；不能只把 `set_attribute()` 與「Span 有沒有結束？」當成已知操作。
 
 ## Teaching principles
 
@@ -28,6 +29,8 @@
 - 2026-09-01 Lesson 2 follow-up 修正：不要把 `get_tracer(name)` 教成「一段程式碼需要一個 Tracer」。同一個 Tracer 可以建立很多不同 Span；`name` 識別的是 Instrumentation Scope（telemetry 的邏輯產生來源），Tracer 本身不是 Trace tree 的節點。
 - 2026-09-01 TracerProvider follow-up 修正：Provider 的必要性不能推導成「因為有很多 Tracer」。即使只有一個 Tracer，Provider 仍是 stateful configuration owner 與 Tracer access point；常見 Provider-level 設定先理解 Resource、Sampler、SpanProcessor，再延伸 SpanLimits、IdGenerator。
 - Lesson 3 使用 `SimpleSpanProcessor` + `ConsoleSpanExporter` 建立最短可見 feedback loop；`BatchSpanProcessor` 的 queue/batch/timer 行為延後到真正需要討論 production performance/reliability 時再教。
+- Lesson 3 的 Attribute 教學要從「這個值是否能回答 operation 的查詢／除錯問題」開始，而不是從 local variables 開始；時間點 → Event、獨立 duration/outcome → Child Span、producer identity → Resource、沒有明確診斷價值 → 不記。
+- Lesson 3 的 Span End 教學要區分「operation 已完成」與「資料已 export/store」；Python `with start_as_current_span` 離開 block 會 End，手動 `start_span` 則需呼叫 `end()`。沒有 console 輸出不能直接反推 Span 未 End。
 - 不可用未定義的 OTel 元件名稱組成線性流程圖。每個新術語必須先說明它解決的問題、責任邊界與和相鄰元件的關係，再出現在程式碼或完整架構圖中。
 - 深入課程必須區分:顯示用 JSON / Console 輸出、OTLP wire format、Span data model 與 Semantic Conventions；並涵蓋低 cardinality、敏感資料與 queryability 的取捨。
 - 使用者對 `http.route` 與「API endpoint」的語義差異有疑問。資料模型課必須明確區分：routing template (`http.route`)、實際 URL (`url.full` / `url.path`)、目標 host (`server.address`)，以及 logical API operation (`http.request.method` + `http.route`，通常也是 server span name)；避免未限定含義地單獨使用「endpoint」。
