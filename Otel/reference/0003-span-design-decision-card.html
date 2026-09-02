@@ -2,68 +2,65 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>Span / Event / Attribute 決策卡</title>
+<title>Span Attribute 決策卡</title>
 <link rel="stylesheet" href="../assets/style.css">
 <script src="../assets/theme.js"></script>
 </head>
 <body>
-<h1>Span / Event / Attribute 決策卡</h1>
-<p class="subtitle">先問「這份資訊要幫我回答什麼問題？」</p>
+<h1>Span Attribute 決策卡</h1>
+<p class="subtitle">先問：這個值真的值得放進這一次 Span 嗎？</p>
 
-<h2>先決定它是不是 Attribute</h2>
-<pre><code>這份資訊描述的是「整段 operation 的性質或結果」？
-  ├─ 否 → 它是一個有診斷意義的時間點？
-  │        ├─ 是 → Event
-  │        └─ 否 → 它需要自己的 duration / outcome / causal node？
-  │                 ├─ 是 → Child Span
-  │                 └─ 否 → 通常不要記
-  │
-  └─ 是 → 我之後會用它 filter / group / compare / debug 嗎？
-           ├─ 否 → 通常不要記
-           └─ 是 → Attribute</code></pre>
+<h2>最小判斷流程</h2>
+<pre><code>我想記一個值
+   |
+   v
+它描述的是「這一次 Span 所代表的 operation」嗎？
+   |
+   +-- 否 → 先不要放進 Span Attribute
+   |
+   +-- 是
+        |
+        v
+事故時我會拿它 filter / group / compare / debug 嗎？
+        |
+        +-- 否 → 通常不要記
+        |
+        +-- 是 → Attribute</code></pre>
 
 <div class="box tip">
-<strong>一句話：</strong>Attribute 是「這一次 operation 的可查 metadata」，不是把所有 local variable 都抄進 Span。
+<strong>一句話：</strong>Attribute 是附在 Span 上、描述這一次 operation，而且值得查詢的 key-value metadata；不是把所有 local variable 都抄進 telemetry。
 </div>
 
-<h2>四個相鄰概念不要混在一起</h2>
+<h2>四道守門</h2>
 <div class="table-wrap">
 <table>
-  <thead><tr><th>資訊</th><th>適合放哪裡</th><th>例子</th></tr></thead>
+  <thead><tr><th>問題</th><th>判斷</th></tr></thead>
   <tbody>
-    <tr><td>這次 operation 的可查特徵</td><td><strong>Attribute</strong></td><td><code>cart.item_count=3</code>、<code>error.type=timeout</code></td></tr>
-    <tr><td>Span 期間某一刻發生的事</td><td><strong>Event</strong></td><td><code>retry.started</code></td></tr>
-    <tr><td>需要自己的時間與因果位置的工作</td><td><strong>Child Span</strong></td><td>database query、outgoing HTTP call</td></tr>
-    <tr><td>所有 Span 共用的 telemetry producer identity</td><td><strong>Resource</strong></td><td><code>service.name=checkout-service</code></td></tr>
+    <tr><td>它描述的是這一次 operation 嗎？</td><td>不是的話，先不要把它當 Span Attribute。</td></tr>
+    <tr><td>事故時我會用它回答什麼問題？</td><td>答不出來通常就不值得記。</td></tr>
+    <tr><td>值會不會非常多、甚至無界成長？</td><td>先確認 queryability 與 backend 成本。</td></tr>
+    <tr><td>含個資、credential、完整 payload 嗎？</td><td>不要直接記；移除、遮罩或改成安全分類。</td></tr>
   </tbody>
 </table>
 </div>
 
-<h2>Attribute 五道守門</h2>
-<div class="table-wrap">
-<table>
-  <thead><tr><th>守門問題</th><th>若答不出來</th></tr></thead>
-  <tbody>
-    <tr><td>事故時我會用它回答什麼問題？</td><td>先不要記錄。</td></tr>
-    <tr><td>它描述的是整段 operation，而不是某一瞬間嗎？</td><td>考慮 Event 或 Child Span。</td></tr>
-    <tr><td>值或值組合會無界成長嗎？</td><td>改成穩定分類，或確認 backend 成本。</td></tr>
-    <tr><td>含個資、credential、完整 payload 嗎？</td><td>移除、遮罩或只記安全分類。</td></tr>
-    <tr><td>Sampler 做決策時就需要知道嗎？</td><td>若需要，優先在 Span 建立時就提供。</td></tr>
-  </tbody>
-</table>
-</div>
-
-<h2>套回 Lesson 3 的購物車範例</h2>
+<h2>套回 Lesson 3</h2>
 <pre><code>span.set_attribute("app.cart.item_count", 3)
 span.set_attribute("app.cart.total_cents", 3674)</code></pre>
-<p>
-<code>item_count</code> 和 <code>total_cents</code> 都是在描述「這一次 calculate_total operation 的背景／結果」，
-所以資料模型上可以是 Attribute；但「可以」不等於「production 一定應該記」。
-如果你沒有任何查詢或除錯需求會用到 <code>total_cents</code>，就不必為了欄位多而留下它。
-</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>欄位</th><th>判讀</th></tr></thead>
+  <tbody>
+    <tr><td><code>app.cart.item_count</code></td><td>描述這次計算處理多少 item；若要比較 item 數量與 latency，可以有明確 debug 價值。</td></tr>
+    <tr><td><code>app.cart.total_cents</code></td><td>資料模型上可以，但是否值得 production 記錄，要看是否有實際 query/debug 需求與資料安全考量。</td></tr>
+    <tr><td><code>service.name</code></td><td>這不是單次 operation 的資訊；在目前課程裡它屬於 Resource。</td></tr>
+  </tbody>
+</table>
+</div>
 
 <div class="box">
-<strong>SRE 判斷：</strong>telemetry 的價值不是欄位數量，而是它能否用可接受的成本排除事故假設。
+<strong>SRE 判斷：</strong>telemetry 的價值不是欄位越多越好，而是能否用合理成本幫你回答事故問題。
 </div>
 
 <p class="cite">主要來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#set-attributes" target="_blank">OpenTelemetry Trace API — Set Attributes</a>、<a href="https://opentelemetry.io/docs/specs/semconv/how-to-write-conventions/" target="_blank">Semantic Conventions — attribute design guidance</a></p>
