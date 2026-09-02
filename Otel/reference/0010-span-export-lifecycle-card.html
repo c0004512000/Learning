@@ -2,17 +2,58 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>Span export lifecycle 快速卡</title>
+<title>Span lifecycle / export 快速卡</title>
 <link rel="stylesheet" href="../assets/style.css">
 <script src="../assets/theme.js"></script>
 </head>
 <body>
-<h1>Span export lifecycle 快速卡</h1>
-<p class="subtitle">End、enqueue、export、accept、store 是不同事件</p>
+<h1>Span lifecycle / export 快速卡</h1>
+<p class="subtitle">Span ended、processor received、exported、stored 是不同事件</p>
 
-<pre><code>Span.end()
+<h2>Span 什麼時候算結束？</h2>
+<p><strong>當描述的 operation 已經完成，Span 應設定 end time。</strong> End 之後，Span 的 duration 才固定，正常情況也不應再修改 attributes、events 或 status。</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Python 寫法</th><th>你怎麼知道它 ended</th></tr></thead>
+  <tbody>
+    <tr><td><code>with tracer.start_as_current_span(...) as span:</code></td><td>程式離開 <code>with</code> block 時，context manager 會替你 end Span。</td></tr>
+    <tr><td><code>span = tracer.start_span(...)</code></td><td>你必須自己在 operation 完成時呼叫 <code>span.end()</code>。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<pre><code>with tracer.start_as_current_span("calculate_total") as span:
+    total = sum(prices)
+    # Span 還在進行
+
+# 到這一行時，with 已離開 → Span 已 end</code></pre>
+
+<div class="box tip">
+<strong>最重要的判斷：</strong>Span 的邊界應跟「你想量測的 operation」一致，不是跟函式、scope 或 exporter 任意對齊。
+</div>
+
+<h2>Debug 時有哪些證據？</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>你看到的證據</th><th>可以直接證明什麼</th><th>不能直接證明什麼</th></tr></thead>
+  <tbody>
+    <tr><td>程式已離開 <code>with</code></td><td>該 context manager 已執行 Span end</td><td>Exporter 一定成功</td></tr>
+    <tr><td><code>span.end()</code> 已執行</td><td>Span end 被明確呼叫</td><td>Backend 已收到</td></tr>
+    <tr><td><code>span.is_recording()</code> 變成 false</td><td>SDK 通常已不再接受新的 Span 資料</td><td>一定是 sampling 或 export 成功</td></tr>
+    <tr><td>SimpleSpanProcessor + ConsoleSpanExporter 已印出 Span</td><td>Span 已 end，Processor/Exporter 路徑至少走到 console</td><td>遠端 backend 已儲存</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>反過來不成立：</strong>「terminal 沒看到 Span」不能直接推論「Span 沒有 end」。也可能是 Processor 沒掛、Exporter 沒連、sampling/recording 行為或 stdout 可見性出了問題。</p>
+
+<h2>從 End 到 Backend 的事件鏈</h2>
+<pre><code>operation 完成
+  → Span.end() / 離開 Python with block
   → Processor OnEnd
-  → [Batch queue]
+  → [Simple: 立即交給 exporter]
+  → [Batch: enqueue / batch]
   → Exporter serialize/send
   → Collector receiver accepts
   → Collector pipeline forwards
@@ -22,16 +63,19 @@
 <table>
   <thead><tr><th>事件</th><th>它直接證明</th><th>它不直接證明</th></tr></thead>
   <tbody>
-    <tr><td>Span ended</td><td>duration/data snapshot 完成</td><td>已離開 process</td></tr>
+    <tr><td>Span ended</td><td>operation 的 end time / duration 已固定</td><td>已離開 process</td></tr>
     <tr><td>Batch enqueue</td><td>processor 接手 pending data</td><td>export 成功</td></tr>
     <tr><td>ForceFlush success</td><td>期限內完成 SDK 定義的 pending work</td><td>backend 已可查詢</td></tr>
-    <tr><td>Collector debug output</td><td>到達該 Collector pipeline 出口</td><td>production storage 成功</td></tr>
+    <tr><td>Collector debug output</td><td>到達該 Collector pipeline 的觀測點</td><td>production storage 成功</td></tr>
   </tbody>
 </table>
 </div>
 
-<p><strong>容量直覺：</strong>若持續 <code>arrival rate &gt; drain rate</code>，任何有限 queue 最終都會滿。</p>
-<p><a href="../lessons/0017-span-processing-lifecycle.html">回到 Lesson 17</a></p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#end" target="_blank">OpenTelemetry Trace API — End</a>、<a href="https://opentelemetry.io/docs/languages/python/instrumentation/" target="_blank">OpenTelemetry Python — Creating spans</a></p>
+
+<div class="lesson-nav">
+  <span><a href="../lessons/0003-first-python-span.html">&larr; 回 Lesson 3</a></span>
+  <span><a href="../lessons/0017-span-processing-lifecycle.html">深入 Span processing lifecycle &rarr;</a></span>
+</div>
 </body>
 </html>
-
