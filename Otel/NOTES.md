@@ -12,7 +12,8 @@
 - 使用者對「從已理解的具體結果逐層反推必要元件」的教學方式反應良好；例如先從 Span 問「誰建立它？」推導 Tracer，再問「誰提供/管理 Tracer？」推導 TracerProvider。熟悉的結構類比（如 Python Logger）可作輔助，但不得取代精確定義。
 - 每篇概念課結尾應提供一個簡短 Recap，以一句話重新定義本課核心名詞，方便快速複習。
 - `/teach` 對話中的追問、質疑與被修正的心智模型不能只留在聊天紀錄；一旦它改變了教材的正確解釋、學習順序或已建立的理解，應回填到 GitHub Learning workspace：優先修正既有 lesson，必要時新增 reference，符合 learning-record 條件時建立 learning record。不要把每句聊天做成 activity log。
-- 2026-09-03 Lesson 3 學習缺口：使用者能沿 Provider → Tracer → Span → Processor → Exporter 閱讀範例，但不清楚「什麼時候該加 Span Attribute」與「debug 時如何知道 Span 是否真的 End」。Lesson 3 必須把 Attribute/Event/Child Span/Resource 的選擇邏輯，以及 Python `with` / `span.end()` 的 lifecycle 證據講清楚；不能只把 `set_attribute()` 與「Span 有沒有結束？」當成已知操作。
+- 回填新問題前要先檢查後續既有 lessons / references 是否已完整承擔該主題。若後面已有完整第一性原理教學，不要無理由把前面 lesson 擴寫成重複課程；優先在目前章節做最小必要提示，並透過 reference / forward link 導向完整章節。只有既有章節本身有實質缺口時才重構它。
+- 2026-09-03 Lesson 3 學習缺口：使用者不清楚「什麼時候該加 Span Attribute」與「debug 時如何知道 Span 是否真的 End」。Lesson 3 應只補足建立第一個 Span 當下必要的 Attribute 判斷與 Python lifecycle 證據；不要提前用尚未教過的 Event / Child Span 解釋 Attribute。Span / Event / Attribute 的完整設計邊界由 Lesson 5 負責，Lesson 3 / reference 僅導航到該課。
 
 ## Teaching principles
 
@@ -29,7 +30,8 @@
 - 2026-09-01 Lesson 2 follow-up 修正：不要把 `get_tracer(name)` 教成「一段程式碼需要一個 Tracer」。同一個 Tracer 可以建立很多不同 Span；`name` 識別的是 Instrumentation Scope（telemetry 的邏輯產生來源），Tracer 本身不是 Trace tree 的節點。
 - 2026-09-01 TracerProvider follow-up 修正：Provider 的必要性不能推導成「因為有很多 Tracer」。即使只有一個 Tracer，Provider 仍是 stateful configuration owner 與 Tracer access point；常見 Provider-level 設定先理解 Resource、Sampler、SpanProcessor，再延伸 SpanLimits、IdGenerator。
 - Lesson 3 使用 `SimpleSpanProcessor` + `ConsoleSpanExporter` 建立最短可見 feedback loop；`BatchSpanProcessor` 的 queue/batch/timer 行為延後到真正需要討論 production performance/reliability 時再教。
-- Lesson 3 的 Attribute 教學要從「這個值是否能回答 operation 的查詢／除錯問題」開始，而不是從 local variables 開始；時間點 → Event、獨立 duration/outcome → Child Span、producer identity → Resource、沒有明確診斷價值 → 不記。
+- Lesson 3 的 Attribute 教學只從「這個值是否描述這一次 operation，以及是否能回答查詢／除錯問題」推導 Attribute；若問題開始涉及「某件事發生的時刻」或「是否需要另一個獨立工作節點」，不要在 Lesson 3 提前展開新模型，導向 Lesson 5。
+- Lesson 5 是 Span / Event / Attribute 設計邊界的完整課：從所需證據反推模型，涵蓋使用時機、duration/outcome/causal node、實際 checkout 範例、過度埋點修正與 debugging lab。
 - Lesson 3 的 Span End 教學要區分「operation 已完成」與「資料已 export/store」；Python `with start_as_current_span` 離開 block 會 End，手動 `start_span` 則需呼叫 `end()`。沒有 console 輸出不能直接反推 Span 未 End。
 - 不可用未定義的 OTel 元件名稱組成線性流程圖。每個新術語必須先說明它解決的問題、責任邊界與和相鄰元件的關係，再出現在程式碼或完整架構圖中。
 - 深入課程必須區分:顯示用 JSON / Console 輸出、OTLP wire format、Span data model 與 Semantic Conventions；並涵蓋低 cardinality、敏感資料與 queryability 的取捨。
