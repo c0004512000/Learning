@@ -10,6 +10,13 @@
 <h1>Span Attribute 決策卡</h1>
 <p class="subtitle">先問：這個值真的值得放進這一次 Span 嗎？</p>
 
+<div class="box">
+<strong>這張卡只解決 Attribute。</strong>
+如果你的問題已經變成「我想記的不是一個值，而是一件發生過的事」或「這段工作是不是應該有自己的時間與因果位置」，先不要在這裡背新名詞；請直接進入
+<a href="../lessons/0005-span-design-boundaries.html">Lesson 5：Span 邊界與欄位設計</a>。
+那一課會從第一性原理完整比較 Span、Event、Attribute 的存在理由、使用時機與實際範例。
+</div>
+
 <h2>最小判斷流程</h2>
 <pre><code>我想記一個值
    |
@@ -63,11 +70,18 @@ span.set_attribute("app.cart.total_cents", 3674)</code></pre>
 <strong>SRE 判斷：</strong>telemetry 的價值不是欄位越多越好，而是能否用合理成本幫你回答事故問題。
 </div>
 
+<h2>下一個設計問題在哪裡學？</h2>
+<p>
+當你已經不只是問「這個值該不該成為 Attribute」，而是在比較不同 telemetry 表達方式時，
+請進入 <a href="../lessons/0005-span-design-boundaries.html">Lesson 5</a>。
+它會用同一個 checkout 情境回答：什麼時候只加 Attribute、什麼時候需要記錄一個發生時刻、什麼時候值得拆出另一個 Span，以及為什麼。
+</p>
+
 <p class="cite">主要來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#set-attributes" target="_blank">OpenTelemetry Trace API — Set Attributes</a>、<a href="https://opentelemetry.io/docs/specs/semconv/how-to-write-conventions/" target="_blank">Semantic Conventions — attribute design guidance</a></p>
 
 <div class="lesson-nav">
   <span><a href="../lessons/0003-first-python-span.html">&larr; 回 Lesson 3</a></span>
-  <span><a href="0002-span-reading-guide.html">Span 五問判讀卡 &rarr;</a></span>
+  <span><a href="../lessons/0005-span-design-boundaries.html">完整比較 Span / Event / Attribute &rarr;</a></span>
 </div>
 </body>
 </html>
