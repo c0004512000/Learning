@@ -1,8 +1,103 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>01. MicroService Dashboard</title><style>body{font-family:Georgia,"Times New Roman",serif;max-width:42rem;margin:3rem auto;padding:0 1.5rem;line-height:1.65;background:#fdfdfb;color:#1a1a1a}h1{font-size:2rem;border-bottom:1px solid #d8d3c8;padding-bottom:.5rem}h2{margin-top:2.4rem}.box,.ref-card,.quiz{border:1px solid #d8d3c8;border-radius:8px;padding:1rem 1.2rem;margin:1.4rem 0;background:#fffdf8}.box{border-left:4px solid #2e6b3e}.ref-card{border-left:4px solid #4a6fa5}pre{background:#f4f1ea;padding:1rem;border:1px solid #d8d3c8;border-radius:6px;overflow:auto}code{font-family:monospace}.lesson-nav{display:flex;justify-content:space-between;gap:1rem;border-top:1px solid #d8d3c8;margin-top:3rem;padding-top:1rem}a{color:#a3372e}.quiz .choices{display:flex;flex-direction:column;gap:.5rem}.choice{padding:.6rem;text-align:left;background:#fff;border:1px solid #d8d3c8;border-radius:5px}.correct{background:#eaf5ec}.incorrect{background:#f9eceb}@media(prefers-color-scheme:dark){body{background:#171716;color:#ece9e2}.box,.ref-card,.quiz{background:#1e1e1b;border-color:#4c4943}pre{background:#24231f;border-color:#4c4943}.choice{background:#171716;color:#ece9e2;border-color:#4c4943}a{color:#f19a8f}}</style></head><body><h1>01. MicroService Dashboard：三條 signal 如何在一頁相遇</h1><p>先從已看到的 Dashboard 結果反推：這個 Dashboard 同時使用 Prometheus、Loki、Tempo。</p><div class="box"><strong>Stage 已證實：</strong> Prometheus datasource UID <code>prometheus</code>、Loki UID <code>loki123</code>、Tempo UID <code>temp123</code>；variables 包含 Job、Namespace、Severity、DB_SYSTEM、Duration、Method、Url、node。</div><h2>同一個 Namespace filter，三種 backend 寫法不同</h2><pre><code># Prometheus
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark"><title>01. MicroService Dashboard：三條 signal 如何在一頁相遇</title><link rel="stylesheet" href="../../Otel/assets/style.css">
+<script src="../../Otel/assets/theme.js"></script>
+<style>
+.status{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.08rem .42rem;font-size:.75rem;white-space:nowrap}
+.status.proven{border-color:var(--success);color:var(--success)}
+.status.model{border-color:var(--info);color:var(--info)}
+.status.gap{border-color:var(--accent);color:var(--accent)}
+.flow-stack{display:flex;flex-direction:column;gap:.55rem}
+.flow-arrow{text-align:center;color:var(--muted);font-size:.8rem}
+.flow-arrow::after{content:"↓";display:block;color:var(--success);font-size:1.25rem;line-height:1}
+.section-map{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:1.2rem 0}
+.section-map a{display:block;border:1px solid var(--line);border-radius:6px;padding:.75rem .85rem;background:var(--panel)}
+.fact{font-family:"SF Mono",Consolas,monospace;font-size:.82rem;color:var(--muted)}
+.anchor-target{scroll-margin-top:5rem}
+details.answer-fallback{margin-top:.9rem;padding-top:.7rem;border-top:1px dashed var(--line)}
+details.answer-fallback summary{cursor:pointer;color:var(--accent);font-weight:600}
+@media(max-width:680px){.section-map{grid-template-columns:1fr}}
+</style></head>
+<body><h1>01. MicroService Dashboard：三條 signal 如何在一頁相遇</h1><p class="subtitle">從實際 Stage datasource、variables、queries、panel rows 反推設計</p>
+<div class="box tip"><strong>先從成品反推：</strong>這個 Dashboard 不是「一個 Prometheus Dashboard」。最新 Stage inventory 顯示它有 <strong>29 個 panels、6 個 row sections、9 個 variables</strong>，而 panel targets 同時使用 Prometheus、Loki、Tempo。</div>
+
+<h2>第一步：先辨認它連到哪些 backend</h2>
+<div class="table-wrap"><table><thead><tr><th>Signal</th><th>Grafana datasource</th><th>UID</th><th>Stage URL</th></tr></thead><tbody>
+<tr><td>Metrics</td><td>Prometheus</td><td><code>prometheus</code></td><td><code>http://prometheus-server.prometheus.svc.cluster.local</code></td></tr>
+<tr><td>Logs</td><td>Loki</td><td><code>loki123</code></td><td><code>http://loki-query-frontend.loki.svc.cluster.local:3100</code></td></tr>
+<tr><td>Traces</td><td>Tempo</td><td><code>temp123</code></td><td><code>http://tempo-distributed-v3-query-frontend.tempo-v3.svc.cluster.local:3200</code></td></tr>
+</tbody></table></div>
+<p><span class="status proven">Stage 已證實</span> Tempo datasource 還設定了 <code>tracesToLogs → loki123</code>、<code>serviceMap → prometheus</code>；Loki datasource 的 derived field 會從 log 中抓 <code>traceid</code> 並指到 Tempo。這些是 datasource-level correlation。</p>
+
+<h2>第二步：9 個 variables 是 Dashboard 的輸入層</h2>
+<div class="table-wrap"><table><thead><tr><th>Variable</th><th>來源</th><th>實際用途</th></tr></thead><tbody>
+<tr><td><code>Job</code></td><td>Infinity datasource / Stage service list API</td><td>Service selector；跨 logs/traces/metrics 使用</td></tr>
+<tr><td><code>Namespace</code></td><td>Prometheus <code>label_values(namespace)</code></td><td>Kubernetes namespace filter</td></tr>
+<tr><td><code>Severity</code></td><td>Custom</td><td>Log severity</td></tr>
+<tr><td><code>LOG_BODY</code></td><td>Textbox</td><td>Log message contains filter</td></tr>
+<tr><td><code>DB_SYSTEM</code></td><td>Tempo label <code>db.system</code></td><td>DB trace filter</td></tr>
+<tr><td><code>Duration</code></td><td>Custom seconds</td><td>Slow trace threshold</td></tr>
+<tr><td><code>Method</code></td><td>Custom HTTP methods</td><td>HTTP trace filter</td></tr>
+<tr><td><code>Url</code></td><td>Textbox</td><td>HTTP path / route / target search</td></tr>
+<tr><td><code>node</code></td><td>Prometheus <code>label_values(node)</code></td><td>Node filter</td></tr>
+</tbody></table></div>
+
+<h2 id="cross-signal-filter">第三步：同一個 Namespace，三個 backend 的欄位完全不同</h2>
+<pre><code># Prometheus
 namespace=~"$Namespace"
 
 # Loki
 k8s_namespace_name=~"$Namespace"
 
 # Tempo
-resource.k8s.namespace.name=~"$Namespace"</code></pre><p>因此 Dashboard variable 的價值，是把同一個人類概念映射到三種不同資料模型。</p><div class="ref-card"><strong>下一個必要問題：</strong><p>Datasource、Variable、Query、Panel 到底如何串起來？</p><p><a href="02-grafana-query-layer.html#datasource">前往 02 · Grafana Query Layer →</a></p></div><div id="after-query-reference"></div><h2>回到主線</h2><p>Reference 讀完後，回到這裡：variables 是輸入層；panel targets 是 query 層；visualization/layout 是 presentation 層。</p><div class="quiz" data-quiz><strong>為什麼同一個 Namespace filter 可以同時影響三個 backend？</strong><div class="choices"><button class="choice" data-correct="false">三個 backend 共用同一張資料表</button><button class="choice" data-correct="true">同一 variable 被代入不同 backend 的 query 欄位</button></div><p class="feedback"></p><details><summary>查看答案</summary><p>同一 variable 被代入 PromQL、LogQL、TraceQL 各自對應的欄位。</p></details></div><div class="lesson-nav"><a href="00-start-here.html">← 00 · Start here</a><a href="02-grafana-query-layer.html">02 · Grafana Query Layer →</a></div><script>document.addEventListener('DOMContentLoaded',()=>document.querySelectorAll('[data-quiz]').forEach(q=>{let done=false;const f=q.querySelector('.feedback');q.querySelectorAll('.choice').forEach(b=>b.addEventListener('click',()=>{if(done)return;done=true;const ok=b.dataset.correct==='true';q.querySelectorAll('.choice').forEach(x=>{if(x.dataset.correct==='true')x.classList.add('correct');else if(x===b)x.classList.add('incorrect')});f.textContent=ok?'✓ 正確':'✗ 再想想'}))}))</script></body></html>
+resource.k8s.namespace.name=~"$Namespace"</code></pre>
+<p>這就是 Dashboard variable 的核心價值：它不是把三個 backend 合成同一張表，而是讓同一個 UI 選擇值，被代入三種不同的資料模型與 query language。</p>
+
+<h2>第四步：看三條真實 query</h2>
+<h3>Pod CPU · PromQL</h3>
+<pre><code>rate(container_cpu_usage_seconds_total{
+  pod=~"(?i:(^$Job-.*))",
+  namespace=~"$Namespace",
+  kubernetes_io_hostname=~"$node"
+}[3m])</code></pre>
+<p>這條 query 隱含一個 upstream contract：Prometheus 裡必須有 <code>container_cpu_usage_seconds_total</code>，而且 series 要帶 <code>pod</code>、<code>namespace</code>、<code>kubernetes_io_hostname</code> labels。</p>
+
+<h3>Error / Warning Log Count · LogQL</h3>
+<pre><code>sum by(service_name) (
+  count_over_time({
+    service_name=~"$Job",
+    k8s_namespace_name=~"$Namespace"
+  } | severity_text = "Error" [1m])
+)</code></pre>
+
+<h3>HTTP / DB Trace · TraceQL</h3>
+<pre><code>{ resource.service.name =~ "$Job"
+  && span.db.system =~ "$DB_SYSTEM"
+  && ("$Namespace" = ".*"
+      || resource.k8s.namespace.name =~ "$Namespace") }</code></pre>
+
+<h2>第五步：29 個 panels 怎麼被切成 operational questions</h2>
+<div class="table-wrap"><table><thead><tr><th>Row</th><th>代表 panels</th><th>它回答的問題</th></tr></thead><tbody>
+<tr><td>Logs Search</td><td>Logs (Loki v3)、Error&Warn Log Count</td><td>Service 現在輸出什麼？Error/Warning 是否增加？</td></tr>
+<tr><td>DB Monitoring</td><td>DB Transaction、slow transaction、fail</td><td>哪個 DB operation 慢或失敗？</td></tr>
+<tr><td>API Request Monitoring</td><td>Duration、4xx、5xx、2xx/3xx</td><td>哪個 HTTP request 慢或錯？</td></tr>
+<tr><td>Pod Resources</td><td>CPU by pod、Memory by pod</td><td>Workload 是否有資源壓力？</td></tr>
+<tr><td>Cluster Resource</td><td>Node CPU/Memory/Network/Disk</td><td>問題是否其實來自 Node？</td></tr>
+<tr><td>API Error Statistic</td><td>Service Error API Count 等</td><td>錯誤趨勢與服務分布如何？</td></tr>
+</tbody></table></div>
+
+<h2>現在還不能從 Dashboard JSON 證明什麼？</h2>
+<div class="box"><span class="status gap">待 source-of-truth</span> 目前還不能單靠 Grafana JSON 證明：
+<ul><li><code>container_*</code> 在 Stage 是透過哪個 kubelet/cAdvisor scrape path 進 Prometheus。</li><li><code>k8s_namespace_name</code> 是在哪個 log agent / processor 被附加。</li><li><code>resource.k8s.namespace.name</code> 是 application instrumentation 還是 OTel Collector enrichment 產生。</li><li><code>traces_spanmetrics_*</code> 的 production path 與 metrics-generator / connector 實際設定。</li></ul>
+這些要靠 Stage Helm / Kubernetes / runtime config 逐條補證。</div>
+
+<div id="after-grafana-layer" class="anchor-target"></div>
+<div class="box ask"><strong>下一章：</strong>現在已經看懂「這個 Dashboard 用了什麼」，下一個必要問題是 Grafana 自己如何把 Datasource → Variable → Query → Panel 串起來。<br><a href="02-grafana-query-layer.html#datasource">前往 02 · Grafana Query Layer</a></div>
+<div class="quiz" data-quiz>
+<div class="question">MicroService Dashboard 的 $Namespace 為什麼能同時控制 Prometheus、Loki、Tempo？</div>
+<div class="choices"><button class="choice" data-correct="false" data-feedback-correct="✓ 正確。Prometheus、Loki、Tempo 的欄位不同；Dashboard 只是把同一個 $Namespace 值代入各自的 query。" data-feedback-incorrect="✗ Prometheus、Loki、Tempo 的欄位不同；Dashboard 只是把同一個 $Namespace 值代入各自的 query。">因為三個 backend 共用同一種 namespace 欄位</button><button class="choice" data-correct="false" data-feedback-correct="✓ 正確。Prometheus、Loki、Tempo 的欄位不同；Dashboard 只是把同一個 $Namespace 值代入各自的 query。" data-feedback-incorrect="✗ Prometheus、Loki、Tempo 的欄位不同；Dashboard 只是把同一個 $Namespace 值代入各自的 query。">因為 Grafana 自動把 label name 翻譯成同一個名稱</button><button class="choice" data-correct="true" data-feedback-correct="✓ 正確。Prometheus、Loki、Tempo 的欄位不同；Dashboard 只是把同一個 $Namespace 值代入各自的 query。" data-feedback-incorrect="✗ Prometheus、Loki、Tempo 的欄位不同；Dashboard 只是把同一個 $Namespace 值代入各自的 query。">因為同一 variable 值被各 panel query 代入不同 backend 對應欄位</button></div><div class="feedback"></div>
+<details class="answer-fallback"><summary>查看答案與解釋</summary><p>Prometheus、Loki、Tempo 的欄位不同；Dashboard 只是把同一個 $Namespace 值代入各自的 query。</p></details>
+</div>
+<div class="lesson-nav"><span><a href="00-start-here.html">&larr; 00 · Start here</a></span><span><a href="02-grafana-query-layer.html">02 · Grafana Query Layer &rarr;</a></span></div>
+<script src="../../Otel/assets/quiz.js"></script></body></html>
