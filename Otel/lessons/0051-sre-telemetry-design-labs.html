@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>Lesson 51: SRE Telemetry Design Labs</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+
+<h1>51. SRE Telemetry Design Labs</h1>
+<p class="subtitle">把 Lesson 5 的 Span / Event / Attribute 判斷，練成 production debugging 能力</p>
+
+<div class="box">
+<strong>這不是新的主課順序。</strong>
+這是一篇從 <a href="0005-span-design-boundaries.html">Lesson 5</a> 分支出來的深度練習。
+如果你只是沿主課往下學，Lesson 5 的下一課仍是 <a href="0006-http-server-span.html">Lesson 6</a>。
+</div>
+
+<h2>這篇要練的不是名詞，是一個 SRE 思考迴圈</h2>
+<pre><code>看到 production 症狀
+    ↓
+先問：我現在缺哪一種證據？
+    ↓
+再看：現有 telemetry 能不能回答？
+    ↓
+不能 → 缺 Span / Event / Attribute，還是詳細 Log？
+能   → 有沒有過度埋點、敏感資料或高成本欄位？
+    ↓
+最後才改 instrumentation</code></pre>
+
+<p>
+每一題都先自己停一下，再展開答案。重點不是猜中，而是練習把「事故問題」轉成「需要的 telemetry 證據」。
+</p>
+
+<p class="cite">
+主要依據：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/" target="_blank">OpenTelemetry Trace API</a>、
+<a href="https://opentelemetry.io/docs/specs/otel/logs/" target="_blank">OpenTelemetry Logging</a>。
+</p>
+
+<h2>Lab 1：DB 很快，但 request 還是慢 2 秒</h2>
+<p>你接到告警：</p>
+<pre><code>POST /invoice   p95: 2.3s
+
+Trace:
+POST /invoice              2.28s
+└─ SELECT invoice_items      41ms</code></pre>
+
+<p>Application code 大致是：</p>
+<pre><code>def create_invoice():
+    items = load_items()
+    pdf = render_pdf(items)
+    return pdf</code></pre>
+
+<p><strong>先判斷：</strong>你現在知道 2.2 秒到底去哪裡了嗎？<code>render_pdf()</code> 值不值得新增 Child Span？</p>
+
+<details>
+  <summary>展開 SRE 判讀</summary>
+  <p>
+  現有 Trace 已經排除「DB 是主要瓶頸」，但剩下約 2.2 秒仍被包在 parent Span 裡。這時 <code>render_pdf()</code>
+  是一個很合理的 Child Span 候選，因為 SRE 真的需要獨立回答：它花多久？成功還是失敗？慢 request 是否都卡在它？
+  </p>
+  <pre><code>POST /invoice                 2.28s
+├─ SELECT invoice_items         41ms
+└─ invoice.render_pdf         2.20s</code></pre>
+  <p>Python 概念上：</p>
+  <pre><code>with tracer.start_as_current_span("invoice.render_pdf") as span:
+    span.set_attribute("document.template", template_name)
+    pdf = render_pdf(items)</code></pre>
+  <p>
+  <code>document.template</code> 是否值得加，要再問：「某一種 template 是否可能特別慢？」如果會，這個 Attribute 有實際比較價值。
+  不需要因此把 <code>load_font()</code>、<code>draw_line()</code>、<code>append_page()</code> 每個 helper 都拆成 Span。
+  </p>
+</details>
+
+<div class="box tip">
+<strong>這一題的核心：</strong>process 內部 function 也可以值得 Span；boundary 不一定要跨 network。關鍵是它是否形成你需要獨立定位的 latency / outcome boundary。
+</div>
+
+<h2>Lab 2：「invalid coupon」算 failure，要不要 Error Log + Child Span？</h2>
+<p>業務規則允許使用者輸入過期 coupon。15% 的 checkout 會得到：</p>
+<pre><code>validate_coupon() → INVALID
+execution time    → 0.2ms
+checkout          → 繼續執行，回傳「優惠碼無效」</code></pre>
+
+<p><strong>先判斷：</strong>既然結果是「失敗」，是不是應該建立 <code>validate_coupon</code> Child Span 並打一筆 ERROR log？</p>
+
+<details>
+  <summary>展開 SRE 判讀</summary>
+  <p><strong>不應該只因為回傳 INVALID 就把它當 observability failure。</strong></p>
+  <p>
+  這是預期中的 business outcome，不代表 system malfunction。如果這段 validation 固定極快、沒有獨立 latency 問題，
+  新增 Child Span 通常只會增加 trace noise。
+  </p>
+  <p>若營運上真的需要比較 coupon outcome，可以在已有的 checkout Span 留一個穩定 Attribute：</p>
+  <pre><code>app.coupon.result = "invalid"</code></pre>
+  <p>
+  ERROR log 也未必合理，因為大量「正常被拒絕」會污染 error signal。若程式出現 unexpected exception、rule engine crash、資料格式損壞，
+  那才是另一種真正需要 operational diagnostic 的 failure。
+  </p>
+</details>
+
+<div class="box tip">
+<strong>這一題的核心：</strong><code>failure</code> 不是看到 false / invalid / rejected 就成立；先區分「正常 business result」與「系統 operation 沒有按預期完成」。
+</div>
+
+<h2>Lab 3：Payment timeout — Span、Log，還是兩個都要？</h2>
+<p>你看到：</p>
+<pre><code>Trace:
+POST /checkout                2.42s
+├─ checkout.calculate_total      7ms
+└─ payment.authorize           2.10s  ERROR
+
+Log:
+ERROR payment timeout provider=a timeout_ms=2000
+trace_id=4bf92... span_id=00f067...</code></pre>
+
+<p><strong>先判斷：</strong>既然 Log 已經寫「payment timeout」，Span 還提供了什麼 Log 沒有自然提供的東西？反過來，Log 又補了什麼？</p>
+
+<details>
+  <summary>展開 SRE 判讀</summary>
+  <p>Trace / Span 直接讓你看到：</p>
+  <ul>
+    <li>整條 checkout 花 2.42s。</li>
+    <li><code>payment.authorize</code> 自己就佔 2.10s。</li>
+    <li>它是 checkout 的哪一個因果子工作。</li>
+    <li>其他 sibling work 是否同時正常。</li>
+  </ul>
+  <p>Log 比較適合補：</p>
+  <ul>
+    <li>exception message / stack trace。</li>
+    <li>SDK / library 回傳的詳細 error text。</li>
+    <li>不適合塞成 Span attributes 的 verbose diagnostic detail。</li>
+  </ul>
+  <p>
+  所以這種 incident 很可能是 <strong>Span + correlated Log</strong> 最有用。Log 帶相同 TraceId / SpanId 時，backend 可以從 Trace 跳到那筆詳細紀錄。
+  </p>
+</details>
+
+<div class="box">
+<strong>不要雙寫同一份資料。</strong>
+不是 Span 寫完整 stack、Log 又把所有 Span attributes 複製一次；兩個 signal 應該各自保存它擅長的證據。
+完整 Logs 模型會在 <a href="0025-logs-first-principles.html">Lesson 25</a> 正式學。
+</div>
+
+<h2>Lab 4：Trace 很「詳細」，但其實是過度埋點</h2>
+<p>一個 cart 有 100 個 items，目前 Trace 長這樣：</p>
+<pre><code>checkout.validate_cart          18ms
+├─ validate_line_1             0.12ms
+├─ validate_line_2             0.15ms
+├─ validate_line_3             0.11ms
+├─ ...
+└─ validate_line_100           0.13ms</code></pre>
+
+<p><strong>先判斷：</strong>資訊很多是不是就代表 observability 很好？如果你是 on-call SRE，這 100 個 Child Spans 幫你回答了什麼？</p>
+
+<details>
+  <summary>展開 SRE 判讀</summary>
+  <p>
+  如果每個 item validation 都是相同、小而穩定的操作，而且事故時你只在乎「整批 validation 有沒有變慢／失敗」，
+  那 100 個 Child Spans 大多只是把 call loop 展開給你看。
+  </p>
+  <p>較合理的設計可能是：</p>
+  <pre><code>Span: checkout.validate_cart     18ms
+  app.cart.item_count = 100
+  app.cart.invalid_item_count = 2</code></pre>
+  <p>
+  如果只有某個特殊 validation stage 真的可能卡住數秒，再針對那個 stage 拆 Child Span。
+  這就是「不要把 call stack 偽裝成 trace design」。
+  </p>
+</details>
+
+<h2>Lab 5：哪些 Attribute 真的值得留下？</h2>
+<p>Payment team 想一次把以下欄位全部塞進 Span：</p>
+<pre><code>payment.provider       = "provider-a"
+deployment.environment = "prod"
+order.id               = "4df8..."
+auth.token             = "eyJ..."
+cart.item_count         = 120
+loop_index              = 17</code></pre>
+
+<p>不要先背 Queryability / Cardinality。對每個欄位只做三個具體檢查：</p>
+<pre><code>1. 事故時，我真的會拿它 filter / group / compare 嗎？
+2. 它可能會有幾種不同值？3 個？5 個？還是幾百萬個？
+3. 它是不是敏感資料？</code></pre>
+
+<details>
+  <summary>展開逐欄判讀</summary>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>欄位</th><th>SRE 判讀</th></tr></thead>
+    <tbody>
+      <tr><td><code>payment.provider</code></td><td>通常很有價值。可以直接比較不同 provider 的 latency / error；值通常有限。</td></tr>
+      <tr><td><code>deployment.environment</code></td><td>值很少而且常有查詢價值；但若已由 Resource 提供，就不要每個 Span 重複自訂另一份。</td></tr>
+      <tr><td><code>order.id</code></td><td>幾乎每筆都不同，cardinality 很高。不是「絕對禁止」，但要有明確 lookup / correlation 需求並理解 backend 成本與資料治理。</td></tr>
+      <tr><td><code>auth.token</code></td><td>不要記。credential 的風險不是 observability convenience 可以合理化的。</td></tr>
+      <tr><td><code>cart.item_count</code></td><td>若懷疑大購物車比較慢，它能直接支援比較；是否保留取決於實際 debug 問題。</td></tr>
+      <tr><td><code>loop_index</code></td><td>通常沒有任何 production query 意義；只是 local variable 不代表值得成為 telemetry。</td></tr>
+    </tbody>
+  </table>
+  </div>
+</details>
+
+<div class="box tip">
+<strong>Cardinality 的最直覺版本：</strong>不是「高 = 錯」，而是「這個欄位會把 backend 的值空間撐到多大，而這個成本換來的診斷價值值不值得？」
+</div>
+
+<h2>Lab 6：目前的 Trace 證明「慢在本機」，但還是不知道哪裡</h2>
+<p>Incident：</p>
+<pre><code>POST /checkout              3.10s
+├─ GET inventory              35ms
+└─ POST payment               82ms</code></pre>
+
+<p>程式實際還有：</p>
+<pre><code>calculate_pricing()
+apply_promotions()
+build_response()
+compress_response()</code></pre>
+
+<p><strong>先判斷：</strong>從目前 Trace 你可以排除什麼？又不能證明什麼？下一個 instrumentation 應該怎麼加？</p>
+
+<details>
+  <summary>展開 SRE 判讀</summary>
+  <p>
+  你已經有證據排除 inventory 與 payment 是 3 秒主因；因此大部分 latency 位於 checkout process 內部。
+  但目前沒有證據指出是哪一個 local stage。
+  </p>
+  <p>
+  下一步不是四個 function 全部永久建 Span。先依 profile、code path、歷史事故或實驗挑最有嫌疑、最可能形成獨立 latency boundary 的 stage。
+  例如若 compression 隨 response size 急遽變慢：
+  </p>
+  <pre><code>POST /checkout              3.10s
+├─ GET inventory              35ms
+├─ POST payment               82ms
+└─ response.compress        2.74s</code></pre>
+  <p>
+  一旦這個 Span 出現，你就從「本機某處很慢」進步到「compression 是可獨立定位的 bottleneck」。這才是新增 Span 的價值。
+  </p>
+</details>
+
+<h2>Lab 7：Availability 到底在講什麼？先不要碰 Sampler 名詞</h2>
+<p>假設 request 一開始你知道：</p>
+<pre><code>route         = /checkout
+customer_tier = premium</code></pre>
+
+<p>執行完才知道：</p>
+<pre><code>final_status  = 500
+duration_ms   = 2400
+retry_count   = 3</code></pre>
+
+<p><strong>先判斷：</strong>「Availability」其實只是在問什麼？</p>
+
+<details>
+  <summary>展開答案</summary>
+  <p>
+  它首先只是一個時間問題：<strong>這個資訊在 operation 的哪個時間點才存在？</strong>
+  </p>
+  <pre><code>Span start ------------------------------ Span end
+  route 已知                               duration 才確定
+  tier 已知                                final_status 才確定
+                                           retry_count 才確定</code></pre>
+  <p>
+  所以任何「Span 一開始就必須做出的決策」都不可能使用未來才知道的 <code>duration_ms</code>。
+  這就是 Lesson 5 原本那句 Availability 背後真正的因果關係。
+  </p>
+  <p>
+  至於哪個 OTel 元件會在 Span 建立時做什麼決策，等 <a href="0009-sampling-first-principles.html">Lesson 9：Sampling 為何存在</a> 再正式建立；這裡不需要提前背 <em>head sampler</em>。
+  </p>
+</details>
+
+<p class="cite">
+Sampling timing 延伸來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/sdk/" target="_blank">OpenTelemetry Tracing SDK</a>。
+</p>
+
+<h2>最後一題：從需求反推埋點</h2>
+<div class="box ask">
+<strong>需求：</strong>「最近 checkout 偶發 3 秒以上。我們懷疑是某些 payment provider、超大 cart，或本機 compression，但現在只有一個 <code>POST /checkout</code> Span。」
+</div>
+
+<p>在看答案前，先自己寫三行：</p>
+<pre><code>我會新增哪個 Child Span？
+我會新增哪些 Attribute？
+我會避免記哪些資料？</code></pre>
+
+<details>
+  <summary>一個合理設計，不是唯一答案</summary>
+  <pre><code>POST /checkout
+  Attribute: payment.provider
+  Attribute: app.cart.item_count
+
+  Child Span: payment.authorize     # 如果目前尚未有
+  Child Span: response.compress     # 若它是可獨立定位的 local latency stage</code></pre>
+  <p>
+  不要先加入 <code>auth.token</code>、完整 payload、每個 item 的 100 個 Child Spans。
+  如果 payment failure 需要 stack / library message，再保留 correlated Log；不要用 Log 取代 Trace 的 causal / duration 證據。
+  </p>
+</details>
+
+<h2>Retrieval practice</h2>
+<div class="quiz" data-quiz>
+  <div class="question">Q1. 一個 local function 最值得被拆成 Child Span 的理由是什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="false">它在程式裡有獨立函式名稱</button>
+    <button class="choice" data-correct="true">它需要獨立延遲與結果證據</button>
+    <button class="choice" data-correct="false">它會讀取一個 local variable</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q2. Payment timeout 同時要定位耗時與查看 exception stack，較合理的設計是什麼？</div>
+  <div class="choices">
+    <button class="choice" data-correct="false">只留下完整 stack 的單一 Log</button>
+    <button class="choice" data-correct="false">只把 exception 全塞進 Span name</button>
+    <button class="choice" data-correct="true">保留 Span 並關聯詳細的 Log</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q3. 判斷 Attribute cardinality 時，最先要想的是哪一件事？</div>
+  <div class="choices">
+    <button class="choice" data-correct="true">這個欄位可能出現多少不同值</button>
+    <button class="choice" data-correct="false">這個欄位名稱總共有多少字元</button>
+    <button class="choice" data-correct="false">這個欄位是否寫在函式最前面</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="question">Q4. 為什麼 operation 結束後才知道的 latency 不能被開始時的決策直接使用？</div>
+  <div class="choices">
+    <button class="choice" data-correct="false">因為 latency 只能存在於 LogRecord</button>
+    <button class="choice" data-correct="true">因為那個資訊在決策當下尚不存在</button>
+    <button class="choice" data-correct="false">因為 Span 開始後禁止新增任何欄位</button>
+  </div>
+  <div class="feedback"></div>
+</div>
+
+<h2>最後 Recap</h2>
+<div class="box tip">
+<p><strong>好的 Span boundary：</strong>讓 SRE 能把 latency、outcome 或因果位置獨立定位到有診斷意義的工作。</p>
+<p><strong>好的 Attribute：</strong>能回答具體 incident query，而且其成本與敏感性值得。</p>
+<p><strong>好的 Log：</strong>補充詳細事件內容，而不是取代 Trace 的 operation 結構。</p>
+<p><strong>好的 instrumentation：</strong>不是資料最多，而是事故發生時，最少的資料就足以排除錯誤假設。</p>
+</div>
+
+<div class="lesson-nav">
+  <span><a href="0005-span-design-boundaries.html">&larr; 回 Lesson 5：Span 邊界</a></span>
+  <span><a href="0006-http-server-span.html">回主課：Lesson 6 &rarr;</a></span>
+</div>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
