@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference: Linux Namespace 核心模型</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js" defer></script>
+</head>
+<body>
+<h1>Linux Namespace 核心模型</h1>
+<p class="subtitle">快速複習卡 · 只收錄已在 Lesson 1 建立的知識</p>
+
+<div class="box tip"><strong>核心句：</strong>Linux namespace 是 kernel 依 process 的 namespace membership，對某一類全域資源提供隔離視圖的機制。</div>
+
+<h2>最小心智模型</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>名詞</th><th>此階段需要知道的精確含義</th></tr></thead>
+<tbody>
+<tr><td><strong>Program</strong></td><td>儲存在 filesystem 中的程式內容；尚未執行時只是靜態資料。</td></tr>
+<tr><td><strong>Process</strong></td><td>正在執行中的 program instance。</td></tr>
+<tr><td><strong>Linux kernel</strong></td><td>管理 process、memory、filesystem、network 等底層系統資源的核心。</td></tr>
+<tr><td><strong>Namespace</strong></td><td>讓不同 process 對某類原本全域的 kernel resource 看見隔離 instance / view 的機制。</td></tr>
+<tr><td><strong>Membership</strong></td><td>某 process 對某 namespace type 屬於哪個 namespace object。</td></tr>
+<tr><td><strong>/proc/&lt;pid&gt;/ns</strong></td><td>觀察 process namespace membership 的 Linux 介面。</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>不要混淆</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>錯誤直覺</th><th>修正</th></tr></thead>
+<tbody>
+<tr><td>不同 namespace = 不同 Linux kernel</td><td>錯。多個 namespace 可以共用同一顆 kernel。</td></tr>
+<tr><td>namespace = container</td><td>錯。Namespace 只是 container 使用的隔離機制之一。</td></tr>
+<tr><td>namespace 只是 Docker/Kubernetes 的設定</td><td>錯。它是 Linux kernel 機制，可以直接從 process 與 `/proc` 觀察。</td></tr>
+<tr><td>現在就要背 PID/NET/MNT…</td><td>不用。先理解每一類 namespace 都是在解「某個原本全域資源需要不同 view」的問題。</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>三個觀察指令</h2>
+<pre><code># 目前 shell 的 PID
+echo $$
+
+# 目前 shell 所屬的 namespace objects
+ls -l /proc/$$/ns
+
+# 比較目前 shell 與 PID 1 的 PID namespace identity
+readlink /proc/$$/ns/pid
+readlink /proc/1/ns/pid</code></pre>
+
+<h2>Primary sources</h2>
+<ul>
+<li><a href="https://man7.org/linux/man-pages/man7/namespaces.7.html" target="_blank">namespaces(7)</a></li>
+<li><a href="https://man7.org/linux/man-pages/man5/proc_pid_ns.5.html" target="_blank">proc_pid_ns(5)</a></li>
+</ul>
+
+<nav class="lesson-nav">
+<a href="../lessons/0001-why-linux-namespaces-exist.html">← 回 Lesson 1</a>
+<a href="../index.html">課程首頁</a>
+</nav>
+</body>
+</html>

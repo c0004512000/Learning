@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linux Namespace Learning</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/theme.js" defer></script>
+</head>
+<body>
+<h1>Linux Namespace</h1>
+<p class="subtitle">從 Linux process / kernel 開始，一路推到 container 與 Kubernetes Pod</p>
+
+<div class="box tip"><strong>Mission：</strong>不是背 namespace 類型，而是能從 Linux kernel 的資源隔離模型，自己推導 container 與 Kubernetes 的行為。</div>
+
+<h2>目前進度</h2>
+<div class="course-map">
+  <div class="course-item current">
+    <span class="tag">Current</span><span class="tag">Lesson 1</span>
+    <strong><a href="lessons/0001-why-linux-namespaces-exist.html">Namespace 為什麼存在？</a></strong>
+    <div>先建立 program → process → kernel → namespace view，不預設 Linux 基礎。</div>
+  </div>
+  <div class="course-item future"><span class="tag">Next</span><strong>UTS Namespace 實驗</strong><div>親手證明「同 kernel、不同 hostname」。</div></div>
+  <div class="course-item future"><strong>PID Namespace</strong><div>先補 process / PID，再理解「同一 process 為什麼能有不同 PID 視角」。</div></div>
+  <div class="course-item future"><strong>Mount Namespace</strong><div>先補 filesystem / mount，再理解不同 mount table。</div></div>
+  <div class="course-item future"><strong>Network Namespace</strong><div>先補 interface / route / socket，再拆 network view。</div></div>
+  <div class="course-item future"><strong>User / IPC / Cgroup / Time</strong><div>依理解需求逐一建立，不做名詞表式灌輸。</div></div>
+  <div class="course-item future"><strong>Container model</strong><div>把 namespaces 與 cgroups、filesystem setup、capabilities 組成完整心智模型。</div></div>
+  <div class="course-item future"><strong>Kubernetes Pod</strong><div>最後回到 Pod 中 container 的 namespace sharing 與 SRE debugging。</div></div>
+</div>
+
+<p class="cite">此路徑是 adaptive learning map，不是固定 syllabus；實際順序會依追問與 learning records 調整。</p>
+
+<h2>Workspace</h2>
+<ul>
+  <li><a href="MISSION.md">MISSION.md</a> — Why / Success / Constraints</li>
+  <li><a href="RESOURCES.md">RESOURCES.md</a> — Primary sources</li>
+  <li><a href="GLOSSARY.md">GLOSSARY.md</a> — Canonical terms</li>
+  <li><a href="reference/linux-namespace-core-model.html">Reference card</a> — 快速複習 Lesson 1 核心模型</li>
+</ul>
+</body>
+</html>

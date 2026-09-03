@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 1: Namespace 為什麼存在？</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js" defer></script>
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+<h1>1. Namespace 為什麼存在？</h1>
+<p class="subtitle">同一顆 Linux kernel，如何讓不同 process 看起來活在不同世界？</p>
+
+<h2>這一課只拿下一件事</h2>
+<p>看完後，你應該能不用背任何 namespace 類型，就自己說出：</p>
+<div class="box tip"><strong>Namespace 的本質：</strong>Linux kernel 仍然只有同一顆，但 kernel 可以依照 process 所屬的 namespace，讓它對某一類系統資源看到不同的視圖。</div>
+<p>這是後面 container、Docker、containerd、Kubernetes Pod 的起點。如果這個模型不穩，直接背 PID / NET / MNT namespace 只會變成名詞記憶。</p>
+
+<h2>1. 先從 program 和 process 開始</h2>
+<p>假設你的 Linux 上有一個檔案：</p>
+<pre><code>/usr/bin/bash</code></pre>
+<p>這是一份 <strong>program</strong>：它是儲存在 filesystem 裡的程式內容。</p>
+<p>當你真的執行它，Linux 會建立一個正在運作的 <strong>process</strong>。同一份 program 可以同時有很多 process：</p>
+<pre><code>bash        bash        bash
+PID 421     PID 683     PID 901
+
+同一份 program，三個正在執行的 process</code></pre>
+<p>所以先建立第一個界線：</p>
+<div class="box"><strong>program 是「程式檔案」；process 是「正在執行中的那一份 instance」。</strong></div>
+
+<h2>2. Process 並不是自己管理整台電腦</h2>
+<p>Process 需要 memory、filesystem、networking、process list 等系統能力時，真正掌握底層資源的是 <strong>Linux kernel</strong>。</p>
+<p>你現在先把 kernel 想成整台 Linux 的「資源管理核心」即可，不需要先理解 kernel source code。</p>
+
+<figure class="diagram">
+  <figcaption class="diagram-title">最小模型：process 向同一顆 kernel 取得系統能力</figcaption>
+  <div class="worlds">
+    <div class="node process"><strong>Process A</strong><small>user space 中執行</small></div>
+    <div class="arrow">→</div>
+    <div class="node kernel"><strong>Linux kernel</strong><small>管理 process、memory、filesystem、network…</small></div>
+    <div class="arrow">←</div>
+    <div class="node process"><strong>Process B</strong><small>user space 中執行</small></div>
+  </div>
+</figure>
+
+<p class="cite">背景來源：<a href="https://man7.org/linux/man-pages/man7/namespaces.7.html" target="_blank">Linux namespaces(7)</a>；本課只保留理解 namespace 必要的 kernel / process 模型。</p>
+
+<h2>3. 問題出現了：如果所有 process 都看到同一份全域狀態呢？</h2>
+<p>假設同一台 Linux 上同時跑 App A 與 App B，而某一類系統狀態只有一份全域版本。</p>
+<p>例如先拿 <strong>hostname</strong> 當純粹的例子：</p>
+<pre><code>整台 Linux hostname = node-01
+
+App A 問 kernel：「我的 hostname 是什麼？」 → node-01
+App B 問 kernel：「我的 hostname 是什麼？」 → node-01</code></pre>
+<p>如果 App A 想把自己視為 <code>app-a</code>，App B 想把自己視為 <code>app-b</code>，但 kernel 永遠只提供同一份全域狀態，兩者就無法彼此隔離。</p>
+
+<div class="box ask"><strong>真正的需求不是「複製兩台 Linux」。</strong><br>需求是：能不能仍然共用同一顆 kernel，但讓不同 process 對某一類資源取得不同答案？</div>
+
+<h2>4. Namespace 就是 kernel 解這個問題的方式</h2>
+<p>Linux 的 namespace 把原本全域的系統資源包進一層隔離 abstraction。Process 屬於哪個 namespace，kernel 就依那個 membership 決定它看見哪一份資源視圖。</p>
+
+<figure class="diagram">
+  <figcaption class="diagram-title">同 kernel，不同 view</figcaption>
+  <div class="worlds">
+    <div class="node process"><strong>Process A</strong><small>屬於 Namespace A</small></div>
+    <div class="arrow">→</div>
+    <div class="node kernel"><strong>同一顆 Linux kernel</strong><small>依 namespace membership 決定可見視圖</small></div>
+    <div class="arrow">→</div>
+    <div class="node namespace"><strong>View A</strong><small>例如 hostname = app-a</small></div>
+  </div>
+  <div style="height:.75rem"></div>
+  <div class="worlds">
+    <div class="node process"><strong>Process B</strong><small>屬於 Namespace B</small></div>
+    <div class="arrow">→</div>
+    <div class="node kernel"><strong>同一顆 Linux kernel</strong><small>不是第二台 VM，也不是第二顆 kernel</small></div>
+    <div class="arrow">→</div>
+    <div class="node namespace"><strong>View B</strong><small>例如 hostname = app-b</small></div>
+  </div>
+</figure>
+
+<p>這裡最重要的是 <strong>view</strong> 這個字。</p>
+<p>Namespace 的核心不是把整個 Linux 複製一份，而是讓 process 對某一類 kernel-managed resource 看起來擁有自己的 isolated instance。</p>
+
+<blockquote>Linux man-pages 對 namespace 的核心描述是：它把 global system resource 包在 abstraction 中，讓 namespace 內的 process 看起來擁有自己的 isolated instance。</blockquote>
+<p class="cite">Primary source：<a href="https://man7.org/linux/man-pages/man7/namespaces.7.html" target="_blank">namespaces(7)</a></p>
+
+<h2>5. 所以一個 process 身上其實有 namespace membership</h2>
+<p>你現在不用知道有哪些 namespace 類型。先只理解這件事：</p>
+<div class="box tip"><strong>Kernel 必須知道「這個 process 對這一類資源屬於哪個 namespace」；否則它無法決定該回哪一份 view。</strong></div>
+<p>Linux 甚至讓你直接從 <code>/proc</code> 看到這些 membership。</p>
+
+<h2>6. 第一個實驗：看自己的 namespace</h2>
+<p>在 Linux / WSL2 的 Bash 執行：</p>
+<pre><code>echo $$
+ls -l /proc/$$/ns</code></pre>
+<p><code>$$</code> 是目前 shell 的 PID。假設它是 <code>421</code>，第二行就是在看：</p>
+<pre><code>/proc/421/ns</code></pre>
+<p>你可能會看到類似：</p>
+<pre><code>cgroup -&gt; cgroup:[4026531835]
+ipc    -&gt; ipc:[4026531839]
+mnt    -&gt; mnt:[4026531841]
+net    -&gt; net:[4026531840]
+pid    -&gt; pid:[4026531836]
+user   -&gt; user:[4026531837]
+uts    -&gt; uts:[4026531838]</code></pre>
+<p>實際項目會依 kernel 版本與環境不同。現在不要背右邊那些名稱。</p>
+<p>只讀懂其中一行：</p>
+<pre><code>pid -&gt; pid:[4026531836]</code></pre>
+<p>它表示：目前 shell 對 PID 這一類資源，指向某一個 namespace object。方括號中的 identifier 可用來比較 namespace identity。</p>
+<p class="cite">Primary source：<a href="https://man7.org/linux/man-pages/man5/proc_pid_ns.5.html" target="_blank">proc_pid_ns(5)</a></p>
+
+<h3>比較兩個 process</h3>
+<p>再執行：</p>
+<pre><code>readlink /proc/$$/ns/pid
+readlink /proc/1/ns/pid</code></pre>
+<p>如果兩個結果相同，代表從這個系統視角看，它們指向同一個 PID namespace object；不同則代表它們屬於不同的 PID namespace。</p>
+<p>你目前不需要理解 PID namespace 的特殊規則。這個實驗只是在證明：<strong>namespace membership 是 kernel 中真實存在、而且可以觀察的狀態，不只是 container 工具的概念。</strong></p>
+
+<h2>7. 一個很容易混淆的地方</h2>
+<div class="box warn"><strong>Namespace ≠ container。</strong><br>Namespace 只負責某些資源的隔離視圖。真正的 container 還會組合其他 Linux 機制，例如 filesystem setup、cgroups、capabilities 等。後面會等每個必要前置概念建立後再組起來。</div>
+
+<h2>8. Retrieval check</h2>
+<div class="quiz">
+  <div class="question">兩個 process 看到不同 hostname，是否一定代表它們使用兩顆不同 Linux kernel？</div>
+  <div class="choices">
+    <button class="choice" data-correct="false" data-feedback="不是。Namespace 的重點正是可以共用同一顆 kernel。">是</button>
+    <button class="choice" data-correct="true" data-feedback="正確。它們可以共用同一顆 kernel，只是 kernel 依 namespace membership 提供不同 view。">否</button>
+  </div>
+  <div class="feedback" aria-live="polite"></div>
+</div>
+
+<h2>Recap</h2>
+<div class="box tip"><strong>一句話：</strong>Linux namespace 是 kernel 依 process 的 namespace membership，對某一類全域資源提供隔離視圖的機制。</div>
+
+<h2>Primary reading</h2>
+<p><a href="https://man7.org/linux/man-pages/man7/namespaces.7.html" target="_blank">Linux man-pages — namespaces(7)</a></p>
+<p>不用一次讀完。現在只讀 NAME / DESCRIPTION 與 <code>/proc/pid/ns</code> 的開頭，確認它和本課建立的是同一個模型。</p>
+
+<div class="box ask"><strong>有任何一句不合理就直接問。</strong><br>尤其是「process 為什麼需要 kernel」、「view 到底是什麼」、「/proc 為什麼能看到 namespace」；這些疑問都比先背八種 namespace 更重要。</div>
+
+<nav class="lesson-nav">
+  <a href="../index.html">← 課程首頁</a>
+  <span>下一課：用 UTS namespace 親手做出不同 hostname（尚未建立）</span>
+</nav>
+</body>
+</html>
