@@ -12,11 +12,16 @@
 - 每個 lesson 應短而聚焦，提供一個可驗證的 tangible win；對話中的追問與修正如果改變理解或教材，應同步回填 lesson / reference / learning-record。
 - `GLOSSARY.md` 只收錄已經正式建立、使用者應可重新解釋的名詞；不要把未教授的名詞提前塞進 glossary。
 - 第一課只建立 program / process / kernel / namespace / namespace membership / `/proc/<pid>/ns` 的核心模型；UTS/PID/NET/MNT 等各類型留待後續逐一推導。
+- 2026-09-04 Lesson 1 回饋：使用者對「isolation」「view」「process 為什麼需要 kernel」「/proc 如何反映 process 與 namespace」均缺少前置模型。Hostname 範例尤其造成誤導，因為使用者正確地認為傳統 Linux hostname 本來就是 system-wide 唯一值。教材必須先明確承認這點，再說明 UTS namespace 是把原本 system-wide 的 hostname 虛擬化成多個 isolated instances，而不是暗示 hostname 天生應該 per-process。
+- Lesson 1 的 isolation 定義必須 resource-specific：A 與 B 是否隔離，要問「隔離哪一類資源」；對某資源隔離至少意味著兩者可看到不同狀態，且 A 修改自己那份狀態不會自動改變 B 的 view。
+- Lesson 1 的 `view` 不能當成未定義抽象詞。應明確說明它只是「process 透過 kernel interface 對某類 resource 看得到的狀態」，不是 Linux 中名為 View 的 object。
+- Lesson 1 的 `/proc` 必須先建立 procfs 是 pseudo-filesystem：`/proc/<pid>` 不是 kernel 在磁碟上為每個 process 建立的一堆普通檔案，而是 kernel state 的 filesystem representation。Process 結束後對應 PID view 消失；`/proc/<pid>/ns/*` 是 namespace object 的 handle/reference，不是 namespace object 本體。
+- Namespace lifetime 與 process lifetime 必須分開：一般情況下最後一個 member 離開/終止後 namespace 可被拆除，但 open file descriptor、bind mount、child namespace 等 reference 可以 pin 住 namespace，使其比任何單一 process 活得更久。
 
 ## Adaptive learning path（暫定，不視為固定章節）
 
-1. Namespace 為什麼存在：同一顆 kernel 如何給不同 process 不同視圖。
-2. 第一個實驗：用 UTS namespace 看見「同 kernel、不同 hostname」。
+1. Namespace 為什麼存在：先建立 process / kernel / view / isolation / procfs / namespace lifetime。
+2. 第一個實驗：用 UTS namespace 看見「同 kernel、不同 hostname」，並驗證修改隔離。
 3. Process / PID 基礎與 PID namespace。
 4. Filesystem / mount 基礎與 Mount namespace。
 5. Linux networking 基礎與 Network namespace。
