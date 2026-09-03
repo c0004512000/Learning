@@ -2,95 +2,98 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>Telemetry 設計決策卡：Span / Event / Attribute / Log</title>
+<title>Span / Event / Attribute 決策卡</title>
 <link rel="stylesheet" href="../assets/style.css">
 <script src="../assets/theme.js"></script>
 </head>
 <body>
 
-<h1>Telemetry 設計決策卡</h1>
-<p class="subtitle">Span / Event / Attribute / Log：先問「事故時我要什麼證據？」</p>
+<h1>Span / Event / Attribute 決策卡</h1>
+<p class="subtitle">從「我需要哪種證據？」決定 telemetry model</p>
 
 <div class="box tip">
-<strong>總原則：</strong>不要從程式碼結構決定 telemetry；從 SRE 想回答的事故問題決定。
+<strong>先不要看 function 名稱。</strong>
+問事故時你要回答什麼問題，再決定需要 Span、Event、Attribute，或根本不記。
 </div>
 
-<h2>四種模型一句話</h2>
+<h2>最小 decision tree</h2>
+<pre><code>這份資訊需要自己的 start / end / duration / outcome？
+  ├─ 是 → Span
+  │        如果 parent 已經是另一個 Span → Child Span
+  │
+  └─ 否 → 重點是「某一刻發生」嗎？
+           ├─ 是 → Event
+           └─ 否 → 是描述這次 operation 的可查值嗎？
+                    ├─ 是 → Attribute
+                    └─ 否 → 可能不需要記</code></pre>
+
+<div class="box">
+<strong>Child Span 不是新 telemetry type：</strong>
+它就是 Span，只是它的 parent 是另一個 Span。
+</div>
+
+<h2>三個模型快速對照</h2>
 <div class="table-wrap">
 <table>
-  <thead><tr><th>模型</th><th>什麼時候用</th><th>例子</th></tr></thead>
+  <thead><tr><th>模型</th><th>你要回答的問題</th><th>例子</th></tr></thead>
   <tbody>
-    <tr><td><strong>Attribute</strong></td><td>描述這次 operation 的可查值</td><td><code>payment.provider="a"</code></td></tr>
-    <tr><td><strong>Event</strong></td><td>Span 期間某一個重要時刻</td><td><code>retry.started</code></td></tr>
-    <tr><td><strong>Child Span</strong></td><td>子工作值得獨立量 duration / outcome</td><td><code>invoice.render_pdf</code></td></tr>
-    <tr><td><strong>Log</strong></td><td>需要詳細 message / stack / diagnostics</td><td>exception stack trace</td></tr>
+    <tr><td><strong>Span / Child Span</strong></td><td>這段工作花多久？成功嗎？它在因果鏈哪裡？</td><td><code>invoice.render_pdf</code></td></tr>
+    <tr><td><strong>Event</strong></td><td>這個重要事情是在 Span 的哪個時間點發生？</td><td><code>retry.started</code></td></tr>
+    <tr><td><strong>Attribute</strong></td><td>這次 operation 有什麼值得 filter / group / compare 的特徵？</td><td><code>payment.provider="a"</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>process 內部 function：什麼情況可能值得 Span？</h2>
+<p>不是只有 DB / HTTP。只要你真的需要把它獨立定位，就可能合理：</p>
+<ul>
+  <li>PDF / report rendering：要分辨是不是 render 造成數秒 latency。</li>
+  <li>大量 serialization / compression：要分辨 CPU processing 是否成為 bottleneck。</li>
+  <li>fraud / pricing rule evaluation：要知道哪個 business stage 慢或失敗。</li>
+  <li>lock / semaphore wait：要分辨是在計算，還是在等待 contention。</li>
+  <li>large batch validation：要知道大量資料時 validation 是否成為獨立瓶頸。</li>
+</ul>
+
+<p>反過來，固定極快、事故時不會單獨定位的 helper，不應只因為它是一個 function 就建 Span。</p>
+
+<h2>Attribute：不要背術語，問具體問題</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>術語</th><th>真正要問的問題</th><th>直覺例子</th></tr></thead>
+  <tbody>
+    <tr><td>Queryability</td><td>事故時我真的會拿它 filter / group / compare 嗎？</td><td><code>payment.provider</code> 常有用；<code>loop_index</code> 通常沒有。</td></tr>
+    <tr><td>Cardinality</td><td>這個欄位可能出現多少種不同值？</td><td><code>environment</code> 約 3 種；<code>order.id</code> 可能幾乎每筆不同。</td></tr>
+    <tr><td>Sensitivity</td><td>它是不是 credential、個資或不該進 telemetry 的 payload？</td><td><code>auth.token</code> 不應記。</td></tr>
+    <tr><td>Timing</td><td>這個值在 Span 開始前、執行中，還是結束後才知道？</td><td>route 可很早知道；final latency 要結束才知道。</td></tr>
   </tbody>
 </table>
 </div>
 
 <div class="box">
-<strong>Child Span 不是新資料型別：</strong>它仍然是 Span，只是 parent 是另一個 Span。
+<strong>Timing 為什麼重要？</strong>
+目前只要理解「決策當下不能使用未來才出現的資料」。它和 sampling 的正式關係，到
+<a href="../lessons/0009-sampling-first-principles.html">Lesson 9</a> 再學，不需要在這張卡先背 head sampler。
 </div>
 
-<h2>最小 decision tree</h2>
-<pre><code>我想留下什麼證據？
-│
-├─ 一段子工作的 duration / outcome？ → Child Span
-├─ 某一刻發生的重要事情？           → Event
-├─ 描述這次 operation 的可查值？     → Attribute
-├─ 詳細 message / stack / diagnostics？ → Log
-└─ 都不是                           → 可能不需要記</code></pre>
-
-<h2>常見模糊情境</h2>
-<div class="table-wrap">
-<table>
-  <thead><tr><th>情境</th><th>比較好的選擇</th><th>理由</th></tr></thead>
-  <tbody>
-    <tr><td>retry 何時發生</td><td>Event</td><td>只需要 timestamp。</td></tr>
-    <tr><td>每次 retry latency</td><td>Child Span</td><td>每次 attempt 都要獨立 duration。</td></tr>
-    <tr><td>這次最後 retry 幾次</td><td>Attribute</td><td>只是 operation 結果值。</td></tr>
-    <tr><td>payment timeout stack</td><td>Span + Log</td><td>Span 看 causal/duration；Log 看細節。</td></tr>
-    <tr><td>helper function 0.1ms</td><td>通常不記</td><td>沒有獨立診斷價值。</td></tr>
-  </tbody>
-</table>
-</div>
-
-<h2>Attribute 三個實際問題</h2>
-<div class="table-wrap">
-<table>
-  <thead><tr><th>原本術語</th><th>實際要問自己</th><th>例子</th></tr></thead>
-  <tbody>
-    <tr><td>Queryability</td><td>事故時我真的會拿它 filter / group / compare 嗎？</td><td><code>payment.provider</code></td></tr>
-    <tr><td>Cardinality</td><td>backend 可能看到多少種不同值？</td><td><code>env</code> 很少；<code>order.id</code> 幾乎每次不同</td></tr>
-    <tr><td>Availability</td><td>需要它做決策時，當下已經知道這個值嗎？</td><td>head sampling 在 Span 建立時就做決定</td></tr>
-  </tbody>
-</table>
-</div>
-
-<h2>Failure：Span 還是 Log？</h2>
-<pre><code>需要知道「哪個 operation fail、花多久、在 trace 哪裡」？
-  → Span
-
-需要 stack / verbose message / raw diagnostic detail？
-  → Log
-
-兩種問題都要回答？
-  → Span + correlated Log</code></pre>
+<h2>Failure 不是自動建立 Span 的理由</h2>
+<p>
+如果一個子工作需要自己的 latency / outcome / causal position，才考慮 Child Span。
+若你需要的是詳細 exception、stack、message，Log 更自然；完整 Span / Log correlation 會在
+<a href="../lessons/0025-logs-first-principles.html">Lesson 25</a> 正式學。
+</p>
 
 <div class="box tip">
-<strong>不要因為 function 會 fail 就自動建立 Span。</strong>
-只有當它的 latency、failure boundary 或 causal position 對排障有獨立價值時才拆 Span。
+<strong>想把這些判斷練成工作能力：</strong>
+進入 <a href="../lessons/0051-sre-telemetry-design-labs.html">SRE Telemetry Design Labs</a>，用 production-style 情境練過度埋點、缺少證據、Span vs Log 與 Attribute 設計。
 </div>
 
 <p class="cite">
-主要來源：
-<a href="https://opentelemetry.io/docs/specs/otel/trace/api/" target="_blank">OpenTelemetry Trace API</a>、
-<a href="https://opentelemetry.io/docs/specs/otel/logs/" target="_blank">OpenTelemetry Logging Specification</a>。
+主要來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/" target="_blank">OpenTelemetry Trace API</a>。
 </p>
 
 <div class="lesson-nav">
-  <span><a href="../lessons/0003-first-python-span.html">&larr; Lesson 3: 第一個 Python Span</a></span>
-  <span><a href="../lessons/0005-span-design-boundaries.html">完整 SRE 設計與 Debug Labs &rarr;</a></span>
+  <span><a href="../lessons/0005-span-design-boundaries.html">&larr; 回 Lesson 5</a></span>
+  <span><a href="../lessons/0051-sre-telemetry-design-labs.html">SRE 深度練習 &rarr;</a></span>
 </div>
 
 </body>
