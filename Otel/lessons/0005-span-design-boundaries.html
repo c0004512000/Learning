@@ -18,36 +18,28 @@
 </p>
 
 <div class="box tip">
-<strong>先記住唯一總原則：</strong>
+<strong>唯一總原則：</strong>
 telemetry 不是「把程式裡發生的事情全部留下來」，而是「用可接受成本，留下足以回答事故問題的證據」。
 </div>
 
 <h2>1. 先不要想 OTel：事故時你到底想知道哪一種答案？</h2>
-<p>假設一個 checkout request 花了 2.8 秒。你可能會問四種完全不同的問題：</p>
+<p>假設一個 checkout request 花了 2.8 秒。你可能會問四種不同的問題：</p>
 
 <div class="table-wrap">
 <table>
-  <thead><tr><th>你真正想知道的問題</th><th>需要的證據形狀</th><th>OTel / observability 模型</th></tr></thead>
+  <thead><tr><th>你真正想知道的問題</th><th>需要的證據形狀</th><th>模型</th></tr></thead>
   <tbody>
-    <tr><td>「這次 checkout 是哪個 provider？有幾件商品？」</td><td>描述整段工作的值</td><td><strong>Attribute</strong></td></tr>
-    <tr><td>「retry 是在第幾毫秒發生？」</td><td>Span 期間某一個時間點</td><td><strong>Event</strong></td></tr>
-    <tr><td>「2.8 秒到底花在 pricing 還是 payment？」</td><td>某個子工作的開始、結束、duration、outcome</td><td><strong>Child Span</strong></td></tr>
-    <tr><td>「payment library 當時丟了哪個 exception、stack、response detail？」</td><td>一筆可獨立保存與搜尋的診斷紀錄</td><td><strong>Log</strong></td></tr>
+    <tr><td>這次 checkout 是哪個 provider？有幾件商品？</td><td>描述整段工作的值</td><td><strong>Attribute</strong></td></tr>
+    <tr><td>retry 是在第幾毫秒發生？</td><td>Span 期間某一個時間點</td><td><strong>Event</strong></td></tr>
+    <tr><td>2.8 秒到底花在 pricing 還是 payment？</td><td>子工作的 start / end / duration / outcome</td><td><strong>Child Span</strong></td></tr>
+    <tr><td>payment library 當時丟了哪個 exception、stack、response detail？</td><td>可獨立保存與搜尋的診斷紀錄</td><td><strong>Log</strong></td></tr>
   </tbody>
 </table>
 </div>
 
-<p>所以不是：</p>
-<pre><code>function → Span
-error    → Log
-value    → Attribute</code></pre>
+<pre><code>不要：function → Span、error → Log
 
-<p>而是：</p>
-<pre><code>我要回答什麼事故問題？
-        ↓
-需要哪一種證據？
-        ↓
-才決定 telemetry model</code></pre>
+要：事故問題 → 需要的證據 → telemetry model</code></pre>
 
 <h2>2. Child Span 到底是什麼？先把名字拆開</h2>
 <p>
@@ -62,8 +54,7 @@ value    → Attribute</code></pre>
   +-- Span: payment.authorize ← child</code></pre>
 
 <p>
-為什麼要拆 child？因為 parent 只能告訴你 checkout 總共 2.8 秒；
-child 才能告訴你「其中 payment.authorize 花了 2.5 秒，而且它失敗了」。
+Parent 只能告訴你 checkout 總共 2.8 秒；Child Span 才能告訴你「其中 payment.authorize 花了 2.5 秒，而且它失敗了」。
 </p>
 
 <div class="box tip">
@@ -72,25 +63,25 @@ child 才能告訴你「其中 payment.authorize 花了 2.5 秒，而且它失�
 </div>
 
 <h3>process 內部 function 什麼時候真的值得一個 Span？</h3>
-<p>你前面問「除了 DB query 還有什麼？」以下都是 production 很常見、即使沒有跨 process，也可能值得獨立觀測的例子：</p>
+<p>除了 DB / HTTP 這種跨 boundary 操作，下面這些 process 內部工作也可能值得獨立觀測：</p>
 
 <div class="table-wrap">
 <table>
-  <thead><tr><th>process 內部工作</th><th>什麼情況值得 Child Span</th><th>你想回答的 SRE 問題</th></tr></thead>
+  <thead><tr><th>process 內部工作</th><th>什麼情況值得 Child Span</th><th>SRE 想回答什麼</th></tr></thead>
   <tbody>
     <tr><td>PDF / report rendering</td><td>有時 50ms、有時 2s</td><td>request 慢是不是卡在 render？</td></tr>
     <tr><td>大量 JSON serialization</td><td>payload 大時 CPU 明顯升高</td><td>latency 是 business logic 還是 serialize？</td></tr>
-    <tr><td>image resize / compression</td><td>影像尺寸不同造成巨大 latency 差</td><td>CPU hot spot 是哪個 processing stage？</td></tr>
-    <tr><td>encryption / signature verification</td><td>偶發卡住或 failure 有獨立排障價值</td><td>request failure 是 crypto 還是後續流程？</td></tr>
-    <tr><td>rule engine / pricing engine</td><td>規則數量變多後 latency 上升</td><td>哪個 business stage 在退化？</td></tr>
-    <tr><td>lock / semaphore wait</td><td>真正問題可能是等待，不是執行本身</td><td>慢是 CPU、I/O，還是 lock contention？</td></tr>
-    <tr><td>large batch validation</td><td>某些 batch 需數百毫秒甚至數秒</td><td>資料量與 validation latency 是否相關？</td></tr>
+    <tr><td>image resize / compression</td><td>輸入尺寸造成巨大 latency 差</td><td>CPU hot spot 是哪個 processing stage？</td></tr>
+    <tr><td>encryption / signature verification</td><td>偶發慢或 failure 有獨立意義</td><td>failure boundary 是否在 crypto？</td></tr>
+    <tr><td>rule / pricing engine</td><td>規則增加後 latency 退化</td><td>哪個 business stage 變慢？</td></tr>
+    <tr><td>lock / semaphore wait</td><td>問題可能是等待，不是運算</td><td>慢是 CPU、I/O，還是 contention？</td></tr>
+    <tr><td>large batch validation</td><td>資料量大時耗時可達數秒</td><td>資料量與 validation latency 是否相關？</td></tr>
     <tr><td>template rendering</td><td>某模板特別慢或常失敗</td><td>failure boundary 是否在 render stage？</td></tr>
   </tbody>
 </table>
 </div>
 
-<p>反過來，這些通常<strong>不值得</strong>為了「它是一個 function」就建 Span：</p>
+<p>反過來，以下通常不值得只因為「它是一個 function」就建 Span：</p>
 
 <pre><code>normalize_email()
 trim_whitespace()
@@ -100,13 +91,13 @@ calculate_tax_line_2()
 small helper that always takes 0.1ms</code></pre>
 
 <p>
-因為即使你看到它們的 duration，通常也不會改變事故判斷。這叫做<strong>沒有獨立診斷價值</strong>。
+即使你看到這些 helper 的 duration，通常也不會改變事故判斷。這就是「沒有獨立診斷價值」。
 </p>
 
-<h2>3. Event 是什麼？它解決的是「某一刻發生了什麼」</h2>
+<h2>3. Event 是什麼？它解決「某一刻發生了什麼」</h2>
 <p>
 Span 是一段時間：有 start、end、duration。
-但有些東西不是一段工作，而是<strong>在這段工作期間發生的一個重要時刻</strong>。
+但有些資訊不是一段工作，而是<strong>在 Span 期間發生的一個重要時刻</strong>。
 </p>
 
 <pre><code>Span: payment.authorize
@@ -115,7 +106,7 @@ start ------------------------------------------------ end
      retry.started      fallback.selected
         Event               Event</code></pre>
 
-<p>Python 概念上會是：</p>
+<p>Python 概念上：</p>
 
 <pre><code>with tracer.start_as_current_span("payment.authorize") as span:
     ...
@@ -123,17 +114,15 @@ start ------------------------------------------------ end
     ...</code></pre>
 
 <p>
-Event 有自己的 timestamp，也可以帶少量 attributes；但它<strong>沒有自己的 duration，也沒有自己的 Span ID</strong>。
+Event 有 timestamp，也可以帶 attributes；但它<strong>沒有自己的 duration，也沒有自己的 Span ID</strong>。
 </p>
 
 <div class="box">
-<strong>最常見 Event 情境：</strong>
+<strong>常見 Event：</strong>
 cache miss、retry started、fallback selected、circuit breaker opened、state transition、exception recorded。
 </div>
 
 <h3>同一件事到底要 Event 還是 Child Span？</h3>
-<p>看你要回答的問題。</p>
-
 <div class="table-wrap">
 <table>
   <thead><tr><th>需求</th><th>選擇</th><th>原因</th></tr></thead>
@@ -147,54 +136,47 @@ cache miss、retry started、fallback selected、circuit breaker opened、state 
 
 <h2>4. Failure 為什麼不只寫 Log 就好？</h2>
 <p>
-這裡最容易誤解的是「error 發生 → 寫 log」。Log 當然很有用，但 Log 和 Span 回答的是不同問題。
+「error 發生 → 寫 log」沒有錯，但 Log 和 Span 回答的是不同問題。
 </p>
 
-<p>假設 payment timeout：</p>
+<p>假設你只有：</p>
 
 <pre><code>2026-09-04 02:10:33 ERROR payment timeout after 2000ms</code></pre>
 
-<p>這筆 Log 能告訴你「某個時刻有 timeout」。但單獨一筆 Log 不自然回答：</p>
+<p>它能告訴你某個時刻有 timeout，但單獨一筆 Log 不自然回答：</p>
 
 <pre><code>它屬於哪一條 checkout request？
 checkout 總共花多久？
 payment 在整條 request 裡佔多久？
 payment 的 parent 是誰？
-同一條 trace 還有哪些下游工作？
-```
-</pre>
-
-<p>這些是 Span 的強項。</p>
+同一條 trace 還有哪些下游工作？</code></pre>
 
 <div class="table-wrap">
 <table>
   <thead><tr><th>你要的資訊</th><th>Span</th><th>Log</th></tr></thead>
   <tbody>
-    <tr><td>operation duration</td><td>很適合</td><td>通常要自己由多筆 log 推算</td></tr>
+    <tr><td>operation duration</td><td>很適合</td><td>通常要由多筆 log 推算</td></tr>
     <tr><td>parent / child 因果位置</td><td>原生模型</td><td>不是 log 的核心模型</td></tr>
     <tr><td>operation outcome / failure boundary</td><td>很適合</td><td>可以描述，但不自然形成 trace tree</td></tr>
-    <tr><td>stack trace / verbose message / raw diagnostic detail</td><td>不適合塞很多文字</td><td>很適合</td></tr>
+    <tr><td>stack trace / verbose message / raw detail</td><td>不適合塞大量文字</td><td>很適合</td></tr>
     <tr><td>沒有 active trace 時仍要記錄</td><td>不一定有 Span</td><td>Log 可以獨立存在</td></tr>
   </tbody>
 </table>
 </div>
 
 <div class="box tip">
-<strong>所以不是 Span 或 Log 二選一。</strong>
-如果同一個 failure 同時需要「它在整條 request 的位置與 duration」和「詳細 exception / stack / message」，可以同時有 Span + Log；重點是不要把完全相同的文字無腦重複兩份。
+<strong>不是 Span 或 Log 二選一。</strong>
+如果同一個 failure 同時需要「它在整條 request 的位置與 duration」和「詳細 exception / stack / message」，可以同時有 Span + Log；重點是不要把完全相同的內容無腦複製兩份。
 </div>
 
-<h3>什麼 failure 根本不值得多拆一個 Span？</h3>
-<p>例如：</p>
+<h3>什麼 failure 不值得多拆一個 Span？</h3>
 
 <pre><code>checkout.process
-  -> validate_coupon()  # 0.2ms，coupon invalid 很常見
-```
-</pre>
+  → validate_coupon()  # 0.2ms，coupon invalid 很常見</code></pre>
 
 <p>
-如果 `validate_coupon()` 的 latency 不重要，failure 也只是 parent checkout 的一個正常 business outcome，
-就不需要為了「它可能 fail」額外建 child span。你可以在 parent Span 留下結果 Attribute，必要時再記 Event 或 Log。
+如果 <code>validate_coupon()</code> 的 latency 不重要，failure 只是 parent checkout 的一個正常 business outcome，
+就不需要因為「它可能 fail」而建 Child Span。可以在 parent Span 留結果 Attribute；需要時間點才加 Event，需要詳細文字才寫 Log。
 </p>
 
 <p>但如果：</p>
@@ -202,37 +184,28 @@ payment 的 parent 是誰？
 <pre><code>fraud.evaluate()
 通常 20ms
 偶爾 1.8s
-而且 failure 會阻擋 checkout
-```
-</pre>
+failure 會阻擋 checkout</code></pre>
 
-<p>
-它就有獨立 latency / failure boundary，值得成為 Child Span。
-</p>
+<p>它有獨立 latency / failure boundary，就值得考慮 Child Span。</p>
 
 <p class="cite">
-來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/" target="_blank">OpenTelemetry Trace API — Span / Event / child span guidance</a>、
-<a href="https://opentelemetry.io/docs/specs/otel/logs/" target="_blank">OpenTelemetry Logging — correlation with TraceId / SpanId</a>
+來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/" target="_blank">OpenTelemetry Trace API</a>、
+<a href="https://opentelemetry.io/docs/specs/otel/logs/" target="_blank">OpenTelemetry Logging — Log correlation</a>
 </p>
 
-<h2>5. Queryability 不要背英文：把它翻成「我真的會怎麼查？」</h2>
+<h2>5. Queryability：不要背英文，翻成「我真的會怎麼查？」</h2>
 <p>
-原本教材寫「事故時會用它建立哪個查詢？」太抽象。實際意思是：
-<strong>如果 production 出事，你能不能想像自己真的拿這個欄位去 filter、group 或 compare？</strong>
+實際意思是：<strong>production 出事時，你能不能想像自己真的拿這個欄位去 filter、group 或 compare？</strong>
 </p>
 
-<p>例如 payment latency 高：</p>
+<pre><code>payment latency 高時，我會不會想查：
+payment.provider = "provider-a" 的 Span 是否特別慢？
 
-<pre><code>我會不會想查：
-payment.provider = "provider-a" 的 span 是否特別慢？
+error rate 上升時，我會不會想 group by：
+checkout.region = "TW" / "US" 哪個區域特別高？
 
-我會不會想 group by：
-checkout.region = "TW" / "US" 哪個區域 error rate 特別高？
-
-我會不會想 compare：
-cart.item_count > 100 的 checkout 是否 latency 明顯上升？
-```
-</pre>
+request 偶發變慢時，我會不會想 compare：
+cart.item_count &gt; 100 是否比小購物車更慢？</code></pre>
 
 <p>如果答案是「會」，這個 Attribute 就有明確 query/debug 價值。</p>
 
@@ -240,15 +213,11 @@ cart.item_count > 100 的 checkout 是否 latency 明顯上升？
 
 <pre><code>loop_index = 17
 internal_tmp_hash = "..."
-random local variable = ...
-```
-</pre>
+random local variable = ...</code></pre>
 
-<p>
-如果你完全想不到事故時為什麼要搜尋它，就不要因為它存在於程式碼裡而留下來。
-</p>
+<p>如果你想不到事故時為什麼要搜尋它，就不要因為它存在於程式碼裡而留下來。</p>
 
-<h2>6. Cardinality 不要背定義：想像 backend 會出現多少種不同值</h2>
+<h2>6. Cardinality：想像 backend 會出現多少種不同值</h2>
 <p><strong>Cardinality = 這個欄位可能出現多少種不同值。</strong></p>
 
 <div class="table-wrap">
@@ -266,81 +235,71 @@ random local variable = ...
 </div>
 
 <p>
-高 cardinality <strong>不是自動等於禁止</strong>。Trace ID 本身就是高 cardinality。
-真正的問題是：你是否真的需要用這個 business value 搜尋、backend 成本是否能接受、以及是否涉及個資或敏感資料。
+高 cardinality <strong>不是自動禁止</strong>。Trace ID 本身就是高 cardinality。
+真正要問的是：這個欄位提供的排障價值，值不值得 indexing / storage / privacy 成本？
 </p>
 
-<div class="box">
-<strong>SRE 問法：</strong>
-不是「高 cardinality 可不可以？」；而是「這個高 cardinality 欄位提供的排障價值，值不值得它的 indexing / storage / privacy 成本？」
-</div>
-
-<h2>7. Availability 不要背：Sampler 是在 Span 一開始就做決定</h2>
+<h2>7. Availability：Sampler 是在 Span 一開始就做決定</h2>
 <p>
-假設你的系統使用 <strong>head sampling</strong>：Span 一建立時，就決定這條 trace 要不要被 sample。
-可以把 Sampler 想成門口保全：人在進門那一刻就決定要不要放行，不會等你兩分鐘後才告訴他結果。
+假設使用 <strong>head sampling</strong>：Span 一建立時，就決定這條 trace 要不要 sample。
+把 Sampler 想成門口保全：人在進門那一刻就做決定，不會等 operation 結束才回頭重選。
 </p>
 
 <pre><code>Span 建立
-   |
-   +-- 此刻 Sampler 做決定
-   |
-   +-- 後來才知道 http.status_code = 500
-   |
-   +-- 更後來才知道 total_cents = 3674
-```
-</pre>
-
-<p>因此：</p>
+  ↓
+Sampler 此刻做決定
+  ↓
+business logic
+  ↓
+後來才知道 http.response.status_code = 500
+  ↓
+更後來才算出 checkout.total_cents</code></pre>
 
 <div class="table-wrap">
 <table>
   <thead><tr><th>資訊</th><th>Span 建立時知道嗎？</th><th>Head Sampler 能用嗎？</th></tr></thead>
   <tbody>
-    <tr><td><code>customer.tier = premium</code></td><td>如果 request 一開始就知道</td><td>可以在建立 Span 時提供</td></tr>
+    <tr><td><code>customer.tier = premium</code></td><td>若 request 一開始已知</td><td>可以在 creation 時提供</td></tr>
     <tr><td><code>http.request.method = POST</code></td><td>通常知道</td><td>可以</td></tr>
-    <tr><td><code>http.response.status_code = 500</code></td><td>通常 response 結束才知道</td><td>不能改變已完成的 head sampling 決策</td></tr>
-    <tr><td><code>checkout.total_cents</code></td><td>可能 business logic 後才算出</td><td>若之後才 set，不能回頭改 head decision</td></tr>
+    <tr><td><code>http.response.status_code = 500</code></td><td>response 結束才知道</td><td>不能改變已完成的 head decision</td></tr>
+    <tr><td><code>checkout.total_cents</code></td><td>可能 business logic 後才知道</td><td>若之後才 set，不能回頭改 decision</td></tr>
   </tbody>
 </table>
 </div>
 
 <p>
-所以官方才建議：<strong>如果某個 Attribute 要參與 sampling decision，盡量在 Span creation 時提供。</strong>
-後面會再正式學 head sampling / tail sampling，現在只需要理解「決策時間點」這件事。
+所以官方建議：如果某個 Attribute 要參與 sampling decision，盡量在 Span creation 時提供。
+後面會正式學 head / tail sampling；現在先理解「決策時間點」。
 </p>
 
 <p class="cite">
-來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#span-creation" target="_blank">OpenTelemetry Trace API — attributes at Span creation</a>。
+來源：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#span-creation" target="_blank">OpenTelemetry Trace API — Span creation</a>
 </p>
 
-<h2>8. 最後才把四種模型放在同一張 decision tree</h2>
+<h2>8. 現在才把四種模型放進同一張 decision tree</h2>
 
 <pre><code>我想留下什麼證據？
 │
-├─ 這是一段值得獨立量 duration / outcome 的子工作嗎？
+├─ 一段值得獨立量 duration / outcome 的子工作？
 │    └─ 是 → Child Span
 │
-├─ 這只是目前 Span 期間某一刻發生的重要事情嗎？
+├─ 目前 Span 期間某一刻發生的重要事情？
 │    └─ 是 → Event
 │
-├─ 這只是描述「這一次 operation」的可查值嗎？
+├─ 描述「這一次 operation」的可查值？
 │    └─ 是 → Attribute
 │
-├─ 我需要詳細 message / stack / diagnostics，或沒有 Span 也要獨立保存嗎？
+├─ 需要詳細 message / stack / diagnostics，或沒有 Span 也要保存？
 │    └─ 是 → Log
 │
-└─ 都不是 → 很可能根本不用記
-```
-</pre>
+└─ 都不是 → 很可能根本不用記</code></pre>
 
 <div class="box tip">
 <strong>同一件事故可能需要不只一種 telemetry。</strong>
-例如 payment timeout 可以有：payment Child Span（duration + causal position）、Event（retry 發生時間）、Attribute（provider / attempt count）、Log（詳細 exception）。
-它們不是重複，而是在回答不同問題。
+Payment timeout 可以同時有：Payment Child Span（duration + causal position）、Event（retry 時刻）、Attribute（provider / attempt count）、Log（詳細 exception）。它們回答的是不同問題。
 </div>
 
-<h2>9. 一個 Python 情境，把四種模型放在一起</h2>
+<h2>9. Python 情境：四種模型一起看</h2>
 
 <pre><code>import logging
 from opentelemetry import trace
@@ -359,11 +318,7 @@ with tracer.start_as_current_span("checkout.process") as checkout_span:
         except Exception:
             pricing_span.add_event("pricing.failed")
             logger.exception("pricing calculation failed")
-            raise
-```
-</pre>
-
-<p>逐行不是背 API，而是看需求：</p>
+            raise</code></pre>
 
 <ul>
   <li><code>cart.item_count</code>：描述整次 checkout → Attribute。</li>
@@ -372,8 +327,7 @@ with tracer.start_as_current_span("checkout.process") as checkout_span:
   <li><code>logger.exception(...)</code>：需要詳細 exception / stack → Log。</li>
 </ul>
 
-<h2>10. SRE Lab 1：過度埋點，Trace 已經變成 call stack</h2>
-<p>某 checkout request 產生：</p>
+<h2>10. SRE Lab 1：過度埋點，Trace 已變成 call stack</h2>
 
 <pre><code>Span: checkout-user-brandon@example.com-order-9f1a...
   Span: normalize_email
@@ -384,53 +338,47 @@ with tracer.start_as_current_span("checkout.process") as checkout_span:
   Span: payment.authorize
 
 Attribute: auth.token = "eyJ..."
-Attribute: item.count = 3
-```
-</pre>
+Attribute: item.count = 3</code></pre>
 
 <p><strong>先自己判斷：</strong>哪些資訊真的幫助 SRE？</p>
 
 <details>
   <summary>展開 SRE 判讀</summary>
-  <p><strong>問題 1：Span name 過度具體。</strong> Email 與 order UUID 讓每個 Span name 幾乎都不同，也有敏感資料風險。應改成穩定名稱，例如 <code>checkout.process</code>。</p>
-  <p><strong>問題 2：helper functions 被誤做成 Span。</strong> normalize / trim 沒有獨立 latency / failure 意義，不值得污染 trace tree。</p>
-  <p><strong>問題 3：逐 item validation 過度拆 Span。</strong> 如果只是 3 個超短操作，保留 <code>item.count=3</code> 已足夠。只有 batch validation 本身真的可能慢時，才考慮一個 <code>cart.validate</code> Span。</p>
-  <p><strong>問題 4：credential 不應進 telemetry。</strong> <code>auth.token</code> 應移除。</p>
-  <p><strong>保留：</strong> <code>payment.authorize</code> 通常是獨立 latency / failure boundary，很值得保留。</p>
+  <p><strong>Span name 過度具體：</strong>Email 與 order UUID 讓名稱幾乎每次都不同，還有敏感資料風險。改成穩定名稱 <code>checkout.process</code>。</p>
+  <p><strong>helper functions 被誤做成 Span：</strong>normalize / trim 沒有獨立 latency / failure 意義，不值得污染 trace tree。</p>
+  <p><strong>逐 item validation 過度拆 Span：</strong>如果只是超短操作，保留 <code>item.count=3</code> 已足夠；若 batch validation 本身真的可能慢，再考慮一個 <code>cart.validate</code> Span。</p>
+  <p><strong>credential 不應進 telemetry：</strong><code>auth.token</code> 移除。</p>
+  <p><strong>payment.authorize：</strong>通常是獨立 latency / failure boundary，值得保留。</p>
 </details>
 
 <h2>11. SRE Lab 2：Trace 太粗，只知道 request 很慢</h2>
 
 <pre><code>Span: POST /invoice/generate     2.43s
-  Attribute: template.type = "monthly"
-```
-</pre>
+  Attribute: template.type = "monthly"</code></pre>
 
 <p>Application log：</p>
 
 <pre><code>02:10:01.001 start render_pdf
-02:10:03.210 render_pdf done
-```
-</pre>
+02:10:03.210 render_pdf done</code></pre>
 
-<p>你現在已經有線索：2.43 秒裡，render_pdf 花了約 2.2 秒。但每次事故都靠人工對 log timestamp 很痛苦。</p>
+<p>你已經知道 render_pdf 約 2.2 秒，但每次都靠人工對 timestamp 很痛苦。</p>
 
 <details>
   <summary>你會怎麼改埋點？</summary>
-  <p>如果 PDF rendering 是 production 裡真正常見的 latency boundary，可以增加一個 <code>invoice.render_pdf</code> INTERNAL Child Span。</p>
+  <p>如果 PDF rendering 是真正常見的 latency boundary，可以新增 <code>invoice.render_pdf</code> INTERNAL Child Span。</p>
   <pre><code>Span: POST /invoice/generate       2.43s
   └─ Span: invoice.render_pdf      2.21s
        Attribute: template.type = "monthly"</code></pre>
-  <p>這不是「因為 render_pdf 是 function」，而是因為你已經證明 SRE 會需要單獨回答「時間是否花在 rendering」。</p>
+  <p>不是因為 render_pdf 是 function，而是因為你已證明 SRE 需要單獨回答「時間是否花在 rendering」。</p>
 </details>
 
 <h2>12. SRE Lab 3：只有 Error Log，為什麼還是不夠？</h2>
 
-<pre><code>ERROR payment timeout provider=provider-a timeout_ms=2000
-```
-</pre>
+<pre><code>ERROR payment timeout provider=provider-a timeout_ms=2000</code></pre>
 
-<p>事故期間有 3% checkout 失敗。只有 log，你可以搜尋 timeout，但你很難快速回答「timeout 在整條 request 裡佔多少時間、是不是只有 provider-a、上游 checkout 總 latency 多久」。</p>
+<p>
+事故期間 3% checkout 失敗。只有 log，你能搜尋 timeout，但很難快速看出「timeout 在 request 裡佔多少時間、是不是只有 provider-a、上游總 latency 多久」。
+</p>
 
 <details>
   <summary>較好的 telemetry 設計</summary>
@@ -440,31 +388,23 @@ Attribute: item.count = 3
        Event: retry.started @ +1005ms
 
 Log correlated to same trace/span:
-ERROR payment timeout ... stack / detailed message
-```
-  </pre>
-  <p>Span 用來定位 failure boundary 與 duration；Log 保留 verbose diagnostic detail；Event 告訴你 retry 的時間點。</p>
+ERROR payment timeout ... stack / detailed message</code></pre>
+  <p>Span 定位 failure boundary 與 duration；Log 保留 verbose detail；Event 標記 retry 時間。</p>
 </details>
 
 <h2>13. SRE Lab 4：Retry 到底用 Event 還是 Child Span？</h2>
 <p>需求 A：</p>
-<pre><code>只想知道 payment request 有沒有 retry、retry 幾次、何時發生。
-```
-</pre>
-<p>這時一個 payment Span + retry Events 通常夠。</p>
+<pre><code>只想知道 payment request 有沒有 retry、retry 幾次、何時發生。</code></pre>
+<p>一個 payment Span + retry Events 通常夠。</p>
 
 <p>需求 B：</p>
-<pre><code>想比較 attempt 1 / 2 / 3 各自 latency、provider、error outcome。
-```
-</pre>
-<p>這時每個 attempt 已經有自己的 operation 意義，可以考慮 child spans：</p>
+<pre><code>想比較 attempt 1 / 2 / 3 各自 latency、provider、error outcome。</code></pre>
+<p>每個 attempt 已有自己的 operation 意義，可以考慮 Child Spans：</p>
 
 <pre><code>Span: payment.authorize
   ├─ Span: payment.attempt   800ms ERROR
   ├─ Span: payment.attempt  1200ms ERROR
-  └─ Span: payment.attempt   110ms OK
-```
-</pre>
+  └─ Span: payment.attempt   110ms OK</code></pre>
 
 <div class="box">
 <strong>不是「retry 一律 Event」或「retry 一律 Span」。</strong>
@@ -472,51 +412,44 @@ ERROR payment timeout ... stack / detailed message
 </div>
 
 <h2>14. SRE Lab 5：哪些 Attribute 值得留下？</h2>
-<p>候選欄位：</p>
 
 <pre><code>deployment.environment = "prod"
 payment.provider = "provider-a"
 user.email = "brandon@example.com"
 order.id = "9f1a..."
 cart.item_count = 128
-loop_index = 17
-```
-</pre>
+loop_index = 17</code></pre>
 
 <details>
   <summary>逐項判斷</summary>
   <ul>
     <li><strong>deployment.environment：</strong>常用來 filter，值有限，通常合理。</li>
     <li><strong>payment.provider：</strong>可比較 provider latency / error，通常很有 SRE 價值。</li>
-    <li><strong>user.email：</strong>高 cardinality + PII；除非有非常明確且合規需求，通常不要。</li>
-    <li><strong>order.id：</strong>可能對單筆事故追蹤有用，但高 cardinality；需考量 backend、privacy 與是否已有其他 correlation ID。</li>
+    <li><strong>user.email：</strong>高 cardinality + PII；除非有明確且合規需求，通常不要。</li>
+    <li><strong>order.id：</strong>可能對單筆事故追蹤有用，但高 cardinality；需考量 backend、privacy 與是否已有 correlation ID。</li>
     <li><strong>cart.item_count：</strong>可檢查資料量是否造成 latency，常有分析價值。</li>
     <li><strong>loop_index：</strong>通常沒有 production troubleshooting 價值。</li>
   </ul>
 </details>
 
-<h2>15. SRE Lab 6：你想用「錯誤」決定 sampling，但錯誤是最後才知道</h2>
+<h2>15. SRE Lab 6：你想用「錯誤」決定 sampling，但錯誤最後才知道</h2>
 <p>需求：</p>
-<pre><code>只保留 HTTP 500 traces。
-```
-</pre>
+<pre><code>只保留 HTTP 500 traces。</code></pre>
 
-<p>但使用 head sampling 時：</p>
+<p>但 head sampling 的時間線：</p>
 
 <pre><code>request start
   ↓
-Sampler 此刻就決定 sample / drop
+Sampler 此刻決定 sample / drop
   ↓
 business logic
   ↓
-最後才知道 status_code = 500
-```
-</pre>
+最後才知道 status_code = 500</code></pre>
 
 <details>
   <summary>為什麼這是設計上的矛盾？</summary>
-  <p>因為 <code>http.response.status_code</code> 在 sampling decision 之後才出現，不能回頭改掉已做出的 head sampling decision。</p>
-  <p>這不是 <code>set_attribute()</code> 寫法錯，而是「你想拿一個未來才知道的資訊，去影響現在就要做的決策」。後續 sampling 章節會再處理 tail sampling 等方案。</p>
+  <p><code>http.response.status_code</code> 在 sampling decision 之後才出現，不能回頭改掉已完成的 head sampling decision。</p>
+  <p>這不是 <code>set_attribute()</code> 寫法錯，而是你想拿「未來才知道的資訊」影響「現在就要做的決策」。後面的 sampling 章節會再處理 tail sampling 等方案。</p>
 </details>
 
 <h2>16. 綜合 Debug：先讀 Trace，再決定哪裡需要更多 telemetry</h2>
@@ -529,18 +462,14 @@ POST /checkout                 2850ms ERROR
 └─ payment.authorize          2610ms ERROR
      Event retry.started      +820ms
      Event retry.started     +1810ms
-     Attribute provider="provider-a"
-```
-</pre>
-
-<p>用 SRE 的順序讀：</p>
+     Attribute provider="provider-a"</code></pre>
 
 <ol>
   <li><strong>先找 latency concentration：</strong>2610 / 2850ms 幾乎都在 payment。</li>
   <li><strong>再找 failure boundary：</strong>payment.authorize ERROR，其他 child spans OK。</li>
-  <li><strong>看 timeline marker：</strong>兩個 retry Event，代表 payment 期間至少發生兩次重試。</li>
-  <li><strong>看可分組資訊：</strong>provider-a，可進一步查 provider-a 是否普遍 error/slow。</li>
-  <li><strong>若還需要 stack / vendor response：</strong>跳到同 trace/span 的 Log，而不是再把大量文字塞進 Span。</li>
+  <li><strong>看 timeline marker：</strong>兩個 retry Event，表示 payment 期間至少發生兩次重試。</li>
+  <li><strong>看可分組資訊：</strong>provider-a，可進一步查 provider-a 是否普遍慢或 error。</li>
+  <li><strong>若還需要 stack / vendor response：</strong>跳到同 trace/span 的 Log，而不是把大量文字塞進 Span。</li>
 </ol>
 
 <div class="box tip">
@@ -548,26 +477,26 @@ POST /checkout                 2850ms ERROR
 好的埋點是讓你從「整條 request → 慢在哪 → 壞在哪 → 哪個條件相關 → 需要哪些細節」一路收斂，不必猜。
 </div>
 
-<h2>17. 行進題：現在開始練判斷，不背定義</h2>
+<h2>17. 行進題：練判斷，不背定義</h2>
 
 <div class="quiz" data-quiz>
-  <div class="question">Q1. 一個 process 內的 PDF render 通常 40ms，但偶爾會花 2 秒，而且你需要單獨比較它的 latency。最合理的設計是？</div>
+  <div class="question">Q1. process 內 PDF render 通常 40ms，但偶爾 2 秒，而且你需要單獨比較它的 latency。最合理的設計？</div>
   <div class="choices">
-    <button class="choice" data-correct="false">只新增一個 boolean Attribute</button>
+    <button class="choice" data-correct="false">只新增 boolean Attribute</button>
     <button class="choice" data-correct="true">建立 render 的 Child Span</button>
-    <button class="choice" data-correct="false">只寫一筆固定文字 Log</button>
-    <button class="choice" data-correct="false">完全不增加任何 telemetry</button>
+    <button class="choice" data-correct="false">只寫固定文字 Log</button>
+    <button class="choice" data-correct="false">完全不增加 telemetry</button>
   </div>
   <div class="feedback"></div>
 </div>
 
 <div class="quiz" data-quiz>
-  <div class="question">Q2. 你只需要知道 payment Span 期間「第二次 retry 在何時發生」，不需要量每次 retry duration。最合理的是？</div>
+  <div class="question">Q2. 只需要知道 payment Span 期間「第二次 retry 在何時發生」，不需要量每次 retry duration。最合理的是？</div>
   <div class="choices">
-    <button class="choice" data-correct="false">新增 payment provider Resource</button>
-    <button class="choice" data-correct="false">把 retry 次數放進 Span name</button>
-    <button class="choice" data-correct="false">每次 retry 都建立完整 Trace</button>
-    <button class="choice" data-correct="true">在 payment Span 加 retry Event</button>
+    <button class="choice" data-correct="false">新增 provider Resource</button>
+    <button class="choice" data-correct="false">把 retry 放進 Span name</button>
+    <button class="choice" data-correct="false">每次 retry 建完整 Trace</button>
+    <button class="choice" data-correct="true">在 payment Span 加 Event</button>
   </div>
   <div class="feedback"></div>
 </div>
@@ -575,21 +504,21 @@ POST /checkout                 2850ms ERROR
 <div class="quiz" data-quiz>
   <div class="question">Q3. 哪個理由最能支持把 <code>payment.provider</code> 做成 Span Attribute？</div>
   <div class="choices">
-    <button class="choice" data-correct="true">事故時會比較不同 provider 的 latency 與 error</button>
-    <button class="choice" data-correct="false">因為程式裡剛好有 provider 這個變數</button>
-    <button class="choice" data-correct="false">因為 Attribute 一定比 Log 更省成本</button>
-    <button class="choice" data-correct="false">因為所有 string 都應該成為 Attribute</button>
+    <button class="choice" data-correct="true">會比較 provider 的 latency 與 error</button>
+    <button class="choice" data-correct="false">程式裡剛好有 provider 變數</button>
+    <button class="choice" data-correct="false">Attribute 一定比 Log 更省成本</button>
+    <button class="choice" data-correct="false">所有 string 都應成為 Attribute</button>
   </div>
   <div class="feedback"></div>
 </div>
 
 <div class="quiz" data-quiz>
-  <div class="question">Q4. Payment timeout 已經有一個 Child Span，但你還需要完整 exception stack。哪個做法最合理？</div>
+  <div class="question">Q4. Payment timeout 已有 Child Span，但你還需要完整 exception stack。哪個做法最合理？</div>
   <div class="choices">
-    <button class="choice" data-correct="false">刪除 Span，只留下 exception message</button>
-    <button class="choice" data-correct="false">把 stack trace 塞進 Span name</button>
-    <button class="choice" data-correct="true">保留 Span，並留下 correlated Log</button>
-    <button class="choice" data-correct="false">為每一行 stack 建一個 Child Span</button>
+    <button class="choice" data-correct="false">刪除 Span，只留 exception</button>
+    <button class="choice" data-correct="false">把 stack 塞進 Span name</button>
+    <button class="choice" data-correct="true">保留 Span，增加 correlated Log</button>
+    <button class="choice" data-correct="false">每一行 stack 建 Child Span</button>
   </div>
   <div class="feedback"></div>
 </div>
@@ -608,9 +537,9 @@ POST /checkout                 2850ms ERROR
 <div class="quiz" data-quiz>
   <div class="question">Q6. 使用 head sampling 時，哪個資訊如果在 Span 建立後才知道，就不能回頭改變已做出的 sampling decision？</div>
   <div class="choices">
-    <button class="choice" data-correct="false">request 一開始就知道的 method</button>
-    <button class="choice" data-correct="false">Span creation 時提供的 customer tier</button>
-    <button class="choice" data-correct="false">建立 Span 時已有的 route 類型</button>
+    <button class="choice" data-correct="false">一開始就知道的 method</button>
+    <button class="choice" data-correct="false">creation 時已有的 customer tier</button>
+    <button class="choice" data-correct="false">creation 時已有的 route 類型</button>
     <button class="choice" data-correct="true">operation 結束才知道的 status code</button>
   </div>
   <div class="feedback"></div>
@@ -619,13 +548,13 @@ POST /checkout                 2850ms ERROR
 <h2>最後 Recap：每個名詞只留一句話</h2>
 <div class="box tip">
 <p><strong>Span：</strong>一段值得獨立觀測 start、end、duration、outcome 與因果位置的 operation。</p>
-<p><strong>Child Span：</strong>仍然是一個 Span，只是它的 parent 是另一個 Span，用來表示值得獨立觀測的子工作。</p>
+<p><strong>Child Span：</strong>仍然是一個 Span，只是 parent 是另一個 Span，用來表示值得獨立觀測的子工作。</p>
 <p><strong>Event：</strong>附在 Span 上、表示「某一個重要時刻發生了什麼」的 timestamped record。</p>
 <p><strong>Attribute：</strong>描述「這一次 operation」且值得查詢／分組／比較的 key-value metadata。</p>
-<p><strong>Log：</strong>一筆可獨立保存的事件紀錄，適合詳細 message、stack、diagnostic context，也可以用 TraceId / SpanId 與 trace 關聯。</p>
+<p><strong>Log：</strong>可獨立保存的事件紀錄，適合詳細 message、stack、diagnostic context，也可用 TraceId / SpanId 和 trace 關聯。</p>
 <p><strong>Queryability：</strong>你是否真的會拿這個欄位去 filter、group、compare 或 debug。</p>
-<p><strong>Cardinality：</strong>一個欄位可能出現多少種不同值；值越接近每 request 唯一，越需要評估成本與隱私。</p>
-<p><strong>Availability：</strong>某個資訊在決策發生的當下是否已經知道；對 head sampling 而言，就是 Span 建立時是否已存在。</p>
+<p><strong>Cardinality：</strong>一個欄位可能出現多少種不同值；越接近每 request 唯一，越需要評估成本與隱私。</p>
+<p><strong>Availability：</strong>資訊在決策當下是否已知；對 head sampling 而言，就是 Span 建立時是否已存在。</p>
 </div>
 
 <div class="box">
@@ -634,7 +563,7 @@ POST /checkout                 2850ms ERROR
 
 <div class="box ask">
 <strong>把真實 service flow 丟給我最有價值。</strong>
-我們可以直接做 production-style instrumentation review：先決定 SRE 事故時要回答什麼，再逐段判斷哪裡是過度埋點、哪裡缺證據、哪個欄位有成本或 privacy 問題。
+我們可以直接做 production-style instrumentation review：先決定事故時要回答什麼，再逐段判斷哪裡過度埋點、哪裡缺證據、哪個欄位有成本或 privacy 問題。
 </div>
 
 <p class="cite">
