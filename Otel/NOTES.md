@@ -16,6 +16,8 @@
 - 2026-09-03 Lesson 3 學習缺口：使用者不清楚「什麼時候該加 Span Attribute」與「debug 時如何知道 Span 是否真的 End」。Lesson 3 應只補足建立第一個 Span 當下必要的 Attribute 判斷與 Python lifecycle 證據；不要提前用尚未教過的 Event / Child Span 解釋 Attribute。Span / Event / Attribute 的完整設計邊界由 Lesson 5 負責，Lesson 3 / reference 僅導航到該課。
 - 2026-09-04 Lesson 5 深度回饋：使用者需要更多 process-internal Span 例子，且原本 Queryability / Cardinality / Availability 的文字過於抽象；在概念第一次出現時應給具體 production 問題與反例，不要要求使用者自行推廣適用範圍。
 - Lesson 5 維持「Span 邊界與欄位設計」的單一主題。Child Span 要明確說明為「仍是 Span，只是 parent 是另一個 Span」；Failure vs Log 只講理解 Span boundary 所需的最低差異，完整 Logs / Trace correlation 留在 Lesson 25；Availability 先講「資訊何時才存在」，head sampling 的正式因果關係留在 Lesson 9。
+- 2026-09-06 Lesson 5 模型修正：不要把 Span / Event / Attribute 畫成三個可獨立存在的平行 tracing records。Trace API 的正確教學層級是：Span 代表 operation；Span 內含 Span Attributes 與 timestamped Span Events；Event 自己還可以有 Event Attributes；需要另一段獨立 operation 時才建立 Child Span。Decision tree 應寫成「在既有 Span 加 Attribute/Event，還是建立新的 Child Span」。
+- 2026-09-06 Lesson 5 用語修正：`outcome` 在本課只表示「這段 operation 最後得到什麼結果」，不是固定欄位；`causal position` 不是固定欄位，`causal` = 因果的，具體指 Span 在 parent/child 關係中的位置。第一次出現時必須直接用成功/錯誤/business result 與 parent/child 例子解釋，不得只留下抽象英文名詞。
 - 使用者特別重視 telemetry design / debugging 的 SRE 實戰能力。多個 production-style 情境、過度/不足埋點判讀、Span vs Log、Attribute 成本與從需求反推埋點，獨立放在 `0051-sre-telemetry-design-labs.html` 作為 Lesson 5 的深度技能練習，不改變主課 `0005 → 0006` 的順序。
 - Reference card 的標題與內容必須一致；`0003-span-design-decision-card.html` 是 Lesson 5 的壓縮參考，聚焦 Span / Event / Attribute，其他進階主題以 forward link 導向正式 lesson。
 - Quiz 正確答案位置不可形成可預測或持續固定的 pattern；此要求已寫入 Matt Pocock Learning Skill。不要修改 `assets/quiz.js` 做 shuffle。
