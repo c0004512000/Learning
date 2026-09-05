@@ -16,11 +16,27 @@
   <tbody>
     <tr><td>1</td><td>屬於哪條因果鏈？</td><td>Trace ID、Span ID、Parent Span ID</td><td>把 Trace ID 當 request ID；把空 parent 當資料遺失</td></tr>
     <tr><td>2</td><td>觀測哪段工作？</td><td>Name、Kind</td><td>用動態值命名；把 INTERNAL 當 incoming request</td></tr>
-    <tr><td>3</td><td>花多久、結果如何？</td><td>Start、End、Status</td><td>把 UNSET 當 error；只看 duration 不看 operation</td></tr>
+    <tr><td>3</td><td>花多久、結果如何？</td><td>Start、End、Status</td><td>把 UNSET 當 unknown/error；把 OK 當一般成功預設值</td></tr>
     <tr><td>4</td><td>有哪些診斷脈絡？</td><td>Attributes、Events、Links</td><td>把有 timestamp 的事件硬塞成 attribute</td></tr>
     <tr><td>5</td><td>誰產生 telemetry？</td><td>Resource、Instrumentation Scope</td><td>把 service.name 當 Span name</td></tr>
   </tbody>
 </table>
+</div>
+
+<h2>Status 快速判讀</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>值</th><th>先怎麼讀</th></tr></thead>
+  <tbody>
+    <tr><td><code>UNSET</code></td><td>預設值；沒有把 operation 標成 Error。一般正常成功通常維持 UNSET。</td></tr>
+    <tr><td><code>ERROR</code></td><td>這段 operation 最後包含應被視為錯誤的結果。</td></tr>
+    <tr><td><code>OK</code></td><td>Application developer 或 Operator 明確宣告這段 operation 已確認成功；不是所有成功 Span 都要設。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box tip">
+<strong>不要混：</strong>Span Status 不是 HTTP status code，也不是 exception object。它是對整段 operation 的結果判定；具體何時算 Error 要看該 operation 的語義與 Semantic Conventions。
 </div>
 
 <h2>四層不要混用</h2>
@@ -34,10 +50,10 @@ OTLP：資料如何編碼、傳輸與交付</code></pre>
 還是 UI 沒顯示？」不要直接由 UI 缺欄位推論 SDK 沒產生資料。
 </div>
 
-<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/signals/traces/" target="_blank">OpenTelemetry — Traces</a>、<a href="https://opentelemetry.io/docs/specs/otlp/" target="_blank">OTLP specification</a></p>
+<p class="cite">主要來源：<a href="https://opentelemetry.io/docs/concepts/signals/traces/" target="_blank">OpenTelemetry — Traces</a>、<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#set-status" target="_blank">Trace API — Set Status</a>、<a href="https://opentelemetry.io/docs/specs/otlp/" target="_blank">OTLP specification</a></p>
 
 <div class="lesson-nav">
-  <span><a href="../lessons/0004-read-a-span.html">&larr; 回 Lesson 4</a></span>
+  <span><a href="../lessons/0004-read-a-span.html#span-status">&larr; 回 Lesson 4 Status</a></span>
   <span><a href="0001-http-routes-and-cardinality.html">HTTP route 與 cardinality &rarr;</a></span>
 </div>
 </body>
