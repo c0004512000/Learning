@@ -87,15 +87,19 @@
     <tr><td>Queryability</td><td>事故時我真的會拿它 filter / group / compare 嗎？</td><td><code>payment.provider</code> 常有用；<code>loop_index</code> 通常沒有。</td></tr>
     <tr><td>Cardinality</td><td>這個欄位可能出現多少種不同值？</td><td><code>environment</code> 約 3 種；<code>order.id</code> 可能幾乎每筆不同。</td></tr>
     <tr><td>Sensitivity</td><td>它是不是 credential、個資或不該進 telemetry 的 payload？</td><td><code>auth.token</code> 不應記。</td></tr>
-    <tr><td>Timing</td><td>這個值在 Span 開始前、執行中，還是結束後才知道？</td><td>route 可很早知道；final latency 要結束才知道。</td></tr>
+    <tr><td>Timing</td><td>這個值最早什麼時候才知道？Timing 不決定它能不能當 Attribute，而是決定最早何時能寫入，以及更早發生的機制能不能看到它。</td><td><code>payment.provider</code> 可一開始寫；<code>retry.count</code> 可執行中再寫。</td></tr>
   </tbody>
 </table>
 </div>
 
+<div class="box tip">
+<strong>Timing 小結：</strong>
+只要 Span 還沒 End，執行中才知道的值仍可加入 Attribute；Span End 後不能再修改。建立 Span 當下已存在的 Attributes 才可能被當下的 sampling decision 使用，正式原因留到 Lesson 9。
+</div>
+
 <div class="box">
-<strong>Timing 為什麼重要？</strong>
-目前只要理解「決策當下不能使用未來才出現的資料」。它和 sampling 的正式關係，到
-<a href="../lessons/0009-sampling-first-principles.html">Lesson 9</a> 再學，不需要在這張卡先背 head sampler。
+<strong>Duration 不要重複做成 Attribute：</strong>
+Span 本身已有 start/end timestamp，因此 duration 本來就是 Span 的核心時間資料；通常不需要再額外做一個 <code>latency</code> Attribute。
 </div>
 
 <h2>Failure 不是自動建立 Span 的理由</h2>
