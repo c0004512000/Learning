@@ -122,9 +122,94 @@ process 內部 function 則不能只看「它是一個 function」；要問：<s
 <strong>「會失敗」本身，不足以決定要不要多建一個 Span。</strong>
 還是回到同一個問題：你需不需要把這個 failure 放回整條 request 的因果路徑裡，知道它是哪一段工作、花多久、parent 是誰？如果需要，Span 提供這種結構。
 </p>
+
+<h3>先把 stack trace 拆開：它其實只是「錯誤發生前的 function 呼叫路徑」</h3>
 <p>
-Log 比較適合保存詳細 message、stack trace 或額外 diagnostic detail。兩者不是互斥：同一個 failure 可以由 Span 保留 operation 的位置與 duration，再由 correlated Log 保留詳細文字；OpenTelemetry 的 LogRecord 也能攜帶 TraceId / SpanId 來做 correlation。
+假設 Python 執行 <code>checkout()</code>，裡面呼叫 <code>authorize_payment()</code>，後者又呼叫 <code>send_request()</code>。
+程式在進入下一層 function 時，runtime 必須記住「等這層做完要回到哪裡」，因此會維護目前正在執行的 function 呼叫層級。
+這組尚未返回的 function 呼叫常被稱為 <strong>call stack（呼叫堆疊）</strong>。
 </p>
+
+<pre><code>checkout()
+  └─ authorize_payment()
+       └─ send_request()
+            └─ TimeoutError  ← 錯誤在這裡發生</code></pre>
+
+<p>
+當錯誤發生時，如果把這條「從哪個 function 一路呼叫到出錯位置」的路徑印出來，就是 <strong>stack trace</strong>。
+Python 的錯誤輸出通常會看到 <code>Traceback (most recent call last)</code>；這就是 Python 呈現 stack trace 的常見形式。
+它的價值是讓你知道：<strong>哪一行程式透過哪些 function calls 最後走到錯誤點。</strong>
+</p>
+
+<h3>那 Span 和 Log 到底怎麼關聯？先看它們其實是兩份不同資料</h3>
+<p>
+<strong>一筆 Log 並不是被塞在 Span 裡。</strong>Span 是 trace signal 的資料；LogRecord 是 log signal 的資料，它們可以各自送進不同的 pipeline / backend。
+關聯的方法很簡單：讓 LogRecord 帶上「產生這筆 Log 當下，正在執行的 Span」的 <code>TraceId</code> 與 <code>SpanId</code>。
+</p>
+
+<pre><code>Span
+  trace_id = abc123
+  span_id  = def456
+  name     = payment.authorize
+
+LogRecord
+  trace_id = abc123   ← 一樣
+  span_id  = def456   ← 一樣
+  body     = "payment timeout"
+
+相同 TraceId + SpanId
+        ↓
+backend 知道：這筆 Log 是 payment.authorize 執行期間產生的</code></pre>
+
+<p>
+這種「靠共同的 TraceId / SpanId 把 Log 與 Trace 對起來」就叫 <strong>log correlation（Log 關聯）</strong>。
+而一筆已帶有這些 trace context 欄位、能被對回某個 Trace / Span 的 Log，常被口語稱為 <strong>correlated Log</strong>。
+所以它不是另一種特殊 Log 類型；重點只是<strong>這筆 Log 帶有足以對回 Span 的 IDs</strong>。
+</p>
+
+<div class="box tip">
+<strong>先記一句：</strong>
+Span 與 LogRecord 是兩份獨立 telemetry；<code>TraceId</code> / <code>SpanId</code> 像共同索引鍵，讓 observability backend 可以把它們顯示在一起。
+</div>
+
+<p class="cite">
+官方依據：<a href="https://opentelemetry.io/docs/specs/otel/logs/" target="_blank">OpenTelemetry Logging — Log Correlation</a>：LogRecord 可包含 TraceId / SpanId，直接對應同一 execution context。
+</p>
+
+<h3>那為什麼我好像可以「在 Span 裡看到 Log」？</h3>
+<p>這裡有兩件非常容易混在一起的事：</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>你在 UI 看到的東西</th><th>資料模型上到底是什麼</th></tr></thead>
+  <tbody>
+    <tr><td>Span 裡有一個 <code>exception</code>、retry、cache miss 等時間點</td><td><strong>Span Event</strong>。它真的屬於 Span 的資料。</td></tr>
+    <tr><td>Span 頁面旁邊／下面顯示 application logs</td><td><strong>獨立 LogRecords</strong>。Backend 用相同 TraceId / SpanId 查出相關 Logs，再在 UI 放到 Span 附近。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+OpenTelemetry 的 <code>span.record_exception(error)</code> 更容易造成混淆：它不是「寫一筆 Log 進 Span」，而是把 exception 記成一個 <strong>Span Event</strong>。
+這個 exception Event 可以帶 <code>exception.type</code>、<code>exception.message</code>，以及描述 function 呼叫路徑的 <code>exception.stacktrace</code>。
+因此 Trace UI 裡可能直接看到一大段錯誤文字，看起來很像 Log，但資料模型上仍是 Span Event。
+</p>
+
+<p class="cite">
+官方依據：<a href="https://opentelemetry.io/docs/specs/otel/trace/exceptions/" target="_blank">OpenTelemetry — Exceptions on Spans</a>；<code>recordException</code> 是 <code>AddEvent</code> 的特化形式。
+</p>
+
+<h3>所以 failure 時 Span、Span Event、Log 怎麼先分？</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>你需要回答的問題</th><th>較自然的資料</th></tr></thead>
+  <tbody>
+    <tr><td>哪一段 operation 失敗？花多久？它在 Trace 的哪個 parent/child 位置？</td><td>Span</td></tr>
+    <tr><td>這個 Span 執行期間 exception 在哪個時間點發生？</td><td>Span Event（例如 exception Event）</td></tr>
+    <tr><td>需要獨立搜尋的詳細 application message，或完整錯誤診斷文字</td><td>LogRecord；若帶相同 TraceId / SpanId，就能和 Span 關聯</td></tr>
+  </tbody>
+</table>
+</div>
 
 <div class="table-wrap">
 <table>
@@ -132,18 +217,17 @@ Log 比較適合保存詳細 message、stack trace 或額外 diagnostic detail�
   <tbody>
     <tr><td><code>validate_coupon()</code> 0.2ms，invalid coupon 是正常 business result</td><td>通常不新增 Child Span</td><td>這個結果沒有獨立 latency，也不需要在 Trace tree 中另占一個子工作位置。</td></tr>
     <tr><td><code>fraud.evaluate()</code> 通常 20ms、偶爾 1.8s，而且 failure 阻擋 checkout</td><td>考慮 Child Span</td><td>它已成為需要單獨定位的 latency / failure boundary。</td></tr>
-    <tr><td>payment timeout 需要 exception stack</td><td>Span + correlated Log</td><td>Span 看因果與 duration；Log 看詳細診斷文字。</td></tr>
+    <tr><td>payment timeout，需要完整錯誤呼叫路徑與詳細文字</td><td>Span + 相關 LogRecord</td><td>Span 保留 operation 的因果與 duration；LogRecord 保留可獨立搜尋的詳細診斷文字，並可用相同 TraceId / SpanId 對回 Span。</td></tr>
   </tbody>
 </table>
 </div>
 
 <div class="box">
-<strong>這裡只建立最低必要差異。</strong>
-完整的 Log data model 與 Trace correlation 會在 <a href="0025-logs-first-principles.html">Lesson 25</a> 正式學；
-更貼近 SRE 現場的 Span / Log 設計練習放在 <a href="0051-sre-telemetry-design-labs.html">SRE Telemetry Design Labs</a>。
+<strong>這裡只建立理解 Span boundary 所需的關係。</strong>
+完整的 Log data model、logging framework 如何把 TraceId / SpanId 放進 LogRecord，以及 backend 如何查詢，會在
+<a href="0025-logs-first-principles.html">Lesson 25</a> 正式學；快速排障卡在
+<a href="../reference/0018-log-correlation-debug-card.html">Log correlation reference</a>。
 </div>
-
-<p class="cite">Log correlation 來源：<a href="https://opentelemetry.io/docs/specs/otel/logs/" target="_blank">OpenTelemetry Logging — Log Correlation</a></p>
 
 <h2>名稱為何必須穩定？</h2>
 <p>
@@ -252,6 +336,8 @@ Event: payment_retry_attempt_2 @ 02:00:00.321Z</code></pre>
 <p><strong>Span Event：</strong>依附在某個 Span 上、描述該 Span 期間某個重要時間點的紀錄；它不能在 Trace tree 裡獨立成為一個 operation node。</p>
 <p><strong>Span Attribute：</strong>依附在某個 Span 上、描述這一次 operation 的 key-value metadata。</p>
 <p><strong>Event Attribute：</strong>依附在某個 Event 上，用 key-value 補充那個事件的細節。</p>
+<p><strong>Stack trace：</strong>錯誤發生時，從外層 function 一路呼叫到出錯位置的 function 呼叫路徑。</p>
+<p><strong>Log correlation：</strong>讓獨立的 LogRecord 帶上 TraceId / SpanId，以便 backend 對回產生它的 Trace / Span。</p>
 </div>
 
 <div class="box tip">
