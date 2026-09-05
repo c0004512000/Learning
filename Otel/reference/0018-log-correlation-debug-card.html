@@ -8,7 +8,39 @@
 </head>
 <body>
 <h1>Log correlation 與重複資料判斷卡</h1>
-<p class="subtitle">先找 emission path，再找 current Context</p>
+<p class="subtitle">先記住：LogRecord 不在 Span 裡；它靠 TraceId / SpanId 對回 Span</p>
+
+<div class="box tip">
+<strong>第一性模型：</strong>
+Span 與 LogRecord 是兩份獨立 telemetry。若 LogRecord 帶有和某個 Span 相同的 <code>TraceId</code> / <code>SpanId</code>，
+backend 就能知道兩者來自同一 execution context，這叫 <strong>log correlation</strong>。
+</div>
+
+<pre><code>Span
+  trace_id = abc123
+  span_id  = def456
+
+LogRecord
+  trace_id = abc123
+  span_id  = def456
+
+same IDs → related</code></pre>
+
+<h2>不要和 Span Event 混在一起</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>東西</th><th>資料關係</th></tr></thead>
+  <tbody>
+    <tr><td>Span Event</td><td>真的存在 Span 裡，是 Span timeline 上的一個 timestamped event。</td></tr>
+    <tr><td>LogRecord</td><td>是獨立 Logs signal；backend 可用 TraceId / SpanId 把它顯示在相關 Span 附近。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box">
+<strong>為什麼 UI 看起來像「Span 裡有 Log」？</strong>
+Trace UI 可以拿目前 Span 的 TraceId / SpanId 去 log backend 查 matching LogRecords，再放到同一個畫面。這是 UI correlation，不代表 LogRecord 被儲存在 Span object 裡。
+</div>
 
 <h2>沒有 trace_id</h2>
 <ol>
@@ -26,7 +58,10 @@
   <li>Collector 是否有重複 receivers/routes？</li>
 </ol>
 
+<p class="cite">
+主要來源：<a href="https://opentelemetry.io/docs/specs/otel/logs/" target="_blank">OpenTelemetry Logging — Log Correlation</a>。
+</p>
+
 <p><a href="../lessons/0025-logs-first-principles.html">回到 Lesson 25</a></p>
 </body>
 </html>
-
