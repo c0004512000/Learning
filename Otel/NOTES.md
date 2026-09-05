@@ -18,6 +18,7 @@
 - Lesson 5 維持「Span 邊界與欄位設計」的單一主題。Child Span 要明確說明為「仍是 Span，只是 parent 是另一個 Span」；Failure vs Log 只講理解 Span boundary 所需的最低差異，完整 Logs / Trace correlation 留在 Lesson 25；Availability 先講「資訊何時才存在」，head sampling 的正式因果關係留在 Lesson 9。
 - 2026-09-06 Lesson 5 模型修正：不要把 Span / Event / Attribute 畫成三個可獨立存在的平行 tracing records。Trace API 的正確教學層級是：Span 代表 operation；Span 內含 Span Attributes 與 timestamped Span Events；Event 自己還可以有 Event Attributes；需要另一段獨立 operation 時才建立 Child Span。Decision tree 應寫成「在既有 Span 加 Attribute/Event，還是建立新的 Child Span」。
 - 2026-09-06 Lesson 5 用語修正：`outcome` 在本課只表示「這段 operation 最後得到什麼結果」，不是固定欄位；`causal position` 不是固定欄位，`causal` = 因果的，具體指 Span 在 parent/child 關係中的位置。第一次出現時必須直接用成功/錯誤/business result 與 parent/child 例子解釋，不得只留下抽象英文名詞。
+- 2026-09-06 Lesson 5 Logs 邊界修正：`stack trace`、`log correlation`、`correlated Log` 不能在未解釋時直接拿來說明 Span vs Log。Lesson 5 應先從 function 呼叫鏈推導 stack trace，再用「Span 與 LogRecord 是兩份獨立資料，共享 TraceId / SpanId 才能對回同一 execution context」推導 log correlation；並明確區分「真的存在 Span 裡的 Span Event」與「backend UI 顯示在 Span 附近的相關 LogRecord」。
 - 使用者特別重視 telemetry design / debugging 的 SRE 實戰能力。多個 production-style 情境、過度/不足埋點判讀、Span vs Log、Attribute 成本與從需求反推埋點，獨立放在 `0051-sre-telemetry-design-labs.html` 作為 Lesson 5 的深度技能練習，不改變主課 `0005 → 0006` 的順序。
 - Reference card 的標題與內容必須一致；`0003-span-design-decision-card.html` 是 Lesson 5 的壓縮參考，聚焦 Span / Event / Attribute，其他進階主題以 forward link 導向正式 lesson。
 - Quiz 正確答案位置不可形成可預測或持續固定的 pattern；此要求已寫入 Matt Pocock Learning Skill。不要修改 `assets/quiz.js` 做 shuffle。
@@ -25,7 +26,8 @@
 ## Teaching principles
 
 - 以第一性原理式因果推導教授：從使用者最容易理解的具體事實、行為或產物開始，問「要讓這件事成立，下一個必要條件是什麼？」一次只引入一個新概念。
-- 不得在某個上層概念的必要性尚未建立前先提到它；如果使用者卡住，退回最後一個已理解節點重新往前推，不再增加未知名詞。
+- 不得使用尚未解釋的技術名詞來解釋另一個新概念；此限制不只適用於 OTel 元件。新名詞第一次出現時，必須先用使用者已理解的概念、具體行為或例子建立必要性與直覺，再給正式名稱。若使用者卡住，退回最後一個已理解節點重新往前推，不再增加未知名詞。
+- 不可用未定義的 OTel 元件名稱組成線性流程圖。每個新術語必須先說明它解決的問題、責任邊界與和相鄰元件的關係，再出現在程式碼或完整架構圖中。
 - 優先使用使用者已熟悉的程式語言、工具或概念做結構類比，並清楚標示類比邊界。
 - 不預設使用者已具備 Observability 知識，但最終水準應能設計、debug、導入維運並教學，而不只是操作工具。
 - 當 Kubernetes、networking、Prometheus 或其他前置主題成為真正的理解阻礙時，建立獨立且可回鏈到 OTel 的主題與學習地圖；不要在單一 OTel 課中塞入所有前置知識。
@@ -40,6 +42,5 @@
 - Lesson 3 的 Attribute 教學只從「這個值是否描述這一次 operation，以及是否能回答查詢／除錯問題」推導 Attribute；若問題開始涉及「某件事發生的時刻」或「是否需要另一個獨立工作節點」，不要在 Lesson 3 提前展開新模型，導向 Lesson 5。
 - Lesson 5 聚焦 Span boundary 與相鄰的 Event / Attribute 選擇，不承擔完整 Logs 或 Sampling 教學；SRE 深度技能練習由 0051 sidecar lesson 承擔。
 - Lesson 3 的 Span End 教學要區分「operation 已完成」與「資料已 export/store」；Python `with start_as_current_span` 離開 block 會 End，手動 `start_span` 則需呼叫 `end()`。沒有 console 輸出不能直接反推 Span 未 End。
-- 不可用未定義的 OTel 元件名稱組成線性流程圖。每個新術語必須先說明它解決的問題、責任邊界與和相鄰元件的關係，再出現在程式碼或完整架構圖中。
 - 深入課程必須區分:顯示用 JSON / Console 輸出、OTLP wire format、Span data model 與 Semantic Conventions；並涵蓋低 cardinality、敏感資料與 queryability 的取捨。
 - 使用者對 `http.route` 與「API endpoint」的語義差異有疑問。資料模型課必須明確區分：routing template (`http.route`)、實際 URL (`url.full` / `url.path`)、目標 host (`server.address`)，以及 logical API operation (`http.request.method` + `http.route`，通常也是 server span name)；避免未限定含義地單獨使用「endpoint」。
