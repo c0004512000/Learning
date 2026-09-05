@@ -9,37 +9,60 @@
 <body>
 
 <h1>Span / Event / Attribute 決策卡</h1>
-<p class="subtitle">從「我需要哪種證據？」決定 telemetry model</p>
+<p class="subtitle">先分清楚：是在既有 Span 裡補證據，還是需要新的 Child Span</p>
 
 <div class="box tip">
-<strong>先不要看 function 名稱。</strong>
-問事故時你要回答什麼問題，再決定需要 Span、Event、Attribute，或根本不記。
+<strong>先不要把三者想成平行資料型別。</strong>
+在 tracing 裡，Span 代表 operation；Span 可以帶 Attributes 與 Events，而 Event 自己還可以帶 Event Attributes。
+只有需要另一段獨立 operation 時，才新增另一個 Span。
 </div>
 
-<h2>最小 decision tree</h2>
-<pre><code>這份資訊需要自己的 start / end / duration / outcome？
-  ├─ 是 → Span
-  │        如果 parent 已經是另一個 Span → Child Span
-  │
-  └─ 否 → 重點是「某一刻發生」嗎？
-           ├─ 是 → Event
-           └─ 否 → 是描述這次 operation 的可查值嗎？
-                    ├─ 是 → Attribute
-                    └─ 否 → 可能不需要記</code></pre>
+<h2>先記依附關係</h2>
+<pre><code>Span
+├─ Span Attributes
+├─ Span Events
+│  └─ Event Attributes
+└─ Child Span
+   ├─ Span Attributes
+   └─ Span Events</code></pre>
 
 <div class="box">
 <strong>Child Span 不是新 telemetry type：</strong>
-它就是 Span，只是它的 parent 是另一個 Span。
+它就是另一個 Span，只是 parent 指向目前這個 Span。
 </div>
 
-<h2>三個模型快速對照</h2>
+<h2>最小 decision tree</h2>
+<pre><code>目前已經有一個 Span 正在描述這段 operation
+│
+├─ 某個子工作需要自己的 start/end、duration、結果與 parent/child 關係？
+│    └─ 是 → 建立新的 Child Span
+│
+└─ 不需要新的 Child Span
+     ├─ 只是描述目前 Span 的一個值？
+     │    └─ 是 → 在目前 Span 加 Attribute
+     │
+     └─ 是目前 Span 期間的一個重要時刻？
+          └─ 是 → 在目前 Span 加 Event</code></pre>
+
+<h2>三種動作快速對照</h2>
 <div class="table-wrap">
 <table>
-  <thead><tr><th>模型</th><th>你要回答的問題</th><th>例子</th></tr></thead>
+  <thead><tr><th>你要回答的問題</th><th>動作</th><th>例子</th></tr></thead>
   <tbody>
-    <tr><td><strong>Span / Child Span</strong></td><td>這段工作花多久？成功嗎？它在因果鏈哪裡？</td><td><code>invoice.render_pdf</code></td></tr>
-    <tr><td><strong>Event</strong></td><td>這個重要事情是在 Span 的哪個時間點發生？</td><td><code>retry.started</code></td></tr>
-    <tr><td><strong>Attribute</strong></td><td>這次 operation 有什麼值得 filter / group / compare 的特徵？</td><td><code>payment.provider="a"</code></td></tr>
+    <tr><td>這段子工作花多久？結果如何？它是誰的子工作？</td><td><strong>新增 Child Span</strong></td><td><code>invoice.render_pdf</code></td></tr>
+    <tr><td>目前這個 Span 期間，某件重要事情何時發生？</td><td><strong>在目前 Span 加 Event</strong></td><td><code>retry.started</code></td></tr>
+    <tr><td>目前這個 Span 有什麼值得 filter / group / compare 的特徵？</td><td><strong>在目前 Span 加 Attribute</strong></td><td><code>payment.provider="a"</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>兩個常見抽象詞</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>詞</th><th>在這一課真正的意思</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Outcome</strong></td><td>這段 operation 最後得到什麼結果，例如成功、錯誤或某個 business result。不是固定叫 <code>outcome</code> 的 Span 欄位。</td></tr>
+    <tr><td><strong>Causal position</strong></td><td><code>causal</code> = 因果的。指這個 Span 在 parent/child 因果關係中的位置，例如 <code>payment.authorize</code> 是 <code>POST /checkout</code> 的 child。</td></tr>
   </tbody>
 </table>
 </div>
@@ -77,7 +100,7 @@
 
 <h2>Failure 不是自動建立 Span 的理由</h2>
 <p>
-如果一個子工作需要自己的 latency / outcome / causal position，才考慮 Child Span。
+如果一個子工作需要自己的 latency、結果與 parent/child 位置，才考慮 Child Span。
 若你需要的是詳細 exception、stack、message，Log 更自然；完整 Span / Log correlation 會在
 <a href="../lessons/0025-logs-first-principles.html">Lesson 25</a> 正式學。
 </p>
