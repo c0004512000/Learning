@@ -83,12 +83,56 @@ Exporter 選擇顯示或傳送方式 → 若使用 OTLP，資料依 OTLP 的 Pro
 outgoing client call 或 queue producer/consumer boundary，而是 process 內部工作。
 </p>
 
-<h3>3. 它花多久，結果如何？</h3>
+<h3 id="span-status">3. 它花多久，結果如何？</h3>
 <p>
-duration 是 <code>end_time - start_time</code>，此例約 3 ms。<code>status</code> 回答 operation 的
-整體結果判定；<code>UNSET</code> 是預設狀態，不能讀成「未知所以失敗」。若 operation 發生錯誤，
-instrumentation 應依該領域的 Semantic Conventions 設定 status。
+duration 是 <code>end_time - start_time</code>，此例約 3 ms。接著看 <code>status</code>：
+<strong>它不是 HTTP status code，也不是 exception 本身；它是 OTel 對「這個 Span 所代表的整段 operation 最後是否出錯」的整體判定。</strong>
 </p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Status</th><th>先怎麼理解</th><th>正常使用直覺</th></tr></thead>
+  <tbody>
+    <tr><td><code>UNSET</code></td><td>預設值；沒有把這個 operation 標成 Error，也沒有特別顯式標成 Ok。</td><td>一般正常完成的 operation 通常就維持 UNSET；不要把它讀成「不知道」或「失敗」。</td></tr>
+    <tr><td><code>ERROR</code></td><td>這段 operation 最後包含一個應被視為錯誤的結果。</td><td>例如 payment operation 最後因 timeout 失敗；是否算 Error 要依該 operation 的語義／Semantic Conventions 判斷。</td></tr>
+    <tr><td><code>OK</code></td><td>Application developer 或 Operator 明確宣告：這段 operation 已確認成功。</td><td>不是一般成功 Span 都要手動設 OK；Instrumentation Library 通常應讓正常成功維持 UNSET。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box tip">
+<strong>最容易搞反的地方：</strong>
+<code>UNSET</code> 不是「狀態未知」。在正常 instrumentation 裡，沒有 error 的 operation 通常就是 UNSET；
+<code>OK</code> 反而是「有人特別明確宣告它成功」。
+</div>
+
+<pre><code>正常完成：
+Span: checkout.calculate_total
+status = UNSET   ← 很正常，不需要特地改成 OK
+
+真的失敗：
+Span: payment.authorize
+status = ERROR
+
+明確人工／應用邏輯確認成功：
+Span: some.operation
+status = OK</code></pre>
+
+<p>Python 手動標記 Error 的概念：</p>
+<pre><code>from opentelemetry.trace import Status, StatusCode
+
+with tracer.start_as_current_span("payment.authorize") as span:
+    try:
+        call_payment()
+    except PaymentTimeout:
+        span.set_status(Status(StatusCode.ERROR, "payment timeout"))
+        raise</code></pre>
+
+<p>
+Status 可以在 Span End 前設定。對一般 instrumentation，官方建議成功時通常維持 <code>UNSET</code>，
+只有 operation 真的符合錯誤規則時才設 <code>ERROR</code>；<code>OK</code> 是較少見的顯式成功宣告。
+</p>
+<p class="cite">Status 語義：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/#set-status" target="_blank">OpenTelemetry Trace API — Set Status</a>；錯誤規則：<a href="https://opentelemetry.io/docs/specs/semconv/general/recording-errors/" target="_blank">Recording errors</a></p>
 
 <h3>4. 有哪些診斷脈絡？</h3>
 <p>
@@ -157,8 +201,8 @@ ResourceSpans / ScopeSpans 等 envelope 組織資料。請保留語義關係，�
 
 <div class="box ask">
 <strong>有問題就問我：</strong>把你的真實 Span 輸出貼回來，我們會逐欄判讀。特別歡迎追問
-「UNSET 為何不等於 unknown？」「Resource 為何在 OTLP envelope 外層？」或
-「event 和 child Span 的邊界怎麼選？」
+「UNSET 為何通常是正常成功？」「ERROR 到底由誰決定？」或
+「HTTP 404 在 client/server Span 為何可能不同？」
 </div>
 
 <div class="lesson-nav">
