@@ -18,26 +18,56 @@ OpenTelemetry 允許你自由建立 Span 與 attributes，但自由不等於每�
 backend 儲存量，以及 SRE 判讀時的雜訊。
 </p>
 <p>
-因此 Span 設計的第一性問題不是「API 怎麼呼叫」，而是：<strong>未來發生故障時，哪個工作邊界
-需要獨立的 duration、outcome 與 causal position，才能排除假設？</strong>
+因此 Span 設計的第一性問題不是「API 怎麼呼叫」，而是：<strong>未來發生故障時，哪一段子工作需要被單獨看成一個 Span，
+讓你能獨立看到它花多久、最後得到什麼結果，以及它在 parent/child 關係中是誰的子工作？</strong>
 </p>
+
+<div class="box">
+<strong>先把兩個容易抽象化的字拆掉：</strong>
+<ul>
+  <li><strong>Outcome：</strong>就是「這段 operation 最後得到什麼結果」。最簡單可以是成功／錯誤；也可能是某個 business result。它不是 Span 裡一個叫 <code>outcome</code> 的固定欄位；實際上可能由 Span Status 或適當 Attribute 表達。</li>
+  <li><strong>Causal position：</strong><code>causal</code> 是「因果的」，不是 <code>casual</code>。這裡也不是一個固定欄位；它指這個 Span 在 parent/child 因果關係中的位置：誰引發它、它是哪個工作的子操作。</li>
+</ul>
+</div>
+
+<pre><code>Span: POST /checkout            ← parent
+├─ Span: calculate_total        ← child
+└─ Span: payment.authorize      ← child
+
+payment.authorize 的 causal position：
+「它是 POST /checkout 底下的子工作」</code></pre>
+
 <p class="cite">官方基礎：<a href="https://opentelemetry.io/docs/concepts/signals/traces/#spans" target="_blank">OpenTelemetry — Spans</a>；欄位語義：<a href="https://opentelemetry.io/docs/specs/otel/trace/api/" target="_blank">OpenTelemetry Trace API</a></p>
 
-<h2>從資訊需求推導三種模型</h2>
+<h2>先建立真正的依附關係：Event、Attribute 都掛在 Span 上</h2>
+<p>
+這裡不能把 Span、Event、Attribute 想成三種彼此平行、各自獨立存在的 tracing record。
+<strong>在 OpenTelemetry Trace API 裡，Span 才是代表 operation 的主要資料；Span 內可以有 Attributes，也可以有一串 Events。</strong>
+而一個 Event 自己還可以再帶 Event Attributes。
+</p>
+
+<pre><code>Span: payment.authorize
+├─ Span Attribute: payment.provider = "provider-a"
+├─ Span Attribute: retry.count = 1
+│
+└─ Span Event: retry.started @ 02:00:00.321
+   └─ Event Attribute: retry.attempt = 2</code></pre>
+
 <div class="table-wrap">
 <table>
-  <thead><tr><th>你需要保存的證據</th><th>模型</th><th>原因</th></tr></thead>
+  <thead><tr><th>你現在缺的證據</th><th>實際動作</th><th>資料關係</th></tr></thead>
   <tbody>
-    <tr><td>一段有開始、結束、duration，且值得成為因果圖節點的工作</td><td><strong>Span</strong></td><td>它有自己的 lifecycle、Span ID、status 與 parent relationship。</td></tr>
-    <tr><td>Span 期間內一個有意義的時間點，例如 retry、cache miss、state transition</td><td><strong>Event</strong></td><td>它依附於 Span，保留 timestamp，但不冒充獨立 operation。</td></tr>
-    <tr><td>描述整段 operation 的穩定事實，例如 item count、route、method</td><td><strong>Attribute</strong></td><td>它是可查詢的 key-value context，不需要自己的時間區間。</td></tr>
+    <tr><td>描述目前這段 operation 的一個值，例如 provider、item count</td><td><strong>在既有 Span 上加 Attribute</strong></td><td>Attribute 依附於這個 Span。</td></tr>
+    <tr><td>記錄目前 Span 期間某個重要時刻，例如 retry、cache miss</td><td><strong>在既有 Span 上加 Event</strong></td><td>Event 依附於這個 Span，並帶 timestamp。</td></tr>
+    <tr><td>某個子工作需要自己的 start/end、duration、結果與 parent/child 關係</td><td><strong>建立新的 Child Span</strong></td><td>這是一個新的 Span，parent 指向原本的 Span。</td></tr>
   </tbody>
 </table>
 </div>
 
 <div class="box tip">
-<strong>最小充分證據原則：</strong>若只需知道一個值，就用 Attribute；若需知道某事何時發生，
-用 Event；只有當需要獨立 duration、outcome 或 causal node 時，才新增 Span。
+<strong>最小充分證據原則：</strong>
+先以「目前已經有的 Span」為中心。只缺一個描述值，就在這個 Span 加 Attribute；只缺某個重要時刻，就在這個 Span 加 Event；
+只有當某個子工作真的需要自己的開始／結束、duration、結果與 parent/child 關係時，才再建立一個 Child Span。
 </div>
 
 <div class="box">
@@ -50,7 +80,7 @@ backend 儲存量，以及 SRE 判讀時的雜訊。
 <h3>軸一：它有獨立的時間區間嗎？</h3>
 <p>
 「呼叫 payment service」有清楚開始與結束，也有可單獨診斷的 latency，因此適合成為 Span。
-「cart 內有 3 件商品」沒有時間區間，只是 operation 的描述，應是 Attribute。
+「cart 內有 3 件商品」沒有時間區間，只是 operation 的描述，應是目前 Span 的 Attribute。
 </p>
 
 <h3>軸二：它是需要保留的因果節點嗎？</h3>
@@ -75,11 +105,17 @@ process 內部 function 則不能只看「它是一個 function」；要問：<s
 
 <p>反過來，像 <code>trim_whitespace()</code>、<code>parse_boolean()</code>、固定約 0.1ms 的 helper，通常就算能量到 duration，也不會改變事故判斷，不值得只因為 function boundary 而建 Span。</p>
 
-<pre><code>需要獨立 duration / outcome / causal node？
-  ├─ 是 → Span（如果 parent 已存在，它就是 Child Span）
-  └─ 否 → 發生時間有診斷意義？
-           ├─ 是 → Event
-           └─ 否 → Attribute（或根本不記錄）</code></pre>
+<pre><code>目前已有一個 Span 正在描述這段 operation
+│
+├─ 某個子工作需要自己的 start/end、duration、結果、parent/child 關係？
+│    └─ 是 → 建立新的 Child Span
+│
+└─ 不需要新的 Child Span
+     ├─ 只是描述目前 Span 的一個值？
+     │    └─ 是 → 在目前 Span 加 Attribute
+     │
+     └─ 是目前 Span 期間的一個重要時刻？
+          └─ 是 → 在目前 Span 加 Event</code></pre>
 
 <h2>Failure：為什麼不是全部寫 Log 就好？</h2>
 <p>
@@ -94,8 +130,8 @@ Log 比較適合保存詳細 message、stack trace 或額外 diagnostic detail�
 <table>
   <thead><tr><th>情境</th><th>較自然的做法</th><th>原因</th></tr></thead>
   <tbody>
-    <tr><td><code>validate_coupon()</code> 0.2ms，invalid coupon 是正常 business result</td><td>通常不新增 Child Span</td><td>failure 並沒有獨立 latency / causal 診斷價值。</td></tr>
-    <tr><td><code>fraud.evaluate()</code> 通常 20ms、偶爾 1.8s，而且 failure 阻擋 checkout</td><td>考慮 Child Span</td><td>它已成為獨立 latency / failure boundary。</td></tr>
+    <tr><td><code>validate_coupon()</code> 0.2ms，invalid coupon 是正常 business result</td><td>通常不新增 Child Span</td><td>這個結果沒有獨立 latency，也不需要在 Trace tree 中另占一個子工作位置。</td></tr>
+    <tr><td><code>fraud.evaluate()</code> 通常 20ms、偶爾 1.8s，而且 failure 阻擋 checkout</td><td>考慮 Child Span</td><td>它已成為需要單獨定位的 latency / failure boundary。</td></tr>
     <tr><td>payment timeout 需要 exception stack</td><td>Span + correlated Log</td><td>Span 看因果與 duration；Log 看詳細診斷文字。</td></tr>
   </tbody>
 </table>
@@ -138,19 +174,19 @@ Span name 應描述一類 operation，而不是某一次 instance。若使用
 
 <h2>把 Lesson 3 的 checkout 重畫一次</h2>
 <pre><code>Span: checkout.calculate_total
-  Attribute: app.cart.item_count = 3
-  Attribute: app.cart.total_cents = 3674
-  Event（只有真的發生時）: pricing_rule_fallback
-    Attribute: app.pricing.rule = "default"
+├─ Attribute: app.cart.item_count = 3
+├─ Attribute: app.cart.total_cents = 3674
+└─ Event（只有真的發生時）: pricing_rule_fallback
+   └─ Event Attribute: app.pricing.rule = "default"
 
 不要建立：
-  Span: sum_item_1
-  Span: sum_item_2
-  Span: sum_item_3</code></pre>
+  Child Span: sum_item_1
+  Child Span: sum_item_2
+  Child Span: sum_item_3</code></pre>
 
 <p>
 逐項加總沒有獨立排障價值時，三個 Child Spans 只放大資料量。若日後發現「呼叫外部 pricing engine」
-是獨立 latency 與 failure boundary，再把那段遠端 call 建成 CLIENT Span；這是由證據需求推導模型，
+是需要單獨觀測 latency 與 failure 的子工作，再把那段遠端 call 建成 CLIENT Span；這是由證據需求推導模型，
 不是由程式碼縮排推導 Span。
 </p>
 
@@ -167,9 +203,9 @@ Event: payment_retry_attempt_2 @ 02:00:00.321Z</code></pre>
   <summary>參考修正</summary>
   <ul>
     <li>Span name 改成穩定的 <code>checkout.process</code>；email、order UUID 不放在 name。</li>
-    <li>若逐項 validation 沒有獨立 duration/outcome 價值，移除 Child Spans，保留 item count。</li>
+    <li>若逐項 validation 不需要自己的 duration／結果與 parent/child 關係，移除 Child Spans，保留 item count。</li>
     <li>移除 <code>auth.token</code>；它是 credential，不應送入 telemetry。</li>
-    <li>payment retry 是有意義的時間點，Event 合理；attempt number 放 Event Attribute。</li>
+    <li>payment retry 是目前 checkout/payment Span 期間的一個有意義時間點，因此把它記成該 Span 的 Event；attempt number 則是這個 Event 的 Attribute。</li>
   </ul>
 </details>
 
@@ -183,7 +219,7 @@ Event: payment_retry_attempt_2 @ 02:00:00.321Z</code></pre>
   <div class="question">Q1. 哪個需求最足以支持新增 Child Span？</div>
   <div class="choices">
     <button class="choice" data-correct="false">需要保存一個穩定布林數值</button>
-    <button class="choice" data-correct="true">需要獨立延遲、結果與因果位置</button>
+    <button class="choice" data-correct="true">需要獨立延遲、結果與父子關係</button>
     <button class="choice" data-correct="false">需要標示一次重試發生時間</button>
   </div>
   <div class="feedback"></div>
@@ -202,19 +238,20 @@ Event: payment_retry_attempt_2 @ 02:00:00.321Z</code></pre>
 <div class="quiz" data-quiz>
   <div class="question">Q3. 「cache miss 發生的時刻」最適合哪個模型？</div>
   <div class="choices">
-    <button class="choice" data-correct="true">帶時間戳記的一個 Span Event</button>
-    <button class="choice" data-correct="false">帶開始結束的一個 Child Span</button>
-    <button class="choice" data-correct="false">帶服務名稱的一個 New Resource</button>
+    <button class="choice" data-correct="true">在目前 Span 加一個 Event</button>
+    <button class="choice" data-correct="false">為它建立一個新的 Child Span</button>
+    <button class="choice" data-correct="false">建立一個新的 Resource Identity</button>
   </div>
   <div class="feedback"></div>
 </div>
 
 <h2>最後 Recap</h2>
 <div class="box tip">
-<p><strong>Span：</strong>值得獨立保存 start/end、duration、outcome 與因果位置的一段工作。</p>
-<p><strong>Child Span：</strong>仍然是 Span，只是它的 parent 是另一個 Span。</p>
-<p><strong>Event：</strong>依附在 Span 上、描述某個重要時間點的紀錄。</p>
-<p><strong>Attribute：</strong>描述這一次 operation、且有查詢或排障價值的 key-value metadata。</p>
+<p><strong>Span：</strong>代表一段 operation；需要時可成為另一個 Span 的 parent 或 child，形成 Trace 的 parent/child 因果關係。</p>
+<p><strong>Child Span：</strong>仍然是 Span，只是它的 parent 是另一個 Span，因此可以獨立記錄自己的 start/end、duration 與結果。</p>
+<p><strong>Span Event：</strong>依附在某個 Span 上、描述該 Span 期間某個重要時間點的紀錄；它不能在 Trace tree 裡獨立成為一個 operation node。</p>
+<p><strong>Span Attribute：</strong>依附在某個 Span 上、描述這一次 operation 的 key-value metadata。</p>
+<p><strong>Event Attribute：</strong>依附在某個 Event 上，用 key-value 補充那個事件的細節。</p>
 </div>
 
 <div class="box tip">
