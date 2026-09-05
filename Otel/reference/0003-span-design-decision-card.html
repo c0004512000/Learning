@@ -101,8 +101,9 @@
 <h2>Failure 不是自動建立 Span 的理由</h2>
 <p>
 如果一個子工作需要自己的 latency、結果與 parent/child 位置，才考慮 Child Span。
-若你需要的是詳細 exception、stack、message，Log 更自然；完整 Span / Log correlation 會在
-<a href="../lessons/0025-logs-first-principles.html">Lesson 25</a> 正式學。
+如果你的問題開始變成「我要保存詳細錯誤文字」或「我要把 application Log 對回某個 Span」，這已超出本卡範圍；先回 Lesson 5 看最低必要解釋，完整模型在
+<a href="../lessons/0025-logs-first-principles.html">Lesson 25</a>，快速參考在
+<a href="0018-log-correlation-debug-card.html">Log correlation 卡</a>。
 </p>
 
 <div class="box tip">
