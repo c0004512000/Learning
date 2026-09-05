@@ -253,8 +253,13 @@ Span name 應描述一類 operation，而不是某一次 instance。若使用
   <li><strong>Queryability：</strong>不要背這個字。直接問：「事故時我真的會拿它 filter / group / compare 嗎？」例如 payment 變慢時，<code>payment.provider</code> 可以讓你比較 provider A/B；<code>loop_index=17</code> 通常沒有這種用途。</li>
   <li><strong>Cardinality：</strong>直接問：「這個欄位會出現多少種不同值？」<code>environment</code> 可能只有 prod/stage/test；<code>order.id</code> 可能幾乎每個 request 都不同。高 cardinality 不是自動錯，但你必須知道它帶來更高的索引、查詢與儲存成本，且是否真的值得。</li>
   <li><strong>Sensitivity：</strong>是否含 token、email、完整 URL query、payload 或其他個資／機密？有的話不要因為 debug 方便就直接送進 telemetry。</li>
-  <li><strong>Availability / Timing：</strong>先只問：「這個值是在 Span 開始前就知道、執行中才知道，還是結束後才知道？」例如最終 latency 只有工作完成後才知道。它為什麼會影響 sampling，等 <a href="0009-sampling-first-principles.html">Lesson 9</a> 建立 sampling 心智模型後再回來看；現在不需要先背 head sampler。</li>
+  <li><strong>Availability / Timing：</strong>先問：「這個值最早什麼時候才知道？」<strong>小結：Timing 不決定「它是不是 Attribute」；Timing 決定「你最早什麼時候能把它加進 Span，以及更早發生的機制能不能看到它」。</strong>例如 <code>payment.provider</code> 在開始 payment 前就知道，可以建立 Span 時就提供；<code>retry.count</code> 要執行到中途才知道，那就在中途再用 <code>set_attribute()</code> 加上去。只要 Span 尚未 End，後來才知道的值仍然可以加入；Span End 後則不能再修改。建立 Span 當下已存在的 Attributes 才能被當下的 sampling decision 使用，這個因果等 <a href="0009-sampling-first-principles.html">Lesson 9</a> 再正式展開。</li>
 </ol>
+
+<div class="box tip">
+<strong>不要把 latency 當成這裡的 Attribute 例子。</strong>
+Span 本身就保存 start timestamp 與 end timestamp，兩者直接描述這段 operation 的時間區間，因此 duration 本來就是 Span 的核心資料；通常不需要再額外建立一個 <code>latency</code> Attribute。
+</div>
 
 <h2>把 Lesson 3 的 checkout 重畫一次</h2>
 <pre><code>Span: checkout.calculate_total
