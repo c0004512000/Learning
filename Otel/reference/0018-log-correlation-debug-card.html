@@ -8,23 +8,117 @@
 </head>
 <body>
 <h1>Log correlation 與重複資料判斷卡</h1>
-<p class="subtitle">先記住：LogRecord 不在 Span 裡；它靠 TraceId / SpanId 對回 Span</p>
+<p class="subtitle">先知道「正常應該長怎樣」，再用 checklist 找是哪一層壞掉</p>
 
 <div class="box tip">
-<strong>第一性模型：</strong>
-Span 與 LogRecord 是兩份獨立 telemetry。若 LogRecord 帶有和某個 Span 相同的 <code>TraceId</code> / <code>SpanId</code>，
-backend 就能知道兩者來自同一 execution context，這叫 <strong>log correlation</strong>。
+<strong>這張卡只處理兩種 troubleshooting 症狀：</strong>
+<ol>
+  <li>你<strong>原本預期</strong>某筆 application Log 能對回目前 Span，但最後看不到 <code>TraceId/SpanId</code>。</li>
+  <li>同一個 logical LogRecord 在<strong>同一個預期目的地</strong>意外出現兩次以上。</li>
+</ol>
+如果這兩個前提都不存在，就不需要跑下面的 checklist。
 </div>
 
-<pre><code>Span
+<h2>先建立正常模型</h2>
+<p>
+Span 與 LogRecord 是兩份獨立 telemetry。若 application 在一個 active Span 執行期間 emit Log，
+而 logging integration 有把目前 Span 的 IDs 帶進 LogRecord，那麼這筆 Log 可以長成：
+</p>
+
+<pre><code>Span: payment.authorize
   trace_id = abc123
   span_id  = def456
 
-LogRecord
+LogRecord: "payment timeout"
   trace_id = abc123
   span_id  = def456
 
-same IDs → related</code></pre>
+same TraceId + SpanId
+        ↓
+backend 可以把這筆 Log 對回 payment.authorize</code></pre>
+
+<p>
+這叫 <strong>log correlation</strong>。但 <code>TraceId/SpanId</code> 並不是每一筆 Log 都必須有：
+如果 process startup、background task 或其他 Log emit 當下根本沒有 active Span，沒有 trace fields 是正常的。
+</p>
+
+<div class="box">
+<strong>所以不要把規則記成「Log 沒有 TraceId = 錯」。</strong><br>
+真正的異常是：<strong>你明明知道這筆 Log 是在某個 active Span 裡產生，而且你也有設定 correlation，最後卻沒有 IDs。</strong>
+</div>
+
+<h2>Case A：預期有 TraceId / SpanId，結果卻沒有</h2>
+<p>這表示「Span context → LogRecord → backend」這條鏈的某一層沒有把 IDs 帶下去。</p>
+
+<pre><code>active Span
+   ↓
+Log emit
+   ↓
+logging integration 讀取 current Context
+   ↓
+LogRecord 帶 TraceId / SpanId
+   ↓
+Exporter / Collector 保留欄位
+   ↓
+backend 可查詢與顯示
+</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>檢查問題</th><th>你其實在驗證什麼</th></tr></thead>
+  <tbody>
+    <tr><td>Log emit 時是否真的位於 current Span 內？</td><td>如果 emit 當下根本沒有 active Span，就沒有 Span IDs 可以帶進 Log。</td></tr>
+    <tr><td>Async/thread boundary 是否保留 Context？</td><td>原本有 Span，但工作切到另一個 task/thread 後，current Context 可能沒有跟過去。</td></tr>
+    <tr><td>Logging bridge / integration 是否擷取 trace fields？</td><td>就算 current Span 存在，也需要 logging integration 把 TraceId/SpanId 寫進 LogRecord。</td></tr>
+    <tr><td>Exporter / Collector / backend mapping 是否保留欄位？</td><td>LogRecord 原本可能有 IDs，但下游轉換、mapping 或 indexing 把它們丟掉。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box tip">
+<strong>Debug 方向：</strong>從最靠近 source 的地方開始確認 IDs 何時消失。不要一開始就猜是 Collector 或 backend。
+</div>
+
+<h2>Case B：同一 Log 在同一 backend 意外出現兩次</h2>
+<p>
+這張卡假設你原本的設計是：<strong>一次 application log emission，在同一個目的 backend 應該只形成一筆 logical record。</strong>
+如果完全相同的一筆資料出現兩份，通常代表同一筆 Log 被兩條 emission / collection path 都送到了同一目的地。
+</p>
+
+<pre><code>原本期待：
+logger.warning(...)
+      ↓
+   一條路徑
+      ↓
+backend：1 筆
+
+異常情況：
+logger.warning(...)
+   ├─ path A ─┐
+   └─ path B ─┴─→ backend：2 筆
+</code></pre>
+
+<p>
+這通常不是你想要的，因為它可能造成 log count 被放大、告警或統計失真、storage/indexing 成本增加，
+也讓 SRE 誤以為同一事件真的發生兩次。
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>檢查問題</th><th>可能的重複來源</th></tr></thead>
+  <tbody>
+    <tr><td>同一 logger 是否有多個 handlers？</td><td>一次 log call 被兩個 handler 都送出。</td></tr>
+    <tr><td><code>logger.propagate</code> 是否又送到 root handler？</td><td>child logger 自己送一次，之後又 propagation 到 root 再送一次。</td></tr>
+    <tr><td>是否同時 direct OTLP 與 stdout/file collection？</td><td>application 直接 export 一份，同一筆 stdout/file 又被 agent/Collector 收一次。</td></tr>
+    <tr><td>Collector 是否有重複 receivers/routes？</td><td>同一筆資料在 Collector topology 裡被兩條 pipeline/routes 再次送往相同 backend。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box">
+<strong>例外：</strong>如果你是刻意把同一 Log 同時送到不同目的地，例如一份到 SIEM、一份到一般 log backend，這不叫「同一 backend 的重複資料問題」。
+這張卡只處理<strong>非預期 duplicate</strong>。
+</div>
 
 <h2>不要和 Span Event 混在一起</h2>
 <div class="table-wrap">
@@ -37,31 +131,16 @@ same IDs → related</code></pre>
 </table>
 </div>
 
-<div class="box">
-<strong>為什麼 UI 看起來像「Span 裡有 Log」？</strong>
-Trace UI 可以拿目前 Span 的 TraceId / SpanId 去 log backend 查 matching LogRecords，再放到同一個畫面。這是 UI correlation，不代表 LogRecord 被儲存在 Span object 裡。
+<h2>一句話 Recap</h2>
+<div class="box tip">
+<p><strong>沒有 TraceId：</strong>不一定有問題；只有「本來預期這筆 Log 應該和 active Span 關聯」時才需要 debug。</p>
+<p><strong>同一 Log 出現兩次：</strong>如果是在同一目的 backend 非預期重複，通常代表同一筆 Log 走了兩條以上的 emission / collection path。</p>
 </div>
-
-<h2>沒有 trace_id</h2>
-<ol>
-  <li>Log emit 時是否真的位於 current Span 內？</li>
-  <li>Async/thread boundary 是否保留 Context？</li>
-  <li>Logging bridge 是否擷取 trace fields？</li>
-  <li>Exporter/Collector/backend mapping 是否保留？</li>
-</ol>
-
-<h2>同一 log 出現兩次</h2>
-<ol>
-  <li>同一 logger 是否有多個 handlers？</li>
-  <li><code>logger.propagate</code> 是否又送到 root handler？</li>
-  <li>是否同時 direct OTLP 與 stdout/file collection？</li>
-  <li>Collector 是否有重複 receivers/routes？</li>
-</ol>
 
 <p class="cite">
 主要來源：<a href="https://opentelemetry.io/docs/specs/otel/logs/" target="_blank">OpenTelemetry Logging — Log Correlation</a>。
 </p>
 
-<p><a href="../lessons/0025-logs-first-principles.html">回到 Lesson 25</a></p>
+<p><a href="../lessons/0025-logs-first-principles.html">回到 Lesson 25：Logs 的第一性原理與 Trace correlation</a></p>
 </body>
 </html>
