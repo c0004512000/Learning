@@ -21,6 +21,7 @@
 - 2026-09-06 Lesson 5 Logs 邊界修正：`stack trace`、`log correlation`、`correlated Log` 不能在未解釋時直接拿來說明 Span vs Log。Lesson 5 應先從 function 呼叫鏈推導 stack trace，再用「Span 與 LogRecord 是兩份獨立資料，共享 TraceId / SpanId 才能對回同一 execution context」推導 log correlation；並明確區分「真的存在 Span 裡的 Span Event」與「backend UI 顯示在 Span 附近的相關 LogRecord」。
 - 使用者特別重視 telemetry design / debugging 的 SRE 實戰能力。多個 production-style 情境、過度/不足埋點判讀、Span vs Log、Attribute 成本與從需求反推埋點，獨立放在 `0051-sre-telemetry-design-labs.html` 作為 Lesson 5 的深度技能練習，不改變主課 `0005 → 0006` 的順序。
 - Reference card 的標題與內容必須一致；`0003-span-design-decision-card.html` 是 Lesson 5 的壓縮參考，聚焦 Span / Event / Attribute，其他進階主題以 forward link 導向正式 lesson。
+- Debug/reference checklist 不能只列一串「要檢查什麼」。在 checklist 前必須先明確寫出：正常 expected state 是什麼、目前看到的 symptom 為什麼偏離 expected state、以及 checklist 想定位哪一段 failure path。尤其「沒有某欄位」或「資料出現兩次」不能預設一定是錯，必須先限定在什麼前提下才算異常。
 - Quiz 正確答案位置不可形成可預測或持續固定的 pattern；此要求已寫入 Matt Pocock Learning Skill。不要修改 `assets/quiz.js` 做 shuffle。
 
 ## Teaching principles
