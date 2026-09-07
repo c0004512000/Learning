@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning Map V2 — Failed Prototype</title>
+<style>
+body{margin:0;background:#0b0e13;color:#eef3f6;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.shell{width:min(900px,calc(100% - 28px));margin:auto;padding:36px 0}.note{color:#94a4b2}.path{display:grid;gap:12px;margin-top:30px}.card{border:1px solid #273341;background:#111720;border-radius:18px;padding:18px;text-align:left;color:inherit}.card button{width:100%;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}.detail{display:none;border:1px solid #273341;background:#111720;border-radius:18px;padding:18px;margin-top:24px}.detail.open{display:block}.node{border:1px solid #273341;border-radius:12px;padding:14px;margin:10px 0}.node button{border:0;background:transparent;color:#7fe7d7;padding:0;cursor:pointer}.sheet{display:none;position:fixed;inset:0;background:#0009;align-items:flex-end}.sheet.open{display:flex}.panel{background:#111720;border-radius:20px 20px 0 0;padding:20px;width:100%}
+</style>
+</head>
+<body>
+<div class="shell">
+<h1>Kubernetes Namespace Learning Journey</h1>
+<p class="note">Archived failed V2 prototype. Preserved to keep the test history visible.</p>
+<div class="path" id="path">
+  <div class="card"><button data-m="m1"><strong>M1 · Linux 隔離基礎</strong><br><span class="note">建立 process、kernel、view 與 isolation 模型。</span></button></div>
+  <div class="card"><button data-m="m2"><strong>M2 · Namespace 機制</strong><br><span class="note">理解 namespace 如何隔離 kernel-managed state。</span></button></div>
+</div>
+<div class="detail" id="detail">
+  <button id="back">← 返回</button>
+  <h2>M1 · Linux 隔離基礎</h2>
+  <div class="node"><strong>Lesson · Namespace 為什麼存在？</strong><br><button data-node="lesson">查看內容 →</button></div>
+  <div class="node"><strong>Reference · Process 與 kernel</strong><br><button data-node="reference">查看內容 →</button></div>
+</div>
+</div>
+<div class="sheet" id="sheet"><div class="panel"><h3 id="sheetTitle">內容</h3><p class="note">V2 only simulated the destination instead of providing a real navigable HTML page.</p><button id="close">關閉</button></div></div>
+<script>
+const path=document.getElementById('path'),detail=document.getElementById('detail'),sheet=document.getElementById('sheet');
+document.addEventListener('click',e=>{const m=e.target.closest('[data-m]');if(m){path.style.display='none';detail.classList.add('open')}const n=e.target.closest('[data-node]');if(n){document.getElementById('sheetTitle').textContent=n.dataset.node==='lesson'?'Lesson':'Reference';sheet.classList.add('open')}});
+document.getElementById('back').onclick=()=>{detail.classList.remove('open');path.style.display='grid'};
+document.getElementById('close').onclick=()=>sheet.classList.remove('open');
+</script>
+</body>
+</html>
