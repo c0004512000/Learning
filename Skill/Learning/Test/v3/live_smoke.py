@@ -25,8 +25,17 @@ def wait_for_pages() -> None:
 
 def run_flow(page) -> None:
     errors: list[str] = []
+    failed_responses: list[str] = []
+
     page.on("pageerror", lambda exc: errors.append(f"pageerror: {exc}"))
-    page.on("console", lambda msg: errors.append(f"console: {msg.text}") if msg.type == "error" else None)
+    page.on(
+        "response",
+        lambda response: failed_responses.append(
+            f"{response.status} {response.url}"
+        )
+        if response.status >= 400
+        else None,
+    )
 
     response = page.goto(BASE + "index.html", wait_until="networkidle")
     assert response and response.status == 200
@@ -63,12 +72,25 @@ def run_flow(page) -> None:
     assert page.url.endswith("/reference/index.html")
     assert page.locator(".reference-card").count() == 2
 
-    overflow = page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth")
+    overflow = page.evaluate(
+        "document.documentElement.scrollWidth > document.documentElement.clientWidth"
+    )
     assert overflow is False
     assert not errors, errors
+    assert not failed_responses, failed_responses
 
 
 def run_js_disabled(page) -> None:
+    failed_responses: list[str] = []
+    page.on(
+        "response",
+        lambda response: failed_responses.append(
+            f"{response.status} {response.url}"
+        )
+        if response.status >= 400
+        else None,
+    )
+
     page.goto(BASE + "index.html", wait_until="load")
     page.locator('a[href="milestones/01-linux-isolation-foundation.html"]').click()
     page.wait_for_load_state("load")
@@ -80,20 +102,34 @@ def run_js_disabled(page) -> None:
     page.locator('a[href="../lessons/0001-why-linux-namespaces-exist.html#after-procfs-reference"]').click()
     page.wait_for_load_state("load")
     assert page.url.endswith("/lessons/0001-why-linux-namespaces-exist.html#after-procfs-reference")
+    assert not failed_responses, failed_responses
 
 
 wait_for_pages()
 with sync_playwright() as p:
-    executable = shutil.which("google-chrome") or shutil.which("chromium") or shutil.which("chromium-browser")
+    executable = (
+        shutil.which("google-chrome")
+        or shutil.which("chromium")
+        or shutil.which("chromium-browser")
+    )
     if not executable:
         raise RuntimeError("No Chrome/Chromium executable found on runner")
-    browser = p.chromium.launch(headless=True, executable_path=executable, args=["--no-sandbox"])
-    for name, viewport in (("desktop", {"width": 1280, "height": 900}), ("mobile", {"width": 390, "height": 844})):
+    browser = p.chromium.launch(
+        headless=True, executable_path=executable, args=["--no-sandbox"]
+    )
+    for name, viewport in (
+        ("desktop", {"width": 1280, "height": 900}),
+        ("mobile", {"width": 390, "height": 844}),
+    ):
         context = browser.new_context(viewport=viewport, color_scheme="dark")
         run_flow(context.new_page())
         print(f"{name}: PASS")
         context.close()
-    context = browser.new_context(viewport={"width": 390, "height": 844}, java_script_enabled=False, color_scheme="dark")
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        java_script_enabled=False,
+        color_scheme="dark",
+    )
     run_js_disabled(context.new_page())
     print("js-disabled fallback: PASS")
     context.close()
