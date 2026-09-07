@@ -1,7 +1,0 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reference · /proc 與 process lifecycle</title><link rel="stylesheet" href="../assets/style.css"><script src="../assets/theme.js" defer></script></head><body>
-<p class="breadcrumb"><a href="../index.html">Learning Journey</a> / <a href="index.html">Reference Library</a></p><div id="from-lesson-1"></div><h1>/proc 與 process lifecycle</h1><p class="subtitle">Reference</p>
-<p><code>/proc</code> 是 pseudo-filesystem。它不是一批由程式持續寫入磁碟的普通檔案，而是 kernel state 的 filesystem-shaped view。</p>
-<div class="box tip"><strong>生命週期：</strong>process 存在且對目前 procfs 可見時，<code>/proc/&lt;pid&gt;</code> 可見；process 結束後，對應 view 隨之消失。</div>
-<p><code>/proc/&lt;pid&gt;/ns/*</code> 可提供 namespace object 的 handle/reference；它不是 namespace 本體。</p>
-<div class="lesson-nav"><a href="../lessons/0001-why-linux-namespaces-exist.html#after-procfs-reference">← 回 Lesson 1</a><a href="index.html">Reference Library →</a></div>
-</body></html>
