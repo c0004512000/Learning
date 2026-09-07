@@ -1,0 +1,12 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lesson 1 · Namespace 為什麼存在？</title><link rel="stylesheet" href="../assets/style.css"><script src="../assets/theme.js" defer></script></head><body>
+<p class="breadcrumb"><a href="../index.html">Learning Journey</a> / <a href="../milestones/01-linux-isolation-foundation.html">M1</a> / Lesson 1</p>
+<h1>Namespace 為什麼存在？</h1><p class="subtitle">Lesson 1</p>
+<h2>先從沒有 Namespace 的世界開始</h2><p>Process 執行 application code，但 process table、hostname、network、filesystem 等系統狀態由 kernel 管理。Process 想取得或改變這些狀態，必須透過 kernel。</p>
+<div class="box tip"><strong>核心問題：</strong>如果所有 process 永遠只能看到同一份 kernel-managed state，要怎麼讓不同工作負載彼此隔離？</div>
+<h2 id="process-kernel-gap">補強：Process 與 kernel</h2><p>如果這裡還不直覺，先看 <a href="../reference/process-and-kernel.html#from-lesson-1">Process 與 kernel Reference</a>，讀完會直接回到這裡。</p>
+<div id="after-process-reference"></div>
+<h2 id="procfs-gap">再看一個具體入口：/proc</h2><p><code>/proc</code> 會讓 user space 看見 kernel 目前管理的 process 與 namespace 資訊。若你不確定它是不是普通檔案，先看 <a href="../reference/procfs-lifecycle.html#from-lesson-1">/proc 與 process lifecycle</a>。</p>
+<div id="after-procfs-reference"></div>
+<h2>回到 Namespace</h2><p>Namespace 的關鍵不是複製一顆 kernel，而是讓 kernel 對某些資源依 process 的 namespace membership 提供不同的 view。</p>
+<div class="lesson-nav"><a href="../milestones/01-linux-isolation-foundation.html">← M1 Learning Map</a><a href="../milestones/02-namespace-mechanics.html">下一個 Milestone →</a></div>
+</body></html>
