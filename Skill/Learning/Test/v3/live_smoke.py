@@ -25,6 +25,8 @@ def wait_for_pages() -> None:
 
 def run_flow(page) -> None:
     errors: list[str] = []
+    bad_responses: list[str] = []
+    page.on("response", lambda response: bad_responses.append(f"{response.status} {response.url}") if response.status >= 400 else None)
     page.on("pageerror", lambda exc: errors.append(f"pageerror: {exc}"))
     page.on("console", lambda msg: errors.append(f"console: {msg.text}") if msg.type == "error" else None)
 
@@ -65,6 +67,7 @@ def run_flow(page) -> None:
 
     overflow = page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth")
     assert overflow is False
+    assert not bad_responses, bad_responses
     assert not errors, errors
 
 
