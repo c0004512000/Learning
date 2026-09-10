@@ -1,0 +1,3277 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Faro-Click-Tracking 的歷史</title><style>
+/* OTel Teaching Workspace — shared stylesheet
+
+   Tufte-inspired: generous whitespace, serif body text, restrained color,
+
+   sidenotes-style citations. Designed to print well. */
+
+
+
+:root {
+
+  color-scheme: light;
+
+  --ink: #1a1a1a;
+
+  --paper: #fdfdfb;
+
+  --muted: #6b6b6b;
+
+  --accent: #a3372e;      /* used sparingly: key terms, emphasis */
+
+  --line: #d8d3c8;
+
+  --code-bg: #f4f1ea;
+
+  --panel: #fffdf8;
+
+  --success: #2e6b3e;
+
+  --fail: #a3372e;
+
+  --info: #4a6fa5;
+
+  --correct-bg: #eaf5ec;
+
+  --incorrect-bg: #f9eceb;
+
+  --max-width: 42rem;
+
+}
+
+
+
+:root[data-theme="dark"] {
+
+  color-scheme: dark;
+
+  --ink: #ece9e2;
+
+  --paper: #171716;
+
+  --muted: #b8b1a7;
+
+  --accent: #f19a8f;
+
+  --line: #4c4943;
+
+  --code-bg: #24231f;
+
+  --panel: #1e1e1b;
+
+  --success: #91d39d;
+
+  --fail: #f59c92;
+
+  --info: #9cc4ff;
+
+  --correct-bg: #1e3926;
+
+  --incorrect-bg: #422521;
+
+}
+
+
+
+@media (prefers-color-scheme: dark) {
+
+  :root:not([data-theme]) {
+
+    color-scheme: dark;
+
+    --ink: #ece9e2;
+
+    --paper: #171716;
+
+    --muted: #b8b1a7;
+
+    --accent: #f19a8f;
+
+    --line: #4c4943;
+
+    --code-bg: #24231f;
+
+    --panel: #1e1e1b;
+
+    --success: #91d39d;
+
+    --fail: #f59c92;
+
+    --info: #9cc4ff;
+
+    --correct-bg: #1e3926;
+
+    --incorrect-bg: #422521;
+
+  }
+
+}
+
+
+
+* { box-sizing: border-box; }
+
+
+
+html { font-size: 18px; }
+
+
+
+body {
+
+  background: var(--paper);
+
+  color: var(--ink);
+
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "PT Serif", serif;
+
+  line-height: 1.6;
+
+  max-width: var(--max-width);
+
+  margin: 3rem auto 6rem;
+
+  padding: 0 1.5rem;
+
+}
+
+
+
+h1, h2, h3 {
+
+  font-weight: 600;
+
+  line-height: 1.25;
+
+}
+
+
+
+h1 {
+
+  font-size: 2rem;
+
+  border-bottom: 1px solid var(--line);
+
+  padding-bottom: 0.5rem;
+
+  margin-bottom: 0.25rem;
+
+}
+
+
+
+.subtitle {
+
+  color: var(--muted);
+
+  font-style: italic;
+
+  margin-top: 0;
+
+  margin-bottom: 2rem;
+
+}
+
+
+
+.theme-toggle {
+
+  position: fixed;
+
+  top: 1rem;
+
+  right: 1rem;
+
+  z-index: 1;
+
+  color: var(--ink);
+
+  background: var(--panel);
+
+  border: 1px solid var(--line);
+
+  border-radius: 999px;
+
+  box-shadow: 0 0.1rem 0.6rem rgb(0 0 0 / 12%);
+
+  cursor: pointer;
+
+  font-family: inherit;
+
+  font-size: 0.82rem;
+
+  padding: 0.45rem 0.75rem;
+
+}
+
+.theme-toggle:hover { background: var(--code-bg); }
+
+.theme-toggle:focus-visible,
+
+.quiz button.choice:focus-visible,
+
+.recall .check-btn:focus-visible {
+
+  outline: 3px solid var(--accent);
+
+  outline-offset: 2px;
+
+}
+
+
+
+h2 {
+
+  font-size: 1.4rem;
+
+  margin-top: 2.5rem;
+
+}
+
+
+
+h3 {
+
+  font-size: 1.1rem;
+
+  margin-top: 1.5rem;
+
+}
+
+
+
+p { margin: 1em 0; }
+
+
+
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+
+a:hover { opacity: 0.75; }
+
+
+
+code, pre {
+
+  font-family: "SF Mono", Consolas, "Cascadia Code", Menlo, monospace;
+
+  font-size: 0.9rem;
+
+}
+
+
+
+code {
+
+  background: var(--code-bg);
+
+  padding: 0.1em 0.35em;
+
+  border-radius: 3px;
+
+}
+
+
+
+pre {
+
+  background: var(--code-bg);
+
+  padding: 1rem 1.2rem;
+
+  border-radius: 6px;
+
+  overflow-x: auto;
+
+  border: 1px solid var(--line);
+
+}
+
+pre code { background: none; padding: 0; }
+
+
+
+blockquote {
+
+  border-left: 3px solid var(--line);
+
+  margin: 1.5rem 0;
+
+  padding: 0.2rem 1.2rem;
+
+  color: var(--muted);
+
+  font-style: italic;
+
+}
+
+
+
+/* ---- Reference tables ---- */
+
+.table-wrap {
+
+  margin: 1.5rem 0;
+
+  overflow-x: auto;
+
+}
+
+.table-wrap table {
+
+  width: 100%;
+
+  min-width: 36rem;
+
+  border-collapse: collapse;
+
+  font-size: 0.9rem;
+
+}
+
+.table-wrap th,
+
+.table-wrap td {
+
+  padding: 0.65rem 0.55rem;
+
+  border-bottom: 1px solid var(--line);
+
+  text-align: left;
+
+  vertical-align: top;
+
+}
+
+.table-wrap th {
+
+  color: var(--muted);
+
+  font-weight: 600;
+
+}
+
+
+
+/* ---- Sidenote-style citations ---- */
+
+.cite {
+
+  font-size: 0.85rem;
+
+  color: var(--muted);
+
+}
+
+
+
+/* ---- Callout boxes ---- */
+
+.box {
+
+  border: 1px solid var(--line);
+
+  border-left: 4px solid var(--accent);
+
+  background: var(--code-bg);
+
+  padding: 1rem 1.3rem;
+
+  margin: 1.5rem 0;
+
+  border-radius: 4px;
+
+}
+
+.box.tip { border-left-color: var(--success); }
+
+.box.ask { border-left-color: var(--info); }
+
+
+
+/* ---- Lifecycle diagrams ---- */
+
+.diagram {
+
+  margin: 1.5rem 0;
+
+  padding: 1rem;
+
+  border: 1px solid var(--line);
+
+  border-radius: 8px;
+
+  background: var(--panel);
+
+  break-inside: avoid;
+
+}
+
+.diagram figcaption {
+
+  margin-bottom: 1rem;
+
+}
+
+.diagram-caption-note {
+
+  color: var(--muted);
+
+  font-size: 0.9rem;
+
+}
+
+.diagram-legend {
+
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 0.55rem 1rem;
+
+  margin-bottom: 1rem;
+
+  color: var(--muted);
+
+  font-size: 0.8rem;
+
+}
+
+.legend-item {
+
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 0.35rem;
+
+}
+
+.legend-line {
+
+  display: inline-block;
+
+  width: 1.7rem;
+
+  border-top: 2px solid var(--muted);
+
+}
+
+.legend-line.dashed { border-top-style: dashed; border-color: var(--info); }
+
+.legend-line.solid { border-color: var(--success); }
+
+.legend-badge {
+
+  padding: 0.08rem 0.35rem;
+
+  border: 1px solid var(--line);
+
+  border-radius: 999px;
+
+  color: var(--ink);
+
+  font-size: 0.75rem;
+
+}
+
+.legend-badge.new { border-color: var(--accent); }
+
+.legend-badge.reused { border-color: var(--success); }
+
+.diagram-flow {
+
+  display: flex;
+
+  align-items: stretch;
+
+  gap: 0.45rem;
+
+}
+
+.diagram-flow + .diagram-flow { margin-top: 0.8rem; }
+
+.diagram-node {
+
+  flex: 1 1 0;
+
+  min-width: 7.8rem;
+
+  padding: 0.65rem 0.7rem;
+
+  border: 1px solid var(--line);
+
+  border-top: 3px solid var(--info);
+
+  border-radius: 6px;
+
+  background: var(--paper);
+
+  text-align: center;
+
+}
+
+.diagram-node.app { border-top-color: var(--accent); }
+
+.diagram-node.provider { border-top-color: var(--info); }
+
+.diagram-node.processor { border-top-color: var(--success); }
+
+.diagram-node.exporter { border-top-color: var(--muted); }
+
+.diagram-node.tracer { border-top-color: var(--accent); }
+
+.node-kicker {
+
+  display: block;
+
+  color: var(--muted);
+
+  font-size: 0.72rem;
+
+}
+
+.node-name {
+
+  display: block;
+
+  font-weight: 600;
+
+}
+
+.node-note {
+
+  display: block;
+
+  color: var(--muted);
+
+  font-size: 0.78rem;
+
+  line-height: 1.35;
+
+}
+
+.node-badge {
+
+  display: inline-block;
+
+  margin-top: 0.3rem;
+
+  padding: 0.05rem 0.3rem;
+
+  border: 1px solid var(--line);
+
+  border-radius: 999px;
+
+  color: var(--muted);
+
+  font-size: 0.7rem;
+
+}
+
+.diagram-connector {
+
+  flex: 0 1 6rem;
+
+  min-width: 3.8rem;
+
+  align-self: center;
+
+  color: var(--muted);
+
+  font-size: 0.76rem;
+
+  line-height: 1.2;
+
+  text-align: center;
+
+}
+
+.connector-line {
+
+  display: flex;
+
+  align-items: center;
+
+  margin-top: 0.25rem;
+
+}
+
+.connector-line::before {
+
+  content: "";
+
+  flex: 1;
+
+  border-top: 2px solid var(--success);
+
+}
+
+.connector-line::after {
+
+  content: "";
+
+  width: 0.45rem;
+
+  height: 0.45rem;
+
+  margin-left: -0.15rem;
+
+  border-top: 2px solid var(--success);
+
+  border-right: 2px solid var(--success);
+
+  transform: rotate(45deg);
+
+}
+
+.diagram-connector.dashed .connector-line::before {
+
+  border-top-style: dashed;
+
+  border-color: var(--info);
+
+}
+
+.diagram-connector.dashed .connector-line::after {
+
+  border-color: var(--info);
+
+}
+
+.diagram-ownership {
+
+  margin-top: 0.85rem;
+
+  padding: 0.8rem;
+
+  border: 1px dashed var(--line);
+
+  border-radius: 6px;
+
+  background: var(--code-bg);
+
+}
+
+.diagram-label {
+
+  margin-bottom: 0.6rem;
+
+  color: var(--muted);
+
+  font-size: 0.82rem;
+
+  font-weight: 600;
+
+}
+
+.timeline {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 0.9rem;
+
+}
+
+.timeline-row {
+
+  display: grid;
+
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+
+  gap: 0.75rem;
+
+  align-items: start;
+
+}
+
+.timeline-label {
+
+  font-weight: 600;
+
+  line-height: 1.25;
+
+}
+
+.timeline-label small {
+
+  display: block;
+
+  color: var(--muted);
+
+  font-size: 0.78rem;
+
+  font-weight: 400;
+
+}
+
+.timeline-track {
+
+  display: flex;
+
+  align-items: stretch;
+
+  gap: 0.4rem;
+
+  overflow-x: auto;
+
+  padding-bottom: 0.3rem;
+
+}
+
+.timeline-step {
+
+  flex: 1 0 8.2rem;
+
+  min-height: 5.2rem;
+
+  padding: 0.55rem 0.65rem;
+
+  border: 1px solid var(--line);
+
+  border-top: 3px solid var(--success);
+
+  border-radius: 6px;
+
+  background: var(--paper);
+
+  font-size: 0.84rem;
+
+}
+
+.timeline-step.new { border-top-color: var(--accent); }
+
+.timeline-step.reused { border-top-color: var(--success); }
+
+.step-number {
+
+  display: block;
+
+  color: var(--muted);
+
+  font-size: 0.72rem;
+
+}
+
+.step-name {
+
+  display: block;
+
+  font-weight: 600;
+
+}
+
+.step-note {
+
+  display: block;
+
+  color: var(--muted);
+
+  font-size: 0.76rem;
+
+  line-height: 1.3;
+
+}
+
+.timeline-arrow {
+
+  flex: 0 0 auto;
+
+  align-self: center;
+
+  color: var(--muted);
+
+  font-size: 1.15rem;
+
+}
+
+.lifecycle-divider {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 0.6rem;
+
+  color: var(--muted);
+
+  font-size: 0.8rem;
+
+  text-align: center;
+
+}
+
+.lifecycle-divider::before,
+
+.lifecycle-divider::after {
+
+  content: "";
+
+  flex: 1;
+
+  border-top: 1px dashed var(--line);
+
+}
+
+.timeline-note {
+
+  margin-top: 0.8rem;
+
+  color: var(--muted);
+
+  font-size: 0.88rem;
+
+}
+
+
+
+/* ---- Nav links between lessons ---- */
+
+.lesson-nav {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  margin-top: 3rem;
+
+  padding-top: 1rem;
+
+  border-top: 1px solid var(--line);
+
+  font-size: 0.9rem;
+
+}
+
+
+
+/* ---- Quiz widget ---- */
+
+.quiz {
+
+  border: 1px solid var(--line);
+
+  border-radius: 6px;
+
+  padding: 1.2rem 1.4rem;
+
+  margin: 1.5rem 0;
+
+  background: var(--panel);
+
+}
+
+.quiz .question { font-weight: 600; margin-bottom: 0.8rem; }
+
+.quiz .choices { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.quiz button.choice {
+
+  text-align: left;
+
+  font-family: inherit;
+
+  font-size: 1rem;
+
+  padding: 0.55rem 0.9rem;
+
+  border: 1px solid var(--line);
+
+  border-radius: 5px;
+
+  background: var(--paper);
+
+  cursor: pointer;
+
+  color: var(--ink);
+
+}
+
+.quiz button.choice:hover { background: var(--code-bg); }
+
+.quiz button.choice.correct { border-color: var(--success); background: var(--correct-bg); }
+
+.quiz button.choice.incorrect { border-color: var(--fail); background: var(--incorrect-bg); }
+
+.quiz .feedback {
+
+  margin-top: 0.8rem;
+
+  font-size: 0.95rem;
+
+  min-height: 1.2em;
+
+}
+
+.quiz .feedback.correct { color: var(--success); }
+
+.quiz .feedback.incorrect { color: var(--fail); }
+
+
+
+/* ---- Fill-in-the-blank recall ---- */
+
+.recall input.blank {
+
+  font-family: inherit;
+
+  font-size: 1rem;
+
+  border: none;
+
+  border-bottom: 1px solid var(--ink);
+
+  background: transparent;
+
+  padding: 0.1em 0.3em;
+
+  width: 8em;
+
+}
+
+.recall .check-btn {
+
+  color: var(--ink);
+
+  font-family: inherit;
+
+  margin-left: 0.6em;
+
+  padding: 0.3em 0.8em;
+
+  border: 1px solid var(--line);
+
+  border-radius: 4px;
+
+  background: var(--code-bg);
+
+  cursor: pointer;
+
+}
+
+
+
+/* ---- Print ---- */
+
+@media print {
+
+  body { margin: 0; max-width: 100%; }
+
+  a { color: var(--ink); border-bottom: none; }
+
+  .no-print, .theme-toggle { display: none; }
+
+  .timeline-track { overflow: visible; }
+
+}
+
+
+
+@media (max-width: 680px) {
+
+  .diagram-flow { flex-direction: column; }
+
+  .diagram-node { min-width: 0; width: 100%; }
+
+  .diagram-connector {
+
+    width: 100%;
+
+    min-width: 0;
+
+    flex: 0 0 auto;
+
+  }
+
+  .connector-line {
+
+    width: 2rem;
+
+    height: 1.35rem;
+
+    margin: 0.25rem auto 0;
+
+    flex-direction: column;
+
+  }
+
+  .connector-line::before {
+
+    flex: 1;
+
+    border-top: 0;
+
+    border-left: 2px solid var(--success);
+
+  }
+
+  .connector-line::after {
+
+    margin: -0.1rem 0 0;
+
+    border-top: 2px solid var(--success);
+
+    border-right: 2px solid var(--success);
+
+    transform: rotate(135deg);
+
+  }
+
+  .diagram-connector.dashed .connector-line::before {
+
+    border-top: 0;
+
+    border-left-style: dashed;
+
+  }
+
+  .diagram-connector.dashed .connector-line::after {
+
+    border-color: var(--info);
+
+  }
+
+  .timeline-row { grid-template-columns: 1fr; gap: 0.35rem; }
+
+}
+
+
+
+/* Confluence export adaptations: same visual language as the OTel lessons. */
+.meta { color: var(--muted); font-size: .85rem; border-bottom: 1px solid var(--line); padding-bottom: 1rem; margin-bottom: 2rem; overflow-wrap: anywhere; }
+main table { width: 100%; border-collapse: collapse; font-size: .9rem; margin: 1.5rem 0; }
+main th, main td { padding: .65rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+main th { color: var(--muted); font-weight: 600; }
+main .info { border: 1px solid var(--line); border-left: 4px solid var(--info); background: var(--code-bg); padding: 1rem 1.3rem; margin: 1.5rem 0; border-radius: 4px; }
+main figure { margin: 1.5rem 0; }
+main figure img { max-width: 100%; height: auto; border: 1px solid var(--line); }
+main .attachment { border: 1px dashed var(--line); padding: .75rem 1rem; color: var(--muted); }
+.source-code { margin: 1.5rem 0; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.source-code summary { cursor: pointer; padding: .9rem 1.1rem; color: var(--accent); font-weight: 600; }
+.source-code pre { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; max-height: 42rem; }
+@media (max-width: 680px) { body { padding: 0 1rem; } main { overflow-wrap: anywhere; } main table { min-width: 36rem; } }
+
+</style></head><body><header><h1>Faro-Click-Tracking 的歷史</h1><div class="meta">Confluence page ID: 2217733974 · Source: <a href="https://confluence.garmin.com/pages/viewpage.action?pageId=2217733974">https://confluence.garmin.com/pages/viewpage.action?pageId=2217733974</a></div></header><main><h2>可以透過以下的連結在瀏覽器開啟該 html file 查看會更好看</h2><ul><li><a href="https://github.com/garmin-tw-mfg-eng/faro-click-tracking/commit/967f486e2b66ec81f8d2d7508e3d0f51ef86998d">https://github.com/garmin-tw-mfg-eng/faro-click-tracking/commit/967f486e2b66ec81f8d2d7508e3d0f51ef86998d</a></li></ul><details class="source-code"><summary>原始 HTML source（保留原文）</summary><pre><code>&lt;title&gt;faro-click-tracking 設計沿革&lt;/title&gt;
+&lt;link rel=&quot;preconnect&quot; href=&quot;https://fonts.googleapis.com&quot;&gt;
+&lt;link rel=&quot;preconnect&quot; href=&quot;https://fonts.gstatic.com&quot; crossorigin&gt;
+&lt;link rel=&quot;stylesheet&quot; href=&quot;https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Noto+Sans+TC:wght@400;500;700&amp;display=swap&quot;&gt;
+
+&lt;style&gt;
+  :root {
+    --paper: #f5f7f9;
+    --surface: #ffffff;
+    --surface-sunken: #eef1f4;
+    --ink: #1b202a;
+    --ink-soft: #3c4552;
+    --muted: #5c6675;
+    --faint: #8a94a3;
+    --line: #e1e5ea;
+    --line-strong: #cdd3db;
+    --accent: #2f6f9f;
+    --accent-soft: #e7eef4;
+    --warn: #8f6410;
+    --warn-soft: #f6efe1;
+    --plate: #ecf0f3;
+    --plate-line: #dde2e8;
+    --code-bg: #f0f2f5;
+    --code-ink: #2b323f;
+    --code-comment: #6b7787;
+    --code-line: #e0e3e9;
+
+    --measure: 46rem;
+    --column: 63rem;
+    --sans: &quot;IBM Plex Sans&quot;, &quot;Noto Sans TC&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;
+    --mono: &quot;IBM Plex Mono&quot;, &quot;Noto Sans TC&quot;, ui-monospace, &quot;SF Mono&quot;, Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme=&quot;light&quot;]) {
+      --paper: #0d1117;
+      --surface: #141a22;
+      --surface-sunken: #1b222c;
+      --ink: #e5e9ef;
+      --ink-soft: #c6ccd6;
+      --muted: #98a2b1;
+      --faint: #6b7686;
+      --line: #242c37;
+      --line-strong: #323b48;
+      --accent: #66a9d8;
+      --accent-soft: #172733;
+      --warn: #e0a44a;
+      --warn-soft: #2a2417;
+      --plate: #10151d;
+      --plate-line: #2a323e;
+      --code-bg: #0a0d12;
+      --code-ink: #c9d0db;
+      --code-comment: #6c7684;
+      --code-line: #1e2530;
+    }
+  }
+
+  :root[data-theme=&quot;dark&quot;] {
+    --paper: #0d1117;
+    --surface: #141a22;
+    --surface-sunken: #1b222c;
+    --ink: #e5e9ef;
+    --ink-soft: #c6ccd6;
+    --muted: #98a2b1;
+    --faint: #6b7686;
+    --line: #242c37;
+    --line-strong: #323b48;
+    --accent: #66a9d8;
+    --accent-soft: #172733;
+    --warn: #e0a44a;
+    --warn-soft: #2a2417;
+    --plate: #10151d;
+    --plate-line: #2a323e;
+    --code-bg: #0a0d12;
+    --code-ink: #c9d0db;
+    --code-comment: #6c7684;
+    --code-line: #1e2530;
+  }
+
+  * { box-sizing: border-box; }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5.5rem;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.72;
+    font-feature-settings: &quot;kern&quot;;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  /* ---------- header ---------- */
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem clamp(1rem, 4vw, 2.4rem);
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    min-width: 0;
+  }
+  .brand .glyph { font-size: 1rem; }
+  .brand .name {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .brand .sub {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--faint);
+    white-space: nowrap;
+  }
+  .theme-toggle {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.7rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--accent); }
+
+  /* ---------- layout ---------- */
+  .layout {
+    display: grid;
+    grid-template-columns: 15rem minmax(0, 1fr);
+    gap: clamp(1.5rem, 5vw, 4rem);
+    max-width: 84rem;
+    margin: 0 auto;
+    padding: 0 clamp(1rem, 4vw, 2.4rem) 6rem;
+  }
+
+  .sidebar { position: relative; }
+  .toc {
+    position: sticky;
+    top: 5rem;
+    padding-top: 2.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .toc-label {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--faint);
+    margin-bottom: 0.7rem;
+  }
+  .toc a {
+    display: flex;
+    gap: 0.65rem;
+    padding: 0.32rem 0;
+    color: var(--muted);
+    font-size: 0.86rem;
+    line-height: 1.4;
+    border-left: 2px solid transparent;
+    padding-left: 0.8rem;
+    margin-left: -0.8rem;
+  }
+  .toc a .num {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--faint);
+    flex-shrink: 0;
+  }
+  .toc a:hover { color: var(--ink); text-decoration: none; }
+  .toc a.active {
+    color: var(--ink);
+    border-left-color: var(--accent);
+    font-weight: 500;
+  }
+  .toc a.active .num { color: var(--accent); }
+
+  /* ---------- content ---------- */
+  .content { min-width: 0; max-width: var(--column); }
+  .content &gt; * { max-width: var(--measure); }
+  .content .bleed { max-width: 100%; }
+
+  .lede-block { padding-top: 2.4rem; }
+  h1 {
+    font-size: clamp(1.9rem, 5vw, 2.7rem);
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0 0 1.1rem;
+  }
+  .lede {
+    font-size: 1.08rem;
+    color: var(--ink-soft);
+    margin: 0 0 1.6rem;
+  }
+
+  .meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.4rem;
+    padding: 0.9rem 0 0;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--muted);
+  }
+  .meta-strip b { color: var(--ink); font-weight: 500; }
+
+  .compare {
+    margin: 2rem 0 0;
+    padding: 1.1rem 1.3rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+  }
+  .compare p { margin: 0.35rem 0; font-size: 0.92rem; }
+  .compare .k {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  section.section {
+    padding-top: 4.5rem;
+    margin-top: 3rem;
+    border-top: 1px solid var(--line);
+  }
+  section.section:first-of-type { border-top: none; }
+
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--muted);
+    margin: 0 0 0.8rem;
+  }
+  .eyebrow .tick {
+    width: 1.4rem;
+    height: 2px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  h2 {
+    font-size: clamp(1.5rem, 3.5vw, 2rem);
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 0 0 1.4rem;
+  }
+  h3 {
+    font-size: 1.12rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 2.8rem 0 1rem;
+    color: var(--ink);
+  }
+  h3::before {
+    content: &quot;&quot;;
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--accent);
+    margin-right: 0.55rem;
+    vertical-align: 0.12em;
+  }
+  p { margin: 0 0 1rem; }
+  strong { font-weight: 600; color: var(--ink); }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--surface-sunken);
+    padding: 0.1em 0.38em;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+    word-break: break-word;
+  }
+
+  /* ---------- one-liner ---------- */
+  .oneliner {
+    margin: 0 0 1rem;
+    padding: 1.1rem 1.3rem;
+    background: var(--accent-soft);
+    border-radius: 3px;
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .oneliner .label {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+  .oneliner p { margin: 0; font-size: 0.95rem; color: var(--ink-soft); }
+
+  /* ---------- tables ---------- */
+  .tablewrap {
+    overflow-x: auto;
+    margin: 0 0 1.4rem;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.87rem;
+  }
+  .turning { min-width: 44rem; }
+  .plain { min-width: 30rem; }
+  thead th {
+    background: var(--surface-sunken);
+    text-align: left;
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--line-strong);
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 0.75rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+    color: var(--ink-soft);
+    line-height: 1.6;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-sunken) 40%, transparent); }
+  td .num {
+    font-family: var(--mono);
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .vtag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    padding: 0.05rem 0.4rem;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .brk {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    padding: 0.02rem 0.32rem;
+    border-radius: 2px;
+    background: var(--warn-soft);
+    color: var(--warn);
+    border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+    vertical-align: 0.08em;
+  }
+
+  /* ---------- code blocks ---------- */
+  .codeblock {
+    margin: 0 0 1.4rem;
+    border: 1px solid var(--code-line);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--code-bg);
+  }
+  .codehead {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--muted);
+    padding: 0.55rem 1rem;
+    background: color-mix(in srgb, var(--code-bg) 70%, var(--surface-sunken));
+    border-bottom: 1px solid var(--code-line);
+    letter-spacing: 0.01em;
+    word-break: break-all;
+  }
+  .codeblock pre {
+    margin: 0;
+    padding: 1rem 1.1rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    line-height: 1.7;
+    color: var(--code-ink);
+    tab-size: 2;
+  }
+  .codeblock code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+    color: inherit;
+    white-space: pre;
+  }
+  .codeblock .cm { color: var(--code-comment); }
+
+  /* ---------- diagram plate ---------- */
+  figure.diagram {
+    margin: 0 0 1.6rem;
+    padding: 1.6rem 1.3rem 0.8rem;
+    background: var(--plate);
+    border: 1px solid var(--plate-line);
+    border-radius: 4px;
+    overflow-x: auto;
+  }
+  figure.diagram &gt; figcaption {
+    margin-top: 1.2rem;
+    padding-top: 0.8rem;
+    border-top: 1px dashed var(--plate-line);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* rail — linear evolution */
+  .rail {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0;
+    padding-bottom: 0.4rem;
+    min-width: min-content;
+  }
+  .rail-item {
+    flex: 0 0 auto;
+    width: 12.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.75rem 0.85rem;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+  }
+  .rail-item + .rail-item { margin-left: 1.9rem; position: relative; }
+  .rail-item + .rail-item::before {
+    content: &quot;\2192&quot;;
+    position: absolute;
+    left: -1.35rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--faint);
+    font-family: var(--mono);
+  }
+  .rail-item.now { border-color: var(--accent); background: var(--accent-soft); }
+  .rail-item .v {
+    font-family: var(--mono);
+    font-size: 0.71rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .rail-item.now .v { color: var(--accent); }
+  .rail-item .d { font-size: 0.82rem; line-height: 1.45; color: var(--ink-soft); }
+
+  /* ---------- inline SVG flowcharts ---------- */
+  svg.fc {
+    display: block;
+    width: 100%;
+    min-width: 30rem;
+    height: auto;
+    margin: 0 auto;
+    color: var(--ink-soft);
+  }
+  .fc text { fill: var(--ink); font-family: var(--sans); }
+  .fc .n { fill: var(--surface); stroke: currentColor; stroke-width: 1.2; }
+  .fc .n-term { fill: var(--surface-sunken); stroke: currentColor; stroke-width: 1.2; }
+  .fc .n-hit { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+  .fc .n-drop { fill: none; stroke: var(--muted); stroke-width: 1.1; stroke-dasharray: 4 3; }
+  .fc .e { stroke: currentColor; stroke-width: 1.2; fill: none; }
+  .fc .e-drop { stroke: var(--muted); stroke-width: 1.1; fill: none; stroke-dasharray: 4 3; }
+  .fc .e-hit { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+  .fc .mk { fill: currentColor; }
+  .fc .mk-m { fill: var(--muted); }
+  .fc .mk-a { fill: var(--accent); }
+  .fc .t { font-size: 12.5px; }
+  .fc .ts { font-size: 11px; }
+  .fc .tm { font-size: 11.5px; font-family: var(--mono); }
+  .fc .tms { font-size: 10.5px; font-family: var(--mono); }
+  .fc .txs { font-size: 9.5px; font-family: var(--mono); }
+  .fc .lbl { font-size: 10.5px; font-family: var(--mono); fill: var(--muted); }
+  .fc .dim { fill: var(--muted); }
+  .fc .acc { fill: var(--accent); }
+
+  /* ---------- callouts ---------- */
+  .callout {
+    margin: 0 0 1.4rem;
+    padding: 1rem 1.2rem;
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-radius: 0 3px 3px 0;
+  }
+  .callout.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .callout .label {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+  .callout.warn .label { color: var(--warn); }
+  .callout p { margin: 0.3rem 0; font-size: 0.9rem; color: var(--ink-soft); }
+  .callout .codeblock { margin-top: 0.8rem; margin-bottom: 0; }
+
+  footer.foot {
+    max-width: var(--column);
+    margin-top: 4rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--faint);
+  }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; gap: 0; }
+    .toc {
+      position: static;
+      padding-top: 1.8rem;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 0.4rem 0.9rem;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 1.4rem;
+    }
+    .toc-label { width: 100%; margin-bottom: 0.2rem; }
+    .toc a { border-left: none; padding-left: 0; margin-left: 0; }
+    .toc a.active { border-left: none; text-decoration: underline; text-underline-offset: 4px; }
+    .content { max-width: 100%; }
+    .content &gt; * { max-width: 100%; }
+  }
+&lt;/style&gt;
+
+&lt;header class=&quot;site-header&quot;&gt;
+  &lt;div class=&quot;brand&quot;&gt;
+    &lt;span class=&quot;glyph&quot;&gt;📡&lt;/span&gt;
+    &lt;span class=&quot;name&quot;&gt;@sre2/faro-click-tracking&lt;/span&gt;
+    &lt;span class=&quot;sub&quot;&gt;設計沿革&lt;/span&gt;
+  &lt;/div&gt;
+  &lt;button class=&quot;theme-toggle&quot; id=&quot;themeToggle&quot; type=&quot;button&quot; aria-label=&quot;切換深色 / 淺色主題&quot;&gt;
+    &lt;span id=&quot;themeLabel&quot;&gt;主題&lt;/span&gt;
+  &lt;/button&gt;
+&lt;/header&gt;
+
+&lt;div class=&quot;layout&quot;&gt;
+  &lt;aside class=&quot;sidebar&quot;&gt;
+    &lt;nav class=&quot;toc&quot; id=&quot;toc&quot; aria-label=&quot;章節導覽&quot;&gt;
+      &lt;span class=&quot;toc-label&quot;&gt;章節&lt;/span&gt;
+      &lt;a href=&quot;#intro&quot;&gt;&lt;span class=&quot;num&quot;&gt;00&lt;/span&gt;&lt;span&gt;前言與定位&lt;/span&gt;&lt;/a&gt;
+      &lt;a href=&quot;#background&quot;&gt;&lt;span class=&quot;num&quot;&gt;0&lt;/span&gt;&lt;span&gt;共通背景:meta vs payload&lt;/span&gt;&lt;/a&gt;
+      &lt;a href=&quot;#click&quot;&gt;&lt;span class=&quot;num&quot;&gt;1&lt;/span&gt;&lt;span&gt;Click 點擊追蹤&lt;/span&gt;&lt;/a&gt;
+      &lt;a href=&quot;#user&quot;&gt;&lt;span class=&quot;num&quot;&gt;2&lt;/span&gt;&lt;span&gt;使用者身分同步&lt;/span&gt;&lt;/a&gt;
+      &lt;a href=&quot;#device&quot;&gt;&lt;span class=&quot;num&quot;&gt;3&lt;/span&gt;&lt;span&gt;裝置類型偵測&lt;/span&gt;&lt;/a&gt;
+      &lt;a href=&quot;#environment&quot;&gt;&lt;span class=&quot;num&quot;&gt;4&lt;/span&gt;&lt;span&gt;Environment 對照&lt;/span&gt;&lt;/a&gt;
+      &lt;a href=&quot;#faroinstance&quot;&gt;&lt;span class=&quot;num&quot;&gt;5&lt;/span&gt;&lt;span&gt;faroInstance 單例&lt;/span&gt;&lt;/a&gt;
+      &lt;a href=&quot;#appendix&quot;&gt;&lt;span class=&quot;num&quot;&gt;A&lt;/span&gt;&lt;span&gt;演進來源對照&lt;/span&gt;&lt;/a&gt;
+    &lt;/nav&gt;
+  &lt;/aside&gt;
+
+  &lt;main class=&quot;content&quot;&gt;
+    &lt;div class=&quot;lede-block&quot; id=&quot;intro&quot;&gt;
+      &lt;h1&gt;各 Feature 設計演進與實作&lt;/h1&gt;
+      &lt;p class=&quot;lede&quot;&gt;
+        &lt;code&gt;@sre2/faro-click-tracking&lt;/code&gt; 是包在 &lt;code&gt;@grafana/faro-web-sdk&lt;/code&gt; 外的 &lt;code&gt;initFaro()&lt;/code&gt; wrapper。
+        這份文件回答「每個 feature 當初怎麼設計、為什麼變成現在這個版本」,並附上&lt;strong&gt;現行完整程式碼&lt;/strong&gt;與&lt;strong&gt;簡易流程圖&lt;/strong&gt;。
+      &lt;/p&gt;
+      &lt;div class=&quot;meta-strip&quot;&gt;
+        &lt;span&gt;對應版本 · &lt;b&gt;dev 分支&lt;/b&gt;&lt;/span&gt;
+        &lt;span&gt;演進來源 · &lt;b&gt;openspec/changes/ + git 歷史&lt;/b&gt;&lt;/span&gt;
+        &lt;span&gt;搭配閱讀 · &lt;b&gt;ENGINEERING_HANDOFF.md&lt;/b&gt;&lt;/span&gt;
+      &lt;/div&gt;
+
+      &lt;div class=&quot;compare&quot;&gt;
+        &lt;span class=&quot;k&quot;&gt;這份文件 vs. ENGINEERING_HANDOFF.md&lt;/span&gt;
+        &lt;p&gt;&lt;strong&gt;ENGINEERING_HANDOFF.md&lt;/strong&gt; = 交接動線,回答「現在的套件怎麼運作」。&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;本文件&lt;/strong&gt; = 設計脈絡,回答「每個 feature 經過哪些關鍵轉折、現行實作為何長這樣」。&lt;/p&gt;
+        &lt;p style=&quot;margin-top:0.7rem;color:var(--muted);font-size:0.86rem;&quot;&gt;
+          每一章結構固定:現況一句話 → 關鍵轉折 → 現行完整實作 → 簡易流程圖。
+        &lt;/p&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;!-- ============ 0 · BACKGROUND ============ --&gt;
+    &lt;section class=&quot;section&quot; id=&quot;background&quot;&gt;
+      &lt;p class=&quot;eyebrow&quot;&gt;&lt;span class=&quot;tick&quot;&gt;&lt;/span&gt;Section 0 · 共通背景&lt;/p&gt;
+      &lt;h2&gt;meta vs. event payload&lt;/h2&gt;
+      &lt;p&gt;三個資料類 feature(身分、裝置、點擊內容)之所以用不同做法,全都源自 Faro 的這個區別:&lt;/p&gt;
+
+      &lt;figure class=&quot;diagram bleed&quot;&gt;
+        &lt;svg class=&quot;fc&quot; viewBox=&quot;0 0 760 280&quot; role=&quot;img&quot;
+             aria-label=&quot;meta 設定一次後扇出到 log、exception、event、measurement、trace 五種 signal;event payload 只進入 event 這一種。&quot;&gt;
+          &lt;defs&gt;
+            &lt;marker id=&quot;a0&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a0a&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-a&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+          &lt;/defs&gt;
+
+          &lt;text class=&quot;lbl&quot; x=&quot;395&quot; y=&quot;14&quot; text-anchor=&quot;middle&quot;&gt;Faro 送出的 5 種 signal&lt;/text&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;300&quot; y=&quot;28&quot; width=&quot;190&quot; height=&quot;38&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;395&quot; y=&quot;51&quot; text-anchor=&quot;middle&quot;&gt;log&lt;/text&gt;
+          &lt;rect class=&quot;n&quot; x=&quot;300&quot; y=&quot;76&quot; width=&quot;190&quot; height=&quot;38&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;395&quot; y=&quot;99&quot; text-anchor=&quot;middle&quot;&gt;exception&lt;/text&gt;
+          &lt;rect class=&quot;n-hit&quot; x=&quot;300&quot; y=&quot;124&quot; width=&quot;190&quot; height=&quot;38&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;395&quot; y=&quot;147&quot; text-anchor=&quot;middle&quot;&gt;event&lt;/text&gt;
+          &lt;rect class=&quot;n&quot; x=&quot;300&quot; y=&quot;172&quot; width=&quot;190&quot; height=&quot;38&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;395&quot; y=&quot;195&quot; text-anchor=&quot;middle&quot;&gt;measurement&lt;/text&gt;
+          &lt;rect class=&quot;n&quot; x=&quot;300&quot; y=&quot;220&quot; width=&quot;190&quot; height=&quot;38&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;395&quot; y=&quot;243&quot; text-anchor=&quot;middle&quot;&gt;trace&lt;/text&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;16&quot; y=&quot;113&quot; width=&quot;168&quot; height=&quot;60&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;100&quot; y=&quot;130&quot; text-anchor=&quot;middle&quot;&gt;meta&lt;/text&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;100&quot; y=&quot;147&quot; text-anchor=&quot;middle&quot;&gt;api.setUser()&lt;/text&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;100&quot; y=&quot;164&quot; text-anchor=&quot;middle&quot;&gt;metas.add(getter)&lt;/text&gt;
+
+          &lt;path class=&quot;e&quot; d=&quot;M184,143 H250&quot;&gt;&lt;/path&gt;
+          &lt;path class=&quot;e&quot; d=&quot;M250,47 V239&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;217&quot; y=&quot;134&quot; text-anchor=&quot;middle&quot;&gt;每筆都帶&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a0)&quot; d=&quot;M250,47 H298&quot;&gt;&lt;/path&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a0)&quot; d=&quot;M250,95 H298&quot;&gt;&lt;/path&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a0)&quot; d=&quot;M250,143 H298&quot;&gt;&lt;/path&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a0)&quot; d=&quot;M250,191 H298&quot;&gt;&lt;/path&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a0)&quot; d=&quot;M250,239 H298&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n-hit&quot; x=&quot;576&quot; y=&quot;118&quot; width=&quot;168&quot; height=&quot;50&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;lbl acc&quot; x=&quot;660&quot; y=&quot;135&quot; text-anchor=&quot;middle&quot;&gt;event payload&lt;/text&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;660&quot; y=&quot;154&quot; text-anchor=&quot;middle&quot;&gt;pushEvent(&#x27;click&#x27;, …)&lt;/text&gt;
+          &lt;path class=&quot;e-hit&quot; marker-end=&quot;url(#a0a)&quot; d=&quot;M576,143 H492&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl acc&quot; x=&quot;534&quot; y=&quot;134&quot; text-anchor=&quot;middle&quot;&gt;僅此筆&lt;/text&gt;
+        &lt;/svg&gt;
+        &lt;figcaption&gt;meta 設定一次就扇出到每一種 signal · payload 只進入那一筆 event&lt;/figcaption&gt;
+      &lt;/figure&gt;
+
+      &lt;div class=&quot;tablewrap bleed&quot;&gt;
+        &lt;table class=&quot;plain&quot;&gt;
+          &lt;thead&gt;
+            &lt;tr&gt;&lt;th&gt;資料&lt;/th&gt;&lt;th&gt;用哪個機制&lt;/th&gt;&lt;th&gt;一句話理由&lt;/th&gt;&lt;/tr&gt;
+          &lt;/thead&gt;
+          &lt;tbody&gt;
+            &lt;tr&gt;
+              &lt;td&gt;使用者身分&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;meta&lt;/strong&gt;(&lt;code&gt;api.setUser&lt;/code&gt; / &lt;code&gt;resetUser&lt;/code&gt;)&lt;/td&gt;
+              &lt;td&gt;希望 log / error / trace / 點擊&lt;strong&gt;全部&lt;/strong&gt;都能關聯到人&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;裝置類型&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;meta&lt;/strong&gt;(&lt;code&gt;metas.add(getter)&lt;/code&gt;)&lt;/td&gt;
+              &lt;td&gt;同上;而且裝置類型不是 DOM attribute,無法從點擊推導&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;點擊內容&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;event payload&lt;/strong&gt;(&lt;code&gt;pushEvent(&#x27;click&#x27;, payload)&lt;/code&gt;)&lt;/td&gt;
+              &lt;td&gt;這是「這一次點擊」專屬的內容&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/tbody&gt;
+        &lt;/table&gt;
+      &lt;/div&gt;
+      &lt;p style=&quot;font-size:0.88rem;color:var(--muted);&quot;&gt;
+        這個區別本身也是演進的結果 —— 早期版本曾把裝置資訊塞進 &lt;code&gt;click&lt;/code&gt; event payload,後來才移回 meta(見 &lt;a href=&quot;#device&quot;&gt;第 3 章&lt;/a&gt;)。
+      &lt;/p&gt;
+    &lt;/section&gt;
+
+    &lt;!-- ============ 1 · CLICK ============ --&gt;
+    &lt;section class=&quot;section&quot; id=&quot;click&quot;&gt;
+      &lt;p class=&quot;eyebrow&quot;&gt;&lt;span class=&quot;tick&quot;&gt;&lt;/span&gt;Section 1 · Click 點擊追蹤&lt;/p&gt;
+      &lt;h2&gt;Click 點擊追蹤&lt;/h2&gt;
+
+      &lt;div class=&quot;oneliner&quot;&gt;
+        &lt;span class=&quot;label&quot;&gt;現況一句話&lt;/span&gt;
+        &lt;p&gt;
+          在 &lt;code&gt;document&lt;/code&gt; 掛一個 &lt;code&gt;click&lt;/code&gt; listener 監聽整頁點擊;對 &lt;code&gt;trackAttributes&lt;/code&gt;
+          宣告的每個 &lt;code&gt;data-*&lt;/code&gt; 名稱各自 &lt;code&gt;closest()&lt;/code&gt; 往上找,把命中的值以&lt;strong&gt;轉換後的 key&lt;/strong&gt;
+          併成一筆 payload,用 &lt;code&gt;pushEvent(&#x27;click&#x27;, payload)&lt;/code&gt; 送出。&lt;strong&gt;沒有任何內建欄位,一個都沒命中就不送。&lt;/strong&gt;
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;關鍵轉折&lt;/h3&gt;
+      &lt;figure class=&quot;diagram bleed&quot;&gt;
+        &lt;div class=&quot;rail&quot;&gt;
+          &lt;div class=&quot;rail-item&quot;&gt;&lt;span class=&quot;v&quot;&gt;v1&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;抓元素自身文字 → &lt;code&gt;link_name&lt;/code&gt;&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;rail-item&quot;&gt;&lt;span class=&quot;v&quot;&gt;v2&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;&lt;code&gt;data-link-name&lt;/code&gt; 可覆寫文字&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;rail-item&quot;&gt;&lt;span class=&quot;v&quot;&gt;v3&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;&lt;code&gt;trackAttributes&lt;/code&gt; 通用清單;移除 mode / fallback / &lt;code&gt;data-link-name&lt;/code&gt;&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;rail-item now&quot;&gt;&lt;span class=&quot;v&quot;&gt;v4 · 現行&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;移除所有內建欄位,payload 全由 host 宣告&lt;/span&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        &lt;figcaption&gt;Click 追蹤的演進路徑&lt;/figcaption&gt;
+      &lt;/figure&gt;
+
+      &lt;div class=&quot;tablewrap bleed&quot;&gt;
+        &lt;table class=&quot;turning&quot;&gt;
+          &lt;thead&gt;
+            &lt;tr&gt;&lt;th&gt;#&lt;/th&gt;&lt;th&gt;轉折&lt;/th&gt;&lt;th&gt;當初做法&lt;/th&gt;&lt;th&gt;問題 / 動機&lt;/th&gt;&lt;th&gt;改成&lt;/th&gt;&lt;/tr&gt;
+          &lt;/thead&gt;
+          &lt;tbody&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;1&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;初版:文字節點當名稱&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;link_name&lt;/code&gt; 取自被點元素&lt;strong&gt;自身直接文字節點&lt;/strong&gt;(不遞迴子孫,避免點到 &lt;code&gt;&lt;nav&gt;&lt;/code&gt; 抓到整頁文字)&lt;/td&gt;
+              &lt;td&gt;宿主(Foreman-Assistant)回報:顯示文字是 i18n 翻譯字串,&lt;strong&gt;會隨語系改變&lt;/strong&gt;,Loki 上還出現前後帶斜線的髒值(&lt;code&gt;&quot;/治具Check In/Out/&quot;&lt;/code&gt;),dashboard 無法穩定比對&lt;/td&gt;
+              &lt;td&gt;加入 &lt;code&gt;data-link-name&lt;/code&gt; attribute 覆寫:元素或祖先帶此 attribute 時直接採用其值,不再讀文字&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;2&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;&lt;code&gt;data-link-name&lt;/code&gt; 覆寫&lt;/strong&gt;(opt-in 單一 attribute)&lt;/td&gt;
+              &lt;td&gt;只支援單一標記 &lt;code&gt;data-link-name&lt;/code&gt;,&lt;code&gt;closest()&lt;/code&gt; 往上找;曾評估函式型 &lt;code&gt;getExtraFields(target)&lt;/code&gt; hook&lt;/td&gt;
+              &lt;td&gt;(a) 宿主還想在同一次點擊記「發生在哪個頁面 / 區塊」,沒有擴充管道;(b) 函式型 hook 有 typo 風險、例外處理、side effect 疑慮&lt;/td&gt;
+              &lt;td&gt;改成&lt;strong&gt;宣告式清單&lt;/strong&gt; &lt;code&gt;trackAttributes: string[]&lt;/code&gt;:宿主只給要追蹤的 attribute 名稱,套件比照 &lt;code&gt;data-link-name&lt;/code&gt; 的 &lt;code&gt;closest()&lt;/code&gt; 邏輯逐一查找併入 payload&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;3&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;&lt;code&gt;trackAttributes&lt;/code&gt; 與 &lt;code&gt;link_name&lt;/code&gt; 解耦&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;data-link-name&lt;/code&gt; / &lt;code&gt;mode(&#x27;all&#x27;|&#x27;markedOnly&#x27;)&lt;/code&gt; / 文字 fallback 三套機制並存;&lt;code&gt;trackAttributes&lt;/code&gt; 曾被當成「決定 &lt;code&gt;link_name&lt;/code&gt; 的來源」&lt;/td&gt;
+              &lt;td&gt;機制重疊、設定複雜、行為分歧。且 &lt;code&gt;trackAttributes&lt;/code&gt; 語意上&lt;strong&gt;不必然跟 link 相關&lt;/strong&gt;(可能只是標記頁面 / 區塊),硬綁到寫死的 &lt;code&gt;link_name&lt;/code&gt; key 不合理&lt;/td&gt;
+              &lt;td&gt;&lt;span class=&quot;brk&quot;&gt;BREAKING&lt;/span&gt; 移除 &lt;code&gt;mode&lt;/code&gt;、&lt;code&gt;ClickTrackingMode&lt;/code&gt;、&lt;code&gt;data-link-name&lt;/code&gt;、文字 fallback;&lt;code&gt;trackAttributes&lt;/code&gt; 回歸單純「附加任意欄位」通用機制&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;4&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;host-defined payload&lt;/strong&gt;(現行)&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;click&lt;/code&gt; 仍固定送 &lt;code&gt;link_name&lt;/code&gt; / &lt;code&gt;device_type&lt;/code&gt; / &lt;code&gt;max_touch_points&lt;/code&gt; 三個內建欄位,再疊加 &lt;code&gt;trackAttributes&lt;/code&gt;&lt;/td&gt;
+              &lt;td&gt;「哪些欄位是套件保證、哪些是選填」變模糊;套件不該背負「幫宿主決定 link_name / 裝置資訊怎麼算」的職責&lt;/td&gt;
+              &lt;td&gt;&lt;span class=&quot;brk&quot;&gt;BREAKING&lt;/span&gt; 移除全部內建欄位。payload &lt;strong&gt;完全、僅&lt;/strong&gt;由 &lt;code&gt;trackAttributes&lt;/code&gt; 命中結果組成;送出條件從「名稱非空」改為「payload 非空物件」&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;5&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;&lt;code&gt;toPayloadKey()&lt;/code&gt; key 轉換&lt;/strong&gt;(隨 #4 一起定案)&lt;/td&gt;
+              &lt;td&gt;payload key 直接用原始 attribute 名稱(&lt;code&gt;{ &#x27;data-page&#x27;: ... }&lt;/code&gt;)&lt;/td&gt;
+              &lt;td&gt;Alloy 送進 Loki 會自動加 &lt;code&gt;event_data_&lt;/code&gt; 前綴;若 key 還帶連字號(&lt;code&gt;event_data_data-panel-topic&lt;/code&gt;),&lt;strong&gt;Loki label 查詢無法解析&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;送出前先轉:去 &lt;code&gt;data-&lt;/code&gt; 前綴、其餘 &lt;code&gt;-&lt;/code&gt; 改 &lt;code&gt;_&lt;/code&gt;(&lt;code&gt;data-panel-topic&lt;/code&gt; → &lt;code&gt;panel_topic&lt;/code&gt;)。&lt;code&gt;initFaro()&lt;/code&gt; 擋「非 &lt;code&gt;data-&lt;/code&gt; 開頭」與「轉換後撞名」&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/tbody&gt;
+        &lt;/table&gt;
+      &lt;/div&gt;
+
+      &lt;div class=&quot;callout&quot;&gt;
+        &lt;span class=&quot;label&quot;&gt;初版 link_name 的程式碼(已移除,僅供理解演進)&lt;/span&gt;
+        &lt;div class=&quot;codeblock&quot;&gt;
+&lt;pre&gt;&lt;code&gt;function getDirectTextContent(element: Element): string {
+  let text = &#x27;&#x27;;
+  element.childNodes.forEach((node) =&gt; {
+    if (node.nodeType === Node.TEXT_NODE) text += node.textContent ?? &#x27;&#x27;;
+  });
+  return text.trim();
+}
+// handleClick 內: const linkName = getDirectTextContent(target);
+//                 if (linkName === &#x27;&#x27;) return;
+//                 this.api.pushEvent(&#x27;click&#x27;, { link_name: linkName });&lt;/code&gt;&lt;/pre&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;現行完整實作&lt;/h3&gt;
+      &lt;div class=&quot;codeblock bleed&quot;&gt;
+        &lt;p class=&quot;codehead&quot;&gt;src/faro-click-tracking/src/features/click/clickInstrumentation.ts&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;import { BaseInstrumentation } from &#x27;@grafana/faro-web-sdk&#x27;;
+
+const CLICK_EVENT_NAME = &#x27;click&#x27;;
+const THROTTLE_MS = 300;
+
+export interface ClickInstrumentationOptions {
+  /**
+   * 選填: 要額外追蹤的 data-* attribute 名稱清單。每次點擊時,各自從 event.target
+   * 開始以 closest() 往上查找最近一個帶有該 attribute 的元素(含自身),找到則將其值
+   * 併入同一筆 click event payload; 找不到則該欄位不出現在 payload 中,不視為錯誤。
+   *
+   * payload 的 key 不會直接採用原始 attribute 名稱: 經由 api.pushEvent() 送到 Alloy 後,
+   * 欄位名稱會統一加上 event_data_ 前綴,若原始 attribute 名稱帶有連字號(例如 data-* 慣例的
+   * data-panel-topic),組出的欄位名稱(event_data_data-panel-topic)會因為包含連字號
+   * 而無法被 Loki query 解析。因此送進 payload 前,會先用 toPayloadKey 轉換: 去除
+   * data- 前綴、其餘連字號改為底線,例如 data-panel-topic -&gt; panel_topic,
+   * 對應 Loki 上的 event_data_panel_topic。
+   *
+   * payload 完全、僅由此清單命中的欄位組成,套件不會 default 帶入任何欄位
+   * (例如過去的 link_name/device_type/max_touch_points)。
+   */
+  trackAttributes?: string[];
+}
+
+// 將 data-* attribute 名稱轉換為 click event payload 使用的 key: 去除 &quot;data-&quot; 前綴,
+// 其餘連字號改為底線。Loki 端會在 payload key 前自動加上 event_data_ 前綴,
+// 若 key 本身仍帶連字號(例如未轉換的 data-panel-topic),組出的
+// event_data_data-panel-topic 欄位名稱無法被 Loki query 解析,因此統一轉換為底線格式。
+export function toPayloadKey(attributeName: string): string {
+  return attributeName.replace(/^data-/, &#x27;&#x27;).replace(/-/g, &#x27;_&#x27;);
+}
+
+// 對單一 attribute 名稱,從 element 開始(含自身)往上查找最近一個帶有該 attribute 的元素,
+// 回傳其原始屬性值(未 trim); 找不到則回傳 undefined,交由呼叫端視為「這次點擊沒有這個欄位」,
+// 不當作錯誤處理。
+function getTrackedAttributeValue(element: Element, attributeName: string): string | undefined {
+  const marked = element.closest(`[${attributeName}]`);
+  if (marked === null) {
+    return undefined;
+  }
+  return marked.getAttribute(attributeName) ?? undefined;
+}
+
+export class ClickInstrumentation extends BaseInstrumentation {
+  readonly name = &#x27;faro-click-tracking:instrumentation-click&#x27;;
+  readonly version = &#x27;0.1.0&#x27;;
+
+  private readonly trackAttributes: string[];
+
+  // 同一個 target 300ms 內只送一次,用 WeakMap 避免持有 DOM 節點造成記憶體洩漏。
+  private lastSentAt = new WeakMap&lt;EventTarget, number&gt;();
+
+  constructor(options: ClickInstrumentationOptions = {}) {
+    super();
+    this.trackAttributes = options.trackAttributes ?? [];
+  }
+
+  private handleClick = (event: MouseEvent): void =&gt; {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    // payload 完全由 trackAttributes 查找結果組成,套件不 default 帶入任何欄位;
+    // 各自獨立查找,找到才併入 payload,找不到就省略該欄位,不視為錯誤。
+    // payload 的 key 統一轉換過(見 toPayloadKey()),而非直接使用原始 attribute 名稱。
+    const payload: Record&lt;string, string&gt; = {};
+    for (const attributeName of this.trackAttributes) {
+      const value = getTrackedAttributeValue(target, attributeName);
+      if (value !== undefined) {
+        payload[toPayloadKey(attributeName)] = value;
+      }
+    }
+
+    // 沒有任何 trackAttributes 命中時,這次點擊沒有可送的資訊,不送出事件(也不佔用節流時間戳記)。
+    if (Object.keys(payload).length === 0) {
+      return;
+    }
+
+    const now = Date.now();
+    const lastSent = this.lastSentAt.get(target);
+    if (lastSent !== undefined &amp;&amp; now - lastSent &lt; THROTTLE_MS) {
+      return;
+    }
+    this.lastSentAt.set(target, now);
+
+    this.api.pushEvent(CLICK_EVENT_NAME, payload);
+  };
+
+  initialize(): void {
+    document.addEventListener(&#x27;click&#x27;, this.handleClick);
+  }
+
+  destroy(): void {
+    document.removeEventListener(&#x27;click&#x27;, this.handleClick);
+  }
+}&lt;/code&gt;&lt;/pre&gt;
+      &lt;/div&gt;
+
+      &lt;div class=&quot;codeblock bleed&quot;&gt;
+        &lt;p class=&quot;codehead&quot;&gt;initFaro/initFaro.ts — 對應的驗證與組裝(節錄)&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;function validateTrackAttributes(trackAttributes: string[] | undefined): void {
+  if (!trackAttributes) {
+    return;
+  }
+  const seenPayloadKeys = new Set&lt;string&gt;();
+  for (const name of trackAttributes) {
+    if (!name.startsWith(&#x27;data-&#x27;)) {
+      throw new Error(
+        `[faro-click-tracking] trackAttributes 中的 &quot;${name}&quot; 必須以 &quot;data-&quot; 開頭。`,
+      );
+    }
+    const payloadKey = toPayloadKey(name);
+    if (seenPayloadKeys.has(payloadKey)) {
+      throw new Error(
+        `[faro-click-tracking] trackAttributes 中的 &quot;${name}&quot; 轉換後的欄位名稱 &quot;${payloadKey}&quot; 與清單內其他項目重複,` +
+          `請改用其他名稱。`,
+      );
+    }
+    seenPayloadKeys.add(payloadKey);
+  }
+}
+
+// initFaro() 內:
+//   validateTrackAttributes(config.trackAttributes);   ← 在任何副作用之前
+//   ...
+//   new ClickInstrumentation({ trackAttributes: config.trackAttributes }),&lt;/code&gt;&lt;/pre&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;簡易流程圖&lt;/h3&gt;
+      &lt;figure class=&quot;diagram bleed&quot;&gt;
+        &lt;svg class=&quot;fc&quot; viewBox=&quot;0 0 720 626&quot; role=&quot;img&quot;
+             aria-label=&quot;handleClick 流程圖:三道判斷依序為 target 是否為 Element、payload 是否有欄位、是否在 300ms 節流內,三者皆通過才呼叫 pushEvent。&quot;&gt;
+          &lt;defs&gt;
+            &lt;marker id=&quot;a1&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a1m&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-m&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a1a&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-a&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+          &lt;/defs&gt;
+
+          &lt;rect class=&quot;n-term&quot; x=&quot;120&quot; y=&quot;14&quot; width=&quot;260&quot; height=&quot;38&quot; rx=&quot;19&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;t&quot; x=&quot;250&quot; y=&quot;38&quot; text-anchor=&quot;middle&quot;&gt;document 上的 click 事件&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a1)&quot; d=&quot;M250,52 V76&quot;&gt;&lt;/path&gt;
+
+          &lt;path class=&quot;n&quot; d=&quot;M250,78 L380,112 L250,146 L120,112 Z&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;t&quot; x=&quot;250&quot; y=&quot;116&quot; text-anchor=&quot;middle&quot;&gt;event.target 是 Element?&lt;/text&gt;
+          &lt;path class=&quot;e-drop&quot; marker-end=&quot;url(#a1m)&quot; d=&quot;M380,112 H468&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;402&quot; y=&quot;105&quot;&gt;否&lt;/text&gt;
+          &lt;rect class=&quot;n-drop&quot; x=&quot;470&quot; y=&quot;94&quot; width=&quot;230&quot; height=&quot;36&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;585&quot; y=&quot;116&quot; text-anchor=&quot;middle&quot;&gt;return · 完全不處理&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a1)&quot; d=&quot;M250,146 V170&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;258&quot; y=&quot;164&quot;&gt;是&lt;/text&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;120&quot; y=&quot;172&quot; width=&quot;260&quot; height=&quot;50&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;ts&quot; x=&quot;250&quot; y=&quot;192&quot; text-anchor=&quot;middle&quot;&gt;對 trackAttributes 每個名稱&lt;/text&gt;
+          &lt;text class=&quot;tms&quot; x=&quot;250&quot; y=&quot;210&quot; text-anchor=&quot;middle&quot;&gt;各自 target.closest(&#x27;[name]&#x27;)&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a1)&quot; d=&quot;M250,222 V246&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;120&quot; y=&quot;248&quot; width=&quot;260&quot; height=&quot;44&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tms&quot; x=&quot;250&quot; y=&quot;266&quot; text-anchor=&quot;middle&quot;&gt;命中 → payload[toPayloadKey(name)]&lt;/text&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;250&quot; y=&quot;283&quot; text-anchor=&quot;middle&quot;&gt;找不到 → 略過該欄位,不算錯誤&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a1)&quot; d=&quot;M250,292 V316&quot;&gt;&lt;/path&gt;
+
+          &lt;path class=&quot;n&quot; d=&quot;M250,318 L380,352 L250,386 L120,352 Z&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;t&quot; x=&quot;250&quot; y=&quot;356&quot; text-anchor=&quot;middle&quot;&gt;payload 有任何欄位?&lt;/text&gt;
+          &lt;path class=&quot;e-drop&quot; marker-end=&quot;url(#a1m)&quot; d=&quot;M380,352 H468&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;402&quot; y=&quot;345&quot;&gt;否&lt;/text&gt;
+          &lt;rect class=&quot;n-drop&quot; x=&quot;470&quot; y=&quot;329&quot; width=&quot;230&quot; height=&quot;46&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;585&quot; y=&quot;348&quot; text-anchor=&quot;middle&quot;&gt;不送出事件&lt;/text&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;585&quot; y=&quot;365&quot; text-anchor=&quot;middle&quot;&gt;也不記錄節流時間戳&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a1)&quot; d=&quot;M250,386 V410&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;258&quot; y=&quot;404&quot;&gt;是&lt;/text&gt;
+
+          &lt;path class=&quot;n&quot; d=&quot;M250,412 L380,446 L250,480 L120,446 Z&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;ts&quot; x=&quot;250&quot; y=&quot;442&quot; text-anchor=&quot;middle&quot;&gt;此 target 距上次送出&lt;/text&gt;
+          &lt;text class=&quot;ts&quot; x=&quot;250&quot; y=&quot;459&quot; text-anchor=&quot;middle&quot;&gt;未滿 300ms?&lt;/text&gt;
+          &lt;path class=&quot;e-drop&quot; marker-end=&quot;url(#a1m)&quot; d=&quot;M380,446 H468&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;402&quot; y=&quot;439&quot;&gt;是&lt;/text&gt;
+          &lt;rect class=&quot;n-drop&quot; x=&quot;470&quot; y=&quot;428&quot; width=&quot;230&quot; height=&quot;36&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;585&quot; y=&quot;450&quot; text-anchor=&quot;middle&quot;&gt;節流丟棄&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a1)&quot; d=&quot;M250,480 V504&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;258&quot; y=&quot;498&quot;&gt;否&lt;/text&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;120&quot; y=&quot;506&quot; width=&quot;260&quot; height=&quot;40&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;250&quot; y=&quot;531&quot; text-anchor=&quot;middle&quot;&gt;lastSentAt.set(target, now)&lt;/text&gt;
+          &lt;path class=&quot;e-hit&quot; marker-end=&quot;url(#a1a)&quot; d=&quot;M250,546 V570&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n-hit&quot; x=&quot;120&quot; y=&quot;572&quot; width=&quot;260&quot; height=&quot;40&quot; rx=&quot;20&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;250&quot; y=&quot;597&quot; text-anchor=&quot;middle&quot;&gt;api.pushEvent(&#x27;click&#x27;, payload)&lt;/text&gt;
+        &lt;/svg&gt;
+        &lt;figcaption&gt;三道關卡全部通過,這次點擊才會送出 event&lt;/figcaption&gt;
+      &lt;/figure&gt;
+    &lt;/section&gt;
+
+    &lt;!-- ============ 2 · USER ============ --&gt;
+    &lt;section class=&quot;section&quot; id=&quot;user&quot;&gt;
+      &lt;p class=&quot;eyebrow&quot;&gt;&lt;span class=&quot;tick&quot;&gt;&lt;/span&gt;Section 2 · 使用者身分同步&lt;/p&gt;
+      &lt;h2&gt;使用者身分同步&lt;/h2&gt;
+
+      &lt;div class=&quot;oneliner&quot;&gt;
+        &lt;span class=&quot;label&quot;&gt;現況一句話&lt;/span&gt;
+        &lt;p&gt;
+          宿主提供 &lt;code&gt;getUser()&lt;/code&gt; 同步函式回傳目前登入者或 &lt;code&gt;null&lt;/code&gt;;套件在 &lt;code&gt;initFaro()&lt;/code&gt; 完成當下 +
+          &lt;code&gt;click&lt;/code&gt; / &lt;code&gt;visibilitychange&lt;/code&gt; / &lt;code&gt;storage&lt;/code&gt; 事件時呼叫它,只比對 &lt;code&gt;id&lt;/code&gt;,變了才呼叫
+          Faro 的 &lt;code&gt;api.setUser()&lt;/code&gt; / &lt;code&gt;resetUser()&lt;/code&gt;,把身分存成 meta 貼到之後每一筆 signal。
+          也可完全不用 &lt;code&gt;getUser&lt;/code&gt;,改手動呼叫 &lt;code&gt;setFaroUser()&lt;/code&gt; / &lt;code&gt;clearFaroUser()&lt;/code&gt;。
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;關鍵轉折&lt;/h3&gt;
+      &lt;figure class=&quot;diagram bleed&quot;&gt;
+        &lt;div class=&quot;rail&quot;&gt;
+          &lt;div class=&quot;rail-item&quot;&gt;&lt;span class=&quot;v&quot;&gt;v1&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;&lt;code&gt;setFaroUser&lt;/code&gt; / &lt;code&gt;clearFaroUser&lt;/code&gt; 手動 API&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;rail-item now&quot;&gt;&lt;span class=&quot;v&quot;&gt;v2 · 現行&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;+ &lt;code&gt;getUser&lt;/code&gt; callback + &lt;code&gt;UserSyncInstrumentation&lt;/code&gt; 自動同步&lt;/span&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        &lt;figcaption&gt;身分同步的演進路徑&lt;/figcaption&gt;
+      &lt;/figure&gt;
+
+      &lt;div class=&quot;tablewrap bleed&quot;&gt;
+        &lt;table class=&quot;turning&quot;&gt;
+          &lt;thead&gt;
+            &lt;tr&gt;&lt;th&gt;#&lt;/th&gt;&lt;th&gt;轉折&lt;/th&gt;&lt;th&gt;當初做法&lt;/th&gt;&lt;th&gt;問題 / 動機&lt;/th&gt;&lt;th&gt;改成&lt;/th&gt;&lt;/tr&gt;
+          &lt;/thead&gt;
+          &lt;tbody&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;1&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;手動 API + 用 meta 承載身分&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;新增 &lt;code&gt;setFaroUser(user)&lt;/code&gt; / &lt;code&gt;clearFaroUser()&lt;/code&gt;,內部包 &lt;code&gt;faro.api.setUser&lt;/code&gt; / &lt;code&gt;resetUser&lt;/code&gt;。&lt;strong&gt;刻意用 meta 機制而非塞進 event payload&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;先前的裝置資訊實驗證明:&lt;strong&gt;自訂頂層 meta 欄位會被 Alloy 固定 schema 忽略&lt;/strong&gt;。實測 &lt;code&gt;user&lt;/code&gt;(&lt;code&gt;MetaUser&lt;/code&gt;)是官方已知欄位,會被 Alloy 正確攤平成 &lt;code&gt;user_id=...&lt;/code&gt;,且適用 log / event / exception 所有 signal&lt;/td&gt;
+              &lt;td&gt;定案用官方 &lt;code&gt;user&lt;/code&gt; meta;宿主只傳 &lt;code&gt;{ id, username?, email?, attributes? }&lt;/code&gt;,不需 import 任何 Faro 型別。&lt;code&gt;id&lt;/code&gt; 設為必填(避免空物件等於沒設定)&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;2&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;&lt;code&gt;getUser&lt;/code&gt; callback 自動同步&lt;/strong&gt;(現行)&lt;/td&gt;
+              &lt;td&gt;手動 API 要在登入成功、登出、&lt;strong&gt;App 啟動還原 session&lt;/strong&gt; 每個點都手動接線,呼叫點分散、容易漏(重新整理後忘了還原身分最常見)&lt;/td&gt;
+              &lt;td&gt;套件應「設定一次就自動偵測身分變化」&lt;/td&gt;
+              &lt;td&gt;新增 &lt;code&gt;getUser?: () =&gt; FaroUserInfo | null&lt;/code&gt; + 獨立的 &lt;code&gt;UserSyncInstrumentation&lt;/code&gt;&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/tbody&gt;
+        &lt;/table&gt;
+      &lt;/div&gt;
+
+      &lt;p style=&quot;font-size:0.9rem;color:var(--muted);margin-top:1.4rem;&quot;&gt;v2 內部的幾個設計選擇(來自 &lt;code&gt;auto-sync-faro-user&lt;/code&gt; 設計討論):&lt;/p&gt;
+      &lt;div class=&quot;tablewrap bleed&quot;&gt;
+        &lt;table class=&quot;turning&quot;&gt;
+          &lt;thead&gt;
+            &lt;tr&gt;&lt;th&gt;決策&lt;/th&gt;&lt;th&gt;選擇&lt;/th&gt;&lt;th&gt;為什麼不選另一個&lt;/th&gt;&lt;/tr&gt;
+          &lt;/thead&gt;
+          &lt;tbody&gt;
+            &lt;tr&gt;
+              &lt;td&gt;介面形式&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;Pull&lt;/strong&gt;:套件主動呼叫 &lt;code&gt;getUser()&lt;/code&gt; 並 diff&lt;/td&gt;
+              &lt;td&gt;Push(&lt;code&gt;subscribeUser(cb)&lt;/code&gt;)要求宿主把 Redux / NgRx / EventTarget 包成 subscribe 介面,侵入性中高;pull 只要一個純函式&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;職責歸屬&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;獨立&lt;/strong&gt; &lt;code&gt;UserSyncInstrumentation&lt;/code&gt;,不塞進 &lt;code&gt;ClickInstrumentation&lt;/code&gt;&lt;/td&gt;
+              &lt;td&gt;合併會把「點擊追蹤」與「身分同步」兩個無關職責綁死,互相牽制&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;同步時機&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;click&lt;/code&gt; + &lt;code&gt;visibilitychange&lt;/code&gt; + &lt;code&gt;storage&lt;/code&gt; 三個事件&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;click&lt;/code&gt; 涵蓋一般互動;&lt;code&gt;visibilitychange&lt;/code&gt; 涵蓋「切回分頁但沒點擊」;&lt;code&gt;storage&lt;/code&gt; 涵蓋「別的分頁登入 / 登出」。比固定 interval 好:無常駐 timer、頁面無互動就不耗資源、&lt;code&gt;destroy()&lt;/code&gt; 不用清 timer&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;diff 依據&lt;/td&gt;
+              &lt;td&gt;只比 &lt;code&gt;id&lt;/code&gt;&lt;/td&gt;
+              &lt;td&gt;已確認沒有「同一人中途改 username / email 要即時反映」的情境;要改這些欄位就手動呼叫 &lt;code&gt;setFaroUser()&lt;/code&gt;&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;code&gt;getUser()&lt;/code&gt; 拋例外&lt;/td&gt;
+              &lt;td&gt;吞掉、視為未登入、&lt;strong&gt;只 &lt;code&gt;console.warn&lt;/code&gt; 一次&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;sync()&lt;/code&gt; 在使用者互動當下被呼叫,不該讓宿主自寫的函式一次 parse 失敗就中斷互動。套件無法可靠判斷 production 與否,所以用「只警告一次」取代環境變數判斷&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/tbody&gt;
+        &lt;/table&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;現行完整實作&lt;/h3&gt;
+      &lt;div class=&quot;codeblock bleed&quot;&gt;
+        &lt;p class=&quot;codehead&quot;&gt;src/faro-click-tracking/src/features/user/faroUser.ts&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;import { getFaroInstanceOrThrow } from &#x27;../../core/faroInstance/faroInstance&#x27;;
+
+/**
+ * 宿主專案設定使用者身分時需要的資訊。
+ * id 為必填(避免呼叫端不小心以空物件呼叫 setFaroUser(),等同沒有設定任何有效身分);
+ * 其餘欄位對應 Faro 官方 MetaUser 的常用子集。
+ */
+export interface FaroUserInfo {
+  id: string;
+  username?: string;
+  email?: string;
+  attributes?: Record&lt;string, string&gt;;
+}
+
+/**
+ * 設定目前使用者身分,內部呼叫 Faro 官方的 api.setUser()。
+ * 重複呼叫時會正確取代前一次設定的使用者資訊(由 Faro SDK 內部保證,套件不自行保存 meta 物件參照)。
+ *
+ * @throws 若尚未呼叫 initFaro(),拋出 Error 提示需先初始化
+ */
+export function setFaroUser(user: FaroUserInfo): void {
+  getFaroInstanceOrThrow(&#x27;setFaroUser&#x27;).api.setUser(user);
+}
+
+/**
+ * 清除目前已設定的使用者身分,內部呼叫 Faro 官方的 api.resetUser()。
+ * 未曾呼叫過 setFaroUser() 時為 no-op(resetUser() 本身即為安全操作)。
+ *
+ * @throws 若尚未呼叫 initFaro(),拋出 Error 提示需先初始化
+ */
+export function clearFaroUser(): void {
+  getFaroInstanceOrThrow(&#x27;clearFaroUser&#x27;).api.resetUser();
+}&lt;/code&gt;&lt;/pre&gt;
+      &lt;/div&gt;
+
+      &lt;div class=&quot;codeblock bleed&quot;&gt;
+        &lt;p class=&quot;codehead&quot;&gt;src/faro-click-tracking/src/features/user/userSync.ts&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;import { BaseInstrumentation } from &#x27;@grafana/faro-web-sdk&#x27;;
+import type { FaroUserInfo } from &#x27;./faroUser&#x27;;
+import { clearFaroUser, setFaroUser } from &#x27;./faroUser&#x27;;
+
+/**
+ * 讀取「目前使用者身分」的宿主端函式。
+ * 必須是同步、便宜的操作(會在 click 等使用者互動當下被呼叫),
+ * 未登入時回傳 null。套件不假設、也不需要知道實際的儲存位置與格式。
+ */
+export type GetUserFn = () =&gt; FaroUserInfo | null;
+
+/**
+ * 依 getUser() 回傳結果自動同步身分至 Faro 的 instrumentation。
+ * 與 ClickInstrumentation 職責分離: 本身不做任何點擊事件追蹤,只負責身分同步,
+ * 複用 Faro BaseInstrumentation 的 lifecycle 管理三個觸發同步時機的 listener。
+ */
+export class UserSyncInstrumentation extends BaseInstrumentation {
+  readonly name = &#x27;faro-click-tracking:instrumentation-user-sync&#x27;;
+  readonly version = &#x27;0.1.0&#x27;;
+
+  private readonly getUser: GetUserFn;
+  // 未定義代表「尚未同步過」; null 視為「已知目前未登入」,兩者都與有值的 id 不同,故合併以 undefined 表示。
+  private lastKnownId: string | undefined;
+  // 套件不假設宿主的建置工具(Vite/webpack/esbuild 等),無法可靠判斷 production 與否,
+  // 因此僅在「第一次」發生例外時提示一次,避免每次觸發都洗版,而非以環境變數判斷。
+  private hasWarnedGetUserError = false;
+
+  constructor(getUser: GetUserFn) {
+    super();
+    this.getUser = getUser;
+  }
+
+  // 供 initFaro() 於掛載 instrumentations 之前,立即執行一次初始同步(處理頁面載入時已登入的情境)。
+  sync = (): void =&gt; {
+    let user: FaroUserInfo | null;
+    try {
+      user = this.getUser();
+    } catch (error) {
+      // getUser() 由宿主專案自行實作,品質不受套件控制; 不應讓例外中斷使用者當下的互動(例如 click)。
+      if (!this.hasWarnedGetUserError) {
+        this.hasWarnedGetUserError = true;
+        console.warn(&#x27;[faro-click-tracking] getUser() 執行時拋出例外,本次視為未登入:&#x27;, error);
+      }
+      user = null;
+    }
+
+    const nextId = user?.id;
+    if (nextId === this.lastKnownId) {
+      return;
+    }
+    this.lastKnownId = nextId;
+
+    if (user) {
+      setFaroUser(user);
+    } else {
+      clearFaroUser();
+    }
+  };
+
+  initialize(): void {
+    document.addEventListener(&#x27;click&#x27;, this.sync);
+    document.addEventListener(&#x27;visibilitychange&#x27;, this.sync);
+    window.addEventListener(&#x27;storage&#x27;, this.sync);
+  }
+
+  destroy(): void {
+    document.removeEventListener(&#x27;click&#x27;, this.sync);
+    document.removeEventListener(&#x27;visibilitychange&#x27;, this.sync);
+    window.removeEventListener(&#x27;storage&#x27;, this.sync);
+  }
+}&lt;/code&gt;&lt;/pre&gt;
+      &lt;/div&gt;
+
+      &lt;div class=&quot;codeblock bleed&quot;&gt;
+        &lt;p class=&quot;codehead&quot;&gt;initFaro/initFaro.ts — 接線(節錄)&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;const userSync = config.getUser ? new UserSyncInstrumentation(config.getUser) : undefined;
+const faro = initializeFaro({
+  // ...
+  instrumentations: [
+    ...getWebInstrumentations(config.webInstrumentationsOptions),
+    new TracingInstrumentation({ /* ... */ }),
+    new ClickInstrumentation({ trackAttributes: config.trackAttributes }),
+    ...(userSync ? [userSync] : []),
+  ],
+});
+registerFaroInstance(faro);
+// ...
+// 立即同步一次,處理「頁面載入時已經是登入狀態」的情境,不等待第一次事件。
+// 刻意排在 registerFaroInstance() 之後: sync() 可能呼叫 setFaroUser(),需要單例已就緒。
+userSync?.sync();&lt;/code&gt;&lt;/pre&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;簡易流程圖&lt;/h3&gt;
+      &lt;figure class=&quot;diagram bleed&quot;&gt;
+        &lt;svg class=&quot;fc&quot; viewBox=&quot;0 0 740 628&quot; role=&quot;img&quot;
+             aria-label=&quot;sync() 流程圖:四個觸發時機呼叫 getUser,id 與 lastKnownId 相同則不動作,不同則依有無使用者分流到 setFaroUser 或 clearFaroUser,兩路匯合成 user meta。&quot;&gt;
+          &lt;defs&gt;
+            &lt;marker id=&quot;a2&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a2m&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-m&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a2a&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-a&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+          &lt;/defs&gt;
+
+          &lt;rect class=&quot;n-term&quot; x=&quot;110&quot; y=&quot;14&quot; width=&quot;400&quot; height=&quot;56&quot; rx=&quot;28&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;310&quot; y=&quot;36&quot; text-anchor=&quot;middle&quot;&gt;四個觸發時機&lt;/text&gt;
+          &lt;text class=&quot;tms&quot; x=&quot;310&quot; y=&quot;57&quot; text-anchor=&quot;middle&quot;&gt;initFaro 完成 · click · visibilitychange · storage&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a2)&quot; d=&quot;M310,70 V94&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;160&quot; y=&quot;96&quot; width=&quot;300&quot; height=&quot;50&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;310&quot; y=&quot;117&quot; text-anchor=&quot;middle&quot;&gt;user = getUser()&lt;/text&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;310&quot; y=&quot;135&quot; text-anchor=&quot;middle&quot;&gt;try / catch:拋例外 → 視為 null&lt;/text&gt;
+          &lt;path class=&quot;e-drop&quot; marker-end=&quot;url(#a2m)&quot; d=&quot;M460,121 H518&quot;&gt;&lt;/path&gt;
+          &lt;rect class=&quot;n-drop&quot; x=&quot;520&quot; y=&quot;103&quot; width=&quot;210&quot; height=&quot;36&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;625&quot; y=&quot;125&quot; text-anchor=&quot;middle&quot;&gt;只在第一次 console.warn&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a2)&quot; d=&quot;M310,146 V170&quot;&gt;&lt;/path&gt;
+
+          &lt;path class=&quot;n&quot; d=&quot;M310,172 L460,208 L310,244 L160,208 Z&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;310&quot; y=&quot;212&quot; text-anchor=&quot;middle&quot;&gt;nextId === lastKnownId?&lt;/text&gt;
+          &lt;path class=&quot;e-drop&quot; marker-end=&quot;url(#a2m)&quot; d=&quot;M460,208 H528&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;484&quot; y=&quot;201&quot;&gt;是&lt;/text&gt;
+          &lt;rect class=&quot;n-drop&quot; x=&quot;530&quot; y=&quot;190&quot; width=&quot;200&quot; height=&quot;36&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;630&quot; y=&quot;212&quot; text-anchor=&quot;middle&quot;&gt;不做事(id 去重)&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a2)&quot; d=&quot;M310,244 V268&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;318&quot; y=&quot;262&quot;&gt;否&lt;/text&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;185&quot; y=&quot;270&quot; width=&quot;250&quot; height=&quot;40&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;310&quot; y=&quot;295&quot; text-anchor=&quot;middle&quot;&gt;lastKnownId = nextId&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a2)&quot; d=&quot;M310,310 V334&quot;&gt;&lt;/path&gt;
+
+          &lt;path class=&quot;n&quot; d=&quot;M310,338 L430,372 L310,406 L190,372 Z&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;t&quot; x=&quot;310&quot; y=&quot;376&quot; text-anchor=&quot;middle&quot;&gt;user 有值?&lt;/text&gt;
+
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a2)&quot; d=&quot;M190,372 H120 V438&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;146&quot; y=&quot;364&quot; text-anchor=&quot;middle&quot;&gt;沒有&lt;/text&gt;
+          &lt;path class=&quot;e-hit&quot; marker-end=&quot;url(#a2a)&quot; d=&quot;M430,372 H500 V438&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl acc&quot; x=&quot;466&quot; y=&quot;364&quot; text-anchor=&quot;middle&quot;&gt;有&lt;/text&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;30&quot; y=&quot;440&quot; width=&quot;180&quot; height=&quot;52&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;120&quot; y=&quot;461&quot; text-anchor=&quot;middle&quot;&gt;clearFaroUser()&lt;/text&gt;
+          &lt;text class=&quot;tms dim&quot; x=&quot;120&quot; y=&quot;479&quot; text-anchor=&quot;middle&quot;&gt;→ api.resetUser()&lt;/text&gt;
+
+          &lt;rect class=&quot;n-hit&quot; x=&quot;410&quot; y=&quot;440&quot; width=&quot;180&quot; height=&quot;52&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;500&quot; y=&quot;461&quot; text-anchor=&quot;middle&quot;&gt;setFaroUser(user)&lt;/text&gt;
+          &lt;text class=&quot;tms acc&quot; x=&quot;500&quot; y=&quot;479&quot; text-anchor=&quot;middle&quot;&gt;→ api.setUser()&lt;/text&gt;
+
+          &lt;path class=&quot;e&quot; d=&quot;M120,492 V534 H310&quot;&gt;&lt;/path&gt;
+          &lt;path class=&quot;e&quot; d=&quot;M500,492 V534 H310&quot;&gt;&lt;/path&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a2)&quot; d=&quot;M310,534 V558&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n-term&quot; x=&quot;90&quot; y=&quot;560&quot; width=&quot;440&quot; height=&quot;52&quot; rx=&quot;26&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;t&quot; x=&quot;310&quot; y=&quot;581&quot; text-anchor=&quot;middle&quot;&gt;身分寫入 Faro 的 user meta&lt;/text&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;310&quot; y=&quot;600&quot; text-anchor=&quot;middle&quot;&gt;之後每一種 signal 都自動帶上&lt;/text&gt;
+        &lt;/svg&gt;
+        &lt;figcaption&gt;只有 id 變了才動作 · 兩條分支最後都收斂成同一份 user meta&lt;/figcaption&gt;
+      &lt;/figure&gt;
+    &lt;/section&gt;
+
+    &lt;!-- ============ 3 · DEVICE ============ --&gt;
+    &lt;section class=&quot;section&quot; id=&quot;device&quot;&gt;
+      &lt;p class=&quot;eyebrow&quot;&gt;&lt;span class=&quot;tick&quot;&gt;&lt;/span&gt;Section 3 · 裝置類型偵測&lt;/p&gt;
+      &lt;h2&gt;裝置類型偵測&lt;/h2&gt;
+
+      &lt;div class=&quot;oneliner&quot;&gt;
+        &lt;span class=&quot;label&quot;&gt;現況一句話&lt;/span&gt;
+        &lt;p&gt;
+          只在 &lt;code&gt;enableDeviceTypeDetection: true&lt;/code&gt; 時啟用。先用 &lt;code&gt;navigator.maxTouchPoints&lt;/code&gt; 猜初始值
+          (&gt; 0 → &lt;code&gt;tablet&lt;/code&gt;,否則 &lt;code&gt;desktop&lt;/code&gt;),再掛全域 &lt;code&gt;pointerdown&lt;/code&gt; 依 &lt;code&gt;pointerType&lt;/code&gt;
+          (&lt;code&gt;mouse&lt;/code&gt; → &lt;code&gt;desktop&lt;/code&gt;、&lt;code&gt;touch&lt;/code&gt; → &lt;code&gt;tablet&lt;/code&gt;、&lt;code&gt;pen&lt;/code&gt; 不理)動態修正;
+          &lt;code&gt;initFaro()&lt;/code&gt; 用 &lt;code&gt;faro.metas.add(getter)&lt;/code&gt; 把值掛成官方 &lt;code&gt;device.type&lt;/code&gt; meta,
+          Faro 每次送 signal 前才呼叫 getter 拿最新值。
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;關鍵轉折&lt;/h3&gt;
+      &lt;figure class=&quot;diagram bleed&quot;&gt;
+        &lt;div class=&quot;rail&quot;&gt;
+          &lt;div class=&quot;rail-item&quot;&gt;&lt;span class=&quot;v&quot;&gt;v1&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;靜態 &lt;code&gt;maxTouchPoints&lt;/code&gt;&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;rail-item&quot;&gt;&lt;span class=&quot;v&quot;&gt;v2&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;+ &lt;code&gt;pointerdown&lt;/code&gt; 動態修正 + 訂閱機制&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;rail-item&quot;&gt;&lt;span class=&quot;v&quot;&gt;v3&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;&lt;code&gt;device_type&lt;/code&gt; / &lt;code&gt;max_touch_points&lt;/code&gt; 塞進 click payload&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;rail-item now&quot;&gt;&lt;span class=&quot;v&quot;&gt;v4 · 現行&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;opt-in + &lt;code&gt;metas.add&lt;/code&gt; getter + 官方 &lt;code&gt;device.type&lt;/code&gt;&lt;/span&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        &lt;figcaption&gt;裝置偵測的演進路徑&lt;/figcaption&gt;
+      &lt;/figure&gt;
+
+      &lt;div class=&quot;tablewrap bleed&quot;&gt;
+        &lt;table class=&quot;turning&quot;&gt;
+          &lt;thead&gt;
+            &lt;tr&gt;&lt;th&gt;#&lt;/th&gt;&lt;th&gt;轉折&lt;/th&gt;&lt;th&gt;當初做法&lt;/th&gt;&lt;th&gt;問題 / 動機&lt;/th&gt;&lt;th&gt;改成&lt;/th&gt;&lt;/tr&gt;
+          &lt;/thead&gt;
+          &lt;tbody&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;1&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;靜態判斷&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;getDeviceType()&lt;/code&gt; = &lt;code&gt;navigator.maxTouchPoints &gt; 0 ? &#x27;tablet&#x27; : &#x27;desktop&#x27;&lt;/code&gt;,一次性&lt;/td&gt;
+              &lt;td&gt;只反映「硬體支不支援觸控」,不反映「當下實際怎麼操作」。平板外接滑鼠仍報 &lt;code&gt;tablet&lt;/code&gt;&lt;/td&gt;
+              &lt;td&gt;加 &lt;code&gt;pointerdown&lt;/code&gt; 動態修正&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;2&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;動態修正 + 訂閱&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;新增 &lt;code&gt;deviceTypeDetector.ts&lt;/code&gt;:初始 &lt;code&gt;maxTouchPoints&lt;/code&gt; + &lt;code&gt;pointerdown&lt;/code&gt; 依 &lt;code&gt;pointerType&lt;/code&gt; 來回修正(&lt;code&gt;mouse&lt;/code&gt;/&lt;code&gt;touch&lt;/code&gt;,&lt;code&gt;pen&lt;/code&gt; 不處理),提供 &lt;code&gt;onDeviceTypeChange&lt;/code&gt; 訂閱&lt;/td&gt;
+              &lt;td&gt;模組載入即 &lt;code&gt;addEventListener&lt;/code&gt; 是副作用&lt;/td&gt;
+              &lt;td&gt;(暫時保留,v4 收進閘門)&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;3&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;隨 &lt;code&gt;click&lt;/code&gt; payload 送&lt;/strong&gt;(曾經)&lt;/td&gt;
+              &lt;td&gt;Loki pipeline 只收 &lt;code&gt;pushEvent&lt;/code&gt; payload,讀不到透過 &lt;code&gt;metas&lt;/code&gt; 附的裝置資訊。於是 &lt;span class=&quot;brk&quot;&gt;BREAKING&lt;/span&gt; 移除 &lt;code&gt;metas&lt;/code&gt; 機制,把 &lt;code&gt;device_type&lt;/code&gt; / &lt;code&gt;max_touch_points&lt;/code&gt; 直接寫進 &lt;code&gt;click&lt;/code&gt; event payload&lt;/td&gt;
+              &lt;td&gt;(a) 裝置資訊變成只有點擊事件有,log / trace / error 都沒有;(b) 後續 &lt;code&gt;host-defined-click-payload&lt;/code&gt; 決定 &lt;code&gt;click&lt;/code&gt; payload 完全交給宿主,內建欄位全砍&lt;/td&gt;
+              &lt;td&gt;移出 &lt;code&gt;click&lt;/code&gt;,改回 meta,但用對的做法(見 #4)&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;4&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;opt-in + &lt;code&gt;metas.add&lt;/code&gt; getter&lt;/strong&gt;(現行)&lt;/td&gt;
+              &lt;td&gt;早期 &lt;code&gt;createDeviceMeta()&lt;/code&gt; 用&lt;strong&gt;自訂頂層 meta 欄位&lt;/strong&gt; &lt;code&gt;{ device_type, max_touch_points }&lt;/code&gt;,被 Alloy 固定 schema 忽略&lt;/td&gt;
+              &lt;td&gt;需要一條「跨 signal 都有效、又能被 Alloy 接受」的管道&lt;/td&gt;
+              &lt;td&gt;用官方巢狀欄位 &lt;code&gt;device.type&lt;/code&gt;(&lt;code&gt;MetaDevice&lt;/code&gt;);用 &lt;strong&gt;getter&lt;/strong&gt; 而非固定值,讓 Faro 每次送出前 pull 最新值;整個功能改 &lt;strong&gt;opt-in&lt;/strong&gt;(&lt;code&gt;enableDeviceTypeDetection&lt;/code&gt;),&lt;code&gt;pointerdown&lt;/code&gt; 監聽改由 &lt;code&gt;startDeviceTypeDetection()&lt;/code&gt; 顯式註冊&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;5&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;&lt;code&gt;navigator&lt;/code&gt; 延遲存取&lt;/strong&gt;(隨錯誤處理強化)&lt;/td&gt;
+              &lt;td&gt;模組 &lt;code&gt;import&lt;/code&gt; 當下就讀 &lt;code&gt;navigator&lt;/code&gt;&lt;/td&gt;
+              &lt;td&gt;SSR / Node 環境下,宿主即使沒開這功能,光是 &lt;code&gt;import&lt;/code&gt; 套件就 &lt;code&gt;ReferenceError&lt;/code&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;currentDeviceType&lt;/code&gt; 延遲初始化:第一次真的被讀到才碰 &lt;code&gt;navigator&lt;/code&gt;&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/tbody&gt;
+        &lt;/table&gt;
+      &lt;/div&gt;
+
+      &lt;div class=&quot;callout&quot;&gt;
+        &lt;span class=&quot;label&quot;&gt;早期 createDeviceMeta() 的程式碼(已刪除)&lt;/span&gt;
+        &lt;div class=&quot;codeblock&quot;&gt;
+&lt;pre&gt;&lt;code&gt;export function createDeviceMeta(): MetaItem {
+  const deviceMeta = {
+    device_type: getDeviceType(),
+    max_touch_points: String(navigator.maxTouchPoints),
+  };
+  // 自訂頂層欄位,Faro 執行期原樣合併 —— 但 Alloy 端固定 schema 會忽略它
+  return deviceMeta as MetaItem;
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;現行完整實作&lt;/h3&gt;
+      &lt;div class=&quot;codeblock bleed&quot;&gt;
+        &lt;p class=&quot;codehead&quot;&gt;src/faro-click-tracking/src/features/device/deviceType.ts — 對外門面&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;import { getCurrentDeviceType } from &#x27;./deviceTypeDetector&#x27;;
+
+export type DeviceType = &#x27;tablet&#x27; | &#x27;desktop&#x27;;
+
+export function getDeviceType(): DeviceType {
+  return getCurrentDeviceType();
+}&lt;/code&gt;&lt;/pre&gt;
+      &lt;/div&gt;
+
+      &lt;div class=&quot;codeblock bleed&quot;&gt;
+        &lt;p class=&quot;codehead&quot;&gt;src/faro-click-tracking/src/features/device/deviceTypeDetector.ts — 核心&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;import type { DeviceType } from &#x27;./deviceType&#x27;;
+
+type Listener = (deviceType: DeviceType) =&gt; void;
+
+function getInitialDeviceType(): DeviceType {
+  return navigator.maxTouchPoints &gt; 0 ? &#x27;tablet&#x27; : &#x27;desktop&#x27;;
+}
+
+// currentDeviceType 延遲初始化: 模組載入當下 SHALL NOT 存取 navigator,
+// 只有在對外函式第一次被實際呼叫時才計算並快取,避免在非瀏覽器環境(SSR/Node)下
+// 單純 import 這個模組(進而 import 整個套件)就因為找不到 navigator 而拋出例外。
+let currentDeviceType: DeviceType | undefined;
+let started = false;
+const listeners = new Set&lt;Listener&gt;();
+
+function ensureInitialized(): DeviceType {
+  if (currentDeviceType === undefined) {
+    currentDeviceType = getInitialDeviceType();
+  }
+  return currentDeviceType;
+}
+
+// 只依 pointerType 為 mouse/touch 動態修正裝置類型,pen 不處理(本專案不需考慮觸控筆情境)。
+function handlePointerDown(event: PointerEvent): void {
+  let nextDeviceType: DeviceType | undefined;
+  if (event.pointerType === &#x27;mouse&#x27;) {
+    nextDeviceType = &#x27;desktop&#x27;;
+  } else if (event.pointerType === &#x27;touch&#x27;) {
+    nextDeviceType = &#x27;tablet&#x27;;
+  } else {
+    return;
+  }
+
+  if (nextDeviceType === currentDeviceType) {
+    return;
+  }
+
+  currentDeviceType = nextDeviceType;
+  listeners.forEach((listener) =&gt; listener(nextDeviceType));
+}
+
+/**
+ * 啟動裝置類型偵測: 重新依 navigator.maxTouchPoints 判斷一次初始值,並註冊全域
+ * pointerdown 監聽,之後依實際操作動態修正裝置類型。由 initFaro() 依宿主傳入的
+ * enableDeviceTypeDetection 選項決定是否呼叫; 未呼叫前,getCurrentDeviceType()
+ * 僅回傳延遲初始化後、依 maxTouchPoints 判斷的靜態初始值,不會隨操作動態修正。
+ * 重複呼叫為 no-op。
+ */
+export function startDeviceTypeDetection(): void {
+  if (started) {
+    return;
+  }
+  started = true;
+  currentDeviceType = getInitialDeviceType();
+  document.addEventListener(&#x27;pointerdown&#x27;, handlePointerDown);
+}
+
+/** 停止裝置類型偵測: 移除全域 pointerdown 監聽。尚未啟動時呼叫為 no-op。 */
+export function stopDeviceTypeDetection(): void {
+  if (!started) {
+    return;
+  }
+  started = false;
+  document.removeEventListener(&#x27;pointerdown&#x27;, handlePointerDown);
+}
+
+export function getCurrentDeviceType(): DeviceType {
+  return ensureInitialized();
+}
+
+export function onDeviceTypeChange(callback: Listener): () =&gt; void {
+  listeners.add(callback);
+  return () =&gt; {
+    listeners.delete(callback);
+  };
+}&lt;/code&gt;&lt;/pre&gt;
+      &lt;/div&gt;
+
+      &lt;div class=&quot;codeblock bleed&quot;&gt;
+        &lt;p class=&quot;codehead&quot;&gt;initFaro/initFaro.ts — 接線(節錄)&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;if (config.enableDeviceTypeDetection) {
+  startDeviceTypeDetection();
+  // 用 Faro 官方 Meta getter 機制(而非直接送一次固定值)掛上 device.type: getter 會在每次
+  // 送出任何 signal 當下才被呼叫,因此 device.type 永遠反映呼叫當下的最新裝置類型。
+  // 選用 device.type(MetaDevice 官方欄位)而非自訂 trackAttributes,是因為裝置類型並非
+  // 宿主頁面 DOM 上的 attribute,無法透過 ClickInstrumentation 的 closest() 查找取得,
+  // 也不該只綁在 click 事件上 —— 用 metas.add() 才能讓每一種 signal 都自動帶有這個欄位。
+  faro.metas.add(() =&gt; ({ device: { type: getCurrentDeviceType() } }));
+}&lt;/code&gt;&lt;/pre&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;簡易流程圖&lt;/h3&gt;
+      &lt;figure class=&quot;diagram bleed&quot;&gt;
+        &lt;svg class=&quot;fc&quot; viewBox=&quot;0 0 760 340&quot; role=&quot;img&quot;
+             aria-label=&quot;裝置偵測資料流:初始猜測與 pointerdown 修正兩條路徑寫入 currentDeviceType 變數,Faro 送出任一 signal 前透過 getter 讀出並寫成 device.type meta。&quot;&gt;
+          &lt;defs&gt;
+            &lt;marker id=&quot;a3&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a3m&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-m&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a3a&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-a&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+          &lt;/defs&gt;
+
+          &lt;text class=&quot;lbl&quot; x=&quot;16&quot; y=&quot;12&quot;&gt;寫入路徑&lt;/text&gt;
+
+          &lt;rect class=&quot;n-term&quot; x=&quot;16&quot; y=&quot;20&quot; width=&quot;160&quot; height=&quot;42&quot; rx=&quot;21&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;ts&quot; x=&quot;96&quot; y=&quot;38&quot; text-anchor=&quot;middle&quot;&gt;initFaro() 開啟偵測&lt;/text&gt;
+          &lt;text class=&quot;txs dim&quot; x=&quot;96&quot; y=&quot;54&quot; text-anchor=&quot;middle&quot;&gt;enableDeviceTypeDetection&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a3)&quot; d=&quot;M176,41 H198&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;200&quot; y=&quot;20&quot; width=&quot;200&quot; height=&quot;46&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tms&quot; x=&quot;300&quot; y=&quot;39&quot; text-anchor=&quot;middle&quot;&gt;startDeviceTypeDetection()&lt;/text&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;300&quot; y=&quot;56&quot; text-anchor=&quot;middle&quot;&gt;初始依 maxTouchPoints 判斷&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a3)&quot; d=&quot;M400,43 H500 V80 H578&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;450&quot; y=&quot;35&quot; text-anchor=&quot;middle&quot;&gt;寫入初始值&lt;/text&gt;
+
+          &lt;rect class=&quot;n-term&quot; x=&quot;16&quot; y=&quot;118&quot; width=&quot;160&quot; height=&quot;42&quot; rx=&quot;21&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;96&quot; y=&quot;144&quot; text-anchor=&quot;middle&quot;&gt;pointerdown&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a3)&quot; d=&quot;M176,139 H198&quot;&gt;&lt;/path&gt;
+
+          &lt;path class=&quot;n&quot; d=&quot;M300,105 L400,139 L300,173 L200,139 Z&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;ts&quot; x=&quot;300&quot; y=&quot;136&quot; text-anchor=&quot;middle&quot;&gt;pointerType 是&lt;/text&gt;
+          &lt;text class=&quot;ts&quot; x=&quot;300&quot; y=&quot;153&quot; text-anchor=&quot;middle&quot;&gt;mouse 或 touch?&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a3)&quot; d=&quot;M400,139 H428&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;414&quot; y=&quot;131&quot; text-anchor=&quot;middle&quot;&gt;是&lt;/text&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;430&quot; y=&quot;113&quot; width=&quot;130&quot; height=&quot;52&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tms&quot; x=&quot;495&quot; y=&quot;134&quot; text-anchor=&quot;middle&quot;&gt;mouse → desktop&lt;/text&gt;
+          &lt;text class=&quot;tms&quot; x=&quot;495&quot; y=&quot;152&quot; text-anchor=&quot;middle&quot;&gt;touch → tablet&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a3)&quot; d=&quot;M560,139 H578&quot;&gt;&lt;/path&gt;
+
+          &lt;path class=&quot;e-drop&quot; marker-end=&quot;url(#a3m)&quot; d=&quot;M300,173 V203&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;310&quot; y=&quot;190&quot;&gt;否&lt;/text&gt;
+          &lt;rect class=&quot;n-drop&quot; x=&quot;215&quot; y=&quot;205&quot; width=&quot;170&quot; height=&quot;36&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;300&quot; y=&quot;227&quot; text-anchor=&quot;middle&quot;&gt;pen:維持不變&lt;/text&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;580&quot; y=&quot;50&quot; width=&quot;164&quot; height=&quot;110&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;path class=&quot;e&quot; d=&quot;M588,50 V160 M736,50 V160&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;662&quot; y=&quot;92&quot; text-anchor=&quot;middle&quot;&gt;currentDeviceType&lt;/text&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;662&quot; y=&quot;110&quot; text-anchor=&quot;middle&quot;&gt;模組層級變數&lt;/text&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;662&quot; y=&quot;128&quot; text-anchor=&quot;middle&quot;&gt;(延遲初始化)&lt;/text&gt;
+
+          &lt;text class=&quot;lbl&quot; x=&quot;580&quot; y=&quot;180&quot;&gt;讀取路徑&lt;/text&gt;
+          &lt;path class=&quot;e-hit&quot; marker-end=&quot;url(#a3a)&quot; d=&quot;M662,160 V188&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;580&quot; y=&quot;190&quot; width=&quot;164&quot; height=&quot;48&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;ts&quot; x=&quot;662&quot; y=&quot;210&quot; text-anchor=&quot;middle&quot;&gt;送出任一 signal 前&lt;/text&gt;
+          &lt;text class=&quot;tms dim&quot; x=&quot;662&quot; y=&quot;228&quot; text-anchor=&quot;middle&quot;&gt;呼叫 metas getter&lt;/text&gt;
+          &lt;path class=&quot;e-hit&quot; marker-end=&quot;url(#a3a)&quot; d=&quot;M662,238 V266&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n-hit&quot; x=&quot;580&quot; y=&quot;268&quot; width=&quot;164&quot; height=&quot;48&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;662&quot; y=&quot;288&quot; text-anchor=&quot;middle&quot;&gt;device.type meta&lt;/text&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;662&quot; y=&quot;306&quot; text-anchor=&quot;middle&quot;&gt;隨每一種 signal 送出&lt;/text&gt;
+        &lt;/svg&gt;
+        &lt;figcaption&gt;兩條路徑寫進同一個變數 · Faro 每次送出前才 pull 最新值&lt;/figcaption&gt;
+      &lt;/figure&gt;
+    &lt;/section&gt;
+
+    &lt;!-- ============ 4 · ENVIRONMENT ============ --&gt;
+    &lt;section class=&quot;section&quot; id=&quot;environment&quot;&gt;
+      &lt;p class=&quot;eyebrow&quot;&gt;&lt;span class=&quot;tick&quot;&gt;&lt;/span&gt;Section 4 · Environment 對照&lt;/p&gt;
+      &lt;h2&gt;Environment → Collector URL 對照&lt;/h2&gt;
+
+      &lt;div class=&quot;oneliner&quot;&gt;
+        &lt;span class=&quot;label&quot;&gt;現況一句話&lt;/span&gt;
+        &lt;p&gt;
+          宿主只傳 &lt;code&gt;environment&lt;/code&gt;(例如 &lt;code&gt;&#x27;tw-stage&#x27;&lt;/code&gt;),套件把&lt;strong&gt;整串當 key&lt;/strong&gt;(不切分、不解析)
+          去內建對照表查 domain,拼上固定的 &lt;code&gt;/alloy&lt;/code&gt; suffix 得出完整 collector URL;查不到就立即拋錯並列出所有支援的 key。
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;關鍵轉折&lt;/h3&gt;
+      &lt;figure class=&quot;diagram bleed&quot;&gt;
+        &lt;div class=&quot;rail&quot;&gt;
+          &lt;div class=&quot;rail-item&quot;&gt;&lt;span class=&quot;v&quot;&gt;v1&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;host 傳 &lt;code&gt;url&lt;/code&gt; / &lt;code&gt;collectorDomain&lt;/code&gt;&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;rail-item&quot;&gt;&lt;span class=&quot;v&quot;&gt;v2&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;&lt;code&gt;environment&lt;/code&gt; 查表(test / stage / prod)&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;rail-item now&quot;&gt;&lt;span class=&quot;v&quot;&gt;v3 · 現行&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;整串 &lt;code&gt;&lt;region&gt;-&lt;stage&gt;&lt;/code&gt; 當 key,不解析&lt;/span&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        &lt;figcaption&gt;Collector URL 決定方式的演進&lt;/figcaption&gt;
+      &lt;/figure&gt;
+
+      &lt;div class=&quot;tablewrap bleed&quot;&gt;
+        &lt;table class=&quot;turning&quot;&gt;
+          &lt;thead&gt;
+            &lt;tr&gt;&lt;th&gt;#&lt;/th&gt;&lt;th&gt;轉折&lt;/th&gt;&lt;th&gt;當初做法&lt;/th&gt;&lt;th&gt;問題 / 動機&lt;/th&gt;&lt;th&gt;改成&lt;/th&gt;&lt;/tr&gt;
+          &lt;/thead&gt;
+          &lt;tbody&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;1&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;host 自己填網址&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;initFaro({ url })&lt;/code&gt;,後改 &lt;code&gt;collectorDomain&lt;/code&gt; + 套件拼 &lt;code&gt;/alloy-jeter&lt;/code&gt; suffix&lt;/td&gt;
+              &lt;td&gt;同一團隊、同一環境的 Alloy domain 是&lt;strong&gt;固定的一個值&lt;/strong&gt;,不該每個宿主各填一次,也違背「零設定」定位;網址散落在各專案不好改&lt;/td&gt;
+              &lt;td&gt;&lt;span class=&quot;brk&quot;&gt;BREAKING&lt;/span&gt; 移除 &lt;code&gt;collectorDomain&lt;/code&gt;,改由 &lt;code&gt;environment&lt;/code&gt;(既有必填欄位)查內建表;suffix &lt;code&gt;/alloy-jeter&lt;/code&gt; → &lt;code&gt;/alloy&lt;/code&gt;;不提供 override 逃生門&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;2&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;扁平表 &lt;code&gt;test&lt;/code&gt;/&lt;code&gt;stage&lt;/code&gt;/&lt;code&gt;prod&lt;/code&gt;&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;Record&lt;string,string&gt;&lt;/code&gt;,key 是單純部署階段&lt;/td&gt;
+              &lt;td&gt;套件要支援多地區(台灣、泰國)各自獨立的 Alloy 部署,同一個 &lt;code&gt;stage&lt;/code&gt; 在不同地區對應不同 domain,單一維度的 key 不夠用&lt;/td&gt;
+              &lt;td&gt;key 改成 &lt;code&gt;&lt;region&gt;-&lt;stage&gt;&lt;/code&gt; 複合格式(&lt;code&gt;tw-stage&lt;/code&gt;、&lt;code&gt;th-test&lt;/code&gt; …)&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;3&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;整串當 key&lt;/strong&gt;(現行)&lt;/td&gt;
+              &lt;td&gt;設計討論曾提案「巢狀 mapping」:先解析 &lt;code&gt;environment&lt;/code&gt; 前綴拆出地區,再進該地區 namespace 查階段&lt;/td&gt;
+              &lt;td&gt;巢狀 + 解析 = 多一層邏輯、多邊界情況(未知前綴 vs 未知階段要分別處理)&lt;/td&gt;
+              &lt;td&gt;實作&lt;strong&gt;放棄巢狀&lt;/strong&gt;,回到扁平 &lt;code&gt;Record&lt;string,string&gt;&lt;/code&gt;,只是 key 變成完整複合字串。套件&lt;strong&gt;完全不切分 / 解析&lt;/strong&gt; &lt;code&gt;environment&lt;/code&gt;,純字串比對。未來出現 &lt;code&gt;&#x27;tw-sre-test&#x27;&lt;/code&gt; 這種三段式也不用改任何邏輯,只要表裡有這個 key&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;4&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;持續微調對照表內容&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;—&lt;/td&gt;
+              &lt;td&gt;domain 本身的正確性(非機制)持續調整&lt;/td&gt;
+              &lt;td&gt;增刪 &lt;code&gt;tw-t5-asrs-*&lt;/code&gt;、修正 production domain、&lt;code&gt;tw-production&lt;/code&gt; ↔ &lt;code&gt;tw-prod&lt;/code&gt; 命名對齊等,都只是改表的一列,不動 &lt;code&gt;resolveCollectorUrl()&lt;/code&gt;&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/tbody&gt;
+        &lt;/table&gt;
+      &lt;/div&gt;
+
+      &lt;div class=&quot;callout warn&quot;&gt;
+        &lt;span class=&quot;label&quot;&gt;交接注意&lt;/span&gt;
+        &lt;p&gt;
+          現行程式碼註解仍寫「&lt;code&gt;th&lt;/code&gt; 地區為佔位值(&lt;code&gt;TODO-*&lt;/code&gt;)」,但 &lt;code&gt;th-test&lt;/code&gt; &lt;strong&gt;已填入實際 domain&lt;/strong&gt;。
+          要用泰國環境前,先向 SRE / 平台團隊核對該 domain 是否正確,並更新註解。
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;現行完整實作&lt;/h3&gt;
+      &lt;div class=&quot;codeblock bleed&quot;&gt;
+        &lt;p class=&quot;codehead&quot;&gt;src/faro-click-tracking/src/features/environment/environmentUrls.ts&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;/**
+ * 套件固定的 Grafana Alloy Faro receiver path suffix。
+ */
+export const ALLOY_PATH_SUFFIX = &#x27;/alloy&#x27;;
+
+/**
+ * 套件內建的 environment → collector domain 對照表。
+ *
+ * key 為完整的 environment 字串(例如 &#x27;tw-stage&#x27;),不做任何切分/解析 ——
+ * environment 的命名慣例(地區前綴、段數)由使用方自行決定(例如未來可能出現 &#x27;tw-sre-test&#x27; 這種三段式值),
+ * 套件只單純把整個字串當成查表的 key,維持機制最簡單、最不易出錯。
+ *
+ * th 地區相關項目目前為佔位值(TODO-*),待實際 Alloy domain 確認後於此處直接更新即可,
+ * 不需要調整查表機制本身。
+ */
+const COLLECTOR_DOMAIN_BY_ENVIRONMENT: Record&lt;string, string&gt; = {
+  &#x27;tw-test&#x27;: &#x27;https://pek8s-testing.garmin.com&#x27;,
+  &#x27;tw-stage&#x27;: &#x27;https://pek8s-staging.garmin.com&#x27;,
+  &#x27;tw-prod&#x27;: &#x27;https://shixpa-peproxy00.garmin.com&#x27;,
+  &#x27;tw-uat&#x27;: &#x27;https://pek8s-uat.garmin.com&#x27;,
+  &#x27;tw-exp&#x27;: &#x27;https://xinxta-pisvc00.garmin.com&#x27;,
+  &#x27;th-test&#x27;: &#x27;https://pek8s-th-testing.garmin.com&#x27;,
+};
+
+/**
+ * 依 environment 於套件內建對照表查找 collector domain,並拼接固定 path suffix 組成完整 Alloy Faro receiver URL。
+ *
+ * 套件不再接受宿主專案自行提供 collector domain: 同一個團隊每個部署環境的 Alloy domain 是固定值,
+ * 由套件統一管理,宿主專案只需提供 environment 即可。
+ *
+ * @param environment - initFaro({ environment }) 傳入的環境名稱,需存在於內建對照表中(完整字串比對,不做切分/解析)
+ * @returns 完整的 Alloy Faro receiver URL
+ * @throws 若 environment 查無對應的內建 collector domain,拋出 Error 並附上目前傳入的值
+ */
+export function resolveCollectorUrl(environment: string): string {
+  const domain = COLLECTOR_DOMAIN_BY_ENVIRONMENT[environment];
+  if (!domain) {
+    const known = Object.keys(COLLECTOR_DOMAIN_BY_ENVIRONMENT).join(&#x27;, &#x27;);
+    throw new Error(
+      `[faro-click-tracking] 找不到 environment &quot;${environment}&quot; 對應的 collector domain。` +
+        `目前支援的 environment 值: ${known}。`,
+    );
+  }
+  return `${domain}${ALLOY_PATH_SUFFIX}`;
+}&lt;/code&gt;&lt;/pre&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;簡易流程圖&lt;/h3&gt;
+      &lt;figure class=&quot;diagram bleed&quot;&gt;
+        &lt;svg class=&quot;fc&quot; viewBox=&quot;0 0 640 320&quot; role=&quot;img&quot;
+             aria-label=&quot;resolveCollectorUrl 流程圖:以完整 environment 字串查內建對照表,查不到就拋出附帶支援清單的錯誤,查到則回傳 domain 加上 /alloy。&quot;&gt;
+          &lt;defs&gt;
+            &lt;marker id=&quot;a4&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a4m&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-m&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a4a&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-a&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+          &lt;/defs&gt;
+
+          &lt;rect class=&quot;n-term&quot; x=&quot;180&quot; y=&quot;16&quot; width=&quot;280&quot; height=&quot;40&quot; rx=&quot;20&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;320&quot; y=&quot;41&quot; text-anchor=&quot;middle&quot;&gt;resolveCollectorUrl(environment)&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a4)&quot; d=&quot;M320,56 V80&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;170&quot; y=&quot;82&quot; width=&quot;300&quot; height=&quot;52&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tms&quot; x=&quot;320&quot; y=&quot;104&quot; text-anchor=&quot;middle&quot;&gt;COLLECTOR_DOMAIN_BY_ENVIRONMENT[env]&lt;/text&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;320&quot; y=&quot;122&quot; text-anchor=&quot;middle&quot;&gt;整串當 key · 不切分 / 不解析&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a4)&quot; d=&quot;M320,134 V158&quot;&gt;&lt;/path&gt;
+
+          &lt;path class=&quot;n&quot; d=&quot;M320,160 L460,198 L320,236 L180,198 Z&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;t&quot; x=&quot;320&quot; y=&quot;202&quot; text-anchor=&quot;middle&quot;&gt;查到 domain?&lt;/text&gt;
+          &lt;path class=&quot;e-drop&quot; marker-end=&quot;url(#a4m)&quot; d=&quot;M460,198 H508&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;478&quot; y=&quot;191&quot;&gt;否&lt;/text&gt;
+          &lt;rect class=&quot;n-drop&quot; x=&quot;510&quot; y=&quot;176&quot; width=&quot;120&quot; height=&quot;46&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tms dim&quot; x=&quot;570&quot; y=&quot;195&quot; text-anchor=&quot;middle&quot;&gt;throw Error&lt;/text&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;570&quot; y=&quot;212&quot; text-anchor=&quot;middle&quot;&gt;附支援清單&lt;/text&gt;
+          &lt;path class=&quot;e-hit&quot; marker-end=&quot;url(#a4a)&quot; d=&quot;M320,236 V260&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl acc&quot; x=&quot;328&quot; y=&quot;254&quot;&gt;是&lt;/text&gt;
+
+          &lt;rect class=&quot;n-hit&quot; x=&quot;170&quot; y=&quot;262&quot; width=&quot;300&quot; height=&quot;42&quot; rx=&quot;21&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;320&quot; y=&quot;288&quot; text-anchor=&quot;middle&quot;&gt;return domain + &#x27;/alloy&#x27;&lt;/text&gt;
+        &lt;/svg&gt;
+        &lt;figcaption&gt;一次字串比對決定去哪個 collector · 沒有任何解析邏輯&lt;/figcaption&gt;
+      &lt;/figure&gt;
+    &lt;/section&gt;
+
+    &lt;!-- ============ 5 · FARO INSTANCE ============ --&gt;
+    &lt;section class=&quot;section&quot; id=&quot;faroinstance&quot;&gt;
+      &lt;p class=&quot;eyebrow&quot;&gt;&lt;span class=&quot;tick&quot;&gt;&lt;/span&gt;Section 5 · faroInstance 單例&lt;/p&gt;
+      &lt;h2&gt;faroInstance 模組級單例 + 重複呼叫防護&lt;/h2&gt;
+
+      &lt;div class=&quot;oneliner&quot;&gt;
+        &lt;span class=&quot;label&quot;&gt;現況一句話&lt;/span&gt;
+        &lt;p&gt;
+          &lt;code&gt;core/faroInstance/faroInstance.ts&lt;/code&gt; 用一個 module-scope 變數存 &lt;code&gt;initFaro()&lt;/code&gt; 建立的 Faro 實例。
+          &lt;code&gt;initFaro()&lt;/code&gt; 開頭 &lt;code&gt;ensureNotInitialized()&lt;/code&gt; 快速失敗擋重複呼叫,&lt;code&gt;registerFaroInstance()&lt;/code&gt;
+          存實例前再檢查一次;非 instrumentation 的對外 API(&lt;code&gt;setFaroUser&lt;/code&gt; 等)透過 &lt;code&gt;getFaroInstanceOrThrow()&lt;/code&gt;
+          拿實例,沒初始化就拋錯。
+        &lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;關鍵轉折&lt;/h3&gt;
+      &lt;figure class=&quot;diagram bleed&quot;&gt;
+        &lt;div class=&quot;rail&quot;&gt;
+          &lt;div class=&quot;rail-item&quot;&gt;&lt;span class=&quot;v&quot;&gt;v1&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;實例存在 &lt;code&gt;initFaro()&lt;/code&gt; 內&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;rail-item&quot;&gt;&lt;span class=&quot;v&quot;&gt;v2&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;單例邏輯搬進 &lt;code&gt;faroUser.ts&lt;/code&gt;&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;rail-item&quot;&gt;&lt;span class=&quot;v&quot;&gt;v3&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;抽成 &lt;code&gt;core/faroInstance.ts&lt;/code&gt;&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;rail-item now&quot;&gt;&lt;span class=&quot;v&quot;&gt;v4 · 現行&lt;/span&gt;&lt;span class=&quot;d&quot;&gt;+ 重複呼叫防護(快速失敗 + 雙重檢查)&lt;/span&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        &lt;figcaption&gt;單例機制的演進路徑&lt;/figcaption&gt;
+      &lt;/figure&gt;
+
+      &lt;div class=&quot;tablewrap bleed&quot;&gt;
+        &lt;table class=&quot;turning&quot;&gt;
+          &lt;thead&gt;
+            &lt;tr&gt;&lt;th&gt;#&lt;/th&gt;&lt;th&gt;轉折&lt;/th&gt;&lt;th&gt;當初做法&lt;/th&gt;&lt;th&gt;問題 / 動機&lt;/th&gt;&lt;th&gt;改成&lt;/th&gt;&lt;/tr&gt;
+          &lt;/thead&gt;
+          &lt;tbody&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;1&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;實例只在 &lt;code&gt;initFaro()&lt;/code&gt; 內&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;initFaro()&lt;/code&gt; 回傳 Faro 實例就結束,沒有保存&lt;/td&gt;
+              &lt;td&gt;加入 &lt;code&gt;setFaroUser&lt;/code&gt; / &lt;code&gt;clearFaroUser&lt;/code&gt; 後,這些&lt;strong&gt;非 instrumentation&lt;/strong&gt; 的對外 API 拿不到 &lt;code&gt;faro.api&lt;/code&gt;(不像 instrumentation 會被 SDK 自動注入 &lt;code&gt;this.api&lt;/code&gt;)&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;initFaro()&lt;/code&gt; 內部保存實例參照,供 &lt;code&gt;faroUser.ts&lt;/code&gt; 使用;不對外匯出&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;2&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;單例邏輯寄生在 &lt;code&gt;faroUser.ts&lt;/code&gt;&lt;/strong&gt;&lt;/td&gt;
+              &lt;td&gt;單例狀態、&lt;code&gt;registerFaroInstance()&lt;/code&gt; 都寫在 &lt;code&gt;user/faroUser.ts&lt;/code&gt;&lt;/td&gt;
+              &lt;td&gt;它本質是「對外 API 存取 Faro 實例」的&lt;strong&gt;通用&lt;/strong&gt;機制,跟 user 領域無關,只是恰好目前唯一使用者是 &lt;code&gt;setFaroUser&lt;/code&gt;。未來其他對外 API 也要用時難以重用&lt;/td&gt;
+              &lt;td&gt;純內部重構:抽成獨立模組 &lt;code&gt;core/faroInstance/faroInstance.ts&lt;/code&gt;,&lt;code&gt;faroUser.ts&lt;/code&gt; 改 import;對外行為(錯誤訊息、拋出時機)完全不變&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;&lt;span class=&quot;num&quot;&gt;3&lt;/span&gt;&lt;/td&gt;
+              &lt;td&gt;&lt;strong&gt;重複呼叫防護&lt;/strong&gt;(現行)&lt;/td&gt;
+              &lt;td&gt;重複呼叫 &lt;code&gt;initFaro()&lt;/code&gt; 會&lt;strong&gt;靜默覆蓋&lt;/strong&gt;全域實例,而且會悄悄疊加重複的 event listener,同一次互動送出多筆重複事件&lt;/td&gt;
+              &lt;td&gt;開發流程中容易誤用,完全沒防護&lt;/td&gt;
+              &lt;td&gt;&lt;span class=&quot;brk&quot;&gt;BREAKING&lt;/span&gt; 第二次起呼叫直接拋錯。且趕在 &lt;code&gt;initializeFaro()&lt;/code&gt; 建 transport / 送訊號&lt;strong&gt;之前&lt;/strong&gt;就擋(&lt;code&gt;ensureNotInitialized()&lt;/code&gt;),&lt;code&gt;registerFaroInstance()&lt;/code&gt; 內再檢查一次當最終防線 —— 兩者都呼叫同一個 &lt;code&gt;assertNotInitialized()&lt;/code&gt;&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/tbody&gt;
+        &lt;/table&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;現行完整實作&lt;/h3&gt;
+      &lt;div class=&quot;codeblock bleed&quot;&gt;
+        &lt;p class=&quot;codehead&quot;&gt;src/faro-click-tracking/src/core/faroInstance/faroInstance.ts&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;import type { Faro } from &#x27;@grafana/faro-web-sdk&#x27;;
+
+// 套件目前設計為模組級單例: 一個網頁應用程式對應 initFaro() 建立的一個 Faro 實例。
+// 供套件內任何非 instrumentation 的對外 API(不像 ClickInstrumentation 能由 Faro SDK
+// 框架自動注入 api)在需要直接存取 Faro 實例時使用。
+let faroInstance: Faro | undefined;
+
+function assertNotInitialized(): void {
+  if (faroInstance !== undefined) {
+    throw new Error(
+      &#x27;[faro-click-tracking] initFaro() 已被呼叫過,不可重複呼叫; 請確認應用程式生命週期中只呼叫一次。&#x27;,
+    );
+  }
+}
+
+/**
+ * 內部使用: 供 initFaro() 在建立新的 Faro 實例(呼叫 initializeFaro())之前先行檢查,
+ * 避免重複呼叫 initFaro() 時仍執行到一半才失敗(已產生副作用,例如已對 collector 送出訊號)。
+ * 尚未呼叫過 initFaro() 時為 no-op; 已呼叫過時拋出明確錯誤。
+ */
+export function ensureNotInitialized(): void {
+  assertNotInitialized();
+}
+
+/**
+ * 內部使用: 由 initFaro() 呼叫,保存本次初始化建立的 Faro 實例參照。
+ * 不對外匯出,宿主專案不需要、也不應該直接取得 Faro 實例。
+ *
+ * @throws 若已註冊過 Faro 實例(即 initFaro() 已被呼叫過),拋出 Error 阻止重複註冊。
+ */
+export function registerFaroInstance(faro: Faro): void {
+  assertNotInitialized();
+  faroInstance = faro;
+}
+
+/**
+ * 內部使用: 取得已註冊的 Faro 實例; 若尚未呼叫過 initFaro(),拋出 Error 提示需先初始化。
+ * callerName 用於在錯誤訊息中標示是哪個對外 API 呼叫失敗,方便使用者定位問題。
+ */
+export function getFaroInstanceOrThrow(callerName: string): Faro {
+  if (!faroInstance) {
+    throw new Error(
+      `[faro-click-tracking] 尚未呼叫 initFaro(),請先初始化再呼叫 ${callerName}()。`,
+    );
+  }
+  return faroInstance;
+}&lt;/code&gt;&lt;/pre&gt;
+      &lt;/div&gt;
+
+      &lt;h3&gt;簡易狀態圖&lt;/h3&gt;
+      &lt;figure class=&quot;diagram bleed&quot;&gt;
+        &lt;svg class=&quot;fc&quot; viewBox=&quot;0 0 720 288&quot; role=&quot;img&quot;
+             aria-label=&quot;單例狀態機:未初始化狀態下呼叫 setFaroUser 會拋錯;initFaro 成功後轉為已初始化;已初始化狀態下再次 initFaro 拋錯,而 setFaroUser 正常運作。&quot;&gt;
+          &lt;defs&gt;
+            &lt;marker id=&quot;a5&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a5m&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-m&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a5a&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-a&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+          &lt;/defs&gt;
+
+          &lt;circle cx=&quot;48&quot; cy=&quot;124&quot; r=&quot;6&quot; fill=&quot;currentColor&quot;&gt;&lt;/circle&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a5)&quot; d=&quot;M54,124 H118&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;120&quot; y=&quot;94&quot; width=&quot;200&quot; height=&quot;60&quot; rx=&quot;8&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;t&quot; x=&quot;220&quot; y=&quot;119&quot; text-anchor=&quot;middle&quot;&gt;未初始化&lt;/text&gt;
+          &lt;text class=&quot;tms dim&quot; x=&quot;220&quot; y=&quot;138&quot; text-anchor=&quot;middle&quot;&gt;faroInstance === undefined&lt;/text&gt;
+
+          &lt;path class=&quot;e-drop&quot; marker-end=&quot;url(#a5m)&quot; d=&quot;M165,94 C150,42 290,42 273,92&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;220&quot; y=&quot;32&quot; text-anchor=&quot;middle&quot;&gt;setFaroUser / clearFaroUser → throw&lt;/text&gt;
+
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a5)&quot; d=&quot;M320,124 H438&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;379&quot; y=&quot;114&quot; text-anchor=&quot;middle&quot;&gt;initFaro() 成功&lt;/text&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;379&quot; y=&quot;140&quot; text-anchor=&quot;middle&quot;&gt;registerFaroInstance&lt;/text&gt;
+
+          &lt;rect class=&quot;n-hit&quot; x=&quot;440&quot; y=&quot;94&quot; width=&quot;240&quot; height=&quot;60&quot; rx=&quot;8&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;t&quot; x=&quot;560&quot; y=&quot;119&quot; text-anchor=&quot;middle&quot;&gt;已初始化&lt;/text&gt;
+          &lt;text class=&quot;tms acc&quot; x=&quot;560&quot; y=&quot;138&quot; text-anchor=&quot;middle&quot;&gt;faroInstance = faro&lt;/text&gt;
+
+          &lt;path class=&quot;e-drop&quot; marker-end=&quot;url(#a5m)&quot; d=&quot;M485,94 C470,42 635,42 618,92&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;552&quot; y=&quot;32&quot; text-anchor=&quot;middle&quot;&gt;再次 initFaro() → throw 不可重複呼叫&lt;/text&gt;
+
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a5)&quot; d=&quot;M485,154 C470,208 635,208 618,156&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;552&quot; y=&quot;226&quot; text-anchor=&quot;middle&quot;&gt;setFaroUser / clearFaroUser → 正常運作&lt;/text&gt;
+
+          &lt;text class=&quot;lbl&quot; x=&quot;360&quot; y=&quot;266&quot; text-anchor=&quot;middle&quot;&gt;單例存於 module scope 變數 · 正式環境無 reset(刷新頁面即重置)&lt;/text&gt;
+        &lt;/svg&gt;
+        &lt;figcaption&gt;兩個狀態、四條轉移 · 虛線是會拋錯的自迴圈&lt;/figcaption&gt;
+      &lt;/figure&gt;
+
+      &lt;h3&gt;initFaro() 如何串起全部&lt;/h3&gt;
+      &lt;figure class=&quot;diagram bleed&quot;&gt;
+        &lt;svg class=&quot;fc&quot; viewBox=&quot;0 0 720 656&quot; role=&quot;img&quot;
+             aria-label=&quot;initFaro 初始化流程圖:三道會拋錯的檢查全部排在虛線之上,虛線以下才開始建立 Faro 實例、註冊單例、掛裝置 meta 與初始身分同步。&quot;&gt;
+          &lt;defs&gt;
+            &lt;marker id=&quot;a6&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a6m&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-m&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+            &lt;marker id=&quot;a6a&quot; viewBox=&quot;0 0 10 10&quot; refX=&quot;9&quot; refY=&quot;5&quot; markerWidth=&quot;6&quot; markerHeight=&quot;6&quot; orient=&quot;auto&quot;&gt;
+              &lt;path class=&quot;mk-a&quot; d=&quot;M0,1 L9,5 L0,9 z&quot;&gt;&lt;/path&gt;
+            &lt;/marker&gt;
+          &lt;/defs&gt;
+
+          &lt;rect class=&quot;n-term&quot; x=&quot;130&quot; y=&quot;14&quot; width=&quot;340&quot; height=&quot;38&quot; rx=&quot;19&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;300&quot; y=&quot;39&quot; text-anchor=&quot;middle&quot;&gt;initFaro(config)&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a6)&quot; d=&quot;M300,52 V72&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;130&quot; y=&quot;74&quot; width=&quot;340&quot; height=&quot;38&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;300&quot; y=&quot;99&quot; text-anchor=&quot;middle&quot;&gt;ensureNotInitialized()&lt;/text&gt;
+          &lt;path class=&quot;e-drop&quot; marker-end=&quot;url(#a6m)&quot; d=&quot;M470,93 H498&quot;&gt;&lt;/path&gt;
+          &lt;rect class=&quot;n-drop&quot; x=&quot;500&quot; y=&quot;75&quot; width=&quot;206&quot; height=&quot;36&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;603&quot; y=&quot;97&quot; text-anchor=&quot;middle&quot;&gt;throw:不可重複呼叫&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a6)&quot; d=&quot;M300,112 V132&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;130&quot; y=&quot;134&quot; width=&quot;340&quot; height=&quot;38&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;300&quot; y=&quot;159&quot; text-anchor=&quot;middle&quot;&gt;validateTrackAttributes()&lt;/text&gt;
+          &lt;path class=&quot;e-drop&quot; marker-end=&quot;url(#a6m)&quot; d=&quot;M470,153 H498&quot;&gt;&lt;/path&gt;
+          &lt;rect class=&quot;n-drop&quot; x=&quot;500&quot; y=&quot;132&quot; width=&quot;206&quot; height=&quot;42&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;603&quot; y=&quot;149&quot; text-anchor=&quot;middle&quot;&gt;throw:非 data- 開頭&lt;/text&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;603&quot; y=&quot;165&quot; text-anchor=&quot;middle&quot;&gt;或轉換後撞名&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a6)&quot; d=&quot;M300,172 V192&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;130&quot; y=&quot;194&quot; width=&quot;340&quot; height=&quot;38&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;300&quot; y=&quot;219&quot; text-anchor=&quot;middle&quot;&gt;resolveCollectorUrl(environment)&lt;/text&gt;
+          &lt;path class=&quot;e-drop&quot; marker-end=&quot;url(#a6m)&quot; d=&quot;M470,213 H498&quot;&gt;&lt;/path&gt;
+          &lt;rect class=&quot;n-drop&quot; x=&quot;500&quot; y=&quot;195&quot; width=&quot;206&quot; height=&quot;36&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;603&quot; y=&quot;217&quot; text-anchor=&quot;middle&quot;&gt;throw:未知 environment&lt;/text&gt;
+
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a6)&quot; d=&quot;M300,232 V270&quot;&gt;&lt;/path&gt;
+          &lt;path class=&quot;e-drop&quot; d=&quot;M24,252 H696&quot;&gt;&lt;/path&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;24&quot; y=&quot;245&quot;&gt;檢查區:失敗不留任何副作用&lt;/text&gt;
+          &lt;text class=&quot;lbl acc&quot; x=&quot;696&quot; y=&quot;245&quot; text-anchor=&quot;end&quot;&gt;↓ 以下開始產生副作用&lt;/text&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;130&quot; y=&quot;272&quot; width=&quot;340&quot; height=&quot;38&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tms&quot; x=&quot;300&quot; y=&quot;296&quot; text-anchor=&quot;middle&quot;&gt;new UserSyncInstrumentation(getUser)&lt;/text&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;120&quot; y=&quot;296&quot; text-anchor=&quot;end&quot;&gt;有 getUser&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a6)&quot; d=&quot;M300,310 V330&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n-hit&quot; x=&quot;130&quot; y=&quot;332&quot; width=&quot;340&quot; height=&quot;52&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;300&quot; y=&quot;354&quot; text-anchor=&quot;middle&quot;&gt;initializeFaro({ url, app, … })&lt;/text&gt;
+          &lt;text class=&quot;ts dim&quot; x=&quot;300&quot; y=&quot;372&quot; text-anchor=&quot;middle&quot;&gt;web + Tracing + Click +(UserSync?)&lt;/text&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;490&quot; y=&quot;352&quot;&gt;listener 在這一步掛好&lt;/text&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;490&quot; y=&quot;370&quot;&gt;Faro 開始送資料&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a6)&quot; d=&quot;M300,384 V404&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;130&quot; y=&quot;406&quot; width=&quot;340&quot; height=&quot;38&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;300&quot; y=&quot;431&quot; text-anchor=&quot;middle&quot;&gt;registerFaroInstance(faro)&lt;/text&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;490&quot; y=&quot;429&quot;&gt;最終防線:再檢查一次&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a6)&quot; d=&quot;M300,444 V464&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;130&quot; y=&quot;466&quot; width=&quot;340&quot; height=&quot;52&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tms&quot; x=&quot;300&quot; y=&quot;488&quot; text-anchor=&quot;middle&quot;&gt;startDeviceTypeDetection()&lt;/text&gt;
+          &lt;text class=&quot;tms&quot; x=&quot;300&quot; y=&quot;506&quot; text-anchor=&quot;middle&quot;&gt;faro.metas.add(getter)&lt;/text&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;120&quot; y=&quot;496&quot; text-anchor=&quot;end&quot;&gt;已啟用偵測&lt;/text&gt;
+          &lt;path class=&quot;e&quot; marker-end=&quot;url(#a6)&quot; d=&quot;M300,518 V538&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n&quot; x=&quot;130&quot; y=&quot;540&quot; width=&quot;340&quot; height=&quot;38&quot; rx=&quot;3&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;300&quot; y=&quot;565&quot; text-anchor=&quot;middle&quot;&gt;userSync.sync()&lt;/text&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;120&quot; y=&quot;565&quot; text-anchor=&quot;end&quot;&gt;有 getUser&lt;/text&gt;
+          &lt;text class=&quot;lbl&quot; x=&quot;490&quot; y=&quot;565&quot;&gt;處理載入時已登入&lt;/text&gt;
+          &lt;path class=&quot;e-hit&quot; marker-end=&quot;url(#a6a)&quot; d=&quot;M300,578 V598&quot;&gt;&lt;/path&gt;
+
+          &lt;rect class=&quot;n-hit&quot; x=&quot;130&quot; y=&quot;600&quot; width=&quot;340&quot; height=&quot;40&quot; rx=&quot;20&quot;&gt;&lt;/rect&gt;
+          &lt;text class=&quot;tm&quot; x=&quot;300&quot; y=&quot;625&quot; text-anchor=&quot;middle&quot;&gt;return faro&lt;/text&gt;
+        &lt;/svg&gt;
+        &lt;figcaption&gt;三道拋錯檢查全在虛線之上 · 過線之後才建立實例、掛 listener、開始送資料&lt;/figcaption&gt;
+      &lt;/figure&gt;
+    &lt;/section&gt;
+
+    &lt;!-- ============ APPENDIX ============ --&gt;
+    &lt;section class=&quot;section&quot; id=&quot;appendix&quot;&gt;
+      &lt;p class=&quot;eyebrow&quot;&gt;&lt;span class=&quot;tick&quot;&gt;&lt;/span&gt;Appendix · 演進來源&lt;/p&gt;
+      &lt;h2&gt;演進來源對照&lt;/h2&gt;
+      &lt;div class=&quot;tablewrap bleed&quot;&gt;
+        &lt;table class=&quot;plain&quot;&gt;
+          &lt;thead&gt;
+            &lt;tr&gt;&lt;th&gt;Feature&lt;/th&gt;&lt;th&gt;主要 openspec change(依時序)&lt;/th&gt;&lt;/tr&gt;
+          &lt;/thead&gt;
+          &lt;tbody&gt;
+            &lt;tr&gt;
+              &lt;td&gt;Click&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;faro-click-tracking-package&lt;/code&gt; → &lt;code&gt;link-name-data-attribute&lt;/code&gt; → &lt;code&gt;add-custom-track-attributes&lt;/code&gt; → &lt;code&gt;simplify-click-link-name-tracking&lt;/code&gt; → &lt;code&gt;host-defined-click-payload&lt;/code&gt;(&lt;code&gt;opt-in-link-tracking&lt;/code&gt; 提案曾規劃 opt-in/opt-out 模式切換,後被 &lt;code&gt;host-defined-click-payload&lt;/code&gt; 取代 —— 現行「沒命中就不送」本質即 opt-in)&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;User&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;user-info-collection&lt;/code&gt; → &lt;code&gt;decouple-faro-instance-registry&lt;/code&gt; → &lt;code&gt;auto-sync-faro-user&lt;/code&gt;&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;Device&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;device-type-detection&lt;/code&gt; → &lt;code&gt;click-event-device-info&lt;/code&gt; → &lt;code&gt;host-defined-click-payload&lt;/code&gt; → &lt;code&gt;device-type-meta-tracking&lt;/code&gt; → &lt;code&gt;enhance-exception-and-error-handling&lt;/code&gt;&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;Environment&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;create-collector-domain-mapping&lt;/code&gt; → &lt;code&gt;add-region-collector-mapping&lt;/code&gt;(+ 後續 domain 微調 commit)&lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+              &lt;td&gt;faroInstance&lt;/td&gt;
+              &lt;td&gt;&lt;code&gt;user-info-collection&lt;/code&gt; → &lt;code&gt;decouple-faro-instance-registry&lt;/code&gt; → &lt;code&gt;enhance-exception-and-error-handling&lt;/code&gt;&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/tbody&gt;
+        &lt;/table&gt;
+      &lt;/div&gt;
+      &lt;p style=&quot;font-size:0.88rem;color:var(--muted);&quot;&gt;
+        openspec &lt;code&gt;changes/archive/&lt;/code&gt; 底下有各 change 的 &lt;code&gt;proposal.md&lt;/code&gt;(Why / What)與部分 &lt;code&gt;design.md&lt;/code&gt;
+        (Decisions / 替代方案 / Trade-offs),是比本文件更細的一手資料。
+      &lt;/p&gt;
+
+      &lt;footer class=&quot;foot&quot;&gt;
+        @sre2/faro-click-tracking · 設計沿革 · 對應 dev 分支
+      &lt;/footer&gt;
+    &lt;/section&gt;
+  &lt;/main&gt;
+&lt;/div&gt;
+
+&lt;script&gt;
+  (function () {
+    &quot;use strict&quot;;
+
+    // ---- theme toggle ----
+    var root = document.documentElement;
+    var btn = document.getElementById(&quot;themeToggle&quot;);
+    var label = document.getElementById(&quot;themeLabel&quot;);
+    var KEY = &quot;fct-design-history-theme&quot;;
+
+    function stored() {
+      try { return localStorage.getItem(KEY); } catch (e) { return null; }
+    }
+    function persist(v) {
+      try { localStorage.setItem(KEY, v); } catch (e) { /* private mode */ }
+    }
+    function systemDark() {
+      return window.matchMedia &amp;&amp; window.matchMedia(&quot;(prefers-color-scheme: dark)&quot;).matches;
+    }
+    function effectiveDark() {
+      var t = root.getAttribute(&quot;data-theme&quot;);
+      if (t === &quot;dark&quot;) return true;
+      if (t === &quot;light&quot;) return false;
+      return systemDark();
+    }
+    function render() {
+      label.textContent = effectiveDark() ? &quot;淺色&quot; : &quot;深色&quot;;
+    }
+
+    var s = stored();
+    if (s === &quot;dark&quot; || s === &quot;light&quot;) root.setAttribute(&quot;data-theme&quot;, s);
+    render();
+
+    btn.addEventListener(&quot;click&quot;, function () {
+      var next = effectiveDark() ? &quot;light&quot; : &quot;dark&quot;;
+      root.setAttribute(&quot;data-theme&quot;, next);
+      persist(next);
+      render();
+    });
+
+    if (window.matchMedia) {
+      try {
+        window.matchMedia(&quot;(prefers-color-scheme: dark)&quot;).addEventListener(&quot;change&quot;, render);
+      } catch (e) { /* older Safari */ }
+    }
+
+    // ---- comment dimming in code blocks ----
+    var blocks = document.querySelectorAll(&quot;.codeblock pre code&quot;);
+    Array.prototype.forEach.call(blocks, function (code) {
+      var out = code.innerHTML.split(&quot;\n&quot;).map(function (line) {
+        if (/^\s*(\/\/|\*|\/\*)/.test(line)) {
+          return &#x27;&lt;span class=&quot;cm&quot;&gt;&#x27; + line + &quot;&lt;/span&gt;&quot;;
+        }
+        return line;
+      }).join(&quot;\n&quot;);
+      code.innerHTML = out;
+    });
+
+    // ---- scrollspy ----
+    var links = Array.prototype.slice.call(document.querySelectorAll(&quot;.toc a&quot;));
+    var map = {};
+    links.forEach(function (a) {
+      var id = a.getAttribute(&quot;href&quot;).slice(1);
+      var el = document.getElementById(id);
+      if (el) map[id] = a;
+    });
+    var targets = Object.keys(map).map(function (id) { return document.getElementById(id); });
+
+    if (&quot;IntersectionObserver&quot; in window) {
+      var current = null;
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) current = entry.target.id;
+        });
+        if (current &amp;&amp; map[current]) {
+          links.forEach(function (a) { a.classList.remove(&quot;active&quot;); });
+          map[current].classList.add(&quot;active&quot;);
+        }
+      }, { rootMargin: &quot;-20% 0px -70% 0px&quot;, threshold: 0 });
+      targets.forEach(function (t) { io.observe(t); });
+    }
+  })();
+&lt;/script&gt;
+
+<p><br></p></code></pre></details></main><script>
+/* Shared theme toggle for every lesson.
+
+   Include this script in a lesson's <head> after style.css. */
+
+(function () {
+
+  'use strict';
+
+
+
+  const storageKey = 'otel-teaching-theme';
+
+  const root = document.documentElement;
+
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+
+
+  function getStoredTheme() {
+
+    try {
+
+      const theme = window.localStorage.getItem(storageKey);
+
+      return theme === 'light' || theme === 'dark' ? theme : null;
+
+    } catch (error) {
+
+      console.warn('Unable to read the saved lesson theme.', error);
+
+      return null;
+
+    }
+
+  }
+
+
+
+  function saveTheme(theme) {
+
+    try {
+
+      window.localStorage.setItem(storageKey, theme);
+
+    } catch (error) {
+
+      console.warn('Unable to save the lesson theme.', error);
+
+    }
+
+  }
+
+
+
+  function resolvedTheme() {
+
+    return root.dataset.theme || (mediaQuery.matches ? 'dark' : 'light');
+
+  }
+
+
+
+  function updateToggle(toggle) {
+
+    const isDark = resolvedTheme() === 'dark';
+
+    toggle.textContent = isDark ? '☀ 切換為淺色模式' : '☾ 切換為深色模式';
+
+    toggle.setAttribute('aria-label', toggle.textContent);
+
+    toggle.setAttribute('aria-pressed', String(isDark));
+
+  }
+
+
+
+  function createToggle() {
+
+    const toggle = document.createElement('button');
+
+    toggle.type = 'button';
+
+    toggle.className = 'theme-toggle no-print';
+
+    toggle.addEventListener('click', () => {
+
+      const nextTheme = resolvedTheme() === 'dark' ? 'light' : 'dark';
+
+      root.dataset.theme = nextTheme;
+
+      saveTheme(nextTheme);
+
+      updateToggle(toggle);
+
+    });
+
+
+
+    document.body.append(toggle);
+
+    updateToggle(toggle);
+
+
+
+    mediaQuery.addEventListener('change', () => {
+
+      if (!root.dataset.theme) updateToggle(toggle);
+
+    });
+
+  }
+
+
+
+  const savedTheme = getStoredTheme();
+
+  if (savedTheme) root.dataset.theme = savedTheme;
+
+
+
+  if (document.readyState === 'loading') {
+
+    document.addEventListener('DOMContentLoaded', createToggle, { once: true });
+
+  } else {
+
+    createToggle();
+
+  }
+
+})();
+
+
+</script>
+</body></html>

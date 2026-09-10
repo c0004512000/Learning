@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Faro 接手課程地圖</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+  <h1>從一次點擊，追到完整系統</h1>
+  <p class="subtitle">Faro 接手、導入與維運課程 · 目前位於 Lesson 1 of 12</p>
+
+  <div class="box tip">
+    <strong>Mission</strong><br>
+    透徹理解既有 Faro 解法，能說明它、協助前端導入、串接前後端可觀測性，並具備未來修改、優化與維運的能力。
+  </div>
+
+  <h2>目前位置</h2>
+
+  <p><strong>Lesson 1：瀏覽器基礎</strong> — 進度 0 / 12。先建立 HTML、DOM、DOM event 與 event listener，尚未進入 Faro。</p>
+
+  <h2>Milestone 1｜先看懂瀏覽器發生什麼</h2>
+
+  <div class="box">
+    <ol>
+      <li>
+        <a href="../lessons/0001-browser-click-foundation.html"><strong>瀏覽器如何知道你點了哪裡</strong></a><br>
+        目標：分清楚 HTML、DOM、畫面、DOM event 與 event listener。<br>
+        <span class="cite">來源：Developer Introduction；缺少的瀏覽器前置知識。</span>
+      </li>
+      <li>
+        <strong>點擊如何成為 Faro 資料</strong><br>
+        目標：在瀏覽器基礎上，引入 ClickInstrumentation、payload 與 Transport。<br>
+        <span class="cite">來源：Developer Introduction；ClickInstrumentation 程式碼。</span>
+      </li>
+      <li>
+        <strong>一筆資料如何離開瀏覽器</strong><br>
+        目標：確認瀏覽器邊界、HTTP request、Alloy endpoint 與接收結果。<br>
+        <span class="cite">來源：PI 前端監控案例；Alloy 部署文件；runtime 設定。</span>
+      </li>
+    </ol>
+  </div>
+
+  <h2>Milestone 2｜讀懂並修改套件</h2>
+
+  <div class="box">
+    <ol start="4">
+      <li><strong><code>initFaro</code> 的組裝責任</strong> — 驗證、初始化順序與 singleton。</li>
+      <li><strong>Click payload 契約</strong> — 屬性尋找、名稱轉換、空資料與節流。</li>
+      <li><strong>User 與 Device context</strong> — 同步時機與跨資料附加。</li>
+    </ol>
+  </div>
+
+  <h2>Milestone 3｜宿主專案導入與驗證</h2>
+
+  <div class="box">
+    <ol start="7">
+      <li><strong>Host integration checklist</strong> — 前端專案需要提供哪些設定。</li>
+      <li><strong>Browser DevTools 驗證</strong> — 從 Network 面板確認 request、內容與 trace header。</li>
+    </ol>
+  </div>
+
+  <h2>Milestone 4｜串起前後端 Trace</h2>
+
+  <div class="box">
+    <ol start="9">
+      <li><strong><code>traceparent</code> 因果鏈</strong> — 瀏覽器 request 如何成為後端 trace 的 parent context。</li>
+      <li><strong>Success／Fail／Slow 實驗</strong> — 用真實查詢驗證 trace 是否完整。</li>
+    </ol>
+  </div>
+
+  <h2>Milestone 5｜平台與維運</h2>
+
+  <div class="box">
+    <ol start="11">
+      <li><strong>Alloy → OTel Collector pipeline</strong> — receiver、batch、export 與環境差異。</li>
+      <li><strong>查詢與 production troubleshooting</strong> — 使用 Loki、Tempo、OpenSearch 沿資料路徑定位問題。</li>
+    </ol>
+  </div>
+
+  <div class="box ask">
+    <strong>目前不要求理解後面出現的專有名詞。</strong>
+    它們只是課程地圖上的目的地；Lesson 1 的測驗不會考它們。
+  </div>
+
+  <p class="cite">
+    課程順序依完整文件 corpus、Faro click tracking 程式碼、兩套 Helm repository 與實際環境驗證結果規劃；詳細教材仍會依學習狀況逐課生成。
+  </p>
+
+  <nav class="lesson-nav" aria-label="課程導覽">
+    <span>課程地圖</span>
+    <a href="../lessons/0001-browser-click-foundation.html">開始 Lesson 1 →</a>
+  </nav>
+</body>
+</html>
+

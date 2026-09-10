@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 1｜瀏覽器如何知道你點了哪裡</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+  <h1>瀏覽器如何知道你點了哪裡</h1>
+  <p class="subtitle">先建立 DOM 與 DOM event，再談 Faro · Lesson 1 of 12</p>
+
+  <p>你在領班助手按下「每日生產排程」時，畫面可能會換頁或載入資料。但程式首先必須回答一個更基本的問題：</p>
+
+  <blockquote>使用者剛才點了哪一個頁面元素？</blockquote>
+
+  <p>這堂課只回答這個問題：瀏覽器如何把一次點擊交給網頁程式。</p>
+
+  <h2>1. 網頁交給瀏覽器三種材料</h2>
+
+  <p>當你開啟領班助手，瀏覽器會取得網頁需要的檔案。先把它們理解成三種分工：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>材料</th>
+          <th>它回答的問題</th>
+          <th>這堂課的例子</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>HTML</code></td>
+          <td>頁面上有哪些東西？</td>
+          <td>有一顆「每日生產排程」按鈕</td>
+        </tr>
+        <tr>
+          <td><code>CSS</code></td>
+          <td>這些東西長什麼樣子？</td>
+          <td>按鈕的顏色、大小與位置</td>
+        </tr>
+        <tr>
+          <td><code>JavaScript</code></td>
+          <td>操作之後要做什麼？</td>
+          <td>按下按鈕後執行一段程式</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>這三種檔案都由瀏覽器讀取。這裡的「前端」就是下載到瀏覽器、由瀏覽器執行的網頁部分。</p>
+
+  <h2>2. HTML 只是文字，瀏覽器需要可操作的版本</h2>
+
+  <p>HTML 可以包含下面這段文字：</p>
+
+  <pre><code>&lt;main&gt;
+  &lt;button&gt;每日生產排程&lt;/button&gt;
+&lt;/main&gt;</code></pre>
+
+  <p>瀏覽器讀完後，會在自己的工作記憶體裡建立一份頁面結構：</p>
+
+  <pre><code>main
+└── button
+    └──「每日生產排程」</code></pre>
+
+  <div class="box">
+    <strong>DOM（Document Object Model）</strong>
+    是瀏覽器根據 HTML 建立的可操作頁面結構。JavaScript 可以用它找到按鈕、讀取文字或改變頁面。
+  </div>
+
+  <p>因此，下面三者不是同一件事：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>名稱</th>
+          <th>它是什麼</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>HTML</td>
+          <td>瀏覽器取得的原始標記文字</td>
+        </tr>
+        <tr>
+          <td>DOM</td>
+          <td>瀏覽器根據 HTML 建立的可操作結構</td>
+        </tr>
+        <tr>
+          <td>畫面</td>
+          <td>瀏覽器依照 DOM 與 CSS 畫給人看的結果</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>3. 點擊發生時，瀏覽器建立一筆通知</h2>
+
+  <p>使用者按下按鈕時，瀏覽器會建立一筆資料，記錄「剛剛發生了點擊」。這筆通知叫做 <strong>event（事件）</strong>。</p>
+
+  <p>因為這次點擊發生在 DOM 裡的按鈕上，所以它也叫做 <strong>DOM event</strong>。</p>
+
+  <div class="box tip">
+    <code>click</code> 是事件種類。<code>event.target</code> 指向這次實際被點到的 DOM 頁面項目。
+  </div>
+
+  <p>在本例中，<code>event.target</code> 指向「每日生產排程」按鈕，而不是整張畫面，也不是 HTML 檔案。</p>
+
+  <h2>4. JavaScript 如何收到這筆通知？</h2>
+
+  <p><strong>函式</strong>是一組可以被呼叫執行的程式指令。JavaScript 必須事先告訴瀏覽器：「有點擊時，請呼叫這個函式。」被登記來接收通知的函式叫做 <strong>event listener（事件監聽器）</strong>。</p>
+
+  <pre><code>document.addEventListener('click', handleClick)</code></pre>
+
+  <p>先不用背語法。它現在只表示：</p>
+
+  <blockquote>頁面中發生 click event 時，瀏覽器呼叫 <code>handleClick</code>。</blockquote>
+
+  <figure class="diagram">
+    <figcaption>
+      <strong>一次點擊的因果順序</strong><br>
+      <span class="diagram-caption-note">下列步驟全部發生在瀏覽器裡；箭頭文字表示前一項對下一項做了什麼。</span>
+    </figcaption>
+
+    <div class="diagram-flow">
+      <div class="diagram-node app">
+        <span class="node-kicker">使用者動作</span>
+        <span class="node-name">按下按鈕</span>
+      </div>
+
+      <div class="diagram-connector">
+        使瀏覽器建立
+        <div class="connector-line"></div>
+      </div>
+
+      <div class="diagram-node provider">
+        <span class="node-kicker">瀏覽器通知</span>
+        <span class="node-name">click event</span>
+        <span class="node-note">target 指向按鈕</span>
+      </div>
+
+      <div class="diagram-connector">
+        使瀏覽器呼叫
+        <div class="connector-line"></div>
+      </div>
+
+      <div class="diagram-node processor">
+        <span class="node-kicker">JavaScript 函式</span>
+        <span class="node-name">event listener</span>
+      </div>
+    </div>
+
+    <div class="diagram-ownership">
+      <div class="diagram-label">發生位置：全部都在瀏覽器內</div>
+      這一刻還沒有任何資料被送到瀏覽器外。
+    </div>
+  </figure>
+
+  <h2>5. 用真實情境重走一次</h2>
+
+  <ol>
+    <li>領班助手的 HTML 宣告一顆「每日生產排程」按鈕。</li>
+    <li>瀏覽器根據 HTML 建立 DOM，其中包含這顆按鈕。</li>
+    <li>你按下按鈕。</li>
+    <li>瀏覽器建立 <code>click event</code>。</li>
+    <li><code>event.target</code> 指向被點到的按鈕。</li>
+    <li>瀏覽器呼叫事先登記的 event listener。</li>
+  </ol>
+
+  <p>到這裡，我們只知道瀏覽器如何把一次點擊交給 JavaScript。下一堂才會把前端監控套件接在這個既有機制後面。</p>
+
+  <h2>自我檢查</h2>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q1. DOM 最精確的描述是哪一個？</div>
+    <div class="choices">
+      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。DOM 是瀏覽器依 HTML 建立、可由 JavaScript 操作的頁面結構。">瀏覽器建立的可操作頁面結構</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ 畫面是呈現結果；DOM 是瀏覽器內可操作的頁面結構。">螢幕上顯示的頁面畫面結果</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ HTML 是輸入文字；DOM 是瀏覽器讀取 HTML 後建立的結構。">瀏覽器取得的原始 HTML 文字</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q2. 使用者按下按鈕後，click event 是誰建立的？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ JavaScript 可以接收事件，但 click event 是瀏覽器建立的。">頁面中的 JavaScript 函式</button>
+      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。瀏覽器偵測到使用者動作後建立 click event。">正在顯示頁面的瀏覽器</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ 被點擊的按鈕是 event.target；click event 仍是瀏覽器建立的。">剛才被使用者點擊的按鈕</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="box ask">
+    <strong>請先不要往下猜 Faro。</strong>
+    如果你還不能用自己的話區分 HTML、DOM、畫面、DOM event 和 event listener，直接告訴我卡在哪一個詞，我們就停在那裡拆開。
+  </div>
+
+  <h2>Recap</h2>
+
+  <ul>
+    <li>HTML 描述頁面有哪些東西。</li>
+    <li>DOM 是瀏覽器根據 HTML 建立的可操作頁面結構。</li>
+    <li>畫面是瀏覽器依 DOM 與 CSS 呈現給人看的結果。</li>
+    <li>點擊發生時，瀏覽器建立 click event。</li>
+    <li><code>event.target</code> 指向實際被點到的 DOM 元素。</li>
+    <li>Event listener 是事先登記、由瀏覽器在事件發生時呼叫的 JavaScript 函式。</li>
+  </ul>
+
+  <p class="cite">
+    本課情境來源：
+    <a href="../source-documents/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a>。
+    DOM 與 event 是理解該文件中 click tracking 所需的前置知識。
+  </p>
+
+  <nav class="lesson-nav" aria-label="課程導覽">
+    <a href="../learning-map/index.html">← 課程地圖</a>
+    <span>下一課：點擊如何成為 Faro 資料</span>
+  </nav>
+
+  <script src="../assets/quiz.js"></script>
+</body>
+</html>
