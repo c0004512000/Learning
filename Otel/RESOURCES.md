@@ -41,6 +41,8 @@
   `EventTarget`、event listener list、`addEventListener()`、`removeEventListener()` 與 `dispatchEvent()` 的官方規格。
 - [MDN — EventTarget.addEventListener()](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener)
   較容易閱讀的實作參考，用於把 DOM Standard 的規格語言對照回日常 JavaScript。
+- [MDN — Callback function](https://developer.mozilla.org/en-US/docs/Glossary/Callback_function)
+  定義 callback 為「被當作參數交給另一個函式，之後由接收方呼叫的函式」，並區分同步與非同步 callback。
 
 ## Wisdom (Communities)
 
