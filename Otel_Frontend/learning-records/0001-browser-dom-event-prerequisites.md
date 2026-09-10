@@ -15,79 +15,103 @@ Date: 2026-09-10
 後續本 project 內的 learning session：
 
 - 以 `Otel_Frontend/` 作為教材、learning map、reference、learning records 與 source documents 的 durable 記錄環境。
-- 教學流程遵循目前指定的 `Learning-from-docs` learning workflow；不能只在聊天中回答後讓重要修正消失。
+- 教學流程遵循目前 Skills repo `main` 的 `Learning-from-docs` workflow；不能沿用已被新版 Skill 取代的舊規則。
 - Learner 的追問若證明教材造成錯誤心智模型、知識順序不合理或出現新的關鍵 prerequisite gap，先判斷應修主 lesson、reference 還是 learning record，再回寫 repo。
-- 不因一次追問把所有延伸知識塞進目前 lesson；但首次使用某個必要名詞前，必須先提供足以理解它的最小 prerequisite。
+- 不因一次追問把所有延伸知識塞進目前 lesson；但首次使用某個必要名詞前，必須先提供足以理解它的 prerequisite。
+- Durable lesson / reference 必須可 cold-read：不得依賴已刪除舊版本或 conversation history 才看得懂。
 
 ## What exposed the prerequisite gap
 
 本次對話實際暴露的卡點會影響後續教學，因此記錄進 ZPD：
 
-1. **DOM 過度抽象，且「DOM JavaScript 物件」措辭造成新的錯誤模型**
-   - Learner 已知道 DOM 是瀏覽器負責，因此「DOM JavaScript 物件」會被理解成 DOM 又變成 JavaScript 自己建立／持有。
-   - 更精確的 bridge：DOM object 是瀏覽器建立與管理；JavaScript 透過 browser 提供的 DOM API 取得 object reference 並操作。
-   - `HTMLButtonElement` 應解釋為按鈕 DOM object 對 JavaScript 暴露的介面／型別，不應導向不存在的「HTML object」概念。
+1. **DOM 過度抽象，且 DOM ownership 必須和 JavaScript access 分開**
+   - Learner 已知道 DOM 是瀏覽器負責，因此把 DOM object 說成 JavaScript object 容易形成錯誤 ownership 模型。
+   - 正確 bridge：DOM object 是瀏覽器建立與管理；JavaScript 透過 browser 提供的 DOM API 取得 object reference 並操作。
+   - `HTMLButtonElement` 應解釋為按鈕 DOM object 對程式暴露的介面／型別，不應導向不存在的「HTML object」概念。
 
-2. **範例 selector `#schedule` 被重複使用卻未定義**
-   - Learner 不知道 `#schedule` 是 selector，而非 DOM / Faro 的特殊語法。
-   - 必須先說明 HTML `id="..."` 是作者給 element 的識別名稱；selector `#xxx` 表示找 id 為 xxx 的 element。
-   - 後續範例改用語意較清楚的 `id="daily-schedule"`，並在首次出現 selector 時解釋 `#`。
+2. **範例 selector 必須在首次使用前定義**
+   - Learner 一開始不知道 `#schedule` / `#daily-schedule` 是 selector，而非 DOM / Faro 的特殊語法。
+   - HTML `id="..."` 是作者給 element 的識別名稱；selector `#xxx` 表示找 id 為 xxx 的 element。
 
-3. **DOM tree 視覺化造成平行關係錯覺**
-   - 使用多張具有不同 margin 的卡片表示 Document / html / body / main / button，在手機上不只容易 overflow，也讓 learner 誤判成彼此平行。
-   - 父子關係應優先用單一 tree diagram 或明確 connector 顯示，不以單純縮排卡片暗示 hierarchy。
+3. **DOM hierarchy 必須被圖真正表達，而不是靠視覺縮排暗示**
+   - 多張縮排卡片曾讓 learner 誤判節點彼此平行。
+   - 父子關係應優先使用單一 tree / 明確 connector。
 
-4. **Event lifecycle 不清楚**
-   - 需要拆清楚：使用者輸入如何被瀏覽器接收、如何判定 target、何時建立 Event object、如何 dispatch、如何找到 listener、如何呼叫 JavaScript。
-   - target 不是 Event 的 creator。click 的輸入來源是使用者／裝置，Event object 由 browser 建立，target 是 browser 判定此次 event 指向的 DOM object。
+4. **Event lifecycle 必須拆成不同責任步驟**
+   - 需要拆清楚：user input → browser receives → hit testing / target determination → Event creation → dispatch → listener invocation。
+   - target 不是 Event creator。Event object 由 browser 建立；target 是 browser 對本次 event 判定的 DOM object。
 
-5. **`event.target` 命名邏輯需要第一性原理解釋**
-   - Learner 對 target 的直覺是「event 要對 target 做什麼」，因此需要明確修正。
-   - `event.target` 回答「這次 event 最初是朝哪個 DOM node 分派／發生於哪個 DOM node」。
-   - `triggerer` 反而可能錯誤暗示 DOM element 主動創造 event，因此不適合作為心智模型。
+5. **`event.target` 命名需要因果模型**
+   - `event.target` 回答「這次 event 最初指向哪個 DOM object」，不是「誰觸發／創造 event」。
 
-6. **Bubbling / capture 被在定義前直接使用**
-   - 這違反 prerequisite-first 的學習順序。
-   - 後續順序必須是：先建立 target → 解釋 bubbling（target 往祖先）→ 再解釋 capture（祖先往 target）→ 最後才介紹 `capture: true`。
-   - `capture: true` 只是 listener registration option，代表 listener 要在 capture phase 執行；不是 click tracking 的必要設定。
+6. **Bubbling / capture 不可在定義前直接使用**
+   - 後續順序：先知道 target/path 已確定 → 定義 phase → Capture → Target → Bubble → 才介紹 `capture` option。
+   - Capture 不是 browser 邊走邊尋找 target；target/path 先確定，dispatch 才沿 path 呼叫符合條件的 listeners。
 
-7. **「JavaScript 抓 event」這個說法造成錯誤心智模型**
-   - 更精確的模型是：JavaScript 先登記 callback；瀏覽器之後在 event dispatch 時主動呼叫 callback，並把本次 Event object 傳入。
+7. **`capture: true/false` 的語法理解已建立，但缺少 decision model**
+   - Learner 已理解 true / false 代表不同 listener timing，但不知道什麼實際需求會讓工程師選 Capture 或 Bubble。
+   - 後續教學必須從「需要在 descendant handler 前觀察／介入」vs「target 後再由 ancestor 處理」推導選擇，而不是只背方向。
+   - `capture: false` 是預設，不應簡化成「Bubble 是預設」；listener 若本身位於 target，`capture: true` 或 `false` 都可能在 Target phase 執行。
 
-8. **`document` 名詞需要具體 referent**
-   - `document` 應理解成 JavaScript 取得目前 HTML document 所對應 `Document` object 的全域入口，而不是泛稱「文件」或 documents 清單。
+8. **`event.eventPhase` 被 demo 在定義前直接暴露，是新的 prerequisite-order violation**
+   - Raw `event.eventPhase = 1/2/3` 沒有先解釋 `phase` 與數字，違反「不要用未定義名詞解釋新概念」。
+   - 必須先定義 phase = 同一次 dispatch 當下走到哪一段，再介紹 `eventPhase` 只是 runtime API 表示值。
+   - UI 應優先顯示 `CAPTURE / TARGET / BUBBLE`，數字 1 / 2 / 3 只作 API 對照，不作主要學習內容。
 
-9. **Callback 缺乏控制流程模型**
-   - 需要先區分 `handleClick`（函式本身）與 `handleClick()`（現在呼叫）。
-   - Callback 應理解為角色：函式被交給另一方，再由接收方決定何時呼叫。
-   - `back` 是相對於最初控制方向：程式先把函式交出去，接收方之後再 call back 進提供的函式。
+9. **listener registration option 與 runtime event phase 必須嚴格分開**
+   - `capture: true` 是 listener 事先登記的設定；`event.eventPhase` 是本次 event dispatch 當下的位置。
+   - 如果一個 `capture: true` listener 所在物件恰好就是 event target，它會在 Target phase (`AT_TARGET`) 被呼叫，因此不能把 label 寫成「CAPTURE listener = eventPhase 1」。
+
+10. **Tracing 提供了 Capture/Bubble 選擇的實際因果測試**
+   - 如果 click telemetry 只想記錄「發生一次互動」，Capture / Bubble 主要差異可能是觀察時間、propagation 是否在到達 listener 前被停止，以及當下可見的狀態。
+   - 如果 click Span 要成為後續 app work / HTTP Span 的 parent，必須在 downstream Span 建立前建立並正確傳遞 active context；較早的 Capture timing 有潛在必要性，但 Capture 本身不等於 context propagation。
+   - 不能誤教成「只要 Capture 裡 startSpan，後面的 fetch 就自動變 child」。
+
+11. **「JavaScript 抓 event」會形成錯誤控制流模型**
+   - JavaScript 先登記 callback；browser 之後在 dispatch 過程中主動呼叫 callback，並把本次 Event object 傳入。
+
+12. **`document` 必須有具體 referent**
+   - `document` 是 JavaScript 取得目前 HTML document 所對應 `Document` object 的入口，不是泛稱文件。
+
+13. **Callback 必須以控制方向理解**
+   - 區分 `handleClick`（函式本身）與 `handleClick()`（現在呼叫）。
+   - callback 是角色：函式先交給另一方，再由接收方決定何時 call back。
 
 ## Bridges established / being repaired
 
-以下內容已建立或依 learner feedback 重新修正，但**尚未標記為 mastered**：
+以下內容已建立或依 learner feedback 修正，但**尚未標記為 mastered**：
 
 - HTML source text ≠ DOM objects ≠ rendered pixels。
 - DOM object 由 browser 建立／管理；JavaScript 透過 DOM API 取得 reference。
-- `HTMLButtonElement` 是按鈕 DOM object 的介面／型別名稱。
 - HTML `id="daily-schedule"` 與 selector `#daily-schedule` 的對應。
 - `document` → current `Document` object → DOM tree。
-- `Document` / `Element` 可以作為 `EventTarget`。
+- `Document` / `Element` 可作為 EventTarget。
 - browser 收到 user input → 判定 target → 建立 Event → dispatch。
-- `event.target` 不是 creator，而是 event 最初指向的 DOM target。
-- bubbling：target → ancestors。
-- capture：ancestors → target。
-- `capture: true`：listener 在 capture phase 執行。
+- phase = 同一次 dispatch 目前走到哪一段。
+- Capture：target/path 已知後，外 → 內處理 capture listeners。
+- Target：event 到達 target。
+- Bubble：對允許 bubbling 的 event，target 後由內 → 外處理 ancestor non-capture listeners。
+- `capture` registration option ≠ `event.eventPhase` runtime state。
+- `capture: false` 是預設，但不等於 listener 永遠在 Bubble phase 執行。
+- `event.eventPhase`: NONE / CAPTURING_PHASE / AT_TARGET / BUBBLING_PHASE；數字只是 API encoding。
 - `event.target` 與 `event.currentTarget` 的責任差異。
-- `addEventListener()` 建立 listener registration；callback 是其中被保存並等待呼叫的函式。
+- `event.bubbles` 表示是否允許 target 後的 ancestor bubbling flow。
+- click 會 bubble，因此 document ancestor listener 可接到 descendant click。
+- Trace parent/child 需要正確 active-context propagation；listener timing 只是其中一個條件。
 - JS 不 polling click；browser dispatch event 時呼叫 callback。
 - Browser Event object 不等於 Faro telemetry record。
-- 在此脈絡中，dispatch 採用翻譯「分派」，避免誤解為網路傳送。
 
 ## Durable references
 
 - `reference/0001-dom-document-event-dispatch.html`
-  - 已依本次 learner feedback 重寫：browser ownership vs JS access、selector、DOM tree、event target、bubbling、capture、`capture: true`、target/currentTarget。
-  - 手機版不再用多層縮排卡片表達 DOM hierarchy。
+  - browser ownership vs JS access
+  - selector / DOM tree / EventTarget
+  - target determination / Event creation / dispatch
+  - phase definition before `event.eventPhase`
+  - capture vs bubble decision model
+  - `capture` registration vs runtime phase distinction
+  - tracing timing example and active-context caveat
+  - mobile demo renders semantic phase names before raw numeric values
 
 - `reference/0002-callback-function.html`
   - callback 的角色
@@ -99,18 +123,19 @@ Date: 2026-09-10
 
 ## Current ZPD
 
-目前應視為：**browser DOM / event prerequisite 仍在建立中，不能直接回到 Faro ClickInstrumentation。**
+目前應視為：**browser DOM / event prerequisite 仍在建立中，不能把 Capture / Bubble 視為 mastered。**
 
-下次 retrieval 應優先確認 learner 是否能用自己的話回答：
+下一次 retrieval 優先確認 learner 是否能用自己的話回答：
 
-- DOM 是誰建立、誰持有？JavaScript 為什麼又可以操作它？
-- HTML element、DOM object、`HTMLButtonElement` 三者怎麼對應？
-- `#daily-schedule` 裡的 `#` 和 `daily-schedule` 各是什麼？
+- DOM 是誰建立、誰持有？JavaScript 為什麼可以操作它？
 - click Event 是誰建立？target 是誰判定？
-- 為什麼叫 `event.target`，而不是 triggerer？
-- bubbling 是哪個方向？為什麼 document listener 能收到 button click？
-- capture 是哪個方向？`capture: true` 改變的是什麼？
-- callback 是誰呼叫？event object 怎麼進到 callback 參數？
+- Capture 開始時 target 是否已經知道？
+- phase 是什麼？`event.eventPhase` 又只是什麼？
+- `capture: true/false` 是 registration setting 還是 runtime phase？
+- 為什麼 `capture: false` 不等於「永遠在 Bubble phase」？
+- 什麼需求會選 Capture？什麼需求通常選 Bubble / default non-capture？
+- 如果要讓 click Span 成為後續 HTTP Span 的 parent，為什麼 timing 與 active context 都重要？
+- callback 是誰呼叫？Event object 怎麼進到 callback 參數？
 
 若這些能穩定重建，再回到 Faro 主線。
 
@@ -119,10 +144,12 @@ Date: 2026-09-10
 遇到新的 frontend/browser 基礎概念時：
 
 - 優先給「具體物件、誰建立、誰持有、誰呼叫誰、資料何時建立」的因果模型，再給抽象名詞。
-- 一個必要名詞第一次出現時必須當場定義；不得先在圖、code 或結論中使用，幾節後才補解釋。
-- 圖像必須忠實表達關係；不能只靠視覺縮排讓 learner 自己猜 hierarchy。
-- 手機是主要閱讀場景之一，任何 hierarchy、table、code block 與 callout 都要避免橫向 overflow 或因縮排造成內容被擠壓。
-- 不使用「JS 抓 event」這類方便但模糊的擬人化描述。
+- 一個必要名詞第一次出現時必須當場定義；不得先在圖、code、demo output 或結論中使用，幾節後才補解釋。
+- Runtime debug output 也是 learner-facing content；不能因為它是原生 API 欄位就跳過 prerequisite definition。
+- 配置值與 runtime state 若是不同概念，UI label 必須明確分開，不能靠相似名稱暗示它們等價。
+- 圖像必須忠實表達關係；箭頭應說明是 creates / calls / contains / flows to 等哪種關係。
+- 手機是主要閱讀場景之一，hierarchy、table、code block 與 callout 都要避免橫向 overflow。
+- 不使用「JS 抓 event」等方便但模糊的擬人化描述。
 
 ## Return to main path
 
