@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Callback 到底是什麼｜具體參考卡</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+  <h1>Callback 到底是什麼？</h1>
+  <p class="subtitle">先搞懂「把函式交出去」與「誰在什麼時候把你叫回來」</p>
+
+  <div class="box ask">
+    <strong>先抓住一句話：</strong>
+    callback（回呼函式）不是特殊語法，也不是特殊種類的 function。它只是某個函式在一段互動裡扮演的角色：<strong>你把函式本身交給別人，之後由對方決定何時呼叫它。</strong>
+  </div>
+
+  <h2>1. 先分清楚：函式本身 vs 立刻呼叫函式</h2>
+
+  <pre><code>function handleClick(event) {
+  console.log(event.target)
+}
+
+handleClick      // 函式本身
+handleClick()    // 現在立刻呼叫這個函式</code></pre>
+
+  <p>這兩個看起來只差一對括號，但意義完全不同。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>寫法</th><th>意思</th><th>誰決定執行時間</th></tr></thead>
+      <tbody>
+        <tr><td><code>handleClick</code></td><td>取得這個函式本身，可以把它存起來或傳給別人</td><td>還沒有執行</td></tr>
+        <tr><td><code>handleClick()</code></td><td>現在就呼叫函式</td><td>目前這行程式</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>2. Callback 的核心動作：把函式交出去</h2>
+
+  <pre><code>document.addEventListener('click', handleClick)</code></pre>
+
+  <p>這裡傳入的是 <code>handleClick</code>，不是 <code>handleClick()</code>。</p>
+
+  <p>意思不是「現在執行 handleClick」，而是：</p>
+
+  <blockquote>
+    document，這個函式先交給你。之後如果有符合條件的 click event，請你再呼叫它。
+  </blockquote>
+
+  <div class="box tip">
+    <strong>Callback 最重要的判斷方式：</strong>
+    如果你看到「一個函式被當成參數傳給另一個 API / 函式，而接收方之後會呼叫它」，那個被交出去的函式就在扮演 callback。
+  </div>
+
+  <h2>3. 為什麼叫 call <em>back</em>？</h2>
+
+  <p><code>back</code> 是相對於最一開始的控制方向。</p>
+
+  <pre><code>第一步：你的程式先呼叫瀏覽器 API
+
+你的程式
+   │
+   └──► document.addEventListener('click', handleClick)
+                                  │
+                                  └── 把 handleClick 交出去
+
+之後：瀏覽器在適當時機「呼叫回」你的程式
+
+瀏覽器
+   │
+   └──► handleClick(event)
+            ↑
+            這就是 call back</code></pre>
+
+  <p>所以不是因為 callback 一定「往回傳資料」，也不是因為一定會非同步。名稱描述的是<strong>控制權先交給別人，之後由對方再呼叫回你提供的函式</strong>。</p>
+
+  <h2>4. 放回你現在的 click event 情境</h2>
+
+  <pre><code>function handleClick(event) {
+  console.log(event.target)
+}
+
+document.addEventListener('click', handleClick)</code></pre>
+
+  <p>完整流程是：</p>
+
+  <ol>
+    <li>JavaScript 建立 <code>handleClick</code> 這個 function。</li>
+    <li>JavaScript 呼叫 <code>document.addEventListener(...)</code>。</li>
+    <li>把 <code>handleClick</code> 函式本身交給瀏覽器。</li>
+    <li>瀏覽器把這個 listener 設定保存在 <code>document</code> 的 event listener list。</li>
+    <li>之後使用者真的點擊頁面。</li>
+    <li>瀏覽器建立並分派 <code>click</code> event。</li>
+    <li>分派路徑走到 <code>document</code> 時，瀏覽器發現有相符的 click listener。</li>
+    <li>瀏覽器主動執行 <code>handleClick(event)</code>。</li>
+    <li>JavaScript engine 開始執行你寫在 <code>handleClick</code> 裡的程式。</li>
+  </ol>
+
+  <div class="box">
+    <strong>因此，JavaScript 不是「抓到 event」。</strong>
+    更精確的說法是：JavaScript 先把 callback 登記給瀏覽器；瀏覽器在事件分派時找到這個 callback，然後呼叫它，並把此次的 <code>event</code> 物件當作參數傳進去。
+  </div>
+
+  <h2>5. Trigger、event、listener、callback 不要混在一起</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>名詞</th><th>在 click 情境中代表什麼</th></tr></thead>
+      <tbody>
+        <tr><td>Trigger / 觸發條件</td><td>使用者真的做了點擊這個動作</td></tr>
+        <tr><td>Event</td><td>瀏覽器為這次發生的事情建立的事件物件，例如 <code>click</code></td></tr>
+        <tr><td>Event listener</td><td>登記在某個 <code>EventTarget</code> 上的「事件類型 + callback + options」設定</td></tr>
+        <tr><td>Callback</td><td>真正會被瀏覽器呼叫的函式，例如 <code>handleClick</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>6. Callback 不一定是非同步</h2>
+
+  <p>Callback 描述的是「誰負責呼叫這個函式」，不是描述同步或非同步。</p>
+
+  <h3>同步 callback</h3>
+
+  <pre><code>function double(x) {
+  return x * 2
+}
+
+[1, 2, 3].map(double)</code></pre>
+
+  <p><code>double</code> 被傳給 <code>map</code>，再由 <code>map</code> 呼叫，因此它也是 callback；只是這些呼叫會在 <code>map</code> 執行期間同步發生。</p>
+
+  <h3>事件 callback</h3>
+
+  <pre><code>document.addEventListener('click', handleClick)</code></pre>
+
+  <p><code>handleClick</code> 何時被呼叫，由之後的事件分派決定。</p>
+
+  <div class="box tip">
+    <strong>所以：</strong><br>
+    callback ≠ async<br>
+    callback ≠ event<br>
+    callback ≠ listener 本身<br>
+    callback = 被交給另一方、由另一方負責呼叫的函式
+  </div>
+
+  <h2>7. 用 Python 類比</h2>
+
+  <p>如果你比較熟 Python，可以用同樣的控制方向理解：</p>
+
+  <pre><code>def handle(value):
+    print(value)
+
+def run(callback):
+    result = 123
+    callback(result)
+
+run(handle)</code></pre>
+
+  <p>這裡：</p>
+
+  <pre><code>你的程式呼叫 run(handle)
+            │
+            └── 把 handle 函式交給 run
+
+run() 內部之後呼叫
+
+callback(result)
+      │
+      └── 實際上就是 handle(result)</code></pre>
+
+  <p><code>handle</code> 的角色就是 callback。</p>
+
+  <h2>8. 一秒判斷法</h2>
+
+  <p>看到一段程式時，問自己三題：</p>
+
+  <ol>
+    <li>是不是有一個函式被當作值交出去？</li>
+    <li>接收它的另一方是不是會在自己的流程裡呼叫它？</li>
+    <li>真正決定「什麼時候呼叫」的是不是接收方？</li>
+  </ol>
+
+  <p>如果三題都是「是」，那個函式就是 callback。</p>
+
+  <h2>自我檢查</h2>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q1. 下列哪個最接近 callback 的核心？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ Callback 不一定是非同步；map() 也能使用同步 callback。">一定要等未來某個非同步工作完成後才執行的函式</button>
+      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。重點是函式被交給另一方，呼叫時機由接收方控制。">被當成值交給另一方，再由另一方負責呼叫的函式</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ Event 是發生事情的資料；callback 是會被呼叫的函式。">瀏覽器建立來描述使用者動作的 Event 物件</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q2. 為什麼 addEventListener 傳 handleClick，而不是 handleClick()？</div>
+    <div class="choices">
+      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。要把函式本身交給瀏覽器保存，之後事件分派時再由瀏覽器呼叫。">因為要把函式本身交給瀏覽器，而不是現在執行它</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ 括號不是效能設定；有括號代表現在進行函式呼叫。">因為省略括號可以讓 JavaScript 執行得比較快</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ handleClick() 會立即呼叫函式，得到的是回傳值，不是要登記的 callback 本身。">因為 handleClick() 代表瀏覽器之後會自動補上 event</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <h2>Recap</h2>
+
+  <ul>
+    <li>Callback 是一種<strong>角色</strong>，不是特殊 function 類型。</li>
+    <li><code>handleClick</code> 是函式本身；<code>handleClick()</code> 是現在呼叫它。</li>
+    <li>Callback 的關鍵是：把函式交給另一方，再由另一方決定何時呼叫。</li>
+    <li><code>back</code> 指的是控制權先交出去，之後接收方再「call back」進你的程式。</li>
+    <li>在 DOM event 中，瀏覽器分派事件並呼叫 listener 裡保存的 callback。</li>
+    <li>Callback 不等於 async；同步 API 也可以使用 callback。</li>
+  </ul>
+
+  <p class="cite">
+    主要來源：
+    <a href="https://developer.mozilla.org/en-US/docs/Glossary/Callback_function" target="_blank" rel="noopener noreferrer">MDN — Callback function</a>、
+    <a href="https://dom.spec.whatwg.org/" target="_blank" rel="noopener noreferrer">WHATWG DOM Standard — Events / EventTarget</a>。
+  </p>
+
+  <nav class="lesson-nav" aria-label="參考卡導覽">
+    <a href="0044-dom-document-event-dispatch-reference.html">← DOM / document / event dispatch</a>
+    <a href="../lessons/0001-browser-click-foundation.html">回 Lesson 1 →</a>
+  </nav>
+
+  <script src="../assets/quiz.js"></script>
+</body>
+</html>
