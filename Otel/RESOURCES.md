@@ -31,19 +31,6 @@
 - [SRE Manager's Guide to OpenTelemetry — Elastic](https://www.elastic.co/resources/article/opentelemetry-otel-sre-manager-guide)
   以 SRE 視角談 OTel 導入策略與常見陷阱,適合「導入維運」相關課程的背景閱讀。
 
-## Browser / Web Platform prerequisites
-
-- [WHATWG HTML Standard — Document object](https://html.spec.whatwg.org/multipage/dom.html)
-  HTML document 與 `Document` object 的官方定義。用於理解 JavaScript 裡的 `document` 到底代表什麼。
-- [WHATWG DOM Standard — Events](https://dom.spec.whatwg.org/#events)
-  DOM event、Event object、event target 與 event dispatch 的官方規格。用於理解瀏覽器如何把一次使用者互動送進 JavaScript。
-- [WHATWG DOM Standard — EventTarget](https://dom.spec.whatwg.org/#interface-eventtarget)
-  `EventTarget`、event listener list、`addEventListener()`、`removeEventListener()` 與 `dispatchEvent()` 的官方規格。
-- [MDN — EventTarget.addEventListener()](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener)
-  較容易閱讀的實作參考，用於把 DOM Standard 的規格語言對照回日常 JavaScript。
-- [MDN — Callback function](https://developer.mozilla.org/en-US/docs/Glossary/Callback_function)
-  定義 callback 為「被當作參數交給另一個函式，之後由接收方呼叫的函式」，並區分同步與非同步 callback。
-
 ## Wisdom (Communities)
 
 - [CNCF Slack](https://slack.cncf.io) — 頻道 `#opentelemetry`、`#otel-sig-end-user`、`#otel-collector`
