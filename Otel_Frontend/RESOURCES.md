@@ -1,9 +1,16 @@
 # Faro 前後端可觀測性 Resources
 
-## Knowledge
+## Source policy
+
+`source-documents/` 內的 8 份使用者提供 HTML 是本 learning workspace 的第一線主軸與學習邊界。外部官方資料只用來：補文件省略的 prerequisite、驗證文件敘述、消除歧義，或提供理解文件所必要的背景；不靜默覆蓋原文件。
+
+## Primary learning corpus
 
 - [本地主要來源：8 份 HTML](source-documents/)
   第一線課程語料，涵蓋需求、Faro／Alloy、套件實作與歷史、部署、前後端 Trace、OpenSearch pipeline 與專案提案。
+
+## Authoritative product / implementation references
+
 - [Grafana Alloy `otelcol.receiver.faro`](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.receiver.faro/)
   Receiver、CORS、輸出與 stability 的現行官方規格；用來校正文內版本敘述與設定。
 - [Grafana Faro instrumentation](https://grafana.com/docs/grafana-cloud/observe-and-act/monitor-applications/frontend-observability/instrument/)
@@ -18,6 +25,21 @@
   OpenSearch body 展平與 OTTL 版本限制的官方依據。
 - [Web Vitals](https://web.dev/articles/vitals?hl=zh-tw)
   LCP、INP、CLS 等使用者體驗指標的一手背景資料。
+
+## Authoritative prerequisite references
+
+這些不是 Faro 主線教材，而是只有在 source documents 省略必要 browser / language 基礎時才使用。
+
+- [WHATWG HTML Standard — Document](https://html.spec.whatwg.org/multipage/dom.html)
+  用於理解 JavaScript 裡的 `document` 與 HTML document 對應的 `Document` object。
+- [WHATWG DOM Standard — Events](https://dom.spec.whatwg.org/#events)
+  用於理解 Event object、event target、event path 與 event dispatch。
+- [WHATWG DOM Standard — EventTarget](https://dom.spec.whatwg.org/#interface-eventtarget)
+  用於理解 listener registration、`addEventListener()` 與 callback 的責任邊界。
+- [MDN — Callback function](https://developer.mozilla.org/en-US/docs/Glossary/Callback_function)
+  用於補 callback 的語言層概念，以及 callback 不等於 async。
+- [MDN — EventTarget.addEventListener()](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener)
+  較容易閱讀的日常 JavaScript 對照資料。
 
 ## Internal operational references
 
