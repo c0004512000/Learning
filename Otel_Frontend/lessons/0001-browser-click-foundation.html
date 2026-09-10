@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 1｜瀏覽器如何知道你點了哪裡</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+  <h1>瀏覽器如何知道你點了哪裡</h1>
+  <p class="subtitle">Milestone 1 · 先建立 browser 原生事件邊界，再回到 Faro click tracking</p>
+
+  <p>你在領班助手按下「每日生產排程」時，Faro 要記錄這次互動。但在談 Faro 之前，先回答一個更底層的問題：</p>
+  <blockquote>Faro 還沒介入以前，瀏覽器本身怎麼知道「你點了哪個頁面元素」，又怎麼讓 JavaScript 收到這件事？</blockquote>
+
+  <p>這堂課只建立這條 browser 原生因果鏈。詳細 browser prerequisite 若卡住，就走 reference 支線；理解後再回來，不把所有 DOM 細節塞進主課。</p>
+
+  <h2>1. HTML、DOM、畫面不是同一件事</h2>
+
+  <p>假設 HTML 裡有：</p>
+  <pre><code>&lt;main&gt;
+  &lt;button id="schedule"&gt;每日生產排程&lt;/button&gt;
+&lt;/main&gt;</code></pre>
+
+  <p>瀏覽器解析 HTML 後，會建立可由程式操作的 DOM 物件，例如代表按鈕的 <code>HTMLButtonElement</code>。你可以先把關係想成：</p>
+
+  <pre><code>HTML source text
+      ↓ 瀏覽器解析
+DOM objects in browser memory
+      ↓ 搭配 CSS 進行 layout / paint
+你看到的畫面</code></pre>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>東西</th><th>這裡先怎麼理解</th></tr></thead>
+      <tbody>
+        <tr><td>HTML</td><td>瀏覽器收到的標記文字。</td></tr>
+        <tr><td>DOM</td><td>瀏覽器根據文件建立、彼此有 tree 關係的可操作物件。</td></tr>
+        <tr><td>畫面</td><td>瀏覽器依 DOM、CSS 等資訊實際呈現給人的結果。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="box tip">
+    <strong>如果「DOM object」仍然抽象：</strong>
+    先走 <a href="../reference/0001-dom-document-event-dispatch.html">Reference｜DOM、document 與事件分派</a>。那張卡會直接把 <code>Document</code>、<code>button</code>、listener list 與 event path 展開。
+  </div>
+
+  <h2>2. <code>document</code> 是目前網頁的 Document 物件</h2>
+
+  <p>在頁面 JavaScript 裡：</p>
+  <pre><code>document.querySelector('#schedule')</code></pre>
+
+  <p><code>document</code> 不是泛稱「文件」，也不是 documents 清單。它指向目前這張 HTML 文件對應的 <code>Document</code> 物件；JavaScript 可以從這個入口走進 DOM tree 找其他 DOM 物件。</p>
+
+  <pre><code>document
+└── html
+    └── body
+        └── main
+            └── button#schedule</code></pre>
+
+  <h2>3. 你真的點下去：Event 是瀏覽器建立的</h2>
+
+  <p>使用者點擊後，不是 JavaScript 先偵測到。瀏覽器／平台先接收到輸入，決定此次互動的 DOM target，然後建立對應的 browser Event object。</p>
+
+  <p>例如：</p>
+  <pre><code>event.type   → "click"
+event.target → 被點到的 DOM object</code></pre>
+
+  <div class="box">
+    <strong>這個 Event object 不是 telemetry 紀錄。</strong>
+    它是瀏覽器處理這次互動時使用的事件資料。除非 Faro 或你的程式另外讀取、轉換、送出並讓 backend 儲存，否則不會自動變成日後可以查詢的 click history。
+  </div>
+
+  <h2>4. 瀏覽器接著「分派」event</h2>
+
+  <p>在這裡，<strong>dispatch event 翻成「分派事件」</strong>比較精準。不是送到網路，而是瀏覽器依 DOM tree 建立事件路徑，把 event 分派到路徑上的 EventTarget。</p>
+
+  <pre><code>Capture： document → html → body → main → button
+Target：                                      button
+Bubble：  button → main → body → html → document</code></pre>
+
+  <p>路徑經過某個 EventTarget 時，瀏覽器會檢查那裡是否有符合此 event type 的 listener registration。</p>
+
+  <h2>5. JavaScript 不是「抓 event」，而是先把 callback 登記出去</h2>
+
+  <pre><code>function handleClick(event) {
+  console.log(event.target)
+}
+
+document.addEventListener('click', handleClick)</code></pre>
+
+  <p>這段不是啟動一個 JavaScript 迴圈去不停找 click。它比較接近：</p>
+
+  <pre><code>在 document 上登記：
+- event type: click
+- callback: handleClick
+- options: ...</code></pre>
+
+  <p>之後 click event 被瀏覽器分派、路徑走到符合的 listener registration 時，<strong>瀏覽器主動呼叫：</strong></p>
+
+  <pre><code>handleClick(event)
+            ↑
+        本次 Event object
+        由瀏覽器傳進來</code></pre>
+
+  <div class="box tip">
+    <strong>Callback 還不熟：</strong>
+    先走 <a href="../reference/0002-callback-function.html">Reference｜Callback 到底是什麼</a>。重點是先分清楚 <code>handleClick</code> 與 <code>handleClick()</code>，以及「誰決定何時呼叫」。
+  </div>
+
+  <h2>6. 把一次 click 的因果鏈走完整</h2>
+
+  <figure class="diagram">
+    <figcaption>
+      <strong>Faro 尚未介入以前</strong><br>
+      <span class="diagram-caption-note">箭頭代表控制／資料如何往下一步推進。</span>
+    </figcaption>
+
+    <div class="diagram-flow">
+      <div class="diagram-node app">
+        <span class="node-kicker">使用者</span>
+        <span class="node-name">Click</span>
+        <span class="node-note">產生實體輸入</span>
+      </div>
+      <div class="diagram-connector"><div class="connector-line"></div></div>
+      <div class="diagram-node provider">
+        <span class="node-kicker">瀏覽器</span>
+        <span class="node-name">建立 Event</span>
+        <span class="node-note">決定 target</span>
+      </div>
+      <div class="diagram-connector"><div class="connector-line"></div></div>
+      <div class="diagram-node provider">
+        <span class="node-kicker">瀏覽器</span>
+        <span class="node-name">分派 Event</span>
+        <span class="node-note">沿 event path 檢查 listeners</span>
+      </div>
+      <div class="diagram-connector"><div class="connector-line"></div></div>
+      <div class="diagram-node processor">
+        <span class="node-kicker">JavaScript</span>
+        <span class="node-name">callback(event)</span>
+        <span class="node-note">開始執行你的邏輯</span>
+      </div>
+    </div>
+  </figure>
+
+  <pre><code>使用者 click
+  → browser 接收輸入
+  → browser 決定 DOM target
+  → browser 建立 click Event
+  → browser 分派 event
+  → 找到相符 listener registration
+  → browser 呼叫 callback(event)
+  → JavaScript 在 callback 裡讀 event.target</code></pre>
+
+  <p>到這裡為止，我們都還在<strong>瀏覽器原生事件機制</strong>。下一個主線問題才是：</p>
+
+  <blockquote>Faro 的 ClickInstrumentation 到底在哪一個位置接手？它拿到 browser event 後，又把什麼資料變成 telemetry？</blockquote>
+
+  <h2>自我檢查</h2>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q1. DOM 在這堂課裡最精確的描述是哪一個？</div>
+    <div class="choices">
+      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。DOM 是瀏覽器依文件建立的可操作物件及其 tree 關係。">瀏覽器依文件建立的可操作物件與 tree 關係</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ 那是 rendered result，不是 DOM 本身。">使用者螢幕上實際看到的像素畫面</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ HTML source 是輸入；DOM 是解析後建立的物件模型。">伺服器送來的原始 HTML 字串本身</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q2. 使用者 click 後，JavaScript 的 <code>handleClick(event)</code> 為什麼會執行？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ JS 並不是一直 polling DOM 找 click。">JavaScript 一直輪詢 DOM，看到 click 後自己呼叫 handleClick</button>
+      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。callback 先被登記；瀏覽器分派 event 時找到它並呼叫。">callback 先被登記，瀏覽器分派 event 時找到它並呼叫</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ Faro 尚未介入 browser 原生 event dispatch。">Faro 先收到 click，再要求瀏覽器執行 handleClick</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q3. 哪一個東西會因 <code>addEventListener()</code> 被事先保存？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ 每次 Event object 是事件發生時才建立。">未來所有 click 的 Event object</button>
+      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。保存的是 event type、callback、options 等 listener registration。">event type、callback、options 等 listener registration</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="✗ Telemetry 需要 Faro 另外建立並送出。">完整的 Faro telemetry payload</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <h2>Recap</h2>
+  <ul>
+    <li>HTML source、DOM objects、rendered 畫面是三個不同層次。</li>
+    <li><code>document</code> 指目前 HTML 文件的 <code>Document</code> 物件。</li>
+    <li>click Event 是瀏覽器在使用者互動發生後建立的。</li>
+    <li>dispatch 在這裡理解為「分派」：沿 DOM event path 處理 event。</li>
+    <li><code>addEventListener()</code> 先建立 listener registration，其中包含 callback。</li>
+    <li>JS 不主動抓 event；browser 分派事件時呼叫 callback，並把 Event object 傳進去。</li>
+    <li>Browser Event object 不等於 Faro telemetry。</li>
+  </ul>
+
+  <p class="cite">
+    主線來源：<a href="../source-documents/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a>。文件省略的 browser prerequisite 由 <a href="../reference/0001-dom-document-event-dispatch.html">DOM / event reference</a> 與 <a href="../reference/0002-callback-function.html">callback reference</a> 補足；外部規格只用來補必要背景，不取代使用者文件。
+  </p>
+
+  <nav class="lesson-nav" aria-label="課程導覽">
+    <a href="../learning-map/index.html">← Learning Map</a>
+    <span>下一主線：Faro ClickInstrumentation 如何接手</span>
+  </nav>
+
+  <script src="../assets/quiz.js"></script>
+</body>
+</html>

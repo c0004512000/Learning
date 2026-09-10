@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SRE - 前端監控 - Proposal</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>SRE - 前端監控 - Proposal</h1>
+    <p class="subtitle">Confluence page · <a href="https://confluence.garmin.com/pages/viewpage.action?pageId=2221251784">Open original</a> · Space: PI · Version: 3</p>
+  </header>
+  <main>
+<h1>動機</h1><ul><li>目前前端專案缺乏系統性監控，通常由產線於Teams回報後再由專人處理</li><li>現有後端監控無法快速有效追蹤特定使用者行為，僅可透過時間排查可能的流量行為</li><li>建立統一前端監控方式，減少各單位有相關需求時各自摸索、重複造輪或採用不同工具導致資料標準不一，增加日後整合與維運成本</li></ul><h1>目的</h1><ul><li>串聯前端至後端流量，讓開發者也可根據使用者資訊快速查找根因，縮短服務恢復時間</li><li>補足前端監控，讓開發者可排查可能的非後端根因</li><li>協助建置各團隊前端監控Dashboard與告警機制</li></ul><h1>預期效益</h1><ul><li>問題發現由使用者回報提前為異常告警，縮短排查與修復時間</li><li>提供跨專案一致的監控資料與規範，降低未來系統整合、跨團隊合作的溝通與技術成本</li><li>建立前端監控Dashboard，協助主管或開法者快速掌握整體服務品質或關注指標，作為後續決策依據</li><li>提升整體工程文化，促使團隊以數據驅動優化</li></ul><h1>預期做法</h1><ul><li>技術選型 - Faro</li><li>Faro SDK整合開發</li><li>開發Skill整合SDK，並將Skill整合進IDP Skill Tool</li><li>試點導入<ul><li><time datetime="2026-08-28">2026-08-28</time> 完成領班助手前端導入</li><li><time datetime="2026-09-11">2026-09-11</time> 完成領班助手後端串聯</li></ul></li><li>全面推廣<ul><li><time datetime="2026-09-18">2026-09-18</time> 撰寫說明文件</li><li><time datetime="2026-10-02">2026-10-02</time> PI推廣及協助導入</li></ul></li></ul>
+  </main>
+</body>
+</html>

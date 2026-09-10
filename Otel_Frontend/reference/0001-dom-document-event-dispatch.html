@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DOM、document 與事件分派｜Reference</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+  <h1>DOM、<code>document</code> 與事件分派</h1>
+  <p class="subtitle">把抽象名詞還原成瀏覽器記憶體裡的物件與實際呼叫流程</p>
+
+  <div class="box ask">
+    <strong>先抓住一句話：</strong>
+    JavaScript 並不是不停搜尋「有沒有 click」。瀏覽器負責接收輸入、決定事件目標、建立 event、分派（dispatch）event；JavaScript 只是先把 callback 登記好，等瀏覽器在分派過程中呼叫它。
+  </div>
+
+  <h2>1. DOM 具體來說是什麼？</h2>
+  <p>假設頁面 HTML 是：</p>
+  <pre><code>&lt;html&gt;
+  &lt;body&gt;
+    &lt;main&gt;
+      &lt;button id="schedule"&gt;每日生產排程&lt;/button&gt;
+    &lt;/main&gt;
+  &lt;/body&gt;
+&lt;/html&gt;</code></pre>
+
+  <p>HTML 是文字。瀏覽器解析後，會在記憶體中建立一組彼此有父子關係的 DOM 物件：</p>
+  <div class="memory-object"><strong>Document 物件</strong><span>代表目前整份網頁文件</span></div>
+  <div class="memory-object indent-1"><strong>HTMLHtmlElement 物件</strong><span>對應 &lt;html&gt;</span></div>
+  <div class="memory-object indent-2"><strong>HTMLBodyElement 物件</strong><span>對應 &lt;body&gt;</span></div>
+  <div class="memory-object indent-2"><strong>HTMLElement 物件</strong><span>對應 &lt;main&gt;</span></div>
+  <div class="memory-object indent-2"><strong>HTMLButtonElement 物件</strong><span>對應 &lt;button id="schedule"&gt;</span></div>
+
+  <div class="box tip">
+    <strong>所以 DOM 不是畫面，也不是 HTML 字串。</strong>
+    它是瀏覽器建立的可操作物件，以及這些物件之間的 tree 關係。
+  </div>
+
+  <h2>2. <code>document</code> 是什麼？</h2>
+  <p>每一份 HTML document 都由一個 <code>Document</code> 物件表示。頁面 JavaScript 中的全域變數 <code>document</code>，就是取得「目前這一頁的 Document 物件」的入口。</p>
+
+  <pre><code>document
+└── html
+    └── body
+        └── main
+            └── button#schedule</code></pre>
+
+  <pre><code>console.log(document)
+console.log(document.body)
+const button = document.querySelector('#schedule')</code></pre>
+
+  <p><code>document.querySelector(...)</code> 不是去搜尋 HTML 原始字串，而是在目前 DOM tree 中找對應的 DOM 物件。</p>
+
+  <h2>3. <code>addEventListener()</code> 記住的是什麼？</h2>
+  <pre><code>function handleClick(event) {
+  console.log(event.target)
+}
+
+document.addEventListener('click', handleClick)</code></pre>
+
+  <p>這一步不是開始 polling。它比較接近把以下設定登記到 <code>document</code> 這個 EventTarget：</p>
+  <pre><code>listener registration
+- type: "click"
+- callback: handleClick
+- capture: false</code></pre>
+
+  <p>真正長期被保存的是這個 listener registration。使用者之後每一次 click 所產生的 Event object，並不會自動成為永久歷史紀錄。</p>
+
+  <h2>4. 點擊如何一路變成 JavaScript 執行？</h2>
+  <ol class="sequence">
+    <li><strong>使用者輸入發生。</strong> 滑鼠、觸控或其他 pointing device 產生平台輸入。</li>
+    <li><strong>瀏覽器收到輸入。</strong> 不是 JavaScript 主動去抓。</li>
+    <li><strong>瀏覽器決定目標。</strong> 例如 DOM 中的 <code>button#schedule</code>。</li>
+    <li><strong>瀏覽器建立 Event object。</strong> 其中包含 <code>type</code>、<code>target</code> 等資料。</li>
+    <li><strong>瀏覽器分派（dispatch）event。</strong> 它依 DOM tree 建立事件路徑，檢查路徑上的 EventTarget。</li>
+    <li><strong>遇到相符 listener 時，瀏覽器呼叫 callback。</strong> 本次 Event object 被當作參數傳入。</li>
+  </ol>
+
+  <h2>5. 所以 JS 到底怎麼「拿到」event？</h2>
+  <pre><code>function handleClick(event) {
+  // event 不是這個函式自己建立的
+  // 是瀏覽器呼叫 handleClick 時傳進來的
+  console.log(event.type)
+  console.log(event.target)
+}
+
+document.addEventListener('click', handleClick)</code></pre>
+
+  <pre><code>你的 JS：先登記 handleClick
+      ↓
+使用者：點 button
+      ↓
+瀏覽器：建立 click Event
+      ↓
+瀏覽器：分派 event
+      ↓
+瀏覽器：在路徑上找到相符 listener
+      ↓
+瀏覽器：handleClick(event)
+      ↓
+你的 JS：開始執行 handleClick 裡的程式</code></pre>
+
+  <div class="box">
+    <strong>精準說法：</strong>
+    不要說「JS 抓到 event」。應該說「JavaScript 先註冊 callback；瀏覽器分派事件時主動呼叫 callback，並把 Event object 傳進去」。
+  </div>
+
+  <h2>6. 為什麼 listener 掛在 <code>document</code> 也能知道 button 被點？</h2>
+  <pre><code>document
+└── html
+    └── body
+        └── main
+            └── button   ← event.target</code></pre>
+
+  <p>簡化後，一次 click 會沿事件路徑經歷：</p>
+  <pre><code>Capture： document → html → body → main → button
+Target：                                      button
+Bubble：  button → main → body → html → document</code></pre>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>欄位</th><th>意思</th></tr></thead>
+      <tbody>
+        <tr><td><code>event.target</code></td><td>最初真正被點到的 DOM 物件。</td></tr>
+        <tr><td><code>event.currentTarget</code></td><td>目前正在執行哪一個 EventTarget 上的 listener。</td></tr>
+        <tr><td><code>event.type</code></td><td>事件類型，例如 <code>click</code>。</td></tr>
+        <tr><td><code>event.eventPhase</code></td><td>目前位於 capture、target 或 bubble 哪個階段。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>7. 「dispatch」在這裡怎麼翻？</h2>
+  <p>這個情境下建議翻成<strong>分派事件</strong>。它不是把資料送上網路，而是瀏覽器依事件路徑，把這個 event 交給應該經過的 EventTarget，並呼叫符合條件的 listener callback。</p>
+
+  <h2>8. Event 有沒有被「記錄」？</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>東西</th><th>會自動成為永久紀錄嗎？</th></tr></thead>
+      <tbody>
+        <tr><td>listener registration</td><td>它是設定，會持續存在到被移除或相關物件生命週期結束。</td></tr>
+        <tr><td>本次 browser Event object</td><td>不會自動成為你的 telemetry history。</td></tr>
+        <tr><td>Faro / analytics telemetry</td><td>只有監控程式另外讀取、轉換、送出，backend 再儲存後，才成為可查詢紀錄。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <pre><code>瀏覽器原生世界
+使用者 click
+  → Browser Event
+  → DOM event dispatch
+  → listener callback(event)
+
+                ↓ Faro 從這裡接手
+
+監控資料世界
+callback 讀取 event.target / 其他資訊
+  → 建立 Faro telemetry
+  → transport
+  → Alloy / Collector / backend
+  → 儲存與查詢</code></pre>
+
+  <h2>9. 直接點一次，看分派順序</h2>
+  <p>下面不是示意圖。按一次按鈕，這張 reference 會直接把每個 callback 收到的資訊印出來。</p>
+
+  <div class="event-demo" id="event-demo">
+    <div class="demo-stage" id="demo-container">
+      <button class="demo-action" id="schedule-button"><span id="schedule-label">每日生產排程</span></button>
+    </div>
+    <pre class="event-log" id="event-log">尚未點擊。請按上面的「每日生產排程」。</pre>
+  </div>
+
+  <div class="box tip">
+    <strong>觀察重點：</strong>
+    比較每一行的 <code>event.target</code> 與 <code>event.currentTarget</code>。同一個 click 在一路分派時，target 可以保持不變，但 currentTarget 會隨目前執行的 listener 改變。
+  </div>
+
+  <h2>Recap</h2>
+  <ul>
+    <li>DOM 是瀏覽器建立的文件物件樹。</li>
+    <li><code>document</code> 是目前 HTML 文件的 <code>Document</code> 物件。</li>
+    <li><code>addEventListener()</code> 登記的是 event type、callback 與 options。</li>
+    <li>JavaScript 不需要 polling；瀏覽器分派 event 時會主動呼叫 callback。</li>
+    <li>callback 的 <code>event</code> 參數，是瀏覽器呼叫函式時傳入的本次 Event object。</li>
+    <li>browser event 不等於永久 telemetry；Faro 需要另外讀取、轉換、送出與儲存。</li>
+  </ul>
+
+  <p class="cite">
+    這是為理解 <a href="../source-documents/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a> 所補的 prerequisite reference，不是用外部資料取代原始文件。補充規格：
+    <a href="https://html.spec.whatwg.org/multipage/dom.html" target="_blank" rel="noopener">WHATWG HTML Standard — Document</a>、
+    <a href="https://dom.spec.whatwg.org/#events" target="_blank" rel="noopener">WHATWG DOM Standard — Events</a>、
+    <a href="https://dom.spec.whatwg.org/#interface-eventtarget" target="_blank" rel="noopener">WHATWG DOM Standard — EventTarget</a>。
+  </p>
+
+  <nav class="lesson-nav" aria-label="參考卡導覽">
+    <a href="../lessons/0001-browser-click-foundation.html">← 回 Lesson 1</a>
+    <a href="0002-callback-function.html">下一張：Callback →</a>
+  </nav>
+
+  <script>
+    (() => {
+      const demo = document.querySelector('#event-demo');
+      const container = document.querySelector('#demo-container');
+      const button = document.querySelector('#schedule-button');
+      const log = document.querySelector('#event-log');
+      let lines = [];
+
+      function describe(node) {
+        if (node === document) return 'document';
+        if (!node || !node.tagName) return String(node);
+        const id = node.id ? '#' + node.id : '';
+        return node.tagName.toLowerCase() + id;
+      }
+
+      function write(label, event) {
+        if (!demo.contains(event.target)) return;
+        lines.push(
+          label + '\n' +
+          '  event.type          = ' + event.type + '\n' +
+          '  event.target        = ' + describe(event.target) + '\n' +
+          '  event.currentTarget = ' + describe(event.currentTarget) + '\n' +
+          '  event.eventPhase    = ' + event.eventPhase
+        );
+        log.textContent = lines.join('\n\n');
+      }
+
+      document.addEventListener('click', (event) => {
+        if (!demo.contains(event.target)) return;
+        lines = [];
+        write('1. document CAPTURE listener', event);
+      }, true);
+
+      container.addEventListener('click', (event) => write('2. container CAPTURE listener', event), true);
+      button.addEventListener('click', (event) => write('3. button listener', event));
+      container.addEventListener('click', (event) => write('4. container BUBBLE listener', event));
+      document.addEventListener('click', (event) => write('5. document BUBBLE listener', event));
+    })();
+  </script>
+</body>
+</html>
