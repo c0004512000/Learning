@@ -31,6 +31,16 @@ Date: 2026-09-10
    - Callback 應理解為角色：函式被交給另一方，再由接收方決定何時呼叫。
    - `back` 是相對於最初控制方向：程式先把函式交出去，接收方之後再 call back 進提供的函式。
 
+6. **Capture / Bubble 被看成沒有理由的「來回走一次」**
+   - Learner 追問「capture 是不是邊找邊執行」「相反就是 bubble 時才執行」「為什麼要區分」。
+   - 需要修正：target 在 dispatch 前就已確定；capture 並不是拿來找 target。Event path 確定後，dispatch 按 phase 走 path，經過 EventTarget 時符合的 listener 會當下被 invoke。
+   - Capture 是 ancestor → target 方向，處理 `capture: true` listeners；若 event 的 `bubbles` 為 true，之後才在 ancestor 反向順序處理 non-capture listeners。
+
+7. **`bubble` / `bubbles` 缺乏語意模型**
+   - Learner 不理解「bubbling phase」與「click 是會 bubble 的事件」。
+   - 需要明確區分：bubble 是事件分派的一個 phase；`event.bubbles` 則是一個布林行為屬性，決定 target 之後是否沿 ancestors 反向執行 non-capture listeners。
+   - 不應讓 learner 推論所有 DOM events 都會 bubble；是否 bubble 是 event type / initialization 定義的一部分。
+
 ## Bridges established in this session
 
 以下內容已經被明確解釋並建立 reference，但**尚未把它標記為 mastered**；後續需要透過實際解釋或題目確認 retrieval：
@@ -39,19 +49,26 @@ Date: 2026-09-10
 - `document` → current `Document` object → DOM tree。
 - `Document` / `Element` 可以作為 `EventTarget`。
 - `addEventListener()` 建立 listener registration；callback 是其中被保存並等待呼叫的函式。
-- Browser event path 可用 capture → target → bubble 理解。
+- Event target 在 dispatch 前就已決定；capture 不是 target discovery。
+- Dispatch 會沿 event path 執行，符合 phase/type 的 listener 會在 traversal 過程被 invoke。
+- Capture：ancestor → target，處理 capture listeners。
+- Target：處理 event target。
+- Bubble：若 `event.bubbles === true`，再沿 ancestors 反向處理 non-capture listeners。
+- 一般 `document.addEventListener('click', handleClick)` 預設 `capture: false`，因此對 descendant click，通常是在 bubbling 階段於 document 被呼叫。
 - `event.target` 與 `event.currentTarget` 責任不同。
 - JS 不 polling click；browser dispatch event 時呼叫 callback。
 - Browser Event object 不等於 Faro telemetry record。
-- 在此脈絡中，dispatch 採用翻譯「**分派**」，避免誤解為網路傳送。
+- 在此脈絡中，dispatch 採用翻譯「**分派**」，避免誤解為網路傳送；bubble 採「**冒泡**」，強調由內層 target 往外層 ancestors 的方向。
 
-## Durable references created
+## Durable references created / expanded
 
 - `reference/0001-dom-document-event-dispatch.html`
   - DOM object model
   - `document`
   - listener registration
   - event creation / dispatch / propagation
+  - capture / target / bubble phase
+  - `event.bubbles` 的語意
   - `event.target` vs `event.currentTarget`
   - 可操作的 event dispatch demo
 
@@ -65,13 +82,17 @@ Date: 2026-09-10
 
 ## Current ZPD
 
-目前應視為：**已建立更具體的瀏覽器事件模型，但尚未證明能獨立重建整條因果鏈。**
+目前應視為：**已建立更具體的瀏覽器事件模型，但尚未證明能獨立重建整條因果鏈，尤其 capture / bubble 的 phase 選擇仍是 active prerequisite。**
 
-未來教學不要直接假設 browser primitives 已熟練；若再次遇到 `document.addEventListener(...)`、`event.target`、callback 等語法，優先要求 learner 用自己的話指出：
+未來教學不要直接假設 browser primitives 已熟練；若再次遇到 `document.addEventListener(...)`、`event.target`、callback、capture/bubble 等語法，優先要求 learner 用自己的話指出：
 
 - 哪一個是 DOM object？
 - 哪一個東西被事先保存？
 - event 是誰建立？
+- target 在什麼時候決定？
+- capture 是不是用來尋找 target？
+- listener 在哪個 phase 被 invoke，取決於什麼？
+- `event.bubbles` 控制的是哪一段？
 - callback 是誰呼叫？
 - event object 怎麼進到 callback 參數？
 
@@ -79,12 +100,22 @@ Date: 2026-09-10
 
 ## Teaching preference learned
 
-這次對話顯示：遇到新的 frontend/browser 基礎概念時，先給「具體物件、誰持有、誰呼叫誰、資料何時建立」的因果模型，再給抽象名詞。不要用「JS 抓到 event」這類方便但模糊的擬人化描述。
+這次對話顯示：遇到新的 frontend/browser 基礎概念時，先給「具體物件、誰持有、誰建立、誰呼叫誰、資料何時存在」的因果模型，再給抽象名詞。不要用「JS 抓到 event」或「event 往上傳」但不解釋 phase / listener selection 的模糊描述。
+
+當出現 capture / bubble 這種流程詞時，要先回答：
+
+1. 這一階段開始前，哪些資訊已經知道？
+2. traversal 方向是什麼？
+3. traversal 時是否真的執行程式？
+4. 哪一類 listener 會被執行？
+5. 什麼條件決定有沒有這一階段？
 
 ## Return to main path
 
-下一步不繼續擴張 DOM 教材。回到 Faro 主線：
+下一步不擴張成完整 DOM Events 課程。等 learner 能說清楚：
+
+`target 已決定 → event path → capture listeners → target → (bubbles=true) ancestor non-capture listeners`
+
+再回到 Faro 主線：
 
 `browser click → native Event / listener callback → Faro ClickInstrumentation 接手 → 讀取 target/context → 建立 Faro telemetry`
-
-下一個主題只有在 learner 能把 native browser event 與 Faro telemetry 的邊界分開後，才進入 ClickInstrumentation。
