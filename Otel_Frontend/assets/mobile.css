@@ -1,0 +1,214 @@
+/* Shared phone-reading safeguards for all Otel_Frontend learning pages. */
+
+html,
+body {
+  max-width: 100%;
+}
+
+body > * {
+  min-width: 0;
+}
+
+pre,
+.table-wrap,
+.diagram,
+.quiz,
+.box,
+blockquote,
+figure {
+  max-width: 100%;
+}
+
+pre {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+pre code {
+  white-space: pre;
+}
+
+p code,
+li code,
+td code,
+th code,
+blockquote code,
+.box code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 680px) {
+  html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    width: 100%;
+    margin: 0 auto 3rem;
+    padding: 0.8rem 0.85rem 3rem;
+    overflow-x: hidden;
+  }
+
+  .theme-toggle {
+    position: static;
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    margin: 0 0 0.8rem auto;
+  }
+
+  h1 {
+    padding-right: 0;
+    font-size: 1.65rem;
+    overflow-wrap: anywhere;
+  }
+
+  h2 {
+    margin-top: 2rem;
+    font-size: 1.28rem;
+    overflow-wrap: anywhere;
+  }
+
+  h3 {
+    font-size: 1.08rem;
+    overflow-wrap: anywhere;
+  }
+
+  p,
+  li,
+  td,
+  th,
+  blockquote,
+  .box,
+  .quiz,
+  .diagram-node,
+  .node-note,
+  .timeline-step {
+    overflow-wrap: anywhere;
+  }
+
+  pre {
+    margin-left: 0;
+    margin-right: 0;
+    padding: 0.8rem;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    border-radius: 5px;
+  }
+
+  blockquote {
+    margin: 1.25rem 0;
+    padding: 0.2rem 0.8rem;
+  }
+
+  .box,
+  .quiz,
+  .diagram,
+  .event-demo {
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    padding: 0.85rem;
+  }
+
+  .table-wrap table {
+    min-width: 0;
+    width: 100%;
+    font-size: 0.82rem;
+  }
+
+  .table-wrap th,
+  .table-wrap td {
+    min-width: 0;
+    padding: 0.5rem 0.4rem;
+    vertical-align: top;
+  }
+
+  .diagram-flow {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .diagram-node,
+  .diagram-connector {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .diagram-connector {
+    flex: 0 0 auto;
+  }
+
+  .connector-line {
+    width: 2rem;
+    height: 1.35rem;
+    margin: 0.15rem auto;
+    flex-direction: column;
+  }
+
+  .connector-line::before {
+    flex: 1;
+    border-top: 0;
+    border-left: 2px solid var(--success);
+  }
+
+  .connector-line::after {
+    margin: -0.1rem 0 0;
+    border-top: 2px solid var(--success);
+    border-right: 2px solid var(--success);
+    transform: rotate(135deg);
+  }
+
+  .diagram-connector.dashed .connector-line::before {
+    border-top: 0;
+    border-left-style: dashed;
+  }
+
+  .timeline-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .timeline-track {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .lesson-nav {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .lesson-nav > * {
+    max-width: 100%;
+  }
+
+  .indent-1,
+  .indent-2 {
+    margin-left: 0;
+  }
+
+  .sequence li {
+    padding-left: 2rem;
+  }
+}
