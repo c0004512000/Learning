@@ -223,9 +223,44 @@ payload = {}
   ↓
 return，不 pushEvent()</code></pre>
 
+  <h3>先把 <code>closest()</code> 講清楚：它不是「找畫面上最近的東西」</h3>
+
+  <p><code>closest(selector)</code> 的意思是：<strong>從這顆 DOM element 自己開始，沿著 parent chain 一層一層往上，找到第一個符合 selector 的 element。</strong></p>
+
+  <pre><code>&lt;section data-page="production"&gt;
+  &lt;button data-action="save"&gt;
+    &lt;span&gt;儲存&lt;/span&gt;   ← event.target
+  &lt;/button&gt;
+&lt;/section&gt;</code></pre>
+
+  <p>如果 target 是 <code>span</code>：</p>
+
+  <pre><code>target.closest('[data-action]')
+
+span      不符合
+  ↑ parent
+button    符合 data-action
+  → 停止，回傳 button</code></pre>
+
+  <p>另一個 attribute 會重新獨立查一次：</p>
+
+  <pre><code>target.closest('[data-page]')
+
+span      不符合
+  ↑
+button    不符合
+  ↑
+section   符合 data-page
+  → 停止，回傳 section</code></pre>
+
+  <div class="box tip">
+    <strong>ancestor 就是 parent、parent 的 parent、再更上層的 parent。</strong><br>
+    <code>closest()</code> 不會往 child 找，也不會跑去看 sibling。這裡的「closest」是 DOM parent chain 上最近的 matching element，不是螢幕座標距離。
+  </div>
+
   <h3>情況 B：共同 context 不需要每顆 button 重複寫</h3>
 
-  <p>因為實作使用 <code>closest()</code> 往 ancestor 找，所以共同資訊可以放在上層：</p>
+  <p>因為實作使用 <code>closest()</code> 沿 parent chain 往上找，所以共同資訊可以放在上層：</p>
 
   <pre><code>&lt;section data-page="production"&gt;
   &lt;button data-action="save"&gt;儲存&lt;/button&gt;
@@ -276,10 +311,13 @@ return，不 pushEvent()</code></pre>
 
   <div class="box tip">
     <strong>導入工作量的正確理解：</strong><br>
-    不是「所有 DOM node 都加 attribute」。而是先決定哪些 business interactions 要觀測；共用 context 放 ancestor，需要區分的 action 才提供 action-specific <code>data-*</code>。如果需求真的是「每顆按鈕都要可區分」，那每個 logical action 確實需要有可區分的 semantic 資料，只是可以透過共用 UI component 集中產生 attribute，不一定要每個頁面手寫 raw <code>data-*</code>。
+    不是「所有 DOM node 都加 attribute」。而是先決定哪些 business interactions 要觀測；共用 context 放 ancestor，需要區分的 action 才提供 action-specific <code>data-*</code>。如果需求真的是「每顆按鈕都要可區分」，那每個 logical action 確實需要有可區分的 semantic 資料。
   </div>
 
-  <p class="cite">「用共用 Button / Link component 集中產生 attribute」是導入時的架構建議，不是目前 faro-click-tracking package 自動提供的功能。</p>
+  <div class="box ask">
+    <strong>目前不能把 shared Button / Link 當成 Foreman / Jeter 的已知事實。</strong><br>
+    「若 application 有共用 Button / Link component，可以在 component 層集中 render telemetry <code>data-*</code>」只是 integration architecture pattern。現有 learning repo 雖記錄過去已核對 Foreman PR #21 與 Jeter <code>dev</code>，但沒有保存「shared Button / Link 是否存在」的 source-scan 結果、檔案路徑或 component 名稱。真正採用這個方案前必須重新對 application source 做 targeted verification。
+  </div>
 
   <h2>7. ClickInstrumentation 怎麼從 target 找 attribute？</h2>
 
@@ -414,8 +452,10 @@ pushEvent('click', payload)
     <li>目前 <code>faro-click-tracking</code> 的 <code>trackAttributes</code> 強制只接受 <code>data-*</code> 名稱。</li>
     <li>document 上只有一條全域 click listener；<code>trackAttributes</code> 是 payload extraction schema。</li>
     <li>不是所有 button 都必須加 attribute；沒有 tracked attribute 命中的 click 會因空 payload 被丟掉。</li>
+    <li><code>closest()</code> 是從 target 自己開始沿 parent chain 往上找第一個符合 selector 的 element，不是找畫面上距離最近的 element。</li>
     <li>共同 context 可以放 ancestor，因為實作會用 <code>closest()</code> 往上找。</li>
     <li>如果要區分每一個 logical action，就必須提供能區分 action 的 semantic；global listener 無法憑空知道業務語意。</li>
+    <li>shared Button / Link 是否存在是 host application source fact；目前尚無 durable evidence，採用 component-level integration 前必須重新驗證。</li>
     <li><code>api.pushEvent('click', payload)</code> 是 Browser Event 世界轉進 Faro telemetry 世界的邊界。</li>
   </ul>
 
