@@ -9,6 +9,8 @@ Lesson 2 在介紹 Faro `trackAttributes` 時，learner 暴露一個必要 prere
 - 是否需要為了 Faro 額外建立？
 - 它與 `event.target` 指向的 DOM element 有什麼關係？
 - 實際導入時是否代表所有 button 都要額外加 attribute？
+- `closest()` 的「往 ancestor 找」到底是什麼意思？
+- Foreman / Jeter application source 是否真的存在可集中處理 telemetry attribute 的 shared Button / Link component？
 
 ## Correct mental model
 
@@ -64,6 +66,54 @@ Browser parse 後是：
 > 一顆 button DOM object，上面有 `id` 與 `data-link-name` attributes。
 
 此 prerequisite 已有一次正確 retrieval evidence。這代表目前可以在 Lesson 2 主線中繼續使用這個模型，但不等同永久 mastered。
+
+## `closest()` mental model
+
+`Element.closest(selector)` 的「closest」不是畫面上的距離，也不是找附近所有 DOM。
+
+它從目前 element 自己開始，沿著 parent chain 一層一層往上，回傳第一個符合 CSS selector 的 element：
+
+```text
+<section data-page="production">
+  <button data-action="save">
+    <span>儲存</span>   ← event.target
+  </button>
+</section>
+```
+
+如果執行：
+
+```js
+target.closest('[data-action]')
+```
+
+查找順序是：
+
+```text
+span            不符合
+  ↑ parent
+button          符合 data-action
+  → 停止，回傳 button
+```
+
+如果執行：
+
+```js
+target.closest('[data-page]')
+```
+
+查找順序是：
+
+```text
+span            不符合
+  ↑
+button          不符合
+  ↑
+section         符合 data-page
+  → 停止，回傳 section
+```
+
+因此 ancestor 在這裡就是 parent、parent 的 parent、再更上層的 parent。`closest()` 不會往 child 找，也不會去找 sibling。
 
 ## Current package contract — definitive
 
@@ -130,7 +180,30 @@ Cancel:
 
 實際導入應先定義需要觀測的 business interactions，再決定 semantic attributes，而不是把 `data-*` 無差別加到所有 DOM nodes。
 
-如果 application 有共用 Button / Link component，可以考慮讓 component 接受 telemetry semantic prop，再集中 render 成 `data-*`，降低每個頁面手寫 raw attributes 的成本。這是 integration architecture 建議，不是目前 `faro-click-tracking` package 自動提供的功能。
+「若 application 有共用 Button / Link component，可以考慮讓 component 接受 telemetry semantic prop，再集中 render 成 `data-*`」只能先當作 integration architecture pattern；不能把「Foreman / Jeter 已經存在這種 shared component」當成已證實事實。
+
+## Application source verification status
+
+這裡必須把 package evidence 與 host-application evidence 分開。
+
+目前 durable corpus 已記錄：過去曾唯讀核對 `faro-click-tracking`、Foreman PR #21、Jeter `dev` 等 runtime / source evidence；但是現有 learning repo **沒有保存「Foreman / Jeter 是否存在 shared Button / Link component」的具體 scan 結果、檔案路徑或 component 名稱**。
+
+因此目前能肯定的是：
+
+```text
+faro-click-tracking package contract        → 已驗證
+closest() / trackAttributes 行為            → 已驗證
+Foreman / Jeter 是否有 shared Button/Link   → 尚無 durable evidence
+```
+
+在真正決定「把 telemetry attribute 集中到 shared component」這個導入方式之前，必須重新對實際 application source 做 targeted source scan，至少確認：
+
+- 是否存在 shared `Button` / `Link` / navigation component。
+- 實際 business buttons 是否真的大量經過那些 component。
+- component 最終是否把 unknown props / `data-*` 傳到原生 DOM element。
+- 是否有多套 UI framework / legacy pages 會繞過 shared component。
+
+目前這個 ChatGPT GitHub connection 看得到 Learning repo，但沒有列出 Foreman / Jeter 的 Garmin source repositories，因此這一回合不能把重新驗證假裝成已完成。
 
 ## Historical reason boundary
 
@@ -157,3 +230,8 @@ HTML attribute
 ```
 
 並加入「是否每顆 button 都要加 attribute」的導入情境與 retrieval 題。
+
+本次追問再補上兩個 durable gap：
+
+1. `closest()` 必須先用 parent-chain 具體模型教，不可只說「往 ancestor 找」。
+2. shared Button / Link component 是否存在屬於 application source fact；在重新 source scan 前，不可把 architecture suggestion 寫成現況事實。
