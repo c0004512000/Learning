@@ -13,7 +13,7 @@
 
   <div class="box tip">
     <strong>目前進度｜Milestone 1 · Lesson 2</strong><br>
-    已回到 Faro 主線，開始追 <code>ClickInstrumentation</code> 如何從 <code>document</code> click listener 接手 browser Event，抽取 <code>trackAttributes</code> 並建立 Faro click telemetry。Lesson 1 的 DOM / Event dispatch 與 Callback reference 仍保留，尚未因進入 Lesson 2 就自動標記 mastered。
+    已回到 Faro 主線，開始追 <code>ClickInstrumentation</code> 如何從 <code>document</code> click listener 接手 browser Event，抽取 <code>trackAttributes</code> 並建立 Faro click telemetry。Lesson 1 與 DOM / Event dispatch、Callback references 已依最近的 DOM ownership、selector、hierarchy 修正同步更新，但仍未因教材修完就自動標記 mastered。
   </div>
 
   <h2>Mission</h2>
@@ -28,14 +28,14 @@
 
   <h3>Milestone 1｜Browser event → Faro instrumentation</h3>
   <div class="box">
-    <p><strong>Lesson 1｜瀏覽器如何知道你點了哪裡</strong></p>
+    <p><strong>Lesson 1｜How the Browser Knows What You Clicked</strong></p>
     <p>目標：建立 HTML、DOM、Event、EventTarget、listener、callback、<code>event.target</code> 的最小正確模型，能解釋一次 click 如何進入 JavaScript。</p>
     <p>來源：<a href="../source-documents/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a></p>
     <p><a href="../lessons/0001-browser-click-foundation.html">開啟 Lesson 1 →</a></p>
   </div>
 
   <div class="box tip">
-    <p><strong>Lesson 2｜Faro ClickInstrumentation 如何接手 browser click</strong> <span class="cite">← 目前位置</span></p>
+    <p><strong>Lesson 2｜How ClickInstrumentation Handles Browser Clicks</strong> <span class="cite">← 目前位置</span></p>
     <p>目標：從 <code>document</code> 原生 click listener 往下追，理解 <code>trackAttributes</code>、<code>closest()</code>、payload filtering、300ms throttle 與 <code>api.pushEvent()</code> 的責任邊界。</p>
     <p>來源：文件 3、文件 4。</p>
     <p><a href="../lessons/0002-faro-click-instrumentation.html">開啟目前 Lesson 2 →</a></p>
@@ -43,65 +43,65 @@
 
   <h3>Milestone 2｜讀懂並安全修改 <code>@sre2/faro-click-tracking</code></h3>
   <div class="box">
-    <p><strong>Lesson 3｜套件初始化、singleton 與公開 API</strong></p>
+    <p><strong>Lesson 3｜Package Initialization, Singleton, and Public API</strong></p>
     <p>目標：從 host application 呼叫點追進套件初始化流程，分清楚 host、共用套件與 Faro SDK 各自負責什麼。</p>
     <p>來源：文件 3、文件 4，以及 corpus audit 已核對的現行 package contract / implementation。</p>
   </div>
 
   <div class="box">
-    <p><strong>Lesson 4｜User / Device / Environment context</strong></p>
+    <p><strong>Lesson 4｜User, Device, and Environment Context</strong></p>
     <p>目標：理解 user callback、device 判定、environment context 的資料來源與生命週期，知道哪些資料應由 host application 提供。</p>
     <p>來源：文件 1、文件 3、文件 4。</p>
   </div>
 
   <h3>Milestone 3｜Host integration 與 Browser DevTools 驗證</h3>
   <div class="box">
-    <p><strong>Lesson 5｜Faro SDK 初始化與 browser → Alloy 傳輸</strong></p>
+    <p><strong>Lesson 5｜Faro SDK Initialization and Browser-to-Alloy Transport</strong></p>
     <p>目標：理解 endpoint、payload/meta 與 CORS 的因果關係，能判斷 browser 是否真的把 telemetry 送出去。</p>
     <p>來源：文件 1、文件 2、Proposal；搭配已驗證的 deployed bundle 與 stage/prod <code>/alloy</code> CORS evidence。</p>
   </div>
 
   <div class="box">
-    <p><strong>Lesson 6｜用 DevTools 做 browser-side verification</strong></p>
+    <p><strong>Lesson 6｜Browser-Side Verification with DevTools</strong></p>
     <p>目標：用 Elements / Console / Network 驗證 click target、context、Faro payload、headers、response 與 CORS，而不是只看畫面有沒有反應。</p>
     <p>來源：文件 1、文件 2、文件 3。</p>
   </div>
 
   <h3>Milestone 4｜Frontend ↔ Backend distributed trace</h3>
   <div class="box">
-    <p><strong>Lesson 7｜<code>traceparent</code> 如何把 frontend span 接到 backend span</strong></p>
+    <p><strong>Lesson 7｜Frontend-to-Backend Trace Context Propagation</strong></p>
     <p>目標：理解 trace context propagation，知道 <code>traceparent</code> 怎麼跨 HTTP request，把 backend span 接到同一條 trace。</p>
     <p>來源：文件 6；搭配文件 2 與 Faro tracing implementation evidence。</p>
   </div>
 
   <div class="box">
-    <p><strong>Lesson 8｜驗證同一條 trace：Browser → Backend → Tempo</strong></p>
+    <p><strong>Lesson 8｜Verifying a Single Trace from Browser to Tempo</strong></p>
     <p>目標：用 browser headers、backend instrumentation 與 Tempo evidence 驗證 trace ID 是否真的串起來，並定位 propagation 中斷點。</p>
     <p>來源：文件 6；搭配 Jeter frontend/backend/OTLP 與 Tempo datasource evidence。</p>
   </div>
 
   <h3>Milestone 5｜Alloy / OTel Collector / storage pipeline</h3>
   <div class="box">
-    <p><strong>Lesson 9｜Faro receiver → Alloy → OTel Collector</strong></p>
+    <p><strong>Lesson 9｜Faro Receiver to Alloy and OTel Collector</strong></p>
     <p>目標：能畫出 telemetry 進 Alloy 後如何進入 OTel Collector receiver / processor / exporter，並說清楚每一層責任。</p>
     <p>來源：文件 2、文件 5、文件 7，加上 stage/prod runtime configuration。</p>
   </div>
 
   <div class="box">
-    <p><strong>Lesson 10｜Faro logs 到 OpenSearch：轉換、mapping、index</strong></p>
+    <p><strong>Lesson 10｜Faro Logs to OpenSearch: Transformation, Mapping, and Indexing</strong></p>
     <p>目標：追 Faro payload → OTel log → transform/filter → OpenSearch document/index 的資料形狀變化。</p>
     <p>來源：文件 7；搭配 Faro translator、filter/transform processor、Application for DE service、OpenSearch Connection。</p>
   </div>
 
   <h3>Milestone 6｜Production deployment & troubleshooting</h3>
   <div class="box">
-    <p><strong>Lesson 11｜Production Alloy / Collector deployment 與環境差異</strong></p>
+    <p><strong>Lesson 11｜Production Alloy and Collector Deployment</strong></p>
     <p>目標：能讀 production 部署設定，辨識 endpoint、Collector version、namespace、credential boundary 與 rollout 風險。</p>
     <p>來源：文件 5、文件 7、Proposal；搭配 stage/prod Helm、ConfigMap、Kubernetes runtime 與「升級 Otel Stack」。</p>
   </div>
 
   <div class="box">
-    <p><strong>Lesson 12｜Production troubleshooting：從症狀反推故障層</strong></p>
+    <p><strong>Lesson 12｜Production Troubleshooting: From Symptoms to Fault Domain</strong></p>
     <p>目標：遇到「沒有 click telemetry」「request 有送但 backend 沒資料」「trace 斷掉」「OpenSearch 查不到」時，能沿 browser → Faro → Alloy → Collector → storage 用證據逐層縮小問題。</p>
     <p>來源：整個 in-scope corpus 中與導入、部署、trace、OpenSearch 有關的內容，以及 corpus audit 已核對的 runtime evidence。</p>
   </div>
@@ -112,7 +112,7 @@
   <div class="box">
     <p>Lesson 1 實際暴露的 blocker。需要建立 DOM ownership、<code>document</code>、EventTarget、target/path、capture/target/bubble 與 listener invocation 的具體模型。Lesson 2 直接重用這套模型理解 <code>document.addEventListener('click', ...)</code>。</p>
     <p><a href="../reference/0001-dom-document-event-dispatch.html">Reference｜DOM、document、Capture / Bubble 與事件分派 →</a></p>
-    <p class="cite">狀態：reference 已建立；尚未用 retrieval 證明 mastered。</p>
+    <p class="cite">狀態：main lesson 與 reference 已依 learner feedback 同步修正；尚未用 retrieval 證明 mastered。</p>
   </div>
 
   <h3>Callback</h3>
