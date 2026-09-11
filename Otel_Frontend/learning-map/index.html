@@ -12,8 +12,8 @@
   <p class="subtitle">完整主路徑先規劃；每一課仍依實際理解逐步展開</p>
 
   <div class="box tip">
-    <strong>目前進度｜Milestone 1 · Lesson 1</strong><br>
-    Lesson 1 進行中。讀 Faro click tracking 時暴露出 DOM / Event dispatch 與 Callback 兩個必要 prerequisite，目前先補齊這兩條支線，再回到 Faro ClickInstrumentation 主線。
+    <strong>目前進度｜Milestone 1 · Lesson 2</strong><br>
+    已回到 Faro 主線，開始追 <code>ClickInstrumentation</code> 如何從 <code>document</code> click listener 接手 browser Event，抽取 <code>trackAttributes</code> 並建立 Faro click telemetry。Lesson 1 的 DOM / Event dispatch 與 Callback reference 仍保留，尚未因進入 Lesson 2 就自動標記 mastered。
   </div>
 
   <h2>Mission</h2>
@@ -28,16 +28,17 @@
 
   <h3>Milestone 1｜Browser event → Faro instrumentation</h3>
   <div class="box">
-    <p><strong>Lesson 1｜瀏覽器如何知道你點了哪裡</strong> <span class="cite">← 目前位置</span></p>
+    <p><strong>Lesson 1｜瀏覽器如何知道你點了哪裡</strong></p>
     <p>目標：建立 HTML、DOM、Event、EventTarget、listener、callback、<code>event.target</code> 的最小正確模型，能解釋一次 click 如何進入 JavaScript。</p>
     <p>來源：<a href="../source-documents/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a></p>
-    <p><a href="../lessons/0001-browser-click-foundation.html">開啟目前 Lesson 1 →</a></p>
+    <p><a href="../lessons/0001-browser-click-foundation.html">開啟 Lesson 1 →</a></p>
   </div>
 
-  <div class="box">
-    <p><strong>Lesson 2｜Faro ClickInstrumentation 如何接手 browser click</strong></p>
-    <p>目標：從原生 click listener 往下追，理解事件篩選、欄位擷取與 telemetry 建立的責任邊界。</p>
+  <div class="box tip">
+    <p><strong>Lesson 2｜Faro ClickInstrumentation 如何接手 browser click</strong> <span class="cite">← 目前位置</span></p>
+    <p>目標：從 <code>document</code> 原生 click listener 往下追，理解 <code>trackAttributes</code>、<code>closest()</code>、payload filtering、300ms throttle 與 <code>api.pushEvent()</code> 的責任邊界。</p>
     <p>來源：文件 3、文件 4。</p>
+    <p><a href="../lessons/0002-faro-click-instrumentation.html">開啟目前 Lesson 2 →</a></p>
   </div>
 
   <h3>Milestone 2｜讀懂並安全修改 <code>@sre2/faro-click-tracking</code></h3>
@@ -109,23 +110,25 @@
 
   <h3>DOM / <code>document</code> / Event dispatch</h3>
   <div class="box">
-    <p>Lesson 1 實際暴露的 blocker。需要先建立 DOM ownership、<code>document</code>、EventTarget、target/path、capture/target/bubble 與 listener invocation 的具體模型。</p>
+    <p>Lesson 1 實際暴露的 blocker。需要建立 DOM ownership、<code>document</code>、EventTarget、target/path、capture/target/bubble 與 listener invocation 的具體模型。Lesson 2 直接重用這套模型理解 <code>document.addEventListener('click', ...)</code>。</p>
     <p><a href="../reference/0001-dom-document-event-dispatch.html">Reference｜DOM、document、Capture / Bubble 與事件分派 →</a></p>
     <p class="cite">狀態：reference 已建立；尚未用 retrieval 證明 mastered。</p>
   </div>
 
   <h3>Callback</h3>
   <div class="box">
-    <p>Lesson 1 實際暴露的 blocker。需要先分清楚 <code>handleClick</code>、<code>handleClick()</code>、function value 與 callback control direction。</p>
+    <p>Lesson 1 實際暴露的 blocker。需要分清楚 <code>handleClick</code>、<code>handleClick()</code>、function value 與 callback control direction。Lesson 2 直接套用到 browser 如何 call back <code>this.handleClick</code>。</p>
     <p><a href="../reference/0002-callback-function.html">Reference｜Callback 到底是什麼 →</a></p>
     <p class="cite">狀態：reference 已建立；尚未用 retrieval 證明 mastered。</p>
   </div>
 
-  <h2>支線結束後回哪裡？</h2>
-  <pre><code>Lesson 1 prerequisite 補齊
-  → 回到 browser native click
-  → Lesson 2：ClickInstrumentation 接手
-  → Faro telemetry</code></pre>
+  <h2>目前主線</h2>
+  <pre><code>browser native click
+  → document listener
+  → ClickInstrumentation.handleClick(event)
+  → trackAttributes / closest()
+  → payload filtering / 300ms throttle
+  → Faro api.pushEvent()</code></pre>
 
   <h2>Primary corpus</h2>
   <ol>
@@ -142,8 +145,8 @@
   <p class="cite">外部官方文件、repo/code、Confluence 與 runtime evidence 只用於 prerequisite、verification、ambiguity resolution 或理解 primary corpus 所必要的補充，不取代 primary corpus。</p>
 
   <nav class="lesson-nav" aria-label="課程導覽">
-    <span>Course Map</span>
-    <a href="../lessons/0001-browser-click-foundation.html">回到目前 Lesson 1 →</a>
+    <a href="../lessons/0001-browser-click-foundation.html">← Lesson 1</a>
+    <a href="../lessons/0002-faro-click-instrumentation.html">目前 Lesson 2 →</a>
   </nav>
 </body>
 </html>
