@@ -10,9 +10,9 @@
 
 ## Progress
 
-- **目前位置：Milestone 1 / Lesson 1**
-- **主線狀態：Lesson 1 進行中，正在補必要 browser prerequisite**
-- **已實際出現的支線：DOM / `document` / Event dispatch；Callback**
+- **目前位置：Milestone 1 / Lesson 2**
+- **主線狀態：已開始 Lesson 2，從 browser native click 接到 Faro `ClickInstrumentation`**
+- **Lesson 1 prerequisite 狀態：DOM / Event dispatch 與 Callback reference 已建立，但尚未以 retrieval 證明 mastered**
 - **完成判準：不能只因教材已讀就算完成；需要 retrieval / practice evidence**
 
 ## Complete main course path
@@ -34,11 +34,21 @@
 #### Lesson 2 — Faro ClickInstrumentation 如何接手 browser click
 **Objective:** 從原生 click listener 往下追，理解 ClickInstrumentation 的註冊、事件篩選、欄位擷取與 telemetry 建立責任邊界。
 
+**Durable lesson:**
+- `lessons/0002-faro-click-instrumentation.html`
+
 **Primary sources:**
 - `3. Faro-Click-Tracking Introduction (for developer).html`
 - `4. Faro-Click-Tracking 的歷史.html`
 
 **Dependency:** Lesson 1。
+
+**Current focus:**
+- `document` 上的 non-capture click listener 如何接到 browser Event。
+- `trackAttributes` 是 payload extraction schema，不是 listener 清單。
+- 每個 `data-*` 從 `event.target` 透過 `closest()` 獨立往 ancestor 查找。
+- 空 payload、同 target 300ms throttle 與 `api.pushEvent('click', payload)` 的責任邊界。
+- Browser Event 與 Faro telemetry event 必須分成兩個不同物件／生命週期理解。
 
 ### Milestone 2 — 讀懂並安全修改 `@sre2/faro-click-tracking`
 
@@ -181,7 +191,7 @@
 
 - Reference: `reference/0001-dom-document-event-dispatch.html`
 - 要解決的問題：DOM ownership、`document`、EventTarget、target/path、capture/target/bubble、listener invocation。
-- 狀態：reference 已建立；尚未以 retrieval 證明 mastered。
+- 狀態：reference 已建立；尚未以 retrieval 證明 mastered。Lesson 2 會直接重用這套模型理解 `document.addEventListener('click', ...)`。
 
 ### Callback
 
@@ -189,13 +199,15 @@
 
 - Reference: `reference/0002-callback-function.html`
 - 要解決的問題：`handleClick` vs `handleClick()`、function value、callback control direction。
-- 狀態：reference 已建立；尚未以 retrieval 證明 mastered。
+- 狀態：reference 已建立；尚未以 retrieval 證明 mastered。Lesson 2 直接套用到 `this.handleClick` 被 browser call back 的控制方向。
 
 ## Resume point
 
-上述支線足夠後，回到 **Lesson 1 → Lesson 2** 的主路徑：
+目前已回到 **Lesson 2** 主線：
 
-`browser native click → ClickInstrumentation → Faro telemetry`
+`browser native click → document listener → ClickInstrumentation.handleClick(event) → trackAttributes / closest() → payload filtering / throttle → Faro api.pushEvent()`
+
+Lesson 1 的 prerequisite reference 仍保留為可回看的支線，不因開始 Lesson 2 就自動標記 mastered。
 
 ## Source boundary
 
