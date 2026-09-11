@@ -2,11 +2,11 @@
 
 ## Source policy
 
-`source-documents/` 內的 8 份使用者提供 HTML 是本 learning workspace 的第一線主軸與學習邊界。外部官方資料只用來：補文件省略的 prerequisite、驗證文件敘述、消除歧義，或提供理解文件所必要的背景；不靜默覆蓋原文件。
+`sources/materials/` 內的 8 份使用者提供 HTML 是本 learning workspace 的第一線主軸與學習邊界。`sources/linked/` 只保存本輪實際使用的明確引用；`sources/evidence/` 保存可重用的 verified findings。外部官方資料只用來：補文件省略的 prerequisite、驗證文件敘述、消除歧義，或提供理解文件所必要的背景；不靜默覆蓋原文件。
 
 ## Primary learning corpus
 
-- [本地主要來源：8 份 HTML](source-documents/)
+- [本地主要來源：8 份 HTML](sources/materials/)
   第一線課程語料，涵蓋需求、Faro／Alloy、套件實作與歷史、部署、前後端 Trace、OpenSearch pipeline 與專案提案。
 
 ## Authoritative product / implementation references
@@ -58,6 +58,19 @@
 - Grafana stage/prod API token 可用；已讀 Foreman dashboard 與 Loki/Tempo datasource。
 - OpenSearch stage/prod 帳號可用；已驗證 Foreman index 所在 cluster，不讀取真實使用者文件內容。
 - Kubernetes `tw-test`／`tw-stage`／`tw-prod` 可唯讀查詢；已核對 Collector 與 Alloy runtime。
+
+## Durable evidence index
+
+- [`sources/evidence/faro-click-tracking.md`](sources/evidence/faro-click-tracking.md)：package click/user/device/environment/singleton contract 與歷史 unknown。
+- [`sources/evidence/foreman-integration.md`](sources/evidence/foreman-integration.md)：Foreman host integration、DOM placement、PrimeNG boundary 與 runtime images。
+- [`sources/evidence/jeter-integration-and-tracing.md`](sources/evidence/jeter-integration-and-tracing.md)：Jeter frontend/backend tracing configuration 與 runtime join gap。
+- [`sources/evidence/browser-to-alloy.md`](sources/evidence/browser-to-alloy.md)：environment resolver、Alloy receiver、CORS preflight。
+- [`sources/evidence/collector-pipeline.md`](sources/evidence/collector-pipeline.md)：stage/prod Collector topology、versions、processors、routing。
+- [`sources/evidence/opensearch-field-lifecycle.md`](sources/evidence/opensearch-field-lifecycle.md)：Faro field translation、mapping、index 與 cluster routing。
+- [`sources/evidence/grafana-current-state.md`](sources/evidence/grafana-current-state.md)：dashboard/datasource current state 與 query-surface conflict。
+- [`EVIDENCE-GAP-REPORT.md`](EVIDENCE-GAP-REPORT.md)：claim-by-claim status、缺口與 troubleshooting readiness。
+
+本輪實際使用的 linked source pointers：[`sources/linked/internal/`](sources/linked/internal/)（Garmin repos、Confluence pointers）與 [`sources/linked/external/`](sources/linked/external/)（PrimeNG、Faro translator、processor semantics）。
 
 ## Wisdom (Communities)
 

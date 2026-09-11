@@ -180,30 +180,30 @@ Cancel:
 
 實際導入應先定義需要觀測的 business interactions，再決定 semantic attributes，而不是把 `data-*` 無差別加到所有 DOM nodes。
 
-「若 application 有共用 Button / Link component，可以考慮讓 component 接受 telemetry semantic prop，再集中 render 成 `data-*`」只能先當作 integration architecture pattern；不能把「Foreman / Jeter 已經存在這種 shared component」當成已證實事實。
+「若 application 有共用 Button / Link component，可以考慮讓 component 接受 telemetry semantic prop，再集中 render 成 `data-*`」仍是 integration architecture pattern；本輪已對 Foreman 做 bounded source scan，但沒有把 scan 結果擴張成所有 application 都有 shared component。
 
 ## Application source verification status
 
 這裡必須把 package evidence 與 host-application evidence 分開。
 
-目前 durable corpus 已記錄：過去曾唯讀核對 `faro-click-tracking`、Foreman PR #21、Jeter `dev` 等 runtime / source evidence；但是現有 learning repo **沒有保存「Foreman / Jeter 是否存在 shared Button / Link component」的具體 scan 結果、檔案路徑或 component 名稱**。
+本輪已將 package、Foreman、Jeter 與 component scan 的 exact provenance 保存至 [`sources/evidence/faro-click-tracking.md`](../sources/evidence/faro-click-tracking.md)、[`sources/evidence/foreman-integration.md`](../sources/evidence/foreman-integration.md) 與 [`sources/evidence/jeter-integration-and-tracing.md`](../sources/evidence/jeter-integration-and-tracing.md)。
 
 因此目前能肯定的是：
 
 ```text
 faro-click-tracking package contract        → 已驗證
 closest() / trackAttributes 行為            → 已驗證
-Foreman / Jeter 是否有 shared Button/Link   → 尚無 durable evidence
+Foreman app-level generic shared Button/Link → bounded scan 未找到；不是所有 interaction coverage 的證明
 ```
 
-在真正決定「把 telemetry attribute 集中到 shared component」這個導入方式之前，必須重新對實際 application source 做 targeted source scan，至少確認：
+若未來決定「把 telemetry attribute 集中到 shared component」這個導入方式，仍必須對目標 application 做 targeted source scan，至少確認：
 
 - 是否存在 shared `Button` / `Link` / navigation component。
 - 實際 business buttons 是否真的大量經過那些 component。
 - component 最終是否把 unknown props / `data-*` 傳到原生 DOM element。
 - 是否有多套 UI framework / legacy pages 會繞過 shared component。
 
-目前這個 ChatGPT GitHub connection 看得到 Learning repo，但沒有列出 Foreman / Jeter 的 Garmin source repositories，因此這一回合不能把重新驗證假裝成已完成。
+本輪已透過使用者既有 `gh` 唯讀取得 Foreman/Jeter source；Jeter 的 shared Button/Link coverage 仍未作全量 semantic inventory，保留為後續 gap，而非假裝已完成。
 
 ## Historical reason boundary
 

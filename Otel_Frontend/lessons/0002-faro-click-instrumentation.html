@@ -316,7 +316,7 @@ section   符合 data-page
 
   <div class="box ask">
     <strong>目前不能把 shared Button / Link 當成 Foreman / Jeter 的已知事實。</strong><br>
-    「若 application 有共用 Button / Link component，可以在 component 層集中 render telemetry <code>data-*</code>」只是 integration architecture pattern。現有 learning repo 雖記錄過去已核對 Foreman PR #21 與 Jeter <code>dev</code>，但沒有保存「shared Button / Link 是否存在」的 source-scan 結果、檔案路徑或 component 名稱。真正採用這個方案前必須重新對 application source 做 targeted verification。
+    「若 application 有共用 Button / Link component，可以在 component 層集中 render telemetry <code>data-*</code>」仍是 integration architecture pattern。針對 Foreman HEAD 的 bounded scan 已保存於 <a href="../sources/evidence/foreman-integration.md">Foreman integration evidence</a>：未找到 app-level generic shared Button / Link，且 PrimeNG <code>p-button</code> 的 host attribute 可由 inner button 的 ancestor path 找到；Jeter 或未來 wrapper、portal 仍須各自做 targeted verification。
   </div>
 
   <h2>7. ClickInstrumentation 怎麼從 target 找 attribute？</h2>
@@ -455,12 +455,12 @@ pushEvent('click', payload)
     <li><code>closest()</code> 是從 target 自己開始沿 parent chain 往上找第一個符合 selector 的 element，不是找畫面上距離最近的 element。</li>
     <li>共同 context 可以放 ancestor，因為實作會用 <code>closest()</code> 往上找。</li>
     <li>如果要區分每一個 logical action，就必須提供能區分 action 的 semantic；global listener 無法憑空知道業務語意。</li>
-    <li>shared Button / Link 是否存在是 host application source fact；目前尚無 durable evidence，採用 component-level integration 前必須重新驗證。</li>
+    <li>目前 Foreman HEAD 的 bounded scan 未找到 app-level generic shared Button / Link；PrimeNG <code>p-button</code> 會 render inner native button，而 host 上的 <code>data-link-name</code> 仍可由 <code>closest()</code> 沿 ancestor 找到。其他 wrapper、portal 或未標記 control 仍需各自驗證。</li>
     <li><code>api.pushEvent('click', payload)</code> 是 Browser Event 世界轉進 Faro telemetry 世界的邊界。</li>
   </ul>
 
   <p class="cite">
-    主線來源：<a href="../source-documents/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a>、<a href="../source-documents/4.%20Faro-Click-Tracking%20的歷史.html">Faro-Click-Tracking 的歷史</a>；另以 corpus audit 已核對的現行 package contract / implementation 作為 current-state evidence。
+    主線來源：<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a>、<a href="../sources/materials/4.%20Faro-Click-Tracking%20的歷史.html">Faro-Click-Tracking 的歷史</a>；另以 `sources/evidence/faro-click-tracking.md` 所記錄的現行 package contract / implementation 作為 current-state evidence。
   </p>
 
   <nav class="lesson-nav" aria-label="課程導覽">

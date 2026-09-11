@@ -2,7 +2,7 @@
 
 ## Primary corpus
 
-已保存 8 份原始 HTML 至 `source-documents/`。已讀取正文、code/pre、連結、Confluence macro、嵌入圖片與 inline SVG；10 張嵌入 raster 圖另存於 `source-documents/embedded-images/` 供視覺檢查。
+已保存 8 份原始 HTML 至 `sources/materials/`。已讀取正文、code/pre、連結、Confluence macro、嵌入圖片與 inline SVG；10 張嵌入 raster 圖另存於 `sources/materials/embedded-images/` 供視覺檢查。
 
 ## Verified extensions
 
@@ -31,3 +31,7 @@
 - 不逐一閱讀所有 OTel Stack 歷史 PR，只保留影響 Faro 架構、版本與維運的結論。
 - 不讀取真實使用者事件內容；schema、query 與資料流證據已足以支撐教材。
 - 互動式 DevTools 驗證保留為 Lesson 7 的實作活動，不再作為課程規劃前置阻塞。
+
+## Durable evidence migration status (2026-09-12)
+
+本 audit 的可重用技術結論已拆分至 `sources/evidence/`（package、Foreman、Jeter、Browser→Alloy、Collector、OpenSearch、Grafana）。但本檔仍保留原始 corpus 範圍、已查過的延伸來源、刻意停止的邊界與歷史線索，因此目前**不完全 redundant，不刪除**。本檔中的 summary 不取代 evidence files 的 exact path/ref/runtime timestamp。
