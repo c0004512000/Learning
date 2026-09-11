@@ -1,4 +1,13 @@
 (() => {
+  const script = document.currentScript;
+  if (script?.src && !document.querySelector('link[data-mobile-learning-style]')) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = new URL('mobile.css', script.src).href;
+    link.dataset.mobileLearningStyle = 'true';
+    document.head.appendChild(link);
+  }
+
   const key = "learning-theme";
   const root = document.documentElement;
   const saved = localStorage.getItem(key);
@@ -30,4 +39,3 @@
     });
   });
 })();
-
