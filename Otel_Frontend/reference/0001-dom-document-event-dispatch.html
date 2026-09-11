@@ -23,9 +23,9 @@
 </head>
 <body>
   <h1>DOM、<code>document</code> 與事件分派</h1>
-  <p class="subtitle">從具體物件與呼叫順序理解：DOM 是誰建立、Event 是誰建立、listener 又在什麼時候執行。</p>
+  <p class="subtitle">從一次 click 開始，拆清楚 target、listener、Capture、Target、Bubble，以及 Event 何時會停止往外傳。</p>
 
-  <div class="box ask"><strong>這張 Reference 的目標：</strong>讀完後，你應該能從一次 button click 開始，自己重建 <code>target → event path → capture → target → bubble → callback(event)</code>，並知道什麼情況會選 <code>capture: true</code> 或預設的 <code>capture: false</code>。</div>
+  <div class="box ask"><strong>這張 Reference 的目標：</strong>你應該能自己重建一次 click 的完整處理順序，並分清楚「Event 往 ancestor 傳」和「同一個 handler 重複執行」是兩件完全不同的事。</div>
 
   <h2>1. HTML、DOM、JavaScript 的責任邊界</h2>
   <div class="concept-chain">
@@ -39,9 +39,9 @@
   <div class="box tip"><strong>精確模型：</strong>DOM object 是瀏覽器建立與管理的物件；JavaScript 可以透過瀏覽器提供的 DOM API 取得 reference 並操作它。</div>
 
   <p>例如：</p>
-  <pre><code>&lt;button id="daily-schedule"&gt;每日生產排程&lt;/button&gt;</code></pre>
-  <p>瀏覽器解析後會建立代表這顆按鈕的 DOM object。JavaScript 取得它：</p>
-  <pre><code>const button = document.querySelector('#daily-schedule')
+  <pre><code>&lt;button id="daily-schedule"&gt;每日生產排程&lt;/button&gt;
+
+const button = document.querySelector('#daily-schedule')
 console.log(button.constructor.name)
 // HTMLButtonElement</code></pre>
 
@@ -58,7 +58,6 @@ console.log(button.constructor.name)
 const button = document.querySelector('#daily-schedule')
                                       ↑
                          找 id="daily-schedule"</code></pre>
-  <p><code>button#daily-schedule</code> 則只是「button，且 id 是 daily-schedule」的 selector 表示法，不是 HTML 原始語法。</p>
 
   <h2>3. <code>document</code> 與 DOM tree</h2>
   <pre><code>Document
@@ -73,152 +72,173 @@ const button = document.querySelector('#daily-schedule')
   <pre><code>手指 / 滑鼠輸入
       ↓ browser receives input（瀏覽器收到輸入）
 瀏覽器取得輸入位置
-      ↓ hit testing（判斷該位置落在哪個畫面元素）
+      ↓ hit testing（判斷位置落在哪個畫面元素）
 瀏覽器判定該位置對應 button
       ↓ sets target（指定本次事件目標）
 button 成為這次 click 的 target
       ↓ creates（建立）
 瀏覽器建立 click Event object</code></pre>
-  <div class="box tip"><strong>所以 <code>event.target</code> 是「這次 event 最初指向哪個 DOM object」，不是「哪個 DOM object 創造了 event」。</strong></div>
+  <div class="box tip"><strong><code>event.target</code> 是「這次 Event 最初指向哪個 DOM object」，不是「哪個 DOM object 創造了 Event」。</strong></div>
 
-  <h2>5. 為什麼建立 Event 之後還需要 dispatch？</h2>
-  <p>知道 <code>target = button</code> 只回答「這次 click 指向誰」。瀏覽器接著還要回答另一題：</p>
-  <blockquote>這次 event 應該讓 DOM path 上哪些已登記的 listener 執行，而且按照什麼順序執行？</blockquote>
-  <p>這個處理過程就是 <strong>event dispatch（事件分派）</strong>。它不是把 Event 掛回 button，也不是把 Event 送上網路。</p>
+  <h2>5. 為什麼知道 target 後還需要 dispatch？</h2>
+  <p>知道 <code>target = button</code> 只回答「這次 click 指向誰」。瀏覽器接著還要決定：</p>
+  <blockquote>這次 Event 應該讓 event path 上哪些已登記的 listener 執行，而且按照什麼順序執行？</blockquote>
+  <p>這個處理過程叫做 <strong>event dispatch（事件分派）</strong>。</p>
 
-  <h2>6. Listener 是在 event 發生以前先登記</h2>
+  <h2>6. Listener 是 Event 發生以前先登記</h2>
   <pre><code>function handleClick(event) {
   console.log(event.target)
 }
 
 document.addEventListener('click', handleClick)</code></pre>
-  <p><code>document</code>、button、main 這類可以登記 event listener 的物件，都具有 <strong>EventTarget</strong> 的能力。這裡先把 EventTarget 理解成：</p>
-  <div class="box"><strong>可以讓程式登記 listener，並在 event dispatch 經過它時讓瀏覽器呼叫相符 callback 的物件。</strong></div>
-  <p><code>addEventListener()</code> 這一步只是在 <code>document</code> 上建立 listener registration：</p>
-  <pre><code>document 上先記住：
-- type: "click"
+  <p><code>document</code>、button、main 這類可以登記 event listener 的物件，都具有 <strong>EventTarget</strong> 的能力。這裡先理解成：</p>
+  <div class="box"><strong>可以讓程式登記 listener，並在 Event dispatch 經過它時讓瀏覽器呼叫相符 callback 的物件。</strong></div>
+  <p><code>addEventListener()</code> 只是在 <code>document</code> 上先保存：</p>
+  <pre><code>- type: "click"
 - callback: handleClick
 - capture: false（預設）</code></pre>
   <p>它不會預先建立未來的 click Event。</p>
 
-  <h2>7. 先定義「phase」：同一次 dispatch 現在走到哪一段</h2>
-  <p>這裡的 <strong>phase（階段）</strong> 不是另一種 Event，也不是重新觸發一次 click。它只是在描述：</p>
-  <blockquote>同一個 Event 正在被 dispatch 時，現在走到整條處理路徑的哪一段？</blockquote>
+  <h2>7. Phase：同一次 dispatch 現在走到哪一段</h2>
+  <p><strong>phase（階段）</strong>不是另一個 Event，也不是重新觸發 click。它只是描述：</p>
+  <blockquote>同一個 Event 正在被 dispatch 時，現在走到整條處理流程的哪一段？</blockquote>
 
-  <p>假設 target 已經確定是最內層 button：</p>
+  <p>假設 target 已經確定是 button：</p>
   <pre><code>document
 └── html
     └── body
         └── main
-            └── button  ← event.target 已經確定</code></pre>
+            └── button  ← event.target 已確定</code></pre>
 
-  <p><strong>Capture 並不是一邊往下走、一邊尋找「到底點到誰」。</strong>target 與 event path 已經先確定；dispatch 才按照 path 與 listener registration 決定 callback 的呼叫順序。</p>
+  <div class="phase"><strong>Capture phase（捕獲階段）｜外 → 內</strong><code>document → html → body → main → button</code><br>target/path 已經知道了。瀏覽器朝 target 處理路徑；ancestor 上符合 event type 且 <code>capture: true</code> 的 listener 會在這一趟被呼叫。</div>
 
-  <div class="phase"><strong>Capture phase（捕獲階段）｜外 → 內</strong><code>document → html → body → main → button</code><br>瀏覽器朝 target 走。經過某個 ancestor 時，如果那裡有符合 event type 且 <code>capture: true</code> 的 listener，就在這一趟呼叫 callback。</div>
+  <div class="phase"><strong>Target phase（目標階段）</strong>Event 抵達 <code>button</code>。button 自己符合條件的 listeners 在 target 上被處理。</div>
 
-  <div class="phase"><strong>Target phase（目標階段）</strong>event 到達 <code>button</code>，也就是這次 event 的 target。</div>
+  <div class="phase"><strong>Bubble phase（冒泡階段）｜target 的 parent → 更外層 ancestor</strong><code>main → body → html → document</code><br>如果 Event 允許 bubbling，瀏覽器接著處理 target 的 ancestors 上符合條件的 non-capture listeners。</div>
 
-  <div class="phase"><strong>Bubble phase（冒泡階段）｜內 → 外</strong><code>button → main → body → html → document</code><br>如果這個 Event 允許 bubbling，dispatch 會再沿 ancestors 往外處理 <code>capture: false</code> 的 ancestor listeners。</div>
+  <div class="box tip"><strong>Bubble 不會把 target 再處理一次。</strong>button 已經在 Target phase 被處理；Bubble 接下來處理的是 button 的 ancestors，例如 main、body、document。</div>
 
-  <div class="box tip"><strong>所以不是「在 Capture 或 Bubble 階段觸發 Event」。Event 在這之前就已經建立了。你選的是「這個 listener callback 要在哪一段 dispatch 被呼叫」。</strong></div>
-
-  <h2>8. <code>capture: true</code> / <code>false</code> 真正選的是什麼？</h2>
-  <p>先修正一句很容易過度簡化的說法：<strong>不是「Bubble 是預設」；精確地說，是 <code>capture: false</code> 為預設。</strong></p>
-
-  <pre><code>// capture: true
-// → 不在 ancestor 的 bubble phase 執行；會參與 capture
+  <h2>8. <code>capture: true</code> / <code>false</code> 選的是 listener 的時機</h2>
+  <pre><code>// ancestor 想在 target 前收到
  document.addEventListener('click', handleClick, { capture: true })
 
 // capture: false（預設）
-// → 不在 ancestor 的 capture phase 執行
  document.addEventListener('click', handleClick)</code></pre>
+  <p>精確地說，是 <code>capture: false</code> 為預設，不是「Bubble 是預設」。如果 listener 所在的物件本身就是 <code>event.target</code>，它是在 Target phase 執行，不會因為 <code>capture: false</code> 就多跑一次 Bubble。</p>
 
-  <p>如果這個 listener 掛在 ancestor，而這個 event 又會 bubble，<code>capture: false</code> 的 listener 通常就是在 Bubble phase 收到它。</p>
+  <h2>9. Bubble 不等於 handler 重複執行</h2>
+  <p>假設：</p>
+  <pre><code>card
+└── deleteButton</code></pre>
+  <pre><code>card.addEventListener('click', openDetail)
+deleteButton.addEventListener('click', deleteItem)</code></pre>
 
-  <div class="box"><strong>但 <code>capture: false</code> 不等於「永遠 eventPhase = Bubble」。</strong>如果 listener 所在的物件本身就是 <code>event.target</code>，它是在 Target phase 被呼叫。反過來，<code>capture: true</code> 的 listener 如果剛好就掛在 target 上，也是在 Target phase。<code>capture</code> 是 listener 的登記設定；phase 是這次 dispatch 當下的位置。兩者不是同一個欄位。</div>
+  <p>如果直接點 <code>card</code>：</p>
+  <pre><code>event.target = card
 
-  <h2>9. 什麼時候選 Capture？什麼時候選 Bubble？</h2>
-  <p>不要從「哪個比較高級」判斷，而是問：<strong>我需要在 descendant 的 handler 執行之前看到這次互動，還是等它到達 target 之後再從下往上處理？</strong></p>
+Target: card
+        → openDetail() 執行一次
 
+Bubble: card 的 parent → 更外層 ancestors
+        → 不會回頭再執行 card 的 openDetail()</code></pre>
+
+  <p>如果點 <code>deleteButton</code>：</p>
+  <pre><code>event.target = deleteButton
+
+Target: deleteButton
+        → deleteItem()
+
+Bubble: card
+        → openDetail()</code></pre>
+
+  <div class="box tip"><strong>這裡不是 <code>deleteItem()</code> 被重複執行。</strong>是同一個 click Event 先讓 target 上的 listener 執行，再讓 ancestor 上另一個 listener 有機會執行。</div>
+
+  <h2>10. 什麼時候選 Capture？什麼時候選預設的 non-capture？</h2>
   <div class="term-pair">
-    <div>想在子元素 handler 前先觀察</div><div>選 <code>capture: true</code>。例如全頁 telemetry 想盡可能早看到 click，或某些 descendant 後面可能停止 event 繼續傳遞。</div>
-    <div>一般 UI click handler</div><div>通常不需要 capture。直接掛在 target，使用預設 <code>capture: false</code> 即可。</div>
-    <div>Ancestor 統一接後代 click</div><div>通常使用 <code>capture: false</code> + bubbling，也就是 event delegation。ancestor 等 descendant click 往上冒，再用 <code>event.target</code> 判斷來源。</div>
-    <div>想觀察 target handler 已改變的狀態</div><div>Bubble 比較符合時序：target handler 先執行，ancestor bubble listener 後執行。注意 browser 的 default action 不應被等同於「此時一定已完成」。</div>
+    <div>想在 descendant handler 前先觀察</div><div>選 <code>capture: true</code>。例如 document-level telemetry 希望盡量早看到 click。</div>
+    <div>一般 target 自己處理 click</div><div>通常使用預設 <code>capture: false</code>；listener 在 target 上只執行一次。</div>
+    <div>Ancestor 統一處理 descendants</div><div>Capture 與 Bubble 都能做到；差別主要是 ancestor 想在 target 前收到，還是 target 後收到。</div>
+    <div>Event delegation</div><div>常見做法是 ancestor 使用預設 non-capture listener，等 descendant click bubble 上來，再用 <code>event.target</code> 判斷來源。</div>
   </div>
 
-  <p>為什麼 API 預設是 <code>capture: false</code>？規格直接把它定義成預設值。實務上可以把 capture 視為「我有理由要在 descendant handler 前介入」時才打開的選項；如果沒有這個時序需求，就不需要特別開 capture。</p>
+  <h2>11. Event delegation 為什麼有用？</h2>
+  <p>假設一個清單有很多 button：</p>
+  <pre><code>list
+├── button A
+├── button B
+├── button C
+└── button D</code></pre>
+  <p>不一定要每顆都各寫一個 listener：</p>
+  <pre><code>list.addEventListener('click', event => {
+  console.log(event.target)
+})</code></pre>
+  <p>因為 click 會 bubble，A/B/C/D 的 click 都可以抵達 <code>list</code>。這種讓 ancestor 統一接 descendants event 的方式叫 <strong>event delegation（事件委派）</strong>。</p>
 
-  <h2>10. 用 Trace 來看：Capture / Bubble 可能真的改變因果關係</h2>
-  <p>這裡先用你熟悉的 tracing 心智模型。嚴格說不是「加一條 trace」，而通常是<strong>在 click listener 裡建立一個 interaction Span</strong>；和它有親子關係的其他 Spans 才共同形成一條 Trace。</p>
+  <h2>12. <code>stopPropagation()</code>：什麼時候真的要截斷 Event？</h2>
+  <p><code>stopPropagation()</code> 的意思不是程式 crash、server 掛掉或網路中斷。它只是在這一次 dispatch 中告訴瀏覽器：</p>
+  <blockquote>這個 Event 從現在開始，不要再繼續傳到 event path 上後面的 DOM objects。</blockquote>
 
-  <p>假設 app 本身在 button handler 裡立刻呼叫 API：</p>
-  <pre><code>document
-└── button
-    └── app click handler
-        └── fetch('/api/orders')</code></pre>
+  <p>例如 card 點擊會打開詳細頁，但 card 裡有一顆刪除按鈕：</p>
+  <pre><code>card                         ← click → openDetail()
+└── deleteButton             ← click → deleteItem()</code></pre>
 
-  <p>如果 telemetry listener 在 <strong>document Capture</strong>，它有機會在 app 的 button handler 前先執行：</p>
-  <pre><code>document capture listener
-  ↓ executes before descendant handler
-建立 click interaction Span / tracing context
-  ↓ browser continues dispatch
-button app handler
-  ↓ calls
-fetch('/api/orders')</code></pre>
+  <p>如果產品需求是「點 Delete 只刪除，不要同時讓 card 的 click handler 也處理」，可以：</p>
+  <pre><code>deleteButton.addEventListener('click', event => {
+  event.stopPropagation()
+  deleteItem()
+})</code></pre>
+  <pre><code>Target: deleteButton
+        → stopPropagation()
+        → deleteItem()
 
-  <p>如果 instrumentation 能把這個 click Span 的 context 正確保持／傳遞到後面的 app handler 與 fetch，理想的 trace topology 才可能是：</p>
-  <pre><code>click interaction Span
-└── HTTP /api/orders Span</code></pre>
+Bubble 往 card 的路徑被截斷
+        X
+card    → openDetail() 不會因這次 click 被呼叫</code></pre>
 
-  <p>如果你直到 <strong>document Bubble</strong> 才建立 click Span：</p>
-  <pre><code>button app handler
-  ↓ calls
-fetch('/api/orders')   ← 這個 request / span 可能已經開始
-  ↓ browser continues dispatch
- document bubble listener
-  ↓
-現在才建立 click Span</code></pre>
-  <p>那它已經太晚，不能事後把一個已建立的 HTTP Span「改成自己的 child」。所以若你的目的真的是建立「使用者 click → app work → HTTP request」的因果父子關係，listener 的執行時機就很重要。</p>
+  <div class="box"><strong><code>stopPropagation()</code> 不是 click 的常態「防重複」工具。</strong>正常 bubbling 不會讓 target 的同一個 listener 自己重跑。只有你真的不希望更外層 ancestors 收到這次 Event 時，才有理由截斷 propagation。</div>
 
-  <div class="box ask"><strong>但 Capture 本身還不夠。</strong>OpenTelemetry 的 parent/child 關係依賴「active context」。如果你只在 capture callback 裡 <code>startSpan()</code> 然後 callback 一結束 context 就沒有延續到後續 handler，下面的 fetch 仍不會自動變成 child。要不要、以及怎麼跨後續 listener / async work 傳遞 context，是 instrumentation 必須另外正確處理的問題。</div>
+  <p>有時也可以不截斷 Event，而讓 ancestor 自己判斷是否處理：</p>
+  <pre><code>card.addEventListener('click', event => {
+  if (event.target.closest('.delete-button')) {
+    return
+  }
 
-  <p>所以可以分成兩種需求：</p>
-  <pre><code>只想記錄「發生一次 click」
-→ Capture / Bubble 可能只影響記錄時機、能否被 stopPropagation 擋住、以及當時可觀察到的狀態。
+  openDetail()
+})</code></pre>
+  <p>這樣 click 還能繼續往更外層傳，例如 document-level telemetry 仍然有機會收到。</p>
 
-想讓 click Span 成為後續工作／HTTP Span 的 parent
-→ 必須在那些工作建立之前建立並啟用 tracing context；
-  Capture 提供比較早的觀察點，但仍需要正確的 context propagation。</code></pre>
-
-  <div class="box"><strong>來源邊界：</strong>上面的 Trace 段落是為理解 browser event timing 所補的 OpenTelemetry prerequisite，不是在宣稱目前 <code>@sre2/faro-click-tracking</code> 的實作一定採用這個 tracing 策略。實際 Faro instrumentation 怎麼做，要回主線時以 source document / code 驗證。</div>
-
-  <h2>11. Bubble 到底是什麼意思？</h2>
-  <p><em>Bubble</em> 的字面意象就是氣泡從較深的位置往上冒。在 DOM tree 中：</p>
-  <pre><code>button  ← target
-   ↑ bubbles toward ancestor
- main
-   ↑ bubbles toward ancestor
- body
-   ↑
- html
-   ↑
-document</code></pre>
-  <p>這不是 Event 被複製很多份，也不是 button 手動把 Event 傳給 parent；是<strong>同一次 event dispatch</strong> 正在按規則處理 ancestor listeners。</p>
-
-  <h2>12. 「click 是會 bubble 的 event」是什麼意思？</h2>
-  <p>Event object 有一個 boolean 性質：</p>
+  <h2>13. <code>event.bubbles</code> 和 <code>stopPropagation()</code> 不是同一個開關</h2>
+  <p><code>event.bubbles</code> 是 Event object 的 read-only boolean 性質：</p>
   <pre><code>event.bubbles  // true 或 false</code></pre>
-  <p>如果 <code>event.bubbles === true</code>，代表 target phase 之後，dispatch 允許再沿 ancestors 往外處理 bubbling listeners。browser 的 <code>click</code> event 會 bubble。</p>
-  <p>如果某個 Event 的 <code>bubbles === false</code>，就不能依賴「從 target 往 ancestors 冒泡」讓 ancestor 的 <code>capture: false</code> listener 收到它。</p>
-  <div class="box"><strong>現在不用背哪些 event 會 bubble。</strong>不同 event type 的規格會定義這項行為。真正遇到某一種 event 時，再查它的 <code>bubbles</code> 行為。</div>
 
-  <h2>13. 為什麼 <code>document.addEventListener('click', ...)</code> 能收到 button click？</h2>
-  <p>現在可以把這句話精確翻成：</p>
+  <div class="term-pair">
+    <div><code>bubbles === true</code></div><div>這個 Event 的規則允許 target 之後繼續進入 ancestor bubbling flow。</div>
+    <div><code>stopPropagation()</code></div><div>對這一次正在進行的 dispatch 設下停止傳遞的命令；它不會把 <code>bubbles</code> 改成 false。</div>
+  </div>
+
+  <pre><code>button.addEventListener('click', event => {
+  console.log(event.bubbles) // true
+
+  event.stopPropagation()
+
+  console.log(event.bubbles) // 仍然是 true
+})</code></pre>
+
+  <p>所以心智模型是：</p>
+  <pre><code>bubbles = true
+= 這個 Event 本來具備往 ancestors bubble 的能力
+
+stopPropagation()
+= 但這一次 dispatch 走到這裡就停止繼續傳</code></pre>
+
+  <p>對 browser 產生的 click Event，你讀取它的 <code>bubbles</code>；程式不會靠 <code>stopPropagation()</code> 去修改這個 boolean。建立 synthetic Event 時，可以在建立時指定是否 bubbles，例如：</p>
+  <pre><code>new Event('demo', { bubbles: false })</code></pre>
+
+  <h2>14. 為什麼 <code>document.addEventListener('click', ...)</code> 能收到 button click？</h2>
   <div class="box tip"><strong>在 <code>document</code> 這個 DOM EventTarget 上登記一個 click listener。未來如果某次 click 的 event path 在 bubbling 階段經過 <code>document</code>，請瀏覽器呼叫 <code>handleClick(event)</code>。</strong></div>
-  <p>這也是 event delegation（事件委派）的基礎：不必替每個 descendant 都各掛一個 click listener；ancestor 可以接住會 bubble 上來的 click，再用 <code>event.target</code> 判斷最初的 target。</p>
+  <p>如果這次 Event 在抵達 document 前被 <code>stopPropagation()</code> 截斷，document 的 Bubble listener 就收不到；若 document 使用 Capture listener，而且停止發生在更內層，document Capture listener 已經更早執行過。</p>
 
-  <h2>14. <code>event.target</code> 和 <code>event.currentTarget</code></h2>
+  <h2>15. <code>event.target</code> 和 <code>event.currentTarget</code></h2>
   <pre><code>你點 button
     ↓
 event.target = button
@@ -229,22 +249,26 @@ document 上的 listener 正在執行
     ↓
 event.currentTarget = document</code></pre>
   <div class="term-pair">
-    <div><code>event.target</code></div><div>這次 event 最初指向的 DOM object。</div>
+    <div><code>event.target</code></div><div>這次 Event 最初指向的 DOM object。</div>
     <div><code>event.currentTarget</code></div><div>目前正在執行的 listener 所屬 EventTarget。</div>
   </div>
 
-  <h2>15. 最後才看 <code>event.eventPhase</code></h2>
-  <p>前面已經先定義了 phase。現在這個 property 就只是把「目前走到哪一段」用程式可以讀的值表示出來：</p>
+  <h2>16. 最後才看 <code>event.eventPhase</code></h2>
+  <p>現在 phase 已經有具體意義了，<code>event.eventPhase</code> 只是 browser API 把「目前走到哪一段」暴露成程式可以讀的值：</p>
   <div class="term-pair">
     <div><code>NONE (0)</code></div><div>Event 現在沒有處於 dispatch 中。</div>
     <div><code>CAPTURING_PHASE (1)</code></div><div>目前正在 target 之前的 Capture 階段。</div>
     <div><code>AT_TARGET (2)</code></div><div>目前正在 event.target 本身。</div>
-    <div><code>BUBBLING_PHASE (3)</code></div><div>目前正在 target 之後往 ancestors 的 Bubble 階段。</div>
+    <div><code>BUBBLING_PHASE (3)</code></div><div>目前正在 target 之後的 ancestor Bubble 階段。</div>
   </div>
+  <div class="box tip"><strong>不用背 1 / 2 / 3。</strong>先理解 Capture / Target / Bubble；數字只是 API encoding。</div>
 
-  <div class="box tip"><strong>不要把數字 1 / 2 / 3 當成要背的知識。</strong>先理解 Capture / Target / Bubble 的位置；<code>eventPhase</code> 只是 browser API 把這個 runtime 狀態暴露出來。</div>
+  <h2>17. Trace 現在只需要知道這個邊界</h2>
+  <p>目前正在建立的是 browser Event mental model。Tracing 的 Span、parent/child、active context、context propagation 會在後面的 Faro / OTel 主線正式學，不需要在這裡先展開。</p>
+  <p>現在只保留一個必要 bridge：</p>
+  <div class="box"><strong>Capture 與 Bubble 會改變 telemetry listener「什麼時候看到這次 click」。</strong>如果之後要追「click 引發了哪些 downstream work」，較早或較晚觀察可能影響 instrumentation 設計；但那是 tracing 章節要解的問題，不是理解 DOM Event 的必要前提。</div>
 
-  <h2>16. 完整因果鏈</h2>
+  <h2>18. 完整因果鏈</h2>
   <pre><code>HTML source
   ↓ browser parses
 DOM tree
@@ -253,56 +277,55 @@ listener registration 被保存
   ↓ 使用者 click
 browser receives input + hit testing
   ↓ browser sets
- event.target = button
+event.target = button
   ↓ browser creates
 click Event object
   ↓ browser dispatches along event path
-Capture：外 → 內，呼叫符合的 capture listeners
+Capture：ancestors 外 → 內
   ↓ reaches target
-Target：在 button 上呼叫相符 listeners
-  ↓ if event.bubbles === true
-Bubble：內 → 外，呼叫 ancestor 的 non-capture listeners
-  ↓ browser passes Event object into callback
-callback(event)
-  ↓ JavaScript reads
-event.target / currentTarget / eventPhase / bubbles
-  ↓ monitoring code may transform
-Faro / tracing telemetry</code></pre>
+Target：button 自己的 listeners 在這裡被處理一次
+  ↓ if event.bubbles === true and propagation not stopped
+Bubble：從 button 的 parent 開始往外處理 ancestors
+  ↓ browser calls matching callbacks
+callback(event)</code></pre>
 
-  <h2>17. 直接點一次驗證</h2>
-  <p>下面 demo 只接受「每日生產排程」按鈕本身的 click，避免你點到外層 container 時改變 target。輸出也不再只丟數字，而是先顯示可讀的 phase 名稱。</p>
+  <h2>19. 直接點一次驗證</h2>
+  <p>按「每日生產排程」，觀察同一個 click 依序經過 document Capture、container Capture、button Target、container Bubble、document Bubble。</p>
   <div class="event-demo" id="event-demo">
     <div class="demo-stage" id="demo-container"><button class="demo-action" id="daily-schedule">每日生產排程</button></div>
     <pre class="event-log" id="event-log">尚未點擊。請按上面的「每日生產排程」。</pre>
   </div>
 
-  <div class="box tip"><strong>觀察兩件不同的事：</strong><code>registered capture</code> 是 listener 事先怎麼登記；<code>current phase</code> 是這一次 event dispatch 此刻走到哪一段。不要把兩者混在一起。</div>
+  <div class="box tip"><strong>特別看 button 那一列：</strong>它只出現一次，而且 current phase 是 TARGET。後面的 Bubble rows 是 container / document，不是 button 又執行一次。</div>
 
   <h2>自我檢查</h2>
   <div class="box ask">
-    不看上面的流程，試著回答：
+    不看上面，試著回答：
     <ol>
-      <li>Capture 開始時，browser 還在找 target 嗎？</li>
-      <li><code>capture: false</code> 是否等於 listener 永遠只會在 Bubble phase 執行？</li>
-      <li>如果 button handler 會立刻建立 HTTP Span，為什麼 document Bubble listener 才開始 click Span 可能太晚？</li>
+      <li>直接點 card 時，card 自己的 listener 會因 bubbling 再跑第二次嗎？為什麼？</li>
+      <li>點 deleteButton 時，為什麼 card 的另一個 listener 可能也會執行？</li>
+      <li><code>event.bubbles === true</code> 與 <code>event.stopPropagation()</code> 各自控制什麼？</li>
+      <li>為什麼不應該把 <code>stopPropagation()</code> 當成所有 click handler 的預設寫法？</li>
     </ol>
   </div>
 
   <h2>Recap</h2>
   <ul>
     <li>DOM object 由 browser 建立與管理；JavaScript 透過 DOM API 取得 reference。</li>
-    <li>button 不是 click Event 的 creator；browser 收到輸入、判定 target，再建立 Event。</li>
-    <li>phase 只是同一次 event dispatch 目前走到哪一段。</li>
-    <li>dispatch 是 target/path 已知後，依 event path、phase 與 listener registration 決定並執行 callbacks。</li>
-    <li><code>capture: false</code> 才是 API 的預設；它不等於「一定在 Bubble phase」。</li>
-    <li>Capture 適合需要在 descendant handler 前先觀察／介入的 listener；Bubble 適合一般 ancestor delegation 與 target 之後的處理。</li>
-    <li><code>click</code> 會 bubble，所以 document 的 non-capture listener 可以收到 descendant button 的 click。</li>
-    <li><code>event.eventPhase</code> 只是把 Capture / Target / Bubble 的當下 runtime 狀態暴露成 0 / 1 / 2 / 3。</li>
-    <li>Tracing 若要形成 click → downstream work 的 parent/child 因果鏈，除了 listener timing，還必須正確建立與傳遞 active context。</li>
-    <li>Browser Event object 與 Faro telemetry 是不同層次。</li>
+    <li>browser 收到 click input、判定 target、建立 Event，再開始 dispatch。</li>
+    <li>Capture / Target / Bubble 是同一次 dispatch 的不同階段。</li>
+    <li>Target listener 在 Target phase 被處理；Bubble 不會讓同一個 target listener 再執行一次。</li>
+    <li>Bubble 是 target 處理後，讓 target 的 ancestors 有機會收到同一個 Event。</li>
+    <li>Capture 與 Bubble 都能讓 ancestor 統一看到 descendant click，差別主要在 listener 的執行時機。</li>
+    <li>event delegation 常利用 bubbling 讓 ancestor 統一處理 descendants。</li>
+    <li><code>stopPropagation()</code> 是截斷這一次 Event 的後續傳遞，不是防止 target handler 自己重複執行。</li>
+    <li><code>event.bubbles</code> 是 read-only Event 性質；<code>stopPropagation()</code> 不會把它改成 false。</li>
+    <li><code>event.target</code> 是最初 target；<code>event.currentTarget</code> 是目前 listener 所在的 EventTarget。</li>
+    <li><code>event.eventPhase</code> 只是把目前 Capture / Target / Bubble 狀態暴露成 API 值。</li>
+    <li>Tracing 細節目前延後；這裡只需要知道 Capture / Bubble 會改變 telemetry 觀察 click 的時機。</li>
   </ul>
 
-  <p class="cite">主線來源仍是使用者提供的 <a href="../source-documents/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a>。Browser event prerequisite 以 <a href="https://dom.spec.whatwg.org/#events" target="_blank" rel="noopener">WHATWG DOM Standard — Events</a> 補足；Trace active-context 概念以 <a href="https://opentelemetry.io/docs/languages/js/context/" target="_blank" rel="noopener">OpenTelemetry JavaScript — Context</a> 與 <a href="https://opentelemetry.io/docs/languages/js/instrumentation/" target="_blank" rel="noopener">Instrumentation</a> 補足。這些外部資料只補 source document 未展開的 prerequisite，不替代主線文件。</p>
+  <p class="cite">主線來源仍是使用者提供的 <a href="../source-documents/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a>。Browser Event prerequisite 以 <a href="https://dom.spec.whatwg.org/#events" target="_blank" rel="noopener">WHATWG DOM Standard — Events</a> 補足。外部資料只補 source document 未展開、但理解 Faro click tracking 所需要的 browser prerequisite。</p>
 
   <nav class="lesson-nav" aria-label="參考卡導覽"><a href="../lessons/0001-browser-click-foundation.html">← 回 Lesson 1</a><a href="0002-callback-function.html">下一張：Callback →</a></nav>
 
@@ -322,17 +345,17 @@ Faro / tracing telemetry</code></pre>
       }
 
       function phaseName(event) {
-        if (event.eventPhase === Event.CAPTURING_PHASE) return 'CAPTURE (1)';
-        if (event.eventPhase === Event.AT_TARGET) return 'TARGET (2)';
-        if (event.eventPhase === Event.BUBBLING_PHASE) return 'BUBBLE (3)';
-        return 'NONE (0)';
+        if (event.eventPhase === Event.CAPTURING_PHASE) return 'CAPTURE';
+        if (event.eventPhase === Event.AT_TARGET) return 'TARGET';
+        if (event.eventPhase === Event.BUBBLING_PHASE) return 'BUBBLE';
+        return 'NONE';
       }
 
       function write(label, registeredCapture, event) {
-        if (!button.contains(event.target)) return;
+        if (event.target !== button) return;
         lines.push(
           label + '\n' +
-          '  registered capture  = ' + registeredCapture + '\n' +
+          '  listener capture    = ' + registeredCapture + '\n' +
           '  current phase       = ' + phaseName(event) + '\n' +
           '  event.target        = ' + describe(event.target) + '\n' +
           '  event.currentTarget = ' + describe(event.currentTarget) + '\n' +
@@ -342,15 +365,15 @@ Faro / tracing telemetry</code></pre>
       }
 
       document.addEventListener('click', (event) => {
-        if (!button.contains(event.target)) return;
+        if (event.target !== button) return;
         lines = [];
-        write('1. document listener', true, event);
+        write('1. document', true, event);
       }, { capture: true });
 
-      container.addEventListener('click', (event) => write('2. container listener', true, event), { capture: true });
-      button.addEventListener('click', (event) => write('3. button listener', false, event));
-      container.addEventListener('click', (event) => write('4. container listener', false, event));
-      document.addEventListener('click', (event) => write('5. document listener', false, event));
+      container.addEventListener('click', (event) => write('2. container', true, event), { capture: true });
+      button.addEventListener('click', (event) => write('3. button', false, event));
+      container.addEventListener('click', (event) => write('4. container', false, event));
+      document.addEventListener('click', (event) => write('5. document', false, event));
     })();
   </script>
 </body>
