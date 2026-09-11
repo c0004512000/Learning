@@ -12,14 +12,14 @@
 
 - **目前位置：Milestone 1 / Lesson 2**
 - **主線狀態：已開始 Lesson 2，從 browser native click 接到 Faro `ClickInstrumentation`**
-- **Lesson 1 prerequisite 狀態：DOM / Event dispatch 與 Callback reference 已建立，但尚未以 retrieval 證明 mastered**
-- **完成判準：不能只因教材已讀就算完成；需要 retrieval / practice evidence**
+- **Lesson 1 prerequisite 狀態：main lesson 與 DOM / Event dispatch、Callback references 已依最近 learner feedback 同步修正；仍尚未以 retrieval 證明 mastered**
+- **完成判準：不能只因教材已讀或教材已修正就算完成；需要 retrieval / practice evidence**
 
 ## Complete main course path
 
 ### Milestone 1 — Browser event → Faro instrumentation boundary
 
-#### Lesson 1 — 瀏覽器如何知道你點了哪裡
+#### Lesson 1 — How the Browser Knows What You Clicked
 **Objective:** 建立 HTML、DOM、Event、EventTarget、listener、callback 與 `event.target` 的最小正確模型，能解釋一次 click 如何進入 JavaScript。
 
 **Primary source:**
@@ -31,7 +31,7 @@
 
 **Dependency:** 整個 Faro click tracking 主線的必要前置。
 
-#### Lesson 2 — Faro ClickInstrumentation 如何接手 browser click
+#### Lesson 2 — How ClickInstrumentation Handles Browser Clicks
 **Objective:** 從原生 click listener 往下追，理解 ClickInstrumentation 的註冊、事件篩選、欄位擷取與 telemetry 建立責任邊界。
 
 **Durable lesson:**
@@ -52,7 +52,7 @@
 
 ### Milestone 2 — 讀懂並安全修改 `@sre2/faro-click-tracking`
 
-#### Lesson 3 — 套件初始化、singleton 與公開 API
+#### Lesson 3 — Package Initialization, Singleton, and Public API
 **Objective:** 能從 host application 呼叫點追進套件初始化流程，分清楚 application responsibility、package responsibility 與 Faro SDK responsibility。
 
 **Primary sources:**
@@ -62,7 +62,7 @@
 
 **Dependency:** Lesson 2。
 
-#### Lesson 4 — User / Device / Environment context 如何進 telemetry
+#### Lesson 4 — User, Device, and Environment Context
 **Objective:** 理解 user callback、device 判定、environment context 的來源、生命週期與寫入位置，能判斷應由 host application 還是共用套件提供資料。
 
 **Primary sources:**
@@ -74,7 +74,7 @@
 
 ### Milestone 3 — Host integration 與 Browser DevTools 驗證
 
-#### Lesson 5 — Faro SDK 初始化與 browser → Alloy 傳輸
+#### Lesson 5 — Faro SDK Initialization and Browser-to-Alloy Transport
 **Objective:** 理解 Faro SDK 初始化、receiver endpoint、payload/meta 與 CORS 的因果關係，能從 browser network request 判斷資料有沒有真正送出。
 
 **Primary sources:**
@@ -89,7 +89,7 @@
 
 **Dependency:** Lessons 2–4。
 
-#### Lesson 6 — 用 DevTools 做端到端 browser-side verification
+#### Lesson 6 — Browser-Side Verification with DevTools
 **Objective:** 能用 Elements / Console / Network 驗證 click target、callback/context、Faro payload、request headers、response 與 CORS，而不是只看畫面有沒有反應。
 
 **Primary sources:**
@@ -101,7 +101,7 @@
 
 ### Milestone 4 — Frontend ↔ Backend distributed trace
 
-#### Lesson 7 — `traceparent` 如何把 frontend span 接到 backend span
+#### Lesson 7 — Frontend-to-Backend Trace Context Propagation
 **Objective:** 從 trace ID / span relationship 出發理解 propagation，能解釋 `traceparent` 是在哪裡產生、如何跨 HTTP request 傳遞，以及 backend 如何延續同一條 trace。
 
 **Primary source:**
@@ -113,7 +113,7 @@
 
 **Dependency:** Lessons 5–6。
 
-#### Lesson 8 — 驗證同一條 trace：Browser → Backend → Tempo
+#### Lesson 8 — Verifying a Single Trace from Browser to Tempo
 **Objective:** 能用 browser headers、backend instrumentation 與 Tempo trace evidence 驗證前後端是否真的共享 trace ID，並定位 propagation 中斷點。
 
 **Primary source:**
@@ -127,7 +127,7 @@
 
 ### Milestone 5 — Alloy / OTel Collector / storage pipeline
 
-#### Lesson 9 — Faro receiver → Alloy → OTel Collector pipeline
+#### Lesson 9 — Faro Receiver to Alloy and OTel Collector
 **Objective:** 能畫出 telemetry 進 Alloy 後如何被轉成 OTel signals，再進 Collector receiver / processor / exporter；知道每一層能改什麼、不能改什麼。
 
 **Primary sources:**
@@ -140,7 +140,7 @@
 
 **Dependency:** Lessons 5、7。
 
-#### Lesson 10 — Faro logs 到 OpenSearch：轉換、mapping、index
+#### Lesson 10 — Faro Logs to OpenSearch: Transformation, Mapping, and Indexing
 **Objective:** 理解 Faro payload → OTel log → transform/filter → OpenSearch document/index 的資料形狀變化，能追欄位為何出現、消失或改名。
 
 **Primary source:**
@@ -155,7 +155,7 @@
 
 ### Milestone 6 — Production deployment & troubleshooting
 
-#### Lesson 11 — Production Alloy / Collector deployment 與環境差異
+#### Lesson 11 — Production Alloy and Collector Deployment
 **Objective:** 能讀 production 部署設定，辨識 stage/prod endpoint、Collector version、namespace、credential boundary 與 rollout 風險。
 
 **Primary sources:**
@@ -169,7 +169,7 @@
 
 **Dependency:** Lessons 9–10。
 
-#### Lesson 12 — Production troubleshooting：從症狀反推故障層
+#### Lesson 12 — Production Troubleshooting: From Symptoms to Fault Domain
 **Objective:** 面對「沒有 click telemetry」「有 request 但 backend 沒資料」「trace 斷掉」「OpenSearch 查不到」「環境寫錯 cluster」等症狀，能沿 browser → Faro → Alloy → Collector → Tempo/Loki/OpenSearch 逐層用證據縮小問題。
 
 **Primary sources:**
@@ -191,7 +191,7 @@
 
 - Reference: `reference/0001-dom-document-event-dispatch.html`
 - 要解決的問題：DOM ownership、`document`、EventTarget、target/path、capture/target/bubble、listener invocation。
-- 狀態：reference 已建立；尚未以 retrieval 證明 mastered。Lesson 2 會直接重用這套模型理解 `document.addEventListener('click', ...)`。
+- 狀態：main lesson 與 reference 已依 learner feedback 同步修正；尚未以 retrieval 證明 mastered。Lesson 2 直接重用這套模型理解 `document.addEventListener('click', ...)`。
 
 ### Callback
 
@@ -203,7 +203,7 @@
 
 ## Resume point
 
-目前已回到 **Lesson 2** 主線：
+目前已回到 **Lesson 2 — How ClickInstrumentation Handles Browser Clicks** 主線：
 
 `browser native click → document listener → ClickInstrumentation.handleClick(event) → trackAttributes / closest() → payload filtering / throttle → Faro api.pushEvent()`
 
