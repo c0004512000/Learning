@@ -177,10 +177,10 @@ main → body → html → Document</code></pre>
   <h2>9. <code>capture: true</code> / <code>false</code> 是 listener 的設定</h2>
 
   <pre><code>// ancestor 想在 target 前收到
-Document.addEventListener('click', handleClick, { capture: true })
+document.addEventListener('click', handleClick, { capture: true })
 
 // 預設 non-capture
-Document.addEventListener('click', handleClick)</code></pre>
+document.addEventListener('click', handleClick)</code></pre>
 
   <p>更精確地說：</p>
 
