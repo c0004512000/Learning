@@ -9,119 +9,96 @@
 </head>
 <body>
   <h1>How ClickInstrumentation Handles Browser Clicks</h1>
-  <p class="subtitle">Milestone 1 · Browser Event 到 Faro telemetry 的第一個交界</p>
+  <p class="subtitle">Milestone 1 · Browser Event → Faro click telemetry</p>
 
   <div class="box tip">
     <strong>這堂課的目標</strong><br>
-    學完後，你應該能從 <code>document.addEventListener('click', ...)</code> 一路解釋到 <code>api.pushEvent('click', payload)</code>，並分清楚：瀏覽器、DOM、<code>data-*</code>、宿主應用與 <code>ClickInstrumentation</code> 各自負責什麼。
+    學完後，你應該能從 <code>document.addEventListener('click', ...)</code> 一路解釋到 <code>api.pushEvent('click', payload)</code>，並分清楚 Browser Event、DOM attributes、ClickInstrumentation 與 Faro telemetry 的責任邊界。
   </div>
 
-  <div class="box ask">
-    <strong>這堂課的名詞固定：</strong><br>
-    「宿主應用」指實際導入這個 Faro click tracking 套件的前端應用，例如領班助手。後面不再交替使用 host、host application、Foreman Assistant 等不同稱呼來表示同一個角色。
-  </div>
+  <p>Lesson 1 已經建立 Browser 原生 click 機制：</p>
 
-  <p>Lesson 1 最後停在這裡：</p>
+  <pre><code>User click
+  → Browser determines target
+  → Browser creates Event
+  → Browser dispatches Event
+  → Browser reaches listener
+  → Browser calls callback(event)</code></pre>
 
-  <pre><code>使用者 click
-  → 瀏覽器決定 target
-  → 瀏覽器建立 click Event
-  → 瀏覽器分派 Event
-  → 找到 listener registration
-  → 瀏覽器呼叫 callback(event)</code></pre>
+  <p>現在問題變成：</p>
 
-  <blockquote><strong>ClickInstrumentation 不會製造 click。</strong> click 已由瀏覽器建立並開始分派；ClickInstrumentation 只是事先登記一個 listener，等瀏覽器把既有的 click Event 交給它。</blockquote>
+  <blockquote>ClickInstrumentation 收到這個 Browser Event 之後，怎麼決定「要不要記錄」以及「要記錄什麼」？</blockquote>
 
-  <h2>1. ClickInstrumentation 到底是什麼？</h2>
+  <h2>1. ClickInstrumentation 的第一個工作：先掛一條 listener</h2>
 
-  <p><code>ClickInstrumentation</code> 是共用套件裡自訂的 instrumentation。這裡先把 instrumentation 理解成：</p>
-
-  <blockquote>一個專門「接到某種 runtime 行為 → 讀資料 → 轉成 Faro telemetry」的元件。</blockquote>
-
-  <pre><code>export class ClickInstrumentation extends BaseInstrumentation {
-  initialize(): void {
-    document.addEventListener('click', this.handleClick);
-  }
-
-  destroy(): void {
-    document.removeEventListener('click', this.handleClick);
-  }
-}</code></pre>
-
-  <p>翻成 Lesson 1 的語言：</p>
+  <p>核心初始化可以先看成：</p>
 
   <pre><code>initialize()
   ↓
-在 document 這個 EventTarget 上登記：
-- event type = click
-- callback   = this.handleClick
+document.addEventListener('click', this.handleClick)</code></pre>
 
-之後真的有人 click
-  ↓
-瀏覽器分派 click Event
-  ↓
-Event path 走到 document
-  ↓
-瀏覽器呼叫 this.handleClick(event)</code></pre>
+  <p>這代表 ClickInstrumentation 沒有自己偵測滑鼠或觸控輸入。它只是使用 Browser 已有的 Event system，在 <code>document</code> 上登記一個 click callback。</p>
 
-  <div class="box">
-    <strong>「全域監聽 click」不等於「所有 click 都一定會變成 telemetry」。</strong><br>
-    listener 掛在 <code>document</code>，因此有機會收到大量 bubbling clicks；但收到 click 之後，還要看能不能依 <code>trackAttributes</code> 從 DOM 找到資料。最後 payload 為空就不會送出 Faro click event。
+  <pre><code>ClickInstrumentation.initialize()
+        │ registers
+        ▼
+document click listener
+        │
+        │ later, Browser dispatches click
+        ▼
+this.handleClick(event)</code></pre>
+
+  <p>沒有傳 <code>{ capture: true }</code>，所以這條 listener 是 non-capture listener。一般 descendant click 若允許 bubbling，會在 Bubble phase 往上抵達 <code>document</code>。</p>
+
+  <h2>2. 全域 listener 只解決「在哪裡接 Event」</h2>
+
+  <p>把 listener 掛在 <code>document</code> 有一個重要效果：</p>
+
+  <blockquote>不用替每一顆 button、link 或其他 element 各自註冊一條 JavaScript click listener。</blockquote>
+
+  <p>但這不代表每一次 click 都會被送成 telemetry。</p>
+
+  <pre><code>Browser click reaches document
+        │
+        ▼
+handleClick(event)
+        │
+        ▼
+extract configured data
+        │
+        ├── 找到可用資料 → 繼續
+        └── 完全沒有資料 → 不送</code></pre>
+
+  <p>因此要把兩件事分開：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>問題</th><th>由什麼決定</th></tr></thead>
+      <tbody>
+        <tr><td>ClickInstrumentation 能不能收到這次 click？</td><td>Browser Event dispatch 是否抵達 document listener。</td></tr>
+        <tr><td>這次 click 要不要變成 Faro telemetry？</td><td>ClickInstrumentation 是否能抽出有效 payload，以及後續 gate / throttle。</td></tr>
+      </tbody>
+    </table>
   </div>
 
-  <h2>2. 它是在 Capture 還是 Bubble 接手？</h2>
+  <h2>3. Telemetry 需要「業務語意」，不能只知道有 click</h2>
 
-  <p>現行程式沒有傳 <code>{ capture: true }</code>：</p>
+  <p>Browser Event 本身已經知道：</p>
 
-  <pre><code>document.addEventListener('click', this.handleClick)</code></pre>
+  <pre><code>event.type = "click"
+event.target = 某顆 DOM element</code></pre>
 
-  <p>所以這是一個 non-capture listener。以 descendant element 被點擊為例，target 在 dispatch 前已確定；Target phase 後，允許 bubbling 的 click 會沿 ancestor 往外走：</p>
+  <p>但對監控來說，只知道「有人點了」通常不夠。你往往還需要知道：</p>
 
-  <pre><code>Target phase
-button
+  <pre><code>點的是哪個 logical action？
+在哪個 page？
+在哪個 panel / section？</code></pre>
 
-Bubble phase
-main
-  ↓
-body
-  ↓
-html
-  ↓
-document
-  ↓
-瀏覽器呼叫 ClickInstrumentation.handleClick(event)</code></pre>
+  <p>這些不是 Browser 自動理解的業務語意。宿主應用需要把它們放在 DOM 上，ClickInstrumentation 才能讀。</p>
 
-  <div class="box tip">
-    <strong>這張圖不是在說 button listener 又跑一次。</strong><br>
-    button 已在 Target phase 處理；Bubble 接著處理的是它的 ancestors。若內層程式在 Event 抵達 <code>document</code> 前呼叫 <code>stopPropagation()</code>，document 上這條 listener 就可能看不到那次 click。
-  </div>
+  <h2>4. 宿主應用用 <code>data-*</code> 把語意放進 DOM</h2>
 
-  <h2>3. <code>trackAttributes</code> 不是 listener 清單</h2>
-
-  <p>假設初始化時設定：</p>
-
-  <pre><code>trackAttributes: [
-  'data-link-name',
-  'data-page',
-  'data-panel-topic',
-]</code></pre>
-
-  <p>這不是建立三條 click listeners。真正的模型是：</p>
-
-  <pre><code>只有一條 document click listener
-                │
-                │ 瀏覽器把 click Event 傳進 handleClick
-                ▼
-       ClickInstrumentation
-                │
-                └── 再按照 trackAttributes
-                    去 DOM 找這次要抽哪些資料</code></pre>
-
-  <p><code>trackAttributes</code> 比較像「click payload 的資料擷取 schema」。</p>
-
-  <h2>4. <code>data-*</code> 到底是 HTML、DOM，還是 Faro 的東西？</h2>
-
-  <p>先看一段宿主應用的 HTML：</p>
+  <p>例如：</p>
 
   <pre><code>&lt;button
   id="daily-schedule-button"
@@ -130,192 +107,55 @@ document
   每日生產排程
 &lt;/button&gt;</code></pre>
 
-  <p><code>daily-schedule-button</code> 只是這個範例的 <code>id</code> 名稱；沒有任何特殊 browser 意義。</p>
-
-  <p>瀏覽器解析後，概念上是一顆 button DOM element object，上面帶著 attributes：</p>
+  <p>Browser 解析後，這些 attributes 都屬於同一顆 button DOM element：</p>
 
   <pre><code>HTMLButtonElement
-│
 ├── id = "daily-schedule-button"
 └── data-link-name = "daily-schedule"</code></pre>
 
-  <p>注意：不是 button、id、data-link-name 三顆平行 DOM objects。<code>id</code> 與 <code>data-link-name</code> 都是同一顆 button element 的資料。</p>
+  <p><code>data-*</code> 是 HTML custom data attribute；不是 Faro object，也不是另外一顆 DOM object。</p>
 
-  <pre><code>event.target
-    ↓
-某一顆 DOM element object
-    │
-    ├── id
-    ├── class
-    ├── href（某些 element 才有）
-    └── data-* attributes</code></pre>
+  <p>一般 JavaScript 本來就可以讀它：</p>
 
-  <div class="box tip">
-    <strong><code>data-*</code> 不是 Faro object。</strong><br>
-    它首先是 HTML custom data attribute；瀏覽器建立對應 DOM element 後，可以透過 DOM API 從那顆 element 讀到它。Faro 只是後來去讀。
-  </div>
-
-  <p>JavaScript 自己也可以讀：</p>
-
-  <pre><code>const button = document.querySelector('#daily-schedule-button')
-
-button.getAttribute('data-link-name')
+  <pre><code>button.getAttribute('data-link-name')
 // "daily-schedule"
 
 button.dataset.linkName
 // "daily-schedule"</code></pre>
 
-  <h2>5. 現行套件規則：Faro 不會替宿主應用建立 <code>data-*</code></h2>
+  <h2>5. <code>trackAttributes</code> 定義「要抽哪些欄位」</h2>
 
-  <p>以目前 <code>faro-click-tracking</code> 的 package contract 而言，<code>trackAttributes</code> 名稱必須以 <code>data-</code> 開頭：</p>
-
-  <pre><code>trackAttributes 中的名稱
-        │
-        ├── data-*     → 允許
-        │
-        └── 非 data-* → initFaro() validation error</code></pre>
-
-  <pre><code>if (!name.startsWith('data-')) {
-  throw new Error(...)
-}</code></pre>
-
-  <p>所以以下設定不被目前套件接受：</p>
-
-  <pre><code>trackAttributes: ['id']
-trackAttributes: ['href']
-trackAttributes: ['class']
-trackAttributes: ['key']</code></pre>
-
-  <p>如果要讓 ClickInstrumentation 收集某個 telemetry semantic，例如 <code>link_name</code>，那個值必須先存在於 target → ancestor 路徑上的某個設定過的 <code>data-*</code> attribute。套件不會自動替宿主應用加 attribute。</p>
-
-  <pre><code>宿主應用宣告：
-&lt;button data-link-name="daily-schedule"&gt;...&lt;/button&gt;
-
-           ↓ 瀏覽器解析並建立 DOM
-
-DOM element 上可讀到：
-data-link-name="daily-schedule"
-
-           ↓ ClickInstrumentation
-
-才能從 DOM 讀到</code></pre>
-
-  <div class="box">
-    這是<strong>目前這個 package 的 contract</strong>，不是 HTML / DOM 的限制。瀏覽器本來就能讓 JavaScript 讀 <code>id</code>、<code>href</code>、<code>class</code>；只是這套 ClickInstrumentation 刻意不讓它們直接進 <code>trackAttributes</code>。
-  </div>
-
-  <h2>6. 那是不是每一顆 button 都要加 <code>data-*</code>？</h2>
-
-  <p><strong>不是。</strong>要問的是：「這個 interaction 要不要產生 click telemetry？如果要，是否需要知道是哪個 logical action？」</p>
-
-  <h3>情況 A：這顆 button 不需要追蹤</h3>
-
-  <pre><code>&lt;button&gt;展開說明&lt;/button&gt;</code></pre>
-
-  <p>如果從這顆 button 到 ancestors 都找不到任何設定在 <code>trackAttributes</code> 裡的 <code>data-*</code>，最後 payload 是空的，這次 click 就不送 Faro event。</p>
-
-  <pre><code>click
-  ↓
-document listener 仍可能收到
-  ↓
-依 trackAttributes 找資料
-  ↓
-全部找不到
-  ↓
-payload = {}
-  ↓
-return，不 pushEvent()</code></pre>
-
-  <h3>先把 <code>closest()</code> 講清楚</h3>
-
-  <p><code>closest(selector)</code> 不是「找畫面上最近的東西」。它是：</p>
-
-  <blockquote>從目前這顆 DOM element 自己開始，沿著 parent chain 一層一層往上，找到第一個符合 selector 的 element。</blockquote>
-
-  <pre><code>&lt;section data-page="production"&gt;
-  &lt;button data-action="save"&gt;
-    &lt;span&gt;儲存&lt;/span&gt;   ← event.target
-  &lt;/button&gt;
-&lt;/section&gt;</code></pre>
-
-  <p>如果 target 是 <code>span</code>：</p>
-
-  <pre><code>target.closest('[data-action]')
-
-span      不符合
-  ↑ parent
-button    符合 data-action
-  → 停止，回傳 button</code></pre>
-
-  <p>另一個 attribute 會重新獨立查一次：</p>
-
-  <pre><code>target.closest('[data-page]')
-
-span      不符合
-  ↑ parent
-button    不符合
-  ↑ parent
-section   符合 data-page
-  → 停止，回傳 section</code></pre>
-
-  <div class="box tip">
-    <strong>ancestor = parent、parent 的 parent、再更上層的 parent。</strong><br>
-    <code>closest()</code> 不往 child 找，也不找 sibling。這裡的 closest 是 DOM parent chain 上最近的 matching element，不是螢幕座標距離。
-  </div>
-
-  <h3>情況 B：共同 context 放 ancestor</h3>
-
-  <pre><code>&lt;section data-page="production"&gt;
-  &lt;button data-action="save"&gt;儲存&lt;/button&gt;
-  &lt;button data-action="cancel"&gt;取消&lt;/button&gt;
-&lt;/section&gt;</code></pre>
+  <p>假設初始化設定：</p>
 
   <pre><code>trackAttributes: [
+  'data-link-name',
   'data-page',
-  'data-action',
+  'data-panel-topic',
 ]</code></pre>
 
-  <p>點「儲存」可能得到：</p>
+  <p>這不是三條 listeners。listener 仍然只有一條：</p>
 
-  <pre><code>{
-  page: "production",
-  action: "save"
-}</code></pre>
+  <pre><code>document click listener
+        │
+        ▼
+handleClick(event)
+        │
+        ▼
+for each trackAttribute
+        │
+        └── 去 DOM 找對應 value</code></pre>
 
-  <p>點「取消」可能得到：</p>
+  <p>所以 <code>trackAttributes</code> 最適合先理解成：</p>
 
-  <pre><code>{
-  page: "production",
-  action: "cancel"
-}</code></pre>
+  <blockquote>這個 click telemetry payload 要從 DOM 抽取哪些 attributes 的 schema。</blockquote>
 
-  <p>所以共同的 <code>data-page</code> 不必複製到每顆 button；但如果要區分 logical action，就需要存在能區分它們的 semantic，例如不同的 <code>data-action</code>。</p>
+  <p>目前 package contract 要求名稱必須是 <code>data-*</code>。這是套件自己的規則，不是 Browser / DOM 的限制。</p>
 
-  <h3>情況 C：只有共同 context，沒有 action identity</h3>
+  <h2>6. 為什麼不能只讀 <code>event.target</code>？</h2>
 
-  <pre><code>&lt;section data-page="production"&gt;
-  &lt;button&gt;儲存&lt;/button&gt;
-  &lt;button&gt;取消&lt;/button&gt;
-&lt;/section&gt;</code></pre>
+  <p>因為使用者點到的最內層 element，不一定就是放 telemetry attribute 的 element。</p>
 
-  <pre><code>trackAttributes: ['data-page']</code></pre>
-
-  <p>兩顆 button 的 click 都可能只送：</p>
-
-  <pre><code>{ page: "production" }</code></pre>
-
-  <p>你知道 production page 有 click，但不知道是儲存還是取消。</p>
-
-  <blockquote><strong>全域 listener 解決的是「不用替每顆 button 各掛一個 JavaScript click listener」；它沒有解決「每個 action 的業務語意從哪裡來」。</strong></blockquote>
-
-  <div class="box ask">
-    <strong>不要把 shared Button / Link 當成宿主應用已存在的事實。</strong><br>
-    「如果宿主應用有共用 Button / Link component，可以集中 render telemetry <code>data-*</code>」只是一種 integration pattern。是否真的有這種 component、是否所有 business buttons 都經過它，必須看實際 source evidence。
-  </div>
-
-  <h2>7. ClickInstrumentation 怎麼從 target 找 attribute？</h2>
-
-  <p>現行實作不是只看 <code>event.target</code> 自己。它會對每個 <code>trackAttributes</code> 名稱，各自從 target 使用 <code>closest()</code> 往 ancestor 找。</p>
+  <p>例如：</p>
 
   <pre><code>&lt;section data-page="production"&gt;
   &lt;button data-action="save"&gt;
@@ -323,147 +163,204 @@ section   符合 data-page
   &lt;/button&gt;
 &lt;/section&gt;</code></pre>
 
-  <p>假設真正點到的是 <code>&lt;span&gt;</code>：</p>
+  <p>如果使用者剛好點到文字 <code>span</code>：</p>
 
-  <pre><code>event.target = span
+  <pre><code>event.target = span</code></pre>
 
-找 data-action：
-span
-  ↑
-button[data-action="save"]
-  → save
+  <p>但 telemetry 可能需要：</p>
 
-找 data-page：
-span
-  ↑
-button
-  ↑
-section[data-page="production"]
-  → production</code></pre>
+  <pre><code>data-action = save
 
-  <p>所以不同欄位可以來自不同 ancestor。</p>
+data-page = production</code></pre>
 
-  <h2>8. Attribute 名稱怎麼變成 payload key？</h2>
+  <p>它們分別在不同 ancestors 上。</p>
 
-  <p>現行實作會經過 <code>toPayloadKey()</code>：</p>
+  <h2>7. <code>closest()</code>：從 target 沿 parent chain 往上找</h2>
 
-  <pre><code>data-link-name    → link_name
-data-page         → page
-data-panel-topic  → panel_topic</code></pre>
+  <p>對每一個設定的 attribute，ClickInstrumentation 可以從 target 開始，用 <code>closest()</code> 往 parent chain 找第一個有該 attribute 的 element。</p>
 
-  <p>也就是去掉開頭的 <code>data-</code>，其餘 <code>-</code> 改成 <code>_</code>。歷史文件記錄這個 normalization 與 downstream Loki 欄位名稱含連字號不好查詢有關。</p>
+  <pre><code>target = span
 
-  <h2>9. 收到 click 不代表一定會送 telemetry</h2>
+find data-action:
+span      ✗
+  ↑ parent
+button    ✓ data-action="save"
+
+find data-page:
+span      ✗
+  ↑ parent
+button    ✗
+  ↑ parent
+section   ✓ data-page="production"</code></pre>
+
+  <div class="box tip">
+    <code>closest()</code> 的「closest」是 DOM ancestry 上最近的 matching element，不是畫面座標距離。它不往 child 或 sibling 找。
+  </div>
+
+  <p>而且每個 attribute 是獨立查一次，因此 payload 可以由不同 ancestors 的值組成。</p>
+
+  <h2>8. Attribute name 如何變成 payload key？</h2>
+
+  <p>套件收集到 DOM attribute 後，會把它整理成送給 Faro 的 payload。</p>
+
+  <p>概念上：</p>
+
+  <pre><code>data-page="production"
+        ↓ extract
+page: "production"
+
+data-action="save"
+        ↓ extract
+action: "save"</code></pre>
+
+  <p>最後得到類似：</p>
+
+  <pre><code>{
+  page: "production",
+  action: "save"
+}</code></pre>
+
+  <p>這一步非常重要：Browser Event 本身不是 telemetry payload。ClickInstrumentation 是在這裡把 DOM context 轉成 telemetry data。</p>
+
+  <h2>9. 空 payload 是第一道 gate</h2>
+
+  <p>如果所有設定的 attributes 都找不到：</p>
 
   <pre><code>handleClick(event)
-  │
-  ├─ 1. event.target 是 Element 嗎？
-  │      否 → return
-  │
-  ├─ 2. 對每個 trackAttributes 用 closest() 找值
-  │
-  ├─ 3. payload 有任何欄位嗎？
-  │      否 → return
-  │
-  ├─ 4. 同一個 target 距上次送出 &lt; 300ms 嗎？
-  │      是 → return
-  │
-  └─ 5. api.pushEvent('click', payload)</code></pre>
+  ↓
+extract data-page      → not found
+extract data-action    → not found
+extract data-link-name → not found
+  ↓
+payload = {}
+  ↓
+return
+  ↓
+不 pushEvent()</code></pre>
 
   <p>因此：</p>
 
-  <pre><code>Browser click 很多
-      ↓
-document listener 有機會收到
-      ↓
-只有能組出非空 payload 的 click
-      ↓
-再通過 throttle
-      ↓
-才進 Faro pushEvent()</code></pre>
+  <blockquote>document listener 可以收到 click，但 ClickInstrumentation 仍然可以決定「這次沒有足夠語意，不形成 telemetry」。</blockquote>
 
-  <h2>10. <code>api.pushEvent()</code> 是兩個世界的邊界</h2>
+  <h2>10. 同 target 的短時間重複 click 會被 throttle</h2>
 
-  <pre><code>Browser 世界
-click Event object
-- target
-- propagation
-- DOM
+  <p>現行行為還有一層重複事件保護：同一個 target 在很短時間內再次觸發時，約 300ms 內的重複 click 會被忽略。</p>
+
+  <pre><code>click target A at t=0ms
+        ↓ allowed
+
+click target A at t=120ms
+        ↓ throttled
+
+click target A after window
+        ↓ allowed</code></pre>
+
+  <p>這不是 Browser Event system 的規則，而是 ClickInstrumentation 自己加上的 telemetry policy。</p>
+
+  <h2>11. 最後才建立 Faro click telemetry</h2>
+
+  <p>當 payload 有資料，而且沒有被 throttle 擋掉，ClickInstrumentation 才會呼叫：</p>
+
+  <pre><code>api.pushEvent('click', payload)</code></pre>
+
+  <p>這裡就是 Browser runtime 世界與 Faro telemetry 世界的明確交界。</p>
+
+  <pre><code>Browser click Event object
         │
-        │ ClickInstrumentation 讀取與轉換
+        │ handleClick reads
         ▼
-Faro 世界
-pushEvent('click', payload)
-- event name
-- telemetry payload</code></pre>
+DOM attributes
+        │
+        │ extraction / shaping
+        ▼
+payload
+        │
+        │ api.pushEvent('click', payload)
+        ▼
+Faro telemetry event</code></pre>
 
-  <p><strong>Browser click Event 與 Faro click telemetry event 不是同一個 object。</strong> ClickInstrumentation 是中間的轉換層。</p>
-
-  <h2>自我檢查</h2>
-
-  <div class="quiz" data-quiz>
-    <div class="question">Q1. <code>&lt;button id="daily-schedule-button" data-link-name="daily-schedule"&gt;</code> 被瀏覽器解析後，哪個模型最正確？</div>
-    <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ id 與 data-link-name 不是另外兩顆 DOM elements。">三顆 DOM objects：button、id、data-link-name</button>
-      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。是一顆 button DOM element，上面帶著 attributes。">一顆 button DOM object，上面有 id 與 data-link-name attributes</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ data-* 不是 Faro object。">button 是 DOM object，data-link-name 是 Faro object</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>階段</th><th>主要責任</th></tr></thead>
+      <tbody>
+        <tr><td>Browser</td><td>接收輸入、決定 target、建立並 dispatch Event。</td></tr>
+        <tr><td>宿主應用</td><td>在 DOM 上提供可追蹤的業務語意，例如 <code>data-page</code>、<code>data-action</code>。</td></tr>
+        <tr><td>ClickInstrumentation</td><td>接 Browser Event、抽 DOM context、套用 gate / throttle、形成 payload。</td></tr>
+        <tr><td>Faro API</td><td>接收 <code>pushEvent()</code>，把 payload 送進後續 Faro telemetry 流程。</td></tr>
+      </tbody>
+    </table>
   </div>
 
-  <div class="quiz" data-quiz>
-    <div class="question">Q2. 是否所有 button 都必須加 <code>data-*</code>？</div>
-    <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ document listener 能收到 click，不代表每顆 button 都必須產生 telemetry。">是，只要頁面啟用 Faro，每顆 button 都必須加</button>
-      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。沒有 tracked attribute 命中時 payload 為空。">不是；只有需要產生／區分 telemetry 的 interaction 才需要在 target→ancestor 路徑提供設定中的 data-*</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ 現行 package 不會自動用 id、href 或文字補值。">不用，Faro 會自動用 id、href、文字補齊</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
-  </div>
+  <h2>12. 把整條資料流串起來</h2>
 
-  <div class="quiz" data-quiz>
-    <div class="question">Q3. section 有 <code>data-page="production"</code>，Save / Cancel 兩顆 button 都沒有 action-specific attribute；trackAttributes 只有 <code>data-page</code>。最可能的結果？</div>
-    <div class="choices">
-      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。兩次都可從 ancestor 找到 production，但 payload 無法表達是哪個 action。">兩顆都可能送出 page=production，但無法區分 Save / Cancel</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ closest() 可以往 ancestor 找 section。">兩顆都不會送，因為 data-page 不在 button 自己身上</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ 套件不會根據 button 文字自動補 action。">套件會自動把按鈕文字當 action</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
-  </div>
+  <pre><code>User click
+    │
+    ▼
+Browser creates + dispatches click Event
+    │
+    ▼
+document listener
+    │
+    ▼
+ClickInstrumentation.handleClick(event)
+    │
+    ├── read event.target
+    │
+    ├── for each trackAttribute
+    │      └── closest(...) up ancestor chain
+    │
+    ├── build payload
+    │
+    ├── empty payload? → stop
+    │
+    ├── same-target short repeat? → stop
+    │
+    ▼
+api.pushEvent('click', payload)
+    │
+    ▼
+Faro click telemetry</code></pre>
 
-  <div class="quiz" data-quiz>
-    <div class="question">Q4. <code>trackAttributes: ['href']</code> 在目前 package contract 下會怎樣？</div>
-    <div class="choices">
-      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。現行 validation 要求名稱必須以 data- 開頭。">初始化 validation 失敗</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ 瀏覽器能讀 href，但目前 package 不接受它當 trackAttributes。">正常追蹤 href</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ 現行 validation 會報錯，不是默默忽略。">默默忽略 href，其餘照常</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
-  </div>
+  <h2>Self-check</h2>
+
+  <details>
+    <summary>1. <code>trackAttributes</code> 是 listener 清單嗎？</summary>
+    <p>不是。document 上仍是一條 click listener；<code>trackAttributes</code> 定義收到 click 後要從 DOM 抽哪些 attributes。</p>
+  </details>
+
+  <details>
+    <summary>2. 為什麼需要 <code>closest()</code>？</summary>
+    <p>因為 <code>event.target</code> 可能是最內層 child，而 telemetry attributes 可能放在 target 自己或任一 ancestor 上。</p>
+  </details>
+
+  <details>
+    <summary>3. document listener 收到 click，就一定會 <code>pushEvent()</code> 嗎？</summary>
+    <p>不一定。抽不到任何 configured attributes 時 payload 為空，會直接停止；短時間同 target 重複 click 也可能被 throttle。</p>
+  </details>
+
+  <details>
+    <summary>4. Browser Event 和 Faro event 是同一個 object 嗎？</summary>
+    <p>不是。Browser Event 是 runtime input event；ClickInstrumentation 從它和 DOM context 抽資料後，才透過 <code>api.pushEvent()</code> 建立 Faro telemetry。</p>
+  </details>
 
   <h2>Recap</h2>
+
   <ul>
-    <li><code>ClickInstrumentation</code> 不製造 click；它事先在 <code>document</code> 登記 listener，等瀏覽器分派 Event。</li>
+    <li>ClickInstrumentation 不製造 click；它在 <code>document</code> 上註冊 listener 等 Browser dispatch。</li>
+    <li>全域 listener 解決「在哪裡接 Event」，不等於所有 click 都要送 telemetry。</li>
+    <li>宿主應用透過 <code>data-*</code> 把業務語意放在 DOM 上。</li>
     <li><code>trackAttributes</code> 是 payload extraction schema，不是 listener 清單。</li>
-    <li><code>data-*</code> 是 DOM element 上可讀取的 HTML custom data attribute，不是另一顆 DOM object，也不是 Faro object。</li>
-    <li>Faro 不會替宿主應用自動建立 <code>data-*</code>；現行 package contract 強制 <code>trackAttributes</code> 只接受 <code>data-*</code> 名稱。</li>
-    <li>不是所有 button 都必須加 attribute；沒有 tracked attribute 命中的 click 會因空 payload 被丟掉。</li>
-    <li><code>closest()</code> 從 target 自己開始沿 parent chain 往上找第一個 matching element。</li>
-    <li>共同 context 可以放 ancestor；要區分 logical action，則必須提供能區分 action 的 semantic。</li>
-    <li>shared Button / Link 是否存在是宿主應用 source fact，不能沒有證據就當成現況。</li>
-    <li><code>api.pushEvent('click', payload)</code> 是 Browser Event 世界轉進 Faro telemetry 世界的重要邊界。</li>
+    <li>每個 attribute 都可從 <code>event.target</code> 用 <code>closest()</code> 獨立往 ancestor 找。</li>
+    <li>空 payload 與短時間同 target 重複 click 都可能讓流程停止。</li>
+    <li><code>api.pushEvent('click', payload)</code> 是 Browser Event / DOM context 轉成 Faro telemetry 的邊界。</li>
   </ul>
 
-  <p class="cite">
-    主線來源：<a href="../source-documents/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a>、<a href="../source-documents/4.%20Faro-Click-Tracking%20的歷史.html">Faro-Click-Tracking 的歷史</a>；另以 corpus audit 已核對的現行 package contract / implementation 作為 current-state evidence。
-  </p>
+  <div class="box ask">
+    如果你能不用看上面的流程圖，自己從 <code>document.addEventListener()</code> 重建到 <code>api.pushEvent()</code>，Lesson 2 的主模型就算建立起來了。
+  </div>
 
-  <nav class="lesson-nav" aria-label="課程導覽">
-    <a href="0001-browser-click-foundation.html">← Lesson 1｜How the Browser Knows What You Clicked</a>
-    <a href="../learning-map/index.html">Learning Map</a>
-    <span>Next: Lesson 3｜Package Initialization, Singleton, and Public API</span>
-  </nav>
-
-  <script src="../assets/quiz.js"></script>
+  <p><a href="0001-browser-click-foundation.html">← Lesson 1｜How the Browser Knows What You Clicked</a></p>
+  <p><a href="../learning-map/">Course Map</a></p>
+  <p><strong>Next:</strong> Lesson 3｜Package Initialization, Singleton, and Public API</p>
 </body>
 </html>
