@@ -10,24 +10,24 @@
 </head>
 <body>
   <h1>一次 click 如何進入 JavaScript？</h1>
-  <p class="subtitle">Milestone 1 · Browser native Event → JavaScript callback</p>
+  <p class="subtitle">Milestone 1 · Browser native Event → JavaScript function</p>
 
   <div class="box tip">
     <strong>這堂課的目標</strong><br>
-    學完後，你應該能從「使用者點下一個已經 render 出來的 element」開始，完整解釋 Browser 如何確定 target、建立 Event、分派 Event，最後呼叫 JavaScript callback。
+    學完後，你應該能解釋：使用者點下一個畫面 element 後，Browser 如何判定點到哪個 DOM object、建立代表這次 click 的 Event，最後讓先前登記的 JavaScript function 被執行。
   </div>
 
   <p>這堂課沿用 Lesson 0 的前提：Browser 已經建立 live DOM，JavaScript 也可以透過 Browser 提供的 API 操作 DOM。</p>
 
   <div class="box ask">
     <strong>本課 References</strong><br>
-    Browser Event / dispatch 快速回查：<a href="../reference/0001-dom-document-event-dispatch.html">DOM、document 與事件分派 →</a><br>
-    callback 快速回查：<a href="../reference/0002-callback-function.html">Callback 到底是什麼 →</a>
+    DOM 與 Browser Event 快速回查：<a href="../reference/0001-dom-document-event-dispatch.html">DOM、document 與事件分派 →</a><br>
+    function 被其他程式稍後呼叫的概念：<a href="../reference/0002-callback-function.html">Callback 到底是什麼 →</a>
   </div>
 
-  <blockquote>使用者點下去之後，為什麼最後會執行 <code>handleClick(event)</code>？</blockquote>
+  <blockquote>使用者點下去之後，Browser 怎麼一路走到執行我們先前準備好的 JavaScript function？</blockquote>
 
-  <h2>1. JavaScript 先登記 listener</h2>
+  <h2>1. JavaScript 先登記「click 發生時要呼叫的 function」</h2>
 
   <pre><code>function handleClick(event) {
   console.log(event.target)
@@ -41,7 +41,7 @@ document.addEventListener('click', handleClick)</code></pre>
 等哪種事件：click
 到時要呼叫誰：handleClick</code></pre>
 
-  <p>這筆預先保存的設定，就是 <strong>listener registration</strong>。其中 <code>handleClick</code> 是 callback：先把 function 交出去，之後由 Browser 在正確時機呼叫。</p>
+  <p>這筆預先保存的設定，稱為 <strong>listener registration</strong>。其中 <code>handleClick</code> 扮演 <strong>callback</strong>：function 先被交出去，之後由 Browser 在正確時機呼叫。</p>
 
   <h2>2. 使用者真的點下去時，Browser 先確定 target</h2>
 
@@ -52,7 +52,7 @@ document.addEventListener('click', handleClick)</code></pre>
     └── main
         └── button#buy</code></pre>
 
-  <p>使用者點畫面上的某個位置後，Browser 會把輸入位置與目前 render 出來的畫面對照，判定這次 click 命中哪個 element。</p>
+  <p>使用者點畫面上的某個位置後，Browser 會把輸入位置與目前畫面對照，判定這次 click 命中哪個 element。這個最初命中的 DOM object，後面稱為 <strong>target</strong>。</p>
 
   <pre><code>User click
     │ Browser receives
