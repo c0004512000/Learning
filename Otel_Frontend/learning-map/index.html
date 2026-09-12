@@ -12,8 +12,8 @@
   <p class="subtitle">完整主路徑先規劃；每一課仍依實際理解逐步展開</p>
 
   <div class="box tip">
-    <strong>目前進度｜Milestone 1 · Lesson 2</strong><br>
-    已回到 Faro 主線，開始追 <code>ClickInstrumentation</code> 如何從 <code>document</code> click listener 接手 browser Event，抽取 <code>trackAttributes</code> 並建立 Faro click telemetry。Lesson 1 與 DOM / Event dispatch、Callback references 已依最近的 DOM ownership、selector、hierarchy 修正同步更新，但仍未因教材修完就自動標記 mastered。
+    <strong>目前進度｜Milestone 2 · Lesson 3</strong><br>
+    Lesson 3 已產生，主線現在從單次 click 的處理往上追到 package lifecycle：宿主應用如何呼叫 <code>initFaro(config)</code>、共用套件如何呼叫 Grafana <code>initializeFaro()</code>、如何保存唯一的 Faro instance，以及為什麼第二次初始化必須 fail fast。Lesson 1 / Lesson 2 的 prerequisite 與理解仍不因「教材已產生」自動標記 mastered；後續仍需要 retrieval / practice evidence。
   </div>
 
   <h2>Mission</h2>
@@ -34,23 +34,24 @@
     <p><a href="../lessons/0001-browser-click-foundation.html">開啟 Lesson 1 →</a></p>
   </div>
 
-  <div class="box tip">
-    <p><strong>Lesson 2｜How ClickInstrumentation Handles Browser Clicks</strong> <span class="cite">← 目前位置</span></p>
+  <div class="box">
+    <p><strong>Lesson 2｜How ClickInstrumentation Handles Browser Clicks</strong></p>
     <p>目標：從 <code>document</code> 原生 click listener 往下追，理解 <code>trackAttributes</code>、<code>closest()</code>、payload filtering、300ms throttle 與 <code>api.pushEvent()</code> 的責任邊界。</p>
     <p>來源：文件 3、文件 4。</p>
-    <p><a href="../lessons/0002-faro-click-instrumentation.html">開啟目前 Lesson 2 →</a></p>
+    <p><a href="../lessons/0002-faro-click-instrumentation.html">開啟 Lesson 2 →</a></p>
   </div>
 
   <h3>Milestone 2｜讀懂並安全修改 <code>@sre2/faro-click-tracking</code></h3>
-  <div class="box">
-    <p><strong>Lesson 3｜Package Initialization, Singleton, and Public API</strong></p>
-    <p>目標：從 host application 呼叫點追進套件初始化流程，分清楚 host、共用套件與 Faro SDK 各自負責什麼。</p>
+  <div class="box tip">
+    <p><strong>Lesson 3｜Package Initialization, Singleton, and Public API</strong> <span class="cite">← 目前位置</span></p>
+    <p>目標：從宿主應用呼叫 <code>initFaro(config)</code> 往內追，分清楚宿主應用、共用套件與 Grafana Faro SDK 的責任；理解 <code>initFaro()</code> 與 <code>initializeFaro()</code> 的差異、module-level Faro instance、public API lifecycle，以及重複初始化為什麼必須被阻止。</p>
     <p>來源：文件 3、文件 4，以及 corpus audit 已核對的現行 package contract / implementation。</p>
+    <p><a href="../lessons/0003-package-initialization-singleton-public-api.html">開啟目前 Lesson 3 →</a></p>
   </div>
 
   <div class="box">
     <p><strong>Lesson 4｜User, Device, and Environment Context</strong></p>
-    <p>目標：理解 user callback、device 判定、environment context 的資料來源與生命週期，知道哪些資料應由 host application 提供。</p>
+    <p>目標：理解 user callback、device 判定、environment context 的資料來源與生命週期，知道哪些資料應由宿主應用提供。</p>
     <p>來源：文件 1、文件 3、文件 4。</p>
   </div>
 
@@ -123,12 +124,14 @@
   </div>
 
   <h2>目前主線</h2>
-  <pre><code>browser native click
-  → document listener
-  → ClickInstrumentation.handleClick(event)
-  → trackAttributes / closest()
-  → payload filtering / 300ms throttle
-  → Faro api.pushEvent()</code></pre>
+  <pre><code>宿主應用
+  → initFaro(config)
+  → ensureNotInitialized()
+  → 建立 package instrumentations
+  → Grafana initializeFaro(...)
+  → Faro runtime + listeners / transport
+  → registerFaroInstance(faro)
+  → package public APIs 共用同一 Faro instance</code></pre>
 
   <h2>Primary corpus</h2>
   <ol>
@@ -145,8 +148,8 @@
   <p class="cite">外部官方文件、repo/code、Confluence 與 runtime evidence 只用於 prerequisite、verification、ambiguity resolution 或理解 primary corpus 所必要的補充，不取代 primary corpus。</p>
 
   <nav class="lesson-nav" aria-label="課程導覽">
-    <a href="../lessons/0001-browser-click-foundation.html">← Lesson 1</a>
-    <a href="../lessons/0002-faro-click-instrumentation.html">目前 Lesson 2 →</a>
+    <a href="../lessons/0002-faro-click-instrumentation.html">← Lesson 2</a>
+    <a href="../lessons/0003-package-initialization-singleton-public-api.html">目前 Lesson 3 →</a>
   </nav>
 </body>
 </html>
