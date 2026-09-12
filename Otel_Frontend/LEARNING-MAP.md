@@ -10,9 +10,9 @@
 
 ## Progress
 
-- **目前位置：Milestone 1 / Lesson 2**
-- **主線狀態：已開始 Lesson 2，從 browser native click 接到 Faro `ClickInstrumentation`**
-- **Lesson 1 prerequisite 狀態：main lesson 與 DOM / Event dispatch、Callback references 已依最近 learner feedback 同步修正；仍尚未以 retrieval 證明 mastered**
+- **目前位置：Milestone 2 / Lesson 3**
+- **主線狀態：Lesson 3 已產生，從單次 click handling 往上追 package initialization、Faro instance singleton 與 public API lifecycle**
+- **Lesson 1 / Lesson 2 mastery：教材與 prerequisite references 已建立，但仍不能只因教材已讀或已產生就視為 mastered；需要 retrieval / practice evidence**
 - **完成判準：不能只因教材已讀或教材已修正就算完成；需要 retrieval / practice evidence**
 
 ## Complete main course path
@@ -43,7 +43,7 @@
 
 **Dependency:** Lesson 1。
 
-**Current focus:**
+**Established model:**
 - `document` 上的 non-capture click listener 如何接到 browser Event。
 - `trackAttributes` 是 payload extraction schema，不是 listener 清單。
 - 每個 `data-*` 從 `event.target` 透過 `closest()` 獨立往 ancestor 查找。
@@ -53,7 +53,10 @@
 ### Milestone 2 — 讀懂並安全修改 `@sre2/faro-click-tracking`
 
 #### Lesson 3 — Package Initialization, Singleton, and Public API
-**Objective:** 能從 host application 呼叫點追進套件初始化流程，分清楚 application responsibility、package responsibility 與 Faro SDK responsibility。
+**Objective:** 能從宿主應用呼叫點追進套件初始化流程，分清楚宿主應用、package 與 Faro SDK responsibility，並理解 module-level Faro instance 與 public API lifecycle。
+
+**Durable lesson:**
+- `lessons/0003-package-initialization-singleton-public-api.html`
 
 **Primary sources:**
 - `3. Faro-Click-Tracking Introduction (for developer).html`
@@ -62,8 +65,16 @@
 
 **Dependency:** Lesson 2。
 
+**Current focus:**
+- `initFaro(config)` 是公司共用套件 public API；Grafana `initializeFaro({...})` 是底層 SDK 初始化 function，兩者不可混為一談。
+- `initFaro()` 負責 validation / orchestration，建立 Click / Tracing / optional UserSync instrumentations，再交給 Faro SDK 建立 runtime。
+- `ClickInstrumentation` 是在 package initialization 時交給 Faro SDK，因此 Lesson 2 的 `document` listener 在這個 lifecycle 中被啟動。
+- package 以 module-scope `faroInstance` 保存唯一 Faro instance，讓非-instrumentation public API 也能存取 Faro API。
+- `ensureNotInitialized()` 必須在 `initializeFaro()` 前 fail fast；`registerFaroInstance()` 再做最後一道重複註冊防線。
+- 第二次 `initFaro()` 直接失敗，避免重複 listeners、重複 telemetry 與 runtime / stored instance lifecycle 不一致。
+
 #### Lesson 4 — User, Device, and Environment Context
-**Objective:** 理解 user callback、device 判定、environment context 的來源、生命週期與寫入位置，能判斷應由 host application 還是共用套件提供資料。
+**Objective:** 理解 user callback、device 判定、environment context 的來源、生命週期與寫入位置，能判斷應由宿主應用還是共用套件提供資料。
 
 **Primary sources:**
 - `1. PI 前端監控案例.html`
@@ -203,11 +214,11 @@
 
 ## Resume point
 
-目前已回到 **Lesson 2 — How ClickInstrumentation Handles Browser Clicks** 主線：
+目前主線位於 **Lesson 3 — Package Initialization, Singleton, and Public API**：
 
-`browser native click → document listener → ClickInstrumentation.handleClick(event) → trackAttributes / closest() → payload filtering / throttle → Faro api.pushEvent()`
+`宿主應用 → initFaro(config) → ensureNotInitialized() → package instrumentations → Grafana initializeFaro(...) → Faro runtime → registerFaroInstance(faro) → package public APIs`
 
-Lesson 1 的 prerequisite reference 仍保留為可回看的支線，不因開始 Lesson 2 就自動標記 mastered。
+Lesson 1 / Lesson 2 的 prerequisite 與 retrieval debt 仍保留，不因開始 Lesson 3 就自動標記 mastered。
 
 ## Source boundary
 
