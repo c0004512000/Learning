@@ -4,7 +4,7 @@ Date: 2026-09-12
 
 ## Mission connection
 
-這次仍然不是另開完整 Frontend 課程。Learner 在 Faro Lesson 1 追問 DOM / Event 時，進一步暴露出一個更前置的 blocker：尚未穩定區分「前端 source files」「Browser host environment」「JavaScript core language」「Browser Web APIs」「live DOM runtime state」。
+這次仍然不是另開完整 Frontend 課程。Learner 在 Faro Lesson 1 追問 DOM / Event 時，進一步暴露出一個更前置的 blocker：尚未穩定區分「前端 source files」「Browser 執行環境」「JavaScript 語言本身」「Browser Web APIs」「live DOM runtime state」。
 
 這個 blocker 直接影響 Faro Mission：如果 Browser 的責任邊界不清楚，後續 `document.addEventListener()`、`fetch()`、Browser DevTools、CORS、Faro transport 都容易被理解成 JavaScript 語言本身的能力，或把 HTML source 與目前頁面 runtime state 混為一談。
 
@@ -16,86 +16,68 @@ Date: 2026-09-12
 
 - **Lesson 0 — Browser Runtime Foundation**
   - source files vs runtime state
-  - Browser = Web Application host environment
-  - JavaScript core language vs Browser Web APIs
-  - HTML source → DOM runtime objects
-  - `document.querySelector()` 查的是 current DOM
-  - DOM mutation 不改寫 original HTML source
-  - `fetch()` 是 host/runtime capability；CORS 細節延後
+  - Browser 作為 Web 應用的執行環境
+  - JavaScript 語言本身 vs Browser Web APIs
+  - HTML source → live DOM
+  - DOM mutation ≠ 修改原始 HTML source
+  - `fetch()` 只建立 responsibility boundary；CORS 留待 Lesson 5
 - **Lesson 1 — How a Browser Click Reaches JavaScript**
   - listener registration
-  - hit testing / target determination
-  - Event object creation
-  - event path / dispatch
+  - target determination
+  - Event object
+  - event path
   - Capture / Target / Bubble
-  - `target` vs `currentTarget`
-  - Browser callback invocation
-  - Event object lifetime / GC boundary
-- **Lesson 2 onward** 保持 Faro 主線，不擴張成完整前端 curriculum。
+  - listener invocation / callback
+- **Lesson 2 — How ClickInstrumentation Handles Browser Clicks**
+  - Faro 從 Browser Event 接手後的 telemetry extraction / filtering / throttle / pushEvent
 
-## Mental-model shifts established in conversation
+## Durable teaching constraints confirmed
 
-1. **「一起打包」不代表 JavaScript 天然持有 HTML element**
-   - HTML、CSS、JavaScript 可以一起部署，但 Browser 仍分別解析／套用／執行。
-   - JavaScript 操作的是 Browser 建立的 runtime objects，而不是直接操作 HTML source text。
+- source 與 runtime 必須在 DOM query 之前分清楚。
+- Browser 應先以具體責任解釋，再視需要命名抽象概念；不能用未知術語解釋另一個未知術語。
+- 目前 Faro prerequisite 不需要額外介紹 `ECMAScript`；若未來沒有 Mission 需要，不主動增加這個名詞負擔。
+- Lesson 0 只處理 Browser/runtime responsibility boundary；Lesson 1 才處理 Event dispatch；CORS 留在 Browser-to-Alloy transport 的 later Lesson。
+- Learner follow-up 是 diagnostic evidence，不等於 durable lesson prose。Event object garbage-collection / saved-reference 細節目前不服務 Faro Mission，不應因為一次追問就升格成 Lesson 1 正式章節。
+- Lesson → Reference → Lesson navigation 必須在 learner-facing artifact 裡明顯可見，不能只靠 Learning Map 才找得到。
+- 課程已有 shared `quiz.js` / `.quiz` component 時，retrieval check 應重用既有元件，不任意改成另一種 disclosure UI。
+- Quiz 選項除了 render-time shuffle，也要避免明顯的長度／格式提示。
 
-2. **Browser 不等於 HTTP Server，也不等於 JavaScript engine**
-   - Browser 是 host environment；JavaScript engine 只是其中負責執行 ECMAScript 的一部分。
-   - DOM、Event、networking、rendering、storage、安全限制等都屬於更大的 Browser runtime。
+## Durable Reference
 
-3. **JavaScript language vs host APIs 必須分開**
-   - `Object` / `Array` / `Promise` 等屬於 JavaScript core。
-   - `document` / DOM APIs / `fetch()` 等由 Browser host environment 提供。
-   - 同一個 JavaScript 語言跑在 Browser 與 Node.js 時，可以有不同 host capabilities / restrictions。
+新增：
 
-4. **DOM 是 live runtime model，不是 source copy 的同義詞**
-   - HTML source 經 Browser parse 後形成 initial DOM；之後 JavaScript 可以 mutate live DOM。
-   - DOM element 被 remove，不會修改 Server 原本回傳或 repository 裡的 HTML source。
-   - Kubernetes 對照有效：manifest / YAML 是宣告；cluster runtime objects 是目前真實狀態。類比到 Browser 時，HTML source 更接近 declaration，DOM 更接近 runtime object model。
+- `reference/0003-browser-runtime-web-apis.html`
+  - source vs runtime
+  - JavaScript language vs Browser-provided APIs
+  - HTML source vs current DOM
+  - `document.querySelector()`
+  - Browser-side network responsibility boundary
 
-5. **`querySelector('#buy')` 是 runtime query**
-   - 查的是目前 Document 裡第一個符合 selector 的 Element。
-   - `#buy` 只表示 `id="buy"`，不限定 `<button>`；若要限定，使用 `button#buy`。
+Lesson 0 應直接連到這份 Reference，Reference 也應直接提供返回 Lesson 0 的路徑。
 
-6. **Event dispatch 的責任重新收斂**
-   - target 在 dispatch 前已經由 Browser 判定；dispatch 不是尋找 target。
-   - dispatch 的核心是沿 event path，依 phase、event type、listener registrations 決定 callback invocation order。
-   - 已知 target 仍不能只看 target 自己的 listener，因為 ancestors 也可能註冊 listeners。
+## ZPD update
 
-7. **Event object 不會暫時掛在 target 上**
-   - 正確方向是 `Event.target → target DOM object`。
-   - `target` 大致固定；`currentTarget` / `eventPhase` 反映 dispatch 目前位置。
-   - Event 是獨立 runtime object；如果 JavaScript 不再保存 reference，之後可由 GC 回收。
+目前 Browser prerequisite 已經從單純 DOM/Event blocker 細化成兩層：
 
-8. **CORS 應留在 Faro transport 主線**
-   - 現階段只需知道 Browser networking 受到 Browser security model 控制。
-   - 正式 CORS / preflight 應在 Lesson 5 Browser-to-Alloy transport 時處理，因為那時直接服務 Mission，而不是現在擴張成 Web security 課。
+1. Browser runtime / DOM / Browser APIs responsibility model。
+2. Browser native Event lifecycle / dispatch model。
 
-## Durable artifact changes required
+兩層都仍屬於 Faro Mission 的 prerequisite；不因教材已存在就視為 mastered。
 
-- 新增 `lessons/0000-browser-runtime-foundation.html`。
-- 新增 `reference/0003-browser-runtime-web-apis.html`。
-- 重寫 `lessons/0001-browser-click-foundation.html`，移除 Browser runtime foundation 的重複負擔，聚焦 Event lifecycle。
-- 更新 `LEARNING-MAP.md` 與 `learning-map/index.html`，把 Lesson 0 顯示為實際發生的 prerequisite branch / Milestone 0，而不是改寫整個 Faro Mission。
-- `RESOURCES.md` 增補 JavaScript core vs host runtime、`querySelector()` 的 authoritative prerequisite references。
+後續 retrieval 應優先確認 learner 是否能自己重建：
 
-## Current ZPD
+- source 與 runtime 的差別；
+- Browser、JavaScript、DOM 三者各自的責任；
+- `document.querySelector()` 查的是什麼；
+- DOM mutation 為什麼不等於修改原始 HTML；
+- Browser-side `fetch()` 為什麼仍經 Browser；
+- target 何時確定；
+- dispatch 在 target 已知後還負責什麼；
+- Event object 與 target DOM object 的 reference 方向；
+- Browser 如何從 listener registration 走到 callback execution。
 
-目前不能把 Browser runtime / Event prerequisite 標記 mastered。後續 retrieval 應確認 learner 能自行回答：
+## Return to main path
 
-- Browser、JavaScript engine、JavaScript language 三者是什麼關係？
-- 為什麼 HTML / CSS / JS 一起部署，JS 仍需要 DOM API？
-- DOM 為什麼比較像 Kubernetes runtime objects，而不是 Git 裡的 manifest？這個類比在哪裡停止？
-- `document.querySelector('#buy')` 查的是什麼？為什麼不限定 button？
-- DOM remove button 後，原始 HTML source 為什麼還在？
-- `fetch()` 為什麼是 host capability？Browser 與 Node.js 的同一段 JS 為什麼可能有不同限制？
-- dispatch 開始以前 target 是否已知？
-- 為什麼 target 已知後仍需要 event path / dispatch？
-- Event object 與 target DOM object 的 reference direction 是什麼？
-- `target`、`currentTarget`、`eventPhase` 哪些是穩定身份，哪些反映 dispatch 當下狀態？
+這條 prerequisite branch 穩定後，回到：
 
-## Return to Faro main path
-
-這條 prerequisite 足夠後，不繼續延伸完整 Browser internals。回到：
-
-`Browser Event → ClickInstrumentation → DOM context extraction → Faro telemetry → package lifecycle → Browser-to-Alloy transport`
+`Browser Event → ClickInstrumentation → DOM context → Faro telemetry → transport → backend pipeline`
