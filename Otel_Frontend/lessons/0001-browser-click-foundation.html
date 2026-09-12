@@ -6,23 +6,28 @@
   <title>Lesson 1｜How a Browser Click Reaches JavaScript</title>
   <link rel="stylesheet" href="../assets/style.css">
   <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js" defer></script>
 </head>
 <body>
   <h1>一次 click 如何進入 JavaScript？</h1>
-  <p class="subtitle">Milestone 1 · Browser native Event → JavaScript callback</p>
+  <p class="subtitle">Milestone 1 · Browser native Event → JavaScript function</p>
 
   <div class="box tip">
     <strong>這堂課的目標</strong><br>
-    學完後，你應該能從「使用者點下一個已經 render 出來的 element」開始，完整解釋 Browser 如何確定 target、建立 Event object、dispatch Event，最後呼叫 JavaScript callback。
+    學完後，你應該能解釋：使用者點下一個畫面 element 後，Browser 如何判定點到哪個 DOM object、建立代表這次 click 的 Event，最後讓先前登記的 JavaScript function 被執行。
   </div>
 
-  <p>這堂課假設你已經知道 Lesson 0 的前提：Browser 已經把 HTML 轉成 live DOM，JavaScript 可以透過 Browser 提供的 Web APIs 操作 DOM objects。這裡不再重教 source/runtime boundary，只回答一個問題：</p>
+  <p>這堂課沿用 Lesson 0 的前提：Browser 已經建立 live DOM，JavaScript 也可以透過 Browser 提供的 API 操作 DOM。</p>
 
-  <blockquote>使用者點下去之後，為什麼最後會執行 <code>handleClick(event)</code>？</blockquote>
+  <div class="box ask">
+    <strong>本課 References</strong><br>
+    DOM 與 Browser Event 快速回查：<a href="../reference/0001-dom-document-event-dispatch.html">DOM、document 與事件分派 →</a><br>
+    function 被其他程式稍後呼叫的概念：<a href="../reference/0002-callback-function.html">Callback 到底是什麼 →</a>
+  </div>
 
-  <p><a href="0000-browser-runtime-foundation.html">如果「Browser / DOM / JavaScript / Web API」的關係還不穩，先回 Lesson 0。</a></p>
+  <blockquote>使用者點下去之後，Browser 怎麼一路走到執行我們先前準備好的 JavaScript function？</blockquote>
 
-  <h2>1. JavaScript 先登記 listener</h2>
+  <h2>1. JavaScript 先登記「click 發生時要呼叫的 function」</h2>
 
   <pre><code>function handleClick(event) {
   console.log(event.target)
@@ -30,52 +35,47 @@
 
 document.addEventListener('click', handleClick)</code></pre>
 
-  <p>這裡還沒有 click 發生。JavaScript 只是先透過 Browser 的 Event API 建立一筆 listener registration：</p>
+  <p>這時候 click 還沒發生。這行只是在 Browser 那邊先登記：</p>
 
-  <pre><code>EventTarget = document
-event type  = "click"
-callback    = handleClick
-capture     = false（預設）</code></pre>
+  <pre><code>掛在哪裡：document
+等哪種事件：click
+到時要呼叫誰：handleClick</code></pre>
 
-  <p><code>addEventListener()</code> 在 Browser-side JavaScript 很常見；它的核心用途是：先告訴 Browser「未來這種 Event dispatch 到這裡時，要呼叫哪個 function」。</p>
+  <p>這筆預先保存的設定，稱為 <strong>listener registration</strong>。其中 <code>handleClick</code> 扮演 <strong>callback</strong>：function 先被交出去，之後由 Browser 在正確時機呼叫。</p>
 
-  <h2>2. 使用者輸入發生時，Browser 先確定 target</h2>
+  <h2>2. 使用者真的點下去時，Browser 先確定 target</h2>
 
-  <p>假設目前 live DOM 是：</p>
+  <p>假設目前 DOM 是：</p>
 
   <pre><code>Document
 └── body
     └── main
         └── button#buy</code></pre>
 
-  <p>使用者在畫面上點了一個位置。Browser 會把輸入座標與目前 layout / rendered content 對照，判定這次 click 指向哪個 element。</p>
+  <p>使用者點畫面上的某個位置後，Browser 會把輸入位置與目前畫面對照，判定這次 click 命中哪個 element。這個最初命中的 DOM object，後面稱為 <strong>target</strong>。</p>
 
-  <pre><code>User input
+  <pre><code>User click
     │ Browser receives
     ▼
-position / rendered layout
-    │ hit testing
+目前畫面位置
+    │ Browser 判定命中的 element
     ▼
 button#buy = target</code></pre>
 
   <div class="box tip">
-    <strong>target 在 event dispatch 開始前就已經確定。</strong><br>
-    Capture phase 不是 Browser 從 document 一路往下「找 target」。
+    <strong>target 在 Event dispatch 開始前就已經確定。</strong><br>
+    後面的 Capture / Target / Bubble 不是拿來搜尋 target。
   </div>
 
-  <h2>3. Browser 為這次互動建立 Event object</h2>
+  <h2>3. Browser 建立代表這次 click 的 Event object</h2>
 
-  <p>target 已知之後，Browser 建立代表「這一次 click」的 Event object：</p>
+  <p>target 已知後，Browser 建立一個獨立 Event object，代表「這一次 click」：</p>
 
   <pre><code>Click Event object
 ├── type = "click"
-├── target ─────────► button#buy
-├── currentTarget
-├── eventPhase
-├── clientX / clientY
-└── ...</code></pre>
+└── target ─────────► button#buy</code></pre>
 
-  <p>這裡要特別分清楚 object direction：</p>
+  <p>方向要分清楚：</p>
 
   <pre><code>Event object ── target reference ──► button DOM object
 
@@ -83,17 +83,11 @@ button#buy = target</code></pre>
 button DOM object
 └── 暫時掛上一個 Event object</code></pre>
 
-  <p>也就是說，click 發生時不需要把一組 event attributes 暫時塞進 button。Event 是獨立 object；它自己保存 target 等資料。</p>
+  <p>所以 Event 是獨立 object；<code>event.target</code> 只是指向這次 click 最初命中的 DOM object。</p>
 
-  <h2>4. Event attributes 不是都在 dispatch 才決定</h2>
+  <h2>4. target 已知後，Browser 才建立這次 Event 要走的 path</h2>
 
-  <p>像 <code>type</code>、<code>target</code>、輸入座標等，會在 Event 建立／初始化時就有意義。Dispatch 的主要責任不是「找到 target」，而是處理：</p>
-
-  <blockquote>這個已知 target 的 Event，要沿哪條 event path 處理？哪些已登記 listeners 應該在什麼順序被呼叫？</blockquote>
-
-  <h2>5. Browser 建立 event path</h2>
-
-  <p>target 在 DOM hierarchy 裡有 ancestors：</p>
+  <p>target 的父層一路往上是：</p>
 
   <pre><code>Document
 └── html
@@ -101,9 +95,15 @@ button DOM object
         └── main
             └── button#buy  ← target</code></pre>
 
-  <p>Browser 可以利用這條 hierarchy 建立本次 Event dispatch 的 path。這條 path 已知之後，才進入 Capture / Target / Bubble 的處理。</p>
+  <p>Browser 會利用這條父子關係建立本次 Event 的 <strong>event path</strong>：也就是這次分派過程會沿著哪些 DOM objects 處理 listeners。</p>
 
-  <h2>6. Dispatch 是「沿 path 執行 listener 規則」</h2>
+  <h2>5. Dispatch 的責任不是找 target，而是依 path 處理 listeners</h2>
+
+  <p><strong>event dispatch（事件分派）</strong>可以先理解成：</p>
+
+  <blockquote>Browser 拿著這次 Event，沿既定 event path，依規則決定哪些已登記 listeners 要在什麼順序被呼叫。</blockquote>
+
+  <p>同一次 dispatch 分成三段：</p>
 
   <pre><code>Capture phase
 Document → html → body → main → button
@@ -114,147 +114,97 @@ button
 Bubble phase
 main → body → html → Document</code></pre>
 
-  <p>這三個 phase 都屬於<strong>同一次 Event dispatch</strong>。</p>
+  <p>Capture / Target / Bubble 都是<strong>同一次 Event dispatch</strong> 的不同階段。</p>
 
-  <div class="box">
-    <strong>精準理解：</strong><br>
-    Dispatch 可以先想成 Browser 拿著這次 Event，沿既定 event path 檢查 listener registrations，依 event type、capture 設定與目前 phase 決定哪些 callback 要被呼叫，以及呼叫順序。
+  <div class="box tip">
+    Capture 開始以前 target 已經知道；Bubble 也不會讓 target 自己的同一個 listener 再自動跑一次。Target phase 處理 target，Bubble 接著處理 target 的父層。
   </div>
 
-  <h2>7. 為什麼不能「target 是 button，就只看 button 有沒有 listener」？</h2>
+  <h2>6. 為什麼知道 target 是 button，還不能只看 button listener？</h2>
 
-  <p>因為 listener 可以掛在 ancestors：</p>
+  <p>因為 listener 可以掛在父層：</p>
 
   <pre><code>button.addEventListener('click', buttonHandler)
 main.addEventListener('click', mainHandler)
 document.addEventListener('click', documentHandler)</code></pre>
 
-  <p>同一次 button click 可以沿 event path 讓多個不同 EventTargets 上的 listeners 被處理。因此：</p>
+  <p>所以：</p>
 
-  <pre><code>知道 target
-≠
-已經知道只需要呼叫 target 自己的 listener</code></pre>
+  <pre><code>知道 target = button
+        │
+        └── 還要看 event path 上
+            哪些 objects 有符合規則的 listeners</code></pre>
 
-  <p>這也是 Faro ClickInstrumentation 可以只在 <code>document</code> 放一條 listener，卻收到 descendant clicks 的基礎。</p>
+  <p>這也是 Faro ClickInstrumentation 可以只在 <code>document</code> 放一條 listener，卻收到 descendant button click 的基礎。</p>
 
-  <h2>8. <code>event.target</code> 與 <code>event.currentTarget</code></h2>
+  <h2>7. <code>event.target</code> 與 <code>event.currentTarget</code></h2>
 
-  <p>整次 dispatch 中：</p>
+  <p><code>event.target</code> 已經建立：它指向這次 click 最初命中的 button。</p>
 
-  <pre><code>event.target
-→ 最初被判定的 target，這裡一直是 button#buy
+  <p>現在再加入另一個欄位：</p>
 
-event.currentTarget
-→ Browser 現在正在執行哪一個 EventTarget 上的 listener</code></pre>
+  <pre><code>event.currentTarget
+→ Browser 現在正在執行哪一個 object 上的 listener</code></pre>
 
-  <p>例如 Event bubble 到 document listener 時：</p>
+  <p>例如這次 click 已經 bubble 到 <code>document</code> listener：</p>
 
   <pre><code>event.target        → button#buy
-event.currentTarget → document
-event.eventPhase    → BUBBLING_PHASE</code></pre>
+event.currentTarget → document</code></pre>
 
-  <p>所以真正會隨 dispatch 改變的 runtime 狀態之一，是 <code>currentTarget</code>、<code>eventPhase</code> 這類「現在走到哪裡」的資訊；不是把 Event 搬到不同 DOM objects 上。</p>
+  <p>此時若程式讀 <code>event.eventPhase</code>，它會得到「目前 dispatch 正在哪個 phase」的狀態；這個欄位要在已經理解 Capture / Target / Bubble 之後才有意義。</p>
 
-  <h2>9. Dispatch 到 listener 時，Browser 才 call back JavaScript</h2>
-
-  <p>當 Browser 走到符合條件的 listener registration：</p>
+  <h2>8. Dispatch 走到符合的 listener，Browser 才呼叫 callback</h2>
 
   <pre><code>Browser dispatch
-      │ reaches matching listener
+      │ 走到 document click listener
       ▼
 callback = handleClick
       │ Browser calls
       ▼
 handleClick(event)
             ▲
-            │ same Event object is passed in
-</code></pre>
+            │ Browser 傳入這次 Event object</code></pre>
 
-  <p>JavaScript 並不是不停 polling「現在有沒有 click」；它先登記 function，之後由 Browser call back。</p>
+  <p>JavaScript 不需要一直重複檢查「現在有沒有 click」。它先登記 callback，之後由 Browser 在 Event 分派到正確位置時呼叫。</p>
 
-  <h2>10. Event object 的生命週期</h2>
-
-  <p>Event object 是一個正常的 runtime object。概念上：</p>
-
-  <pre><code>Browser creates Event
-      ↓
-dispatch
-      ↓
-listeners receive reference
-      ↓
-dispatch ends
-      ↓
-如果 JavaScript 沒有繼續保存 reference
-      ↓
-之後可以被 garbage collection</code></pre>
-
-  <p>如果程式刻意保存：</p>
-
-  <pre><code>let savedEvent
-
-document.addEventListener('click', event => {
-  savedEvent = event
-})</code></pre>
-
-  <p>那 JavaScript 還持有 Event reference，它就可能繼續存在。這不是 Browser 在 dispatch 後「把 Event 從 target 拔掉」；target 從來沒有被掛上 Event object。</p>
-
-  <h2>11. 沒有 listener，也可能有 Event</h2>
-
-  <p>Event system 不只是為了 JavaScript listener 而存在。Browser 還可能需要處理 element 的預設行為，例如 link navigation、checkbox toggle 等。</p>
-
-  <p>所以可以有：</p>
-
-  <pre><code>Browser receives interaction
-  ↓
-creates / dispatches Event
-  ↓
-沒有 JavaScript listener 需要呼叫
-  ↓
-仍可能有 browser default behavior</code></pre>
-
-  <p>因此「先有 Event，再依 dispatch 規則看有哪些 listeners」不是無效設計；Event 是 Browser 對一次互動的標準 runtime representation，而 listener invocation 只是 dispatch 的一部分。</p>
-
-  <h2>12. 一次 click 的完整因果鏈</h2>
+  <h2>9. 一次 click 的完整因果鏈</h2>
 
   <pre><code>JavaScript beforehand:
 document.addEventListener('click', handleClick)
-        │ registers callback
+        │ registers
         ▼
 listener registration exists
 
 Later...
 
 User clicks
-    │
-    ▼
-Browser receives input
-    │ hit testing
+    │ Browser receives
     ▼
 target = button
-    │ creates
+    │ Browser creates
     ▼
 Click Event object
-    │ builds / uses event path
+    │ Browser builds event path
     ▼
-Browser dispatches Event
+Event dispatch
     │
     ├── Capture
     ├── Target
     └── Bubble
-          │ matching listener reached
+          │ reaches matching listener
           ▼
 Browser calls handleClick(event)
           │
           ▼
 JavaScript executes callback</code></pre>
 
-  <h2>13. 這和 Faro 的交界</h2>
+  <h2>10. 這和 Faro 的交界</h2>
 
   <p>到這裡都還是 Browser 原生 Event system。Faro click tracking 的入口只是其中一條 listener registration：</p>
 
   <pre><code>document.addEventListener('click', ClickInstrumentation callback)
         │
-        │ later Browser dispatches descendant click
+        │ later Browser dispatches click
         ▼
 ClickInstrumentation receives Browser Event
         │
@@ -263,46 +213,67 @@ Lesson 2：讀 DOM context → 建 payload → pushEvent()</code></pre>
 
   <h2>Self-check</h2>
 
-  <details>
-    <summary>1. Dispatch 是拿來找 <code>event.target</code> 嗎？</summary>
-    <p>不是。target 在 dispatch 前已經確定；dispatch 依 event path、phase 與 listener registrations 決定哪些 callbacks 在什麼順序被呼叫。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q1. Event dispatch 開始前，哪件事已經完成？</div>
+    <div class="choices">
+      <button class="choice" data-correct="true" data-feedback-correct="Browser 先判定這次 click 的 target，之後才開始 Event dispatch。">Browser 已經確定這次 Event target</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Capture 是 dispatch 的一部分；它不是搜尋 target 的流程。">Capture 正在搜尋這次 Event target</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Listeners 要等 dispatch 走到符合的 registration 才會被處理。">Listeners 已經處理這次 Event target</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Bubble 是 dispatch 的後段，不可能在 dispatch 開始前就完成。">Bubble 已經離開這次 Event target</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
-  <details>
-    <summary>2. Event object 會暫時掛在 target DOM object 上嗎？</summary>
-    <p>不會。Event 是獨立 object；<code>event.target</code> 反過來 reference 到 target DOM object。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q2. Event object 與 target DOM object 的 reference 方向哪個正確？</div>
+    <div class="choices">
+      <button class="choice" data-correct="true" data-feedback-correct="Event 是獨立 object；它的 target 欄位指向這次 click 的 target DOM object。">Event target 指向 DOM object</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="DOM object 不會因為 click 而暫時掛住整顆 Event object。">DOM object 指向 Event target</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Event 發生不會把 DOM tree 裡的 target 節點換成 Event。">DOM tree 取代 Event target</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Listener registration 保存的是 callback 等設定，不是這次 Event target object。">Listener 保存 Event target object</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
-  <details>
-    <summary>3. 已經知道 target 是 button，為什麼還需要 event path？</summary>
-    <p>因為 listeners 可以註冊在 target 的 ancestors；同一次 Event 可能需要依 Capture / Target / Bubble 規則處理多個 EventTargets 上的 listeners。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q3. 已經知道 target 是 button，為什麼還需要 event path？</div>
+    <div class="choices">
+      <button class="choice" data-correct="true" data-feedback-correct="Listeners 可以掛在 target 與父層；dispatch 要沿 path 依順序處理它們。">處理 target 與父層 listeners</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="輸入位置已經用來判定 target，event path 不是拿來重新算座標。">重新計算 target 的 click 座標</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="target 在 dispatch 前已經確定，path 不會再重新尋找一次。">重新尋找 target 的 DOM object</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="event path 是 runtime dispatch 路徑，不會重新建立 HTML source。">重新建立 target 的 HTML source</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
-  <details>
-    <summary>4. <code>event.target</code> 與 <code>event.currentTarget</code> 最大差異是什麼？</summary>
-    <p><code>target</code> 指這次 Event 最初的 target；<code>currentTarget</code> 指目前 callback 所屬的 EventTarget，會隨 dispatch 位置改變。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q4. document listener 收到 button click 時，哪個對照正確？</div>
+    <div class="choices">
+      <button class="choice" data-correct="true" data-feedback-correct="target 仍是最初命中的 button；currentTarget 是目前 callback 所屬的 document listener。"><code>target=button，currentTarget=document</code></button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="這把最初 target 與目前 listener 所在 object 顛倒了。"><code>target=document，currentTarget=button</code></button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="currentTarget 不是最初 target；它會反映目前正在執行哪個 listener。"><code>target=button，currentTarget=button</code></button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="target 不會因為 Event bubble 到 document 就改成 document。"><code>target=document，currentTarget=document</code></button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
   <h2>Recap</h2>
+
   <ul>
-    <li>JavaScript 先用 <code>addEventListener()</code> 建立 listener registration。</li>
-    <li>使用者輸入發生時，Browser 先透過 hit testing 確定 target。</li>
-    <li>Browser 建立獨立 Event object；<code>event.target</code> reference 到 target DOM object。</li>
-    <li>Dispatch 不是找 target，而是沿 event path 依規則處理 listeners。</li>
-    <li>Capture / Target / Bubble 是同一次 dispatch 的不同階段。</li>
-    <li><code>event.target</code> 基本維持最初 target；<code>currentTarget</code> / <code>eventPhase</code> 反映目前 dispatch 狀態。</li>
-    <li>符合 listener registration 時，Browser 呼叫 callback 並傳入 Event object。</li>
-    <li>Event 沒有掛在 target 上；沒有 reference 後，Event object 之後可由 GC 回收。</li>
+    <li>JavaScript 先用 <code>addEventListener()</code> 登記 listener 與 callback。</li>
+    <li>使用者輸入發生後，Browser 先確定這次 Event 的 target。</li>
+    <li>Browser 建立獨立 Event object；<code>event.target</code> 指向最初 target DOM object。</li>
+    <li>Browser 依 DOM 父子關係建立本次 Event 的 event path。</li>
+    <li>Dispatch 不是搜尋 target，而是沿 path 依 Capture / Target / Bubble 規則處理 listeners。</li>
+    <li><code>event.target</code> 保留最初 target；<code>event.currentTarget</code> 表示目前 callback 所屬的 object。</li>
+    <li>Dispatch 到符合的 listener 時，Browser 呼叫 callback 並傳入 Event object。</li>
   </ul>
 
   <div class="box ask">
     如果你不能自己從「target 已知」重建到「Browser call <code>handleClick(event)</code>」，先停在這裡問我。Lesson 2 會直接依賴這條控制流。
   </div>
 
-  <p class="cite">主線來源：<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a>。Browser prerequisite：<a href="https://dom.spec.whatwg.org/#events">WHATWG DOM — Events</a>、<a href="https://dom.spec.whatwg.org/#interface-eventtarget">WHATWG DOM — EventTarget</a>。</p>
-
-  <p><a href="../reference/0001-dom-document-event-dispatch.html">Reference｜DOM、document 與事件分派 →</a></p>
-  <p><a href="../reference/0002-callback-function.html">Reference｜Callback 到底是什麼 →</a></p>
+  <p class="cite">主線來源／推薦回看：<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a>。Browser Event 規則可對照 <a href="https://dom.spec.whatwg.org/#events">WHATWG DOM — Events</a> 與 <a href="https://dom.spec.whatwg.org/#interface-eventtarget">WHATWG DOM — EventTarget</a>。</p>
 
   <nav class="lesson-nav" aria-label="課程導覽">
     <a href="0000-browser-runtime-foundation.html">← Lesson 0</a>
