@@ -6,6 +6,7 @@
   <title>Lesson 0｜Browser Runtime Foundation</title>
   <link rel="stylesheet" href="../assets/style.css">
   <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js" defer></script>
 </head>
 <body>
   <h1>Browser 到底在前端程式裡做什麼？</h1>
@@ -17,6 +18,12 @@
   </div>
 
   <p>這不是一門完整前端基礎課。它只補 Faro 主線真正需要的 Browser runtime 先備知識：後面要理解 click instrumentation、Browser DevTools、Faro transport 與 CORS，都會依賴這個模型。</p>
+
+  <div class="box ask">
+    <strong>本課的快速 Reference</strong><br>
+    如果之後只想快速回查 Browser、DOM、JavaScript 與 Web APIs 的責任邊界，可以直接開：
+    <a href="../reference/0003-browser-runtime-web-apis.html">Browser runtime、JavaScript 與 Web APIs Reference →</a>
+  </div>
 
   <h2>1. 先分清楚：你部署的是 source，使用者操作的是 runtime</h2>
 
@@ -44,7 +51,7 @@
 
   <h2>2. Browser 不是 HTTP Server，也不只是 JavaScript runtime</h2>
 
-  <p>對前端應用來說，Browser 更接近一個 <strong>Web Application host environment</strong>：</p>
+  <p>對前端應用來說，Browser 更接近一個 <strong>Web Application host environment</strong>：也就是承接 Web 應用執行、並提供外部能力的環境。</p>
 
   <pre><code>Browser
 ├── HTML parser
@@ -96,9 +103,9 @@ Document
 
   <p>DOM 不是額外繞一層的資料庫；它就是 Browser 對「目前 document」建立與維護的 object model。</p>
 
-  <h2>5. JavaScript language 本身不等於 Browser Web APIs</h2>
+  <h2>5. JavaScript 語言本身不等於 Browser 提供的能力</h2>
 
-  <p>JavaScript 核心語言本身提供的是像：</p>
+  <p>JavaScript 語言本身提供的是像：</p>
 
   <pre><code>Object
 Array
@@ -106,7 +113,7 @@ Promise
 function
 if / for / class ...</code></pre>
 
-  <p>而在 Browser 裡，host environment 另外提供：</p>
+  <p>而 JavaScript 跑在 Browser 裡時，Browser 另外提供：</p>
 
   <pre><code>document
 window
@@ -115,11 +122,11 @@ localStorage
 addEventListener
 ...</code></pre>
 
-  <p>因此 <code>document</code> 並不是 ECMAScript 核心語言天生知道 DOM；是 Browser 把目前頁面的 <code>Document</code> object 暴露給 JavaScript 使用。</p>
+  <p>因此 <code>document</code> 並不是 JavaScript 語言天生就知道 DOM；是 Browser 把目前頁面的 <code>Document</code> object 提供給 JavaScript 使用。</p>
 
   <div class="box tip">
     <strong>精準模型：</strong><br>
-    JavaScript engine 執行語言；Browser 作為 host environment 提供 DOM、networking、events 等外部能力。兩者合作，才形成 Browser 裡的 JavaScript 執行環境。
+    JavaScript engine 負責執行 JavaScript；Browser 則提供 DOM、networking、events 等外部能力。兩者合作，才形成 Browser 裡的 JavaScript 執行環境。
   </div>
 
   <h2>6. <code>document.querySelector()</code> 到底在問什麼？</h2>
@@ -168,7 +175,7 @@ current DOM  ← button 已不存在</code></pre>
 
   <h2>8. 那 <code>fetch()</code> 為什麼也是 Browser 提供？</h2>
 
-  <p>Network I/O 也不是 JavaScript 核心語言本身的能力，而是 host environment 提供的 runtime capability：</p>
+  <p>Network I/O 也不是 JavaScript 語言本身直接提供的能力，而是執行 JavaScript 的環境提供：</p>
 
   <pre><code>JavaScript
     │ calls
@@ -180,10 +187,10 @@ OS networking
     ▼
 Network</code></pre>
 
-  <p>同一個 JavaScript 語言跑在不同 host environment，能使用的能力可以不同。Browser 有自己的 sandbox 與 Web security model；Node.js 則是另一個 host environment。</p>
+  <p>同一個 JavaScript 語言可以跑在不同執行環境裡，能使用的外部能力也可以不同。Browser 有自己的 sandbox 與 Web security model；Node.js 則是另一種 JavaScript 執行環境。</p>
 
   <div class="box">
-    這裡先停在 responsibility boundary。CORS 不在 Lesson 0 展開；它會在 Faro telemetry 真正透過 Browser 傳往 Alloy 的 Lesson 5 再正式處理。
+    這裡先停在責任邊界。CORS 不在 Lesson 0 展開；它會在 Faro telemetry 真正透過 Browser 傳往 Alloy 的 Lesson 5 再正式處理。
   </div>
 
   <h2>9. 把整個模型收斂成一張圖</h2>
@@ -205,35 +212,59 @@ Network</code></pre>
 
   <h2>Self-check</h2>
 
-  <details>
-    <summary>1. 為什麼「HTML、CSS、JS 一起打包」不代表 JavaScript 天然持有每個 HTML element？</summary>
-    <p>因為它們是不同輸入；Browser 解析 HTML 後才建立目前的 DOM runtime objects。JavaScript 要操作頁面時，是透過 Browser 提供的 DOM API 取得這些 objects 的 reference。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q1. HTML、CSS、JavaScript 一起部署後，為什麼 JavaScript 仍需要透過 DOM API 取得頁面 element？</div>
+    <div class="choices">
+      <button class="choice" data-correct="true" data-feedback-correct="Browser 先把 HTML 解析成目前的 DOM objects；JavaScript 取得的是這些 runtime objects 的 reference。">Browser 先建立目前的 DOM runtime objects</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="一起部署只代表檔案被交付到同一個應用，不代表 JavaScript 自動持有每個 element。">JavaScript 會自動持有全部 HTML elements</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="CSS 負責呈現規則，不負責把 HTML element 注入 JavaScript。">CSS 會把每個 element 注入 JavaScript</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="HTTP Server 交付檔案，但頁面的 runtime model 是 Browser 建立與維護。">HTTP Server 直接建立 JavaScript object references</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
-  <details>
-    <summary>2. DOM 比較像原始 YAML，還是 Kubernetes runtime objects？</summary>
-    <p>比較像 runtime objects。HTML source 比較接近 declaration；DOM 是 Browser 對目前 document 維護的 runtime model。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q2. 用 Kubernetes 類比時，DOM 最接近哪一層？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="YAML 比較像原始 HTML source：它是描述，不是目前 runtime state。">Git 裡保存的 Deployment YAML</button>
+      <button class="choice" data-correct="true" data-feedback-correct="DOM 是 Browser 對目前 document 維護的 runtime model，較接近 cluster 裡的 runtime objects。">Cluster 目前的 runtime objects</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Container image 是執行輸入之一，但不是目前 cluster state 的對照。">Registry 裡保存的 container image</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Helm template 仍屬於產生宣告內容的來源，不是目前 runtime state。">部署前產生的 Helm template</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
-  <details>
-    <summary>3. <code>document</code>、<code>fetch</code> 是 JavaScript 核心語言本身的一部分嗎？</summary>
-    <p>不是。它們是 Browser host environment 提供給 JavaScript 使用的 Web APIs / host objects。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q3. <code>document</code> 與 <code>fetch()</code> 為什麼可以在 Browser 裡的 JavaScript 使用？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="它們不是每個 JavaScript 執行環境都必然具有的語言核心能力。">它們是 JavaScript 語言固定內建的語法</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="HTML 可以載入 script，但不會替 JavaScript 定義 networking 或 DOM API。">它們是 HTML parser 自動產生的函式</button>
+      <button class="choice" data-correct="true" data-feedback-correct="Browser 作為執行環境，提供 DOM、networking、Event 等 Web APIs 給 JavaScript 使用。">Browser 額外提供這些 Web APIs</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Server 不會在每次頁面載入時把這些 API 當 JavaScript source 傳入。">Server 把這些函式一起下載到頁面</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
-  <details>
-    <summary>4. JavaScript 移除 DOM button，Server 原本回傳的 HTML 會跟著被刪掉嗎？</summary>
-    <p>不會。被修改的是目前 Browser 維護的 live DOM runtime state。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q4. JavaScript 執行 <code>document.querySelector('#buy').remove()</code> 後，哪個敘述正確？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="Server 原本送出的 response 不會被 Browser 的 DOM mutation 回寫。">Server 原始 HTML 同步刪掉 button</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="source file 並不會因為 live DOM 被修改而自動改寫。">部署目錄的 index.html 同步被修改</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="JavaScript 本身仍然可以繼續執行；被移除的是目前 DOM 裡的 element。">JavaScript runtime 會立刻停止執行</button>
+      <button class="choice" data-correct="true" data-feedback-correct="被修改的是 Browser 目前維護的 live DOM；最初下載的 HTML source 不會因此被改寫。">目前 live DOM 裡的 button 被移除</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
   <h2>Recap</h2>
   <ul>
     <li>HTML／CSS／JavaScript 是不同種類的 source；一起部署不代表 runtime 中彼此天然綁定。</li>
-    <li>Browser 是 Web Application host environment，不只是 JavaScript engine。</li>
+    <li>Browser 是承接 Web Application 執行的環境，不只是 JavaScript engine。</li>
     <li>HTML source 經 Browser parse 後形成 DOM runtime objects。</li>
     <li>JavaScript 透過 Browser 提供的 DOM APIs 取得並操作 DOM object references。</li>
     <li><code>document.querySelector()</code> 查的是目前 DOM，不是回頭搜尋原始 HTML source。</li>
     <li>DOM mutation 不會改寫最初 HTML source。</li>
-    <li><code>fetch()</code> 也是 host 提供的 runtime capability；Browser 會套用自己的 networking / security rules。</li>
+    <li><code>fetch()</code> 也是 Browser 提供的 runtime capability；Browser 會套用自己的 networking / security rules。</li>
   </ul>
 
   <div class="box ask">
