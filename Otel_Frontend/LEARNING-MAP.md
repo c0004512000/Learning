@@ -74,7 +74,8 @@
 - `ClickInstrumentation` 是在 package initialization 時交給 Faro SDK，因此 Lesson 2 的 `document` listener 在這個 lifecycle 中被啟動。
 - package 以 module-scope `faroInstance` 保存唯一 Faro instance，讓非-instrumentation public API 也能存取 Faro API。
 - `ensureNotInitialized()` 必須在 `initializeFaro()` 前 fail fast；`registerFaroInstance()` 再做最後一道重複註冊防線。
-- 第二次 `initFaro()` 直接失敗，避免重複 listeners、重複 telemetry 與 runtime / stored instance lifecycle 不一致。
+- 第二次 `initFaro()` 會在建立新 SDK runtime 前失敗；重複 listeners／telemetry 是缺少防護時的風險推演，不是已證實的完整歷史 rationale。
+- instrumentations 內部存在 `destroy()`，但 package public exports 沒有完整 `dispose()`／reset API。
 
 #### Lesson 4 — User, Device, and Environment Context
 **Objective:** 理解 user callback、device 判定、environment context 的來源、生命週期與寫入位置，能判斷應由宿主應用還是共用套件提供資料。

@@ -259,7 +259,12 @@ setFaroUser() / clearFaroUser() / other internal consumers</code></pre>
     這裡是「module-level singleton state」：套件刻意只保存一個 Faro instance reference。不是 Browser 自帶的全域 singleton，也不是 JavaScript 語言強制只能建立一個 Faro object。
   </div>
 
-  <h2>9. 為什麼第二次 <code>initFaro()</code> 要直接 throw？</h2>
+  <h2>9. 第二次 <code>initFaro()</code> 的防護與可能風險</h2>
+
+  <div class="box tip">
+    <strong>先分開 evidence 與風險推演</strong><br>
+    現行 source 與 tests 直接證明：成功初始化後再次呼叫 <code>initFaro()</code>，會在建立新的 SDK runtime 前 throw。下面的 duplicate listener／telemetry 是「如果沒有這項防護」的合理風險情境；目前 evidence 沒有證明它就是作者留下這項設計的完整歷史理由。
+  </div>
 
   <p>假設完全沒有防護：</p>
 
@@ -279,7 +284,7 @@ setFaroUser() / clearFaroUser() / other internal consumers</code></pre>
 
   <p>你看到的症狀就可能是「同一次互動送出重複 telemetry」。更糟的是，第二個 runtime 還可能覆蓋套件保存的 instance reference，讓實際啟動的 runtime 與 public API 使用的 instance lifecycle 變得不一致。</p>
 
-  <p>所以現行行為改成：</p>
+  <p>可以直接由現行 implementation 證實的行為是：</p>
 
   <pre><code>initFaro()
   ↓
@@ -289,7 +294,7 @@ ensureNotInitialized()
   ├── yes → throw
   └── no  → 才能繼續建立 Faro runtime</code></pre>
 
-  <h2>10. 為什麼要在 <code>initializeFaro()</code> 之前就檢查？</h2>
+  <h2>10. 在 <code>initializeFaro()</code> 之前檢查的效果</h2>
 
   <p>因為如果先做：</p>
 
@@ -311,7 +316,7 @@ throw</code></pre>
   ↓
 initializeFaro(...)</code></pre>
 
-  <p>這叫做 fail fast：在會產生 runtime side effect 之前先拒絕不合法的 lifecycle。</p>
+  <p>這個順序形成 fail-fast boundary：重複初始化會在新的 runtime side effect 發生前被拒絕。這是可由呼叫順序直接證明的 implementation effect；不需要進一步假定作者動機。</p>
 
   <p>而 <code>registerFaroInstance(faro)</code> 存入 instance 前又再檢查一次，是最後一道防線。</p>
 
@@ -341,7 +346,21 @@ faroInstance 有值嗎？
 
   <p>不能把這個順序倒過來。</p>
 
-  <h2>12. 整體 responsibility boundary</h2>
+  <h2>12. Cleanup / dispose 的 public API 邊界</h2>
+
+  <p><code>ClickInstrumentation.destroy()</code> 與 <code>UserSyncInstrumentation.destroy()</code> 會移除它們各自建立的 listeners，device detector 也有 package-internal stop mechanism。這證明 SDK lifecycle 內部存在 cleanup 行為。</p>
+
+  <p>但目前 <code>@sre2/faro-click-tracking</code> 的 public exports 沒有 <code>dispose()</code>、<code>reset()</code> 或其他完整 teardown API。因此宿主應用不能依目前 package contract 假設：</p>
+
+  <pre><code>initFaro()
+  → public dispose()
+  → 再次 initFaro()</code></pre>
+
+  <div class="box">
+    <strong>精確邊界：</strong>可以證實 instrumentation 內部有 <code>destroy()</code>；不能教成宿主目前有公開的完整 cleanup／re-initialization lifecycle。
+  </div>
+
+  <h2>13. 整體 responsibility boundary</h2>
 
   <div class="table-wrap">
     <table>
@@ -359,7 +378,7 @@ faroInstance 有值嗎？
     </table>
   </div>
 
-  <h2>13. 把 Lesson 2 與 Lesson 3 接成一條線</h2>
+  <h2>14. 把 Lesson 2 與 Lesson 3 接成一條線</h2>
 
   <pre><code>宿主應用啟動
     │
@@ -412,13 +431,18 @@ api.pushEvent('click', payload)</code></pre>
   </details>
 
   <details>
-    <summary>4. 為什麼重複初始化不能只是「後一次覆蓋前一次」？</summary>
-    <p>因為初始化有 listener、transport 等 side effects。第二次初始化可能疊加 listener，讓一次互動送出重複 telemetry；單純覆蓋 instance reference 也無法撤銷先前已建立的 runtime。</p>
+    <summary>4. Source 直接證明重複初始化一定會產生 duplicate telemetry 嗎？</summary>
+    <p>沒有。Source 直接證明第二次 <code>initFaro()</code> 會在建立新 runtime 前 throw；duplicate listener／telemetry 是移除防護後的合理風險推演，不是已證實的歷史設計理由。</p>
   </details>
 
   <details>
     <summary>5. 為什麼 <code>ensureNotInitialized()</code> 必須放在 <code>initializeFaro()</code> 之前？</summary>
     <p>要在任何 runtime side effect 發生前 fail fast。否則即使最後 throw，listener 或 transport 可能早已建立。</p>
+  </details>
+
+  <details>
+    <summary>6. 宿主目前能呼叫 package public <code>dispose()</code> 後重新初始化嗎？</summary>
+    <p>不能由目前 contract 得出這個結論。Instrumentation 內部有 <code>destroy()</code>，但 package public exports 沒有完整 <code>dispose()</code>／reset API。</p>
   </details>
 
   <h2>Recap</h2>
@@ -429,9 +453,10 @@ api.pushEvent('click', payload)</code></pre>
     <li>Grafana <code>initializeFaro()</code> 建立真正的 Faro runtime，並啟動 transport / instrumentations。</li>
     <li>ClickInstrumentation 是在 package initialization 時交給 Faro SDK，因此 Lesson 2 的 document listener 也是在這個 lifecycle 中被啟動。</li>
     <li>套件以 module-scope <code>faroInstance</code> 保存唯一的 Faro instance，讓一般 public API 也能存取 Faro API。</li>
-    <li>第二次 <code>initFaro()</code> 會被阻止，因為重複初始化可能疊加 listener 與 telemetry side effects。</li>
+    <li>第二次 <code>initFaro()</code> 會在建立新 runtime 前被阻止；duplicate listener／telemetry 是缺少防護時的風險推演，不是已證實的作者 rationale。</li>
     <li><code>ensureNotInitialized()</code> 在建立 runtime 前 fail fast；<code>registerFaroInstance()</code> 再做最後一道檢查。</li>
     <li>需要 Faro instance 的 public API 若在初始化前被呼叫，會透過 <code>getFaroInstanceOrThrow()</code> 明確失敗。</li>
+    <li>內部 instrumentations 有 cleanup hooks，但 package 沒有公開完整的 <code>dispose()</code>／reset API。</li>
   </ul>
 
   <h2>Primary sources</h2>
