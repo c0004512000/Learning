@@ -30,8 +30,14 @@
 
 這些不是 Faro 主線教材，而是只有在 source documents 省略必要 browser / language 基礎時才使用。
 
+- [MDN — JavaScript technologies overview](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/JavaScript_technologies_overview)
+  用於區分 ECMAScript core language、DOM 與其他 Web APIs，並建立 JavaScript engine 與 browser host environment 的責任邊界。
+- [MDN — JavaScript language overview: Language and runtime](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Language_overview)
+  用於確認 network I/O、DOM 等屬於 runtime / host 提供的能力，而不是 JavaScript 核心語言本身。
 - [WHATWG HTML Standard — Document](https://html.spec.whatwg.org/multipage/dom.html)
   用於理解 JavaScript 裡的 `document` 與 HTML document 對應的 `Document` object。
+- [MDN — Document.querySelector()](https://developer.mozilla.org/en-US/docs/Web/API/Document/querySelector)
+  用於確認 `querySelector()` 查詢目前 Document 中第一個符合 CSS selector 的 Element，並釐清 `#id` 不限定 element tag。
 - [WHATWG DOM Standard — Events](https://dom.spec.whatwg.org/#events)
   用於理解 Event object、event target、event path 與 event dispatch。
 - [WHATWG DOM Standard — EventTarget](https://dom.spec.whatwg.org/#interface-eventtarget)

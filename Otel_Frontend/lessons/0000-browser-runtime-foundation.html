@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 0｜Browser Runtime Foundation</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+  <h1>Browser 到底在前端程式裡做什麼？</h1>
+  <p class="subtitle">Prerequisite · Source code → Browser runtime → DOM / Web APIs</p>
+
+  <div class="box tip">
+    <strong>這堂課的目標</strong><br>
+    學完後，你應該能解釋：HTML／CSS／JavaScript 為什麼不是「打包在一起就彼此天然知道」；Browser 為什麼需要建立 DOM；JavaScript 為什麼能寫 <code>document.querySelector()</code>、<code>fetch()</code>；以及 source code 與目前 runtime state 為什麼是兩回事。
+  </div>
+
+  <p>這不是一門完整前端基礎課。它只補 Faro 主線真正需要的 Browser runtime 先備知識：後面要理解 click instrumentation、Browser DevTools、Faro transport 與 CORS，都會依賴這個模型。</p>
+
+  <h2>1. 先分清楚：你部署的是 source，使用者操作的是 runtime</h2>
+
+  <p>假設前端部署後有：</p>
+
+  <pre><code>dist/
+├── index.html
+├── app.js
+└── style.css</code></pre>
+
+  <p>它們可以一起被部署，但仍然是不同種類的輸入：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>輸入</th><th>主要描述</th></tr></thead>
+      <tbody>
+        <tr><td>HTML</td><td>文件結構與內容。</td></tr>
+        <tr><td>CSS</td><td>呈現與樣式規則。</td></tr>
+        <tr><td>JavaScript</td><td>程式邏輯與行為。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>這三種分工不是因為「技術上只能這樣做」。Web Platform 選擇把 structure、presentation、behavior 分成不同 abstraction，讓 Browser 可以分別解析、套用、執行。</p>
+
+  <h2>2. Browser 不是 HTTP Server，也不只是 JavaScript runtime</h2>
+
+  <p>對前端應用來說，Browser 更接近一個 <strong>Web Application host environment</strong>：</p>
+
+  <pre><code>Browser
+├── HTML parser
+├── DOM
+├── CSS / layout / rendering
+├── JavaScript engine
+├── Event system
+├── Networking
+├── Storage
+└── Security sandbox</code></pre>
+
+  <p>HTTP Server 的責任可以很單純：把 HTML／JS／CSS 回給 Browser。檔案到達 Browser 之後，真正讓應用程式「活起來」的是 Browser。</p>
+
+  <h2>3. Kubernetes 對照：source declaration ≠ runtime state</h2>
+
+  <p>這個差異可以用 Kubernetes 對照：</p>
+
+  <pre><code>Kubernetes
+Deployment YAML
+    │ apply / reconcile
+    ▼
+runtime objects / Pods / status
+
+Browser
+HTML source
+    │ parse
+    ▼
+DOM runtime objects</code></pre>
+
+  <p>Git 裡的 YAML 不等於現在 cluster 裡真的有哪些 Pod；同樣地，Server 回來的原始 HTML 也不等於 Browser 此刻正在維護的頁面狀態。</p>
+
+  <h2>4. 為什麼需要 DOM？</h2>
+
+  <p>原始 HTML 是文字描述：</p>
+
+  <pre><code>&lt;button id="buy"&gt;Buy&lt;/button&gt;</code></pre>
+
+  <p>Browser 需要一份可以在 runtime 中查詢、修改、建立 parent/child 關係、接收 Event 的結構。因此它解析 HTML，建立 DOM objects：</p>
+
+  <pre><code>HTML source text
+      │ Browser parses
+      ▼
+Document
+└── html
+    └── body
+        └── HTMLButtonElement
+            id = "buy"
+            textContent = "Buy"</code></pre>
+
+  <p>DOM 不是額外繞一層的資料庫；它就是 Browser 對「目前 document」建立與維護的 object model。</p>
+
+  <h2>5. JavaScript language 本身不等於 Browser Web APIs</h2>
+
+  <p>JavaScript 核心語言本身提供的是像：</p>
+
+  <pre><code>Object
+Array
+Promise
+function
+if / for / class ...</code></pre>
+
+  <p>而在 Browser 裡，host environment 另外提供：</p>
+
+  <pre><code>document
+window
+fetch
+localStorage
+addEventListener
+...</code></pre>
+
+  <p>因此 <code>document</code> 並不是 ECMAScript 核心語言天生知道 DOM；是 Browser 把目前頁面的 <code>Document</code> object 暴露給 JavaScript 使用。</p>
+
+  <div class="box tip">
+    <strong>精準模型：</strong><br>
+    JavaScript engine 執行語言；Browser 作為 host environment 提供 DOM、networking、events 等外部能力。兩者合作，才形成 Browser 裡的 JavaScript 執行環境。
+  </div>
+
+  <h2>6. <code>document.querySelector()</code> 到底在問什麼？</h2>
+
+  <pre><code>const element = document.querySelector('#buy')</code></pre>
+
+  <p>它不是回頭搜尋你的 HTML source file；它是在目前 <code>Document</code> 的 DOM tree 裡，找第一個符合 CSS selector <code>#buy</code> 的 <code>Element</code>。</p>
+
+  <pre><code>JavaScript
+    │ calls DOM API
+    ▼
+document.querySelector('#buy')
+    │ Browser searches current DOM
+    ▼
+Element reference returned to JavaScript</code></pre>
+
+  <p><code>#buy</code> 只限制 <code>id="buy"</code>，不限制 tag type：</p>
+
+  <pre><code>&lt;button id="buy"&gt;...  → 可以找到
+&lt;div id="buy"&gt;...     → 可以找到
+&lt;p id="buy"&gt;...       → 可以找到</code></pre>
+
+  <p>如果要限定 button，才寫 <code>button#buy</code>。</p>
+
+  <h2>7. DOM 改了，原始 HTML source 不會跟著被改掉</h2>
+
+  <p>假設 Server 原本回傳：</p>
+
+  <pre><code>&lt;button id="buy"&gt;Buy&lt;/button&gt;</code></pre>
+
+  <p>JavaScript 後來執行：</p>
+
+  <pre><code>document.querySelector('#buy').remove()</code></pre>
+
+  <p>結果是：</p>
+
+  <pre><code>original HTML source
+        │ parse
+        ▼
+initial DOM
+        │ JavaScript mutates
+        ▼
+current DOM  ← button 已不存在</code></pre>
+
+  <p>原始 response/source 不會因此被改寫。這也是 Browser DevTools 的 live DOM 與「最初下載到的 source」可能不同的原因。</p>
+
+  <h2>8. 那 <code>fetch()</code> 為什麼也是 Browser 提供？</h2>
+
+  <p>Network I/O 也不是 JavaScript 核心語言本身的能力，而是 host environment 提供的 runtime capability：</p>
+
+  <pre><code>JavaScript
+    │ calls
+    ▼
+fetch(...)
+    │ Browser networking + security rules
+    ▼
+OS networking
+    ▼
+Network</code></pre>
+
+  <p>同一個 JavaScript 語言跑在不同 host environment，能使用的能力可以不同。Browser 有自己的 sandbox 與 Web security model；Node.js 則是另一個 host environment。</p>
+
+  <div class="box">
+    這裡先停在 responsibility boundary。CORS 不在 Lesson 0 展開；它會在 Faro telemetry 真正透過 Browser 傳往 Alloy 的 Lesson 5 再正式處理。
+  </div>
+
+  <h2>9. 把整個模型收斂成一張圖</h2>
+
+  <pre><code>HTML / CSS / JavaScript source
+            │ Browser loads
+            ▼
+┌─────────────────────────────────┐
+│ Browser = Web App host          │
+│                                 │
+│ HTML ──parse──► DOM             │
+│ CSS  ──style──► layout/render   │
+│ JS Engine executes JavaScript   │
+│          │                      │
+│          ├─ DOM APIs ─► DOM     │
+│          ├─ Event APIs          │
+│          └─ fetch ────► Network │
+└─────────────────────────────────┘</code></pre>
+
+  <h2>Self-check</h2>
+
+  <details>
+    <summary>1. 為什麼「HTML、CSS、JS 一起打包」不代表 JavaScript 天然持有每個 HTML element？</summary>
+    <p>因為它們是不同輸入；Browser 解析 HTML 後才建立目前的 DOM runtime objects。JavaScript 要操作頁面時，是透過 Browser 提供的 DOM API 取得這些 objects 的 reference。</p>
+  </details>
+
+  <details>
+    <summary>2. DOM 比較像原始 YAML，還是 Kubernetes runtime objects？</summary>
+    <p>比較像 runtime objects。HTML source 比較接近 declaration；DOM 是 Browser 對目前 document 維護的 runtime model。</p>
+  </details>
+
+  <details>
+    <summary>3. <code>document</code>、<code>fetch</code> 是 JavaScript 核心語言本身的一部分嗎？</summary>
+    <p>不是。它們是 Browser host environment 提供給 JavaScript 使用的 Web APIs / host objects。</p>
+  </details>
+
+  <details>
+    <summary>4. JavaScript 移除 DOM button，Server 原本回傳的 HTML 會跟著被刪掉嗎？</summary>
+    <p>不會。被修改的是目前 Browser 維護的 live DOM runtime state。</p>
+  </details>
+
+  <h2>Recap</h2>
+  <ul>
+    <li>HTML／CSS／JavaScript 是不同種類的 source；一起部署不代表 runtime 中彼此天然綁定。</li>
+    <li>Browser 是 Web Application host environment，不只是 JavaScript engine。</li>
+    <li>HTML source 經 Browser parse 後形成 DOM runtime objects。</li>
+    <li>JavaScript 透過 Browser 提供的 DOM APIs 取得並操作 DOM object references。</li>
+    <li><code>document.querySelector()</code> 查的是目前 DOM，不是回頭搜尋原始 HTML source。</li>
+    <li>DOM mutation 不會改寫最初 HTML source。</li>
+    <li><code>fetch()</code> 也是 host 提供的 runtime capability；Browser 會套用自己的 networking / security rules。</li>
+  </ul>
+
+  <div class="box ask">
+    如果你還無法自己重建「source → Browser → runtime DOM → JavaScript reference」這條鏈，先停在這裡問我。Lesson 1 會直接把這個模型拿來解釋一次 click 如何進入 JavaScript callback。
+  </div>
+
+  <p class="cite">參考：<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/JavaScript_technologies_overview">MDN JavaScript technologies overview</a>、<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Language_overview">MDN JavaScript language overview</a>、<a href="https://developer.mozilla.org/en-US/docs/Web/API/Document/querySelector">MDN Document.querySelector()</a>、<a href="https://html.spec.whatwg.org/multipage/dom.html">WHATWG HTML — Document</a>。</p>
+
+  <p><a href="../reference/0003-browser-runtime-web-apis.html">Reference｜Browser runtime、JavaScript 與 Web APIs →</a></p>
+
+  <nav class="lesson-nav" aria-label="課程導覽">
+    <a href="../learning-map/index.html">← Course Map</a>
+    <a href="0001-browser-click-foundation.html">Lesson 1：一次 click 如何進入 JavaScript →</a>
+  </nav>
+</body>
+</html>
