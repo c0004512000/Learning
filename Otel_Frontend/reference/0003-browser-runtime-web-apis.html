@@ -9,9 +9,11 @@
 </head>
 <body>
   <h1>Browser Runtime、JavaScript 與 Web APIs</h1>
-  <p class="subtitle">Reference · Faro 主線需要的最小 Browser host mental model</p>
+  <p class="subtitle">Reference · Faro 主線需要的最小 Browser mental model</p>
 
-  <div class="box ask"><strong>最短版本：</strong><br>Browser 是 Web Application 的 host environment；JavaScript engine 執行 ECMAScript；DOM、Event、<code>fetch()</code> 等能力由 Browser 暴露給 JavaScript。</div>
+  <p><a href="../lessons/0000-browser-runtime-foundation.html">← 回到 Lesson 0：Browser 到底在前端程式裡做什麼？</a></p>
+
+  <div class="box ask"><strong>最短版本：</strong><br>Browser 是承接 Web Application 執行的環境；JavaScript engine 負責執行 JavaScript；DOM、Event、<code>fetch()</code> 等能力則由 Browser 提供給 JavaScript 使用。</div>
 
   <h2>1. 三個層次</h2>
   <div class="table-wrap"><table>
@@ -23,20 +25,22 @@
     </tbody>
   </table></div>
 
-  <h2>2. JavaScript language vs Browser API</h2>
-  <pre><code>ECMAScript / JavaScript core
+  <h2>2. JavaScript 語言本身 vs Browser 提供的能力</h2>
+  <pre><code>JavaScript language
 ├── Object
 ├── Array
 ├── Promise
 ├── function
 └── language syntax
 
-Browser host APIs
+Browser-provided APIs
 ├── document
 ├── addEventListener
 ├── fetch
 ├── localStorage
 └── many Web APIs</code></pre>
+
+  <p>重點不是記另一個語言標準名稱，而是分清楚：有些能力屬於 JavaScript 語言本身；有些能力是因為 JavaScript 現在跑在 Browser 裡，所以 Browser 額外提供。</p>
 
   <h2>3. DOM 的位置</h2>
   <pre><code>HTML source
@@ -62,7 +66,7 @@ initial DOM
 current live DOM</code></pre>
   <p>DOM 被改動，不代表原始 HTML response/source 被改寫。</p>
 
-  <h2>6. Network 也是 host capability</h2>
+  <h2>6. Network 也是執行環境提供的能力</h2>
   <pre><code>JavaScript
   ↓ fetch(...)
 Browser networking / security
@@ -70,7 +74,7 @@ Browser networking / security
 OS networking
   ↓
 Network</code></pre>
-  <p>同一個 JavaScript 語言可以跑在 Browser、Node.js 等不同 host environment；可用的 host APIs 與 security boundary 不必相同。</p>
+  <p>同一個 JavaScript 語言可以跑在 Browser、Node.js 等不同執行環境；可用的 APIs 與 security boundary 不必相同。</p>
 
   <h2>7. Faro 主線怎麼用到這張表？</h2>
   <div class="table-wrap"><table>
