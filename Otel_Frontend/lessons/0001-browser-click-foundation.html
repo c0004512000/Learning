@@ -6,6 +6,7 @@
   <title>Lesson 1｜How a Browser Click Reaches JavaScript</title>
   <link rel="stylesheet" href="../assets/style.css">
   <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js" defer></script>
 </head>
 <body>
   <h1>一次 click 如何進入 JavaScript？</h1>
@@ -263,25 +264,49 @@ Lesson 2：讀 DOM context → 建 payload → pushEvent()</code></pre>
 
   <h2>Self-check</h2>
 
-  <details>
-    <summary>1. Dispatch 是拿來找 <code>event.target</code> 嗎？</summary>
-    <p>不是。target 在 dispatch 前已經確定；dispatch 依 event path、phase 與 listener registrations 決定哪些 callbacks 在什麼順序被呼叫。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q1. Event dispatch 開始前，哪件事已經完成？</div>
+    <div class="choices">
+      <button class="choice" data-correct="true" data-feedback-correct="Browser 已經根據輸入與目前畫面狀態確定這次 Event 的 target。">Browser 已經確定這次 Event 的 target</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Capture 是 dispatch 的一部分，不是拿來搜尋 target。">Capture 正在逐層搜尋可能的 target</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="listener callback 會在 dispatch 走到符合 registration 時才被呼叫。">所有 listener callbacks 都已經執行完成</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Bubble 屬於 dispatch 後段，不能在 dispatch 開始前就完成。">Bubble 已經從 target 回到 document</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
-  <details>
-    <summary>2. Event object 會暫時掛在 target DOM object 上嗎？</summary>
-    <p>不會。Event 是獨立 object；<code>event.target</code> 反過來 reference 到 target DOM object。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q2. Event object 與 target DOM object 的 reference 方向哪個正確？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="target DOM object 不需要因 click 暫時多掛一個 Event object。">target 暫時掛住整個 Event object</button>
+      <button class="choice" data-correct="true" data-feedback-correct="Event 是獨立 object；它的 target property reference 到這次事件的 target DOM object。">Event 的 target reference 指向 DOM object</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="DOM tree 不會因為 Event 發生就把 target 換成 Event object。">DOM tree 用 Event object 取代 target</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="listener registration 保存的是 event type、callback 等設定，不是永久保存未來的 Event object。">listener 永久保存每一個 Event object</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
-  <details>
-    <summary>3. 已經知道 target 是 button，為什麼還需要 event path？</summary>
-    <p>因為 listeners 可以註冊在 target 的 ancestors；同一次 Event 可能需要依 Capture / Target / Bubble 規則處理多個 EventTargets 上的 listeners。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q3. 已經知道 target 是 button，為什麼還需要 event path？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="event path 不是重新計算滑鼠座標。">Browser 還要重新計算 click 座標</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="target 在 dispatch 前已經知道，不需要靠 path 再猜一次。">Browser 還不知道真正 target 是誰</button>
+      <button class="choice" data-correct="true" data-feedback-correct="listeners 可以註冊在 target 的 ancestors；dispatch 要沿 path 依 phase 與 registration 規則處理它們。">Ancestors 也可能註冊對應的 listeners</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="DOM hierarchy 在事件發生前就已存在，不是 dispatch 才建立 parent/child 關係。">DOM 要在 dispatch 時建立 hierarchy</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
-  <details>
-    <summary>4. <code>event.target</code> 與 <code>event.currentTarget</code> 最大差異是什麼？</summary>
-    <p><code>target</code> 指這次 Event 最初的 target；<code>currentTarget</code> 指目前 callback 所屬的 EventTarget，會隨 dispatch 位置改變。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q4. document listener 正在處理 button click 時，<code>event.target</code> 與 <code>event.currentTarget</code> 應如何理解？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="target 不會因 Event bubble 到 document 就改成 document。">兩者都會變成目前的 document</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="currentTarget 表示目前 callback 所屬的 EventTarget，因此這裡不是 button。">兩者都會維持最初的 button</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="這個方向顛倒了：target 是最初來源，currentTarget 是目前 listener 所在位置。">target 是 document；currentTarget 是 button</button>
+      <button class="choice" data-correct="true" data-feedback-correct="target 維持最初的 button；currentTarget 反映目前正在執行 document 上的 listener。">target 是 button；currentTarget 是 document</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
   <h2>Recap</h2>
   <ul>
