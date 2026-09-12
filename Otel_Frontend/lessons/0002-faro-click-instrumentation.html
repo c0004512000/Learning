@@ -222,6 +222,11 @@ action: "save"</code></pre>
 
   <p>這一步非常重要：Browser Event 本身不是 telemetry payload。ClickInstrumentation 是在這裡把 DOM context 轉成 telemetry data。</p>
 
+  <div class="box tip">
+    <strong>Payload key normalization：</strong><br>
+    現行實作會移除 <code>data-</code> prefix，並把其餘連字號改成底線；例如 <code>data-panel-topic</code> 會成為 <code>panel_topic</code>。這項 normalization 的歷史證據與「為何 trackAttributes 強制 data-*」是兩個不同問題，不能互相反推。
+  </div>
+
   <h2>9. 空 payload 是第一道 gate</h2>
 
   <p>如果所有設定的 attributes 都找不到：</p>
@@ -358,6 +363,10 @@ Faro click telemetry</code></pre>
   <div class="box ask">
     如果你能不用看上面的流程圖，自己從 <code>document.addEventListener()</code> 重建到 <code>api.pushEvent()</code>，Lesson 2 的主模型就算建立起來了。
   </div>
+
+  <p class="cite">
+    主線來源：<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a>、<a href="../sources/materials/4.%20Faro-Click-Tracking%20的歷史.html">Faro-Click-Tracking 的歷史</a>；現行 validation、normalization、empty-payload、throttle 與 <code>pushEvent()</code> contract 由 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking durable evidence</a> 支持。
+  </p>
 
   <p><a href="0001-browser-click-foundation.html">← Lesson 1｜How the Browser Knows What You Clicked</a></p>
   <p><a href="../learning-map/">Course Map</a></p>

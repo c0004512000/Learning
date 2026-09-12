@@ -6,7 +6,7 @@
 
 ## Planning basis
 
-本課程依 `Learning-from-docs` 的 bounded-corpus 規則規劃：8 份 `source-documents/` 原始 HTML 已完成 corpus audit，主路徑依概念依賴與 Mission 排序，而不是照檔名順序授課。未來 Lesson 的位置先規劃，但完整 Lesson HTML 仍只在實際學到該步時逐步產生。
+本課程依 `Learning-from-docs` 的 source model 規劃：8 份 `sources/materials/` 原始 HTML 已完成 corpus audit，並由 `sources/evidence/` 保存可重用的 verified findings；主路徑依概念依賴與 Mission 排序，而不是照檔名順序授課。未來 Lesson 的位置先規劃，但完整 Lesson HTML 仍只在實際學到該步時逐步產生。
 
 ## Progress
 
@@ -41,6 +41,9 @@
 - `3. Faro-Click-Tracking Introduction (for developer).html`
 - `4. Faro-Click-Tracking 的歷史.html`
 
+**Durable evidence:**
+- `sources/evidence/faro-click-tracking.md`
+
 **Dependency:** Lesson 1。
 
 **Established model:**
@@ -61,7 +64,7 @@
 **Primary sources:**
 - `3. Faro-Click-Tracking Introduction (for developer).html`
 - `4. Faro-Click-Tracking 的歷史.html`
-- 現行 `faro-click-tracking` README / package contract / implementation evidence（見 `CORPUS-AUDIT.md`）
+- 現行 `faro-click-tracking` README / package contract / implementation evidence（見 `sources/evidence/faro-click-tracking.md`）
 
 **Dependency:** Lesson 2。
 
@@ -81,6 +84,11 @@
 - `3. Faro-Click-Tracking Introduction (for developer).html`
 - `4. Faro-Click-Tracking 的歷史.html`
 
+**Durable evidence:**
+- `sources/evidence/faro-click-tracking.md`
+- `sources/evidence/foreman-integration.md`
+- `sources/evidence/jeter-integration-and-tracing.md`
+
 **Dependency:** Lesson 3。
 
 ### Milestone 3 — Host integration 與 Browser DevTools 驗證
@@ -97,6 +105,7 @@
 - deployed JavaScript bundles
 - stage / production `/alloy` CORS preflight
 - Grafana Alloy Faro receiver documentation
+- `sources/evidence/browser-to-alloy.md`
 
 **Dependency:** Lessons 2–4。
 
@@ -133,6 +142,8 @@
 **Runtime evidence:**
 - Jeter frontend / ASP.NET Core backend / OTLP configuration
 - Grafana Tempo datasource
+- `sources/evidence/jeter-integration-and-tracing.md`
+- `sources/evidence/grafana-current-state.md`
 
 **Dependency:** Lesson 7。
 
@@ -148,6 +159,8 @@
 
 **Runtime evidence:**
 - stage / production Alloy and Collector runtime configuration
+- `sources/evidence/browser-to-alloy.md`
+- `sources/evidence/collector-pipeline.md`
 
 **Dependency:** Lessons 5、7。
 
@@ -161,6 +174,7 @@
 - OTel Faro translator
 - filter / transform processor version-specific behavior
 - `Application for DE service` / `OpenSearch Connection`
+- `sources/evidence/opensearch-field-lifecycle.md`
 
 **Dependency:** Lesson 9。
 
@@ -177,6 +191,8 @@
 **Runtime evidence:**
 - stage/prod Helm、ConfigMap、Kubernetes runtime
 - `升級 Otel Stack`
+- `sources/evidence/collector-pipeline.md`
+- `sources/evidence/opensearch-field-lifecycle.md`
 
 **Dependency:** Lessons 9–10。
 
@@ -232,4 +248,4 @@ Primary corpus:
 7. `7. OTel export to OpenSearch.html`
 8. `SRE - 前端監控 - Proposal.html`
 
-外部官方文件、repo/code、Confluence 與 runtime evidence 只在 prerequisite、verification、ambiguity resolution 或理解 primary corpus 必要時補充；不取代 primary corpus。
+外部官方文件、repo/code、Confluence 與 runtime evidence 只在 prerequisite、verification、ambiguity resolution 或理解 primary corpus 必要時補充；不取代 primary corpus。可重用的核查結果集中於 `sources/evidence/`，引用指標集中於 `sources/linked/`。
