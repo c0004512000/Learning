@@ -13,81 +13,84 @@
 
   <p><a href="../lessons/0000-browser-runtime-foundation.html">← 回到 Lesson 0：Browser 到底在前端程式裡做什麼？</a></p>
 
-  <div class="box ask"><strong>最短版本：</strong><br>Browser 是承接 Web Application 執行的環境；JavaScript engine 負責執行 JavaScript；DOM、Event、<code>fetch()</code> 等能力則由 Browser 提供給 JavaScript 使用。</div>
+  <div class="box ask">
+    <strong>最短版本</strong><br>
+    source 是你部署的檔案；runtime 是 Browser 真正跑起來後的當下狀態。Browser 解析 HTML 建立 DOM、執行 JavaScript，並另外提供 Event、networking 等 Web APIs。
+  </div>
 
-  <h2>1. 三個層次</h2>
+  <h2>1. Source、runtime、JavaScript reference</h2>
+
   <div class="table-wrap"><table>
-    <thead><tr><th>層次</th><th>例子</th><th>責任</th></tr></thead>
+    <thead><tr><th>層次</th><th>例子</th><th>先記成</th></tr></thead>
     <tbody>
-      <tr><td>Source</td><td>HTML / CSS / JavaScript</td><td>你部署的描述與程式碼。</td></tr>
-      <tr><td>Browser runtime</td><td>DOM / layout / Event / network</td><td>Browser 建立並維護的執行狀態與能力。</td></tr>
+      <tr><td>Source</td><td>HTML / CSS / JavaScript</td><td>你寫好並部署出去的檔案。</td></tr>
+      <tr><td>Browser runtime</td><td>DOM / Event / network</td><td>Browser 當下建立並維護的狀態與能力。</td></tr>
       <tr><td>JavaScript reference</td><td><code>button</code> variable</td><td>JavaScript 指向 Browser-managed object 的 reference。</td></tr>
     </tbody>
   </table></div>
 
-  <h2>2. JavaScript 語言本身 vs Browser 提供的能力</h2>
+  <h2>2. JavaScript 語言本身 vs Browser 額外提供</h2>
+
   <pre><code>JavaScript language
-├── Object
-├── Array
-├── Promise
+├── 變數
+├── if / for
 ├── function
-└── language syntax
+└── Object / Array
 
 Browser-provided APIs
 ├── document
 ├── addEventListener
 ├── fetch
-├── localStorage
-└── many Web APIs</code></pre>
+└── localStorage</code></pre>
 
-  <p>重點不是記另一個語言標準名稱，而是分清楚：有些能力屬於 JavaScript 語言本身；有些能力是因為 JavaScript 現在跑在 Browser 裡，所以 Browser 額外提供。</p>
+  <p>重點是責任邊界：有些能力屬於 JavaScript 語言；有些能力是因為 JavaScript 現在跑在 Browser 裡，所以由 Browser 額外提供。</p>
 
-  <h2>3. DOM 的位置</h2>
+  <h2>3. HTML source 與 DOM</h2>
+
   <pre><code>HTML source
     │ Browser parses
     ▼
-DOM runtime objects
+current DOM
     ▲
     │ DOM APIs
 JavaScript</code></pre>
-  <p>DOM 是 Browser 對目前 document 的 runtime object model；不是 JavaScript source，也不是 rendered pixel。</p>
+
+  <p>DOM 是 Browser 對目前文件建立並持續維護的可操作結構。修改 DOM，不代表原始 HTML source 被回寫。</p>
 
   <h2>4. <code>document.querySelector()</code></h2>
+
   <pre><code>document.querySelector('#buy')</code></pre>
-  <p>意思：從目前 Document 的 DOM tree 找第一個符合 selector <code>#buy</code> 的 Element。</p>
+
+  <p>從目前 <code>Document</code> 的 DOM tree 找第一個符合 <code>#buy</code> 的 element：</p>
+
   <pre><code>#buy        → id="buy"，tag 不限
 button#buy  → id="buy" 且 tag = button</code></pre>
 
-  <h2>5. Source 與 live DOM</h2>
-  <pre><code>original HTML source
-        ↓ parse
-initial DOM
-        ↓ JavaScript mutations
-current live DOM</code></pre>
-  <p>DOM 被改動，不代表原始 HTML response/source 被改寫。</p>
+  <h2>5. Network request 也經過 Browser</h2>
 
-  <h2>6. Network 也是執行環境提供的能力</h2>
   <pre><code>JavaScript
-  ↓ fetch(...)
-Browser networking / security
-  ↓
-OS networking
-  ↓
+  │ fetch(...)
+  ▼
+Browser networking
+  │ uses OS networking
+  ▼
 Network</code></pre>
-  <p>同一個 JavaScript 語言可以跑在 Browser、Node.js 等不同執行環境；可用的 APIs 與 security boundary 不必相同。</p>
 
-  <h2>7. Faro 主線怎麼用到這張表？</h2>
+  <p>Browser 會在這層套用 Web 的安全限制。跨來源 request 的具體限制留到 Faro Browser-to-Alloy transport 的課程再處理。</p>
+
+  <h2>6. Faro 主線怎麼用到這張 Reference？</h2>
+
   <div class="table-wrap"><table>
-    <thead><tr><th>Faro 問題</th><th>依賴的 Browser 基礎</th></tr></thead>
+    <thead><tr><th>Faro 問題</th><th>需要的 Browser 基礎</th></tr></thead>
     <tbody>
-      <tr><td>ClickInstrumentation 怎麼找到 element？</td><td>DOM object + selector / traversal。</td></tr>
-      <tr><td>click 怎麼進 callback？</td><td>Event system + listener dispatch。</td></tr>
-      <tr><td>telemetry 怎麼送到 Alloy？</td><td>Browser networking / Fetch + security model。</td></tr>
-      <tr><td>DevTools Elements 為什麼可能跟原始 HTML 不同？</td><td>source vs live DOM runtime state。</td></tr>
+      <tr><td>ClickInstrumentation 怎麼找到 element？</td><td>DOM object、selector、父子關係。</td></tr>
+      <tr><td>click 怎麼進 callback？</td><td>Event、listener、dispatch。</td></tr>
+      <tr><td>telemetry 怎麼送到 Alloy？</td><td>Browser networking 與 Web 安全限制。</td></tr>
+      <tr><td>DevTools Elements 為什麼可能和原始 HTML 不同？</td><td>source 與 current DOM 是不同層次。</td></tr>
     </tbody>
   </table></div>
 
-  <p class="cite">參考：<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/JavaScript_technologies_overview">MDN JavaScript technologies overview</a>、<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Language_overview">MDN JavaScript language overview</a>、<a href="https://developer.mozilla.org/en-US/docs/Web/API/Document/querySelector">MDN Document.querySelector()</a>、<a href="https://html.spec.whatwg.org/multipage/dom.html">WHATWG HTML — Document</a>。</p>
+  <p class="cite">參考：<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/JavaScript_technologies_overview">MDN JavaScript technologies overview</a>、<a href="https://developer.mozilla.org/en-US/docs/Web/API/Document/querySelector">MDN Document.querySelector()</a>、<a href="https://html.spec.whatwg.org/multipage/dom.html">WHATWG HTML — Document</a>。</p>
 
   <nav class="lesson-nav" aria-label="課程導覽">
     <a href="../lessons/0000-browser-runtime-foundation.html">← Lesson 0</a>
