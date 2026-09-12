@@ -9,18 +9,18 @@
 </head>
 <body>
   <h1>How the Browser Knows What You Clicked</h1>
-  <p class="subtitle">Milestone 1 · 先把 browser 原生 click 的因果鏈建立正確，再回到 Faro</p>
+  <p class="subtitle">Milestone 1 · Browser native click → JavaScript callback</p>
 
-  <div class="box ask">
-    <strong>這堂課只回答一件事：</strong><br>
-    Faro 還沒介入以前，使用者點一下畫面後，瀏覽器怎麼知道點到哪個頁面元素，又怎麼讓 JavaScript 收到這件事？
+  <div class="box tip">
+    <strong>這堂課的目標</strong><br>
+    學完後，你應該能從一段 HTML 開始，完整解釋：使用者點下畫面後，Browser 如何決定 target、建立 Event、dispatch Event，最後讓 JavaScript callback 開始執行。
   </div>
 
-  <p>這堂課會刻意把幾個很容易混在一起的東西分開：<strong>HTML、DOM、畫面、JavaScript、Event</strong>。後面所有 Faro click tracking 都建立在這些東西的責任邊界上。</p>
+  <p>這堂課先完全不談 Faro。因為 Faro 能接到 click 的前提，是 Browser 原本就已經有一套 DOM 與 Event 機制。</p>
 
-  <h2>1. 先從最具體的 HTML 開始</h2>
+  <h2>1. HTML 先只是一份文件描述</h2>
 
-  <p>假設宿主應用的 HTML 裡有一顆按鈕：</p>
+  <p>假設頁面原始 HTML 有一顆按鈕：</p>
 
   <pre><code>&lt;main&gt;
   &lt;button id="daily-schedule-button"&gt;
@@ -28,149 +28,142 @@
   &lt;/button&gt;
 &lt;/main&gt;</code></pre>
 
-  <p>這一段首先只是<strong>文字格式的 HTML source</strong>。瀏覽器收到並解析它之後，才會在自己的記憶體裡建立一套可以操作的文件結構：DOM。</p>
+  <p>這段 HTML 首先只是文字。它描述有哪些 element、彼此怎麼巢狀、有哪些 attributes。</p>
 
-  <pre><code>HTML source text
-      │
-      │ 瀏覽器解析
-      ▼
-DOM objects（瀏覽器建立、瀏覽器管理）
-      │
-      │ 再搭配 CSS 做 layout / paint
-      ▼
-使用者看到的畫面</code></pre>
+  <p>但 Browser 後面還需要做更多事，例如：</p>
+
+  <pre><code>找到某個 element
+讀取或修改它的 attribute
+知道它的 parent / child
+把使用者輸入對應到某個 element
+在 element 上處理事件</code></pre>
+
+  <p>因此 Browser 不能只保留原始文字；它需要一份在程式執行期間可以操作的文件模型。</p>
+
+  <h2>2. Browser 解析 HTML，建立 DOM</h2>
+
+  <pre><code>HTML source
+    │
+    │ Browser parses
+    ▼
+DOM runtime model</code></pre>
+
+  <p><strong>DOM（Document Object Model）</strong>可以先理解成：</p>
+
+  <blockquote>Browser 在記憶體中建立並維護的文件物件，以及這些物件之間的關係。</blockquote>
+
+  <p>上面的 HTML 會形成類似下面的階層：</p>
+
+  <pre><code>Document
+└── html
+    └── body
+        └── main
+            └── button
+                id="daily-schedule-button"</code></pre>
+
+  <div class="box">
+    這張圖的<strong>縮排只表示 parent / child hierarchy</strong>。它不是事件流程，也不是執行順序。
+  </div>
+
+  <h2>3. DOM element 為什麼需要是 object？</h2>
+
+  <p>因為 Browser 不只要記住「這裡有一顆 button」，還要讓程式能對它做操作。</p>
+
+  <p>例如對這顆 button，程式可能需要知道：</p>
+
+  <pre><code>它的 id 是什麼？
+它的 parent 是誰？
+它裡面的文字是什麼？
+它有哪些 attributes？
+它有沒有註冊 event listener？</code></pre>
+
+  <p>所以 Browser 在 runtime 中用一個可操作的物件來代表這顆 element。對 HTML <code>&lt;button&gt;</code> 而言，常見的 DOM 介面名稱是 <code>HTMLButtonElement</code>。</p>
+
+  <pre><code>HTML source
+&lt;button id="daily-schedule-button"&gt;...&lt;/button&gt;
+        │
+        │ Browser parses / creates
+        ▼
+DOM runtime object
+HTMLButtonElement</code></pre>
+
+  <p>DOM object 是 Browser 建立與管理的；JavaScript 可以透過 Browser 提供的 DOM API 取得它的 <strong>reference</strong>。</p>
+
+  <h2>4. JavaScript 如何取得某顆 DOM object？</h2>
+
+  <p>HTML 可以替 element 設定一個作者自行命名的 <code>id</code>：</p>
+
+  <pre><code>&lt;button id="daily-schedule-button"&gt;...&lt;/button&gt;</code></pre>
+
+  <p>JavaScript 可以透過 DOM API 查詢：</p>
+
+  <pre><code>const button = document.querySelector('#daily-schedule-button')</code></pre>
+
+  <p>這裡有兩個角色：</p>
 
   <div class="table-wrap">
     <table>
-      <thead><tr><th>東西</th><th>這堂課的精確理解</th></tr></thead>
+      <thead><tr><th>名稱</th><th>意思</th></tr></thead>
       <tbody>
-        <tr><td>HTML source</td><td>原始標記文字，例如 <code>&lt;button&gt;...&lt;/button&gt;</code>。</td></tr>
-        <tr><td>DOM</td><td>瀏覽器根據文件建立並維護的一組物件，以及這些物件之間的 tree 關係。</td></tr>
-        <tr><td>Rendered 畫面</td><td>瀏覽器依 DOM、CSS、layout、paint 等流程真正顯示出的像素結果。</td></tr>
-        <tr><td>JavaScript</td><td>可以透過瀏覽器提供的 DOM API 取得這些 DOM objects 的 reference，然後讀取或操作它們。</td></tr>
+        <tr><td><code>document</code></td><td>目前文件的 <code>Document</code> DOM object。</td></tr>
+        <tr><td><code>#daily-schedule-button</code></td><td>CSS selector，表示找 <code>id="daily-schedule-button"</code> 的 element。</td></tr>
       </tbody>
     </table>
   </div>
 
-  <h2>2. 為什麼又叫「object」？DOM 不是瀏覽器在管嗎？</h2>
+  <p>查詢成功後，<code>button</code> 變數裡不是 HTML 原始文字，而是那顆 DOM object 的 reference。</p>
 
-  <p><strong>對，DOM 就是瀏覽器建立與管理的。</strong>「DOM object」不是在說「這是 JavaScript 自己創造的物件」。</p>
+  <h2>5. 使用者點下去時，先收到輸入的是 Browser</h2>
 
-  <p>這裡的 object 只是說：瀏覽器在記憶體裡，用一個有資料、有方法、彼此有關係的程式物件來代表頁面上的元素。</p>
+  <p>現在畫面已經 render 出來。使用者用滑鼠、觸控板或手指點下某個位置。</p>
 
-  <pre><code>HTML 裡：
-&lt;button id="daily-schedule-button"&gt;每日生產排程&lt;/button&gt;
+  <pre><code>User input
+    │ received by
+    ▼
+Browser</code></pre>
 
-瀏覽器解析後：
-建立一個代表這顆 button 的 DOM object
-型別／介面名稱可以看到：HTMLButtonElement</code></pre>
+  <p>Browser 必須把這次輸入和目前畫面、layout、DOM 對應起來，判斷這次互動指向哪個 element。</p>
 
-  <div class="box tip">
-    <strong>不要把它理解成「DOM 變成 JavaScript object」。</strong><br>
-    比較正確的是：<strong>瀏覽器本來就建立了一個 DOM object；JavaScript 只是拿到它的 reference。</strong>
-  </div>
+  <p>假設判定結果是那顆 button：</p>
 
-  <p>那為什麼不叫「HTML object」？因為 HTML 是輸入文件的標記語言；DOM 是瀏覽器解析文件後提供給程式操作的 object model。<code>HTMLButtonElement</code> 這個名稱表示「這是一個對應 HTML button element 的 DOM 介面／物件型別」，不是另一種叫做「HTML object」的東西。</p>
-
-  <pre><code>HTML 標記                       DOM 中對應的物件
-&lt;button&gt;...&lt;/button&gt;   ─────►   HTMLButtonElement
-
-左邊：文件中的標記
-右邊：瀏覽器記憶體中的 DOM object</code></pre>
-
-  <h2>3. <code>id</code> 與 <code>#daily-schedule-button</code> 到底是什麼？</h2>
-
-  <p><code>daily-schedule-button</code> 沒有任何特殊意義。它只是這份範例 HTML 的作者替按鈕取的一個 <code>id</code>。</p>
-
-  <pre><code>&lt;button id="daily-schedule-button"&gt;每日生產排程&lt;/button&gt;
-               ↑
-        只是作者取的 id 名稱</code></pre>
-
-  <p>而前面的 <code>#</code> 是 CSS selector 語法：</p>
-
-  <pre><code>#daily-schedule-button
-↑
-表示：找 id="daily-schedule-button" 的 element</code></pre>
-
-  <p>因此 JavaScript 可以寫：</p>
-
-  <pre><code>const button = document.querySelector('#daily-schedule-button')</code></pre>
-
-  <p>意思不是「找一個叫 schedule 的特殊 browser 東西」，而只是：</p>
-
-  <blockquote>從目前文件的 DOM tree 裡，找出 id 等於 <code>daily-schedule-button</code> 的那顆 DOM element。</blockquote>
-
-  <h2>4. <code>document</code> 是目前頁面的 Document object</h2>
-
-  <p>頁面 JavaScript 裡的 <code>document</code>，指向「目前這份 HTML 文件」所對應的 <code>Document</code> DOM object。</p>
-
-  <p>下面是<strong>一棵階層樹，不是四個平行物件</strong>。每往下一層，就是上一層的 child：</p>
-
-  <pre><code>Document                     ← 最外層
-└── html                     ← Document 的 child
-    └── body                 ← html 的 child
-        └── main             ← body 的 child
-            └── button       ← main 的 child
-                id="daily-schedule-button"</code></pre>
-
-  <div class="box tip">
-    <strong>讀 tree 的方法：</strong><br>
-    <code>button</code> 在 <code>main</code> 裡，<code>main</code> 在 <code>body</code> 裡，<code>body</code> 在 <code>html</code> 裡。縮排代表「包含／父子關係」，不是流程箭頭。
-  </div>
-
-  <p>所以：</p>
-
-  <pre><code>document.querySelector('#daily-schedule-button')</code></pre>
-
-  <p>就是從目前 <code>Document</code> 的 DOM tree 找到那顆 button DOM object，並把它的 reference 交給 JavaScript。</p>
-
-  <h2>5. 使用者真的點下去：先動的是瀏覽器，不是 JavaScript</h2>
-
-  <p>當使用者用滑鼠或手指點擊時，JavaScript 並不是一直輪詢畫面問「有人點了嗎？」。</p>
-
-  <p>簡化後的因果鏈是：</p>
-
-  <pre><code>使用者產生滑鼠／觸控輸入
+  <pre><code>Browser determines
         │
         ▼
-瀏覽器先收到輸入
-        │
-        ▼
-瀏覽器判斷這個位置對應哪個 DOM element
-        │
-        ▼
-瀏覽器決定這次 click 的 target
-        │
-        ▼
-瀏覽器建立 click Event object</code></pre>
+button DOM object = event target</code></pre>
 
-  <p>例如這次真的點到那顆按鈕：</p>
+  <p>這個最初被 Browser 判定為事件對象的 DOM object，就是 <strong>target</strong>。</p>
+
+  <h2>6. Browser 為這次互動建立 Event object</h2>
+
+  <p>知道 target 後，Browser 會建立一個代表這次 runtime 事件的 Event object。</p>
+
+  <pre><code>Click Event
+├── type = "click"
+└── target ─────► button DOM object</code></pre>
+
+  <p>因此 callback 裡若收到一個 <code>event</code>：</p>
 
   <pre><code>event.type
-→ "click"
+// "click"
 
 event.target
-→ 那顆 button DOM object</code></pre>
+// reference to the button DOM object</code></pre>
 
-  <div class="box">
-    <strong><code>event.target</code> 不是「誰創造了 Event」。</strong><br>
-    Event 是瀏覽器建立的；<code>target</code> 表示瀏覽器判定「這次 Event 最初指向哪個 DOM object」。
+  <p>這裡要分清楚兩種 object：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Object</th><th>代表什麼</th></tr></thead>
+      <tbody>
+        <tr><td>button DOM object</td><td>頁面上的 button element 在 DOM runtime model 中的表示。</td></tr>
+        <tr><td>click Event object</td><td>這一次 click 互動本身的 runtime 資料。</td></tr>
+      </tbody>
+    </table>
   </div>
 
-  <h2>6. Event object 不等於 Faro telemetry</h2>
+  <h2>7. JavaScript 先登記 listener</h2>
 
-  <p>此時存在的是 browser 原生的 <code>Event</code> object。它是瀏覽器在處理這次互動時使用的 runtime 資料。</p>
-
-  <pre><code>Browser Event object
-- type = "click"
-- target = button DOM object
-- bubbles = ...
-- eventPhase = ...
-- ...</code></pre>
-
-  <p>它不會因為存在就自動變成可在 Grafana / OpenSearch 查詢的 click history。要成為 telemetry，後面還需要 Faro 的程式讀取、轉換並送出。</p>
-
-  <h2>7. JavaScript 先登記 callback，不是事後去「抓 Event」</h2>
+  <p>JavaScript 不需要不停輪詢「現在有沒有 click」。它可以先告訴 Browser：未來發生符合條件的事件時，請呼叫哪個 function。</p>
 
   <pre><code>function handleClick(event) {
   console.log(event.target)
@@ -178,34 +171,25 @@ event.target
 
 document.addEventListener('click', handleClick)</code></pre>
 
-  <p>這段程式現在做的事情是：</p>
+  <p>這行程式是在 <code>document</code> 上建立一筆 listener registration：</p>
 
-  <pre><code>在 document 這個 EventTarget 上登記：
+  <pre><code>EventTarget = document
+event type  = click
+callback    = handleClick</code></pre>
 
-- event type = "click"
-- callback   = handleClick
-- capture    = false（預設）</code></pre>
+  <p>此時未來那次 click 還沒有發生。只是先把 callback 登記給 Browser。</p>
 
-  <p><strong>這時候還沒有未來那次 click Event。</strong>只是先把「以後遇到 click 時要呼叫哪個函式」登記給瀏覽器。</p>
+  <h2>8. Browser dispatch Event</h2>
 
-  <div class="box tip">
-    <strong>Callback 的控制方向：</strong><br>
-    JavaScript 先把 <code>handleClick</code> 這個函式交給瀏覽器；真正 click 發生後，是瀏覽器在適當時機主動呼叫 <code>handleClick(event)</code>。
-  </div>
-
-  <h2>8. 瀏覽器接著 dispatch Event</h2>
-
-  <p>知道 <code>target = button</code> 只回答「這次 click 指向誰」。瀏覽器還需要沿著這顆 target 所在的 DOM 階層，決定哪些已登記的 listeners 要被呼叫、順序是什麼。這個過程叫做 <strong>event dispatch（事件分派）</strong>。</p>
-
-  <p>先看 DOM 階層：</p>
+  <p>當 click 真正發生，target 已經確定，Event object 也已建立。接下來 Browser 會沿著 target 所在的 DOM hierarchy 處理這次 Event，這個過程叫做 <strong>event dispatch</strong>。</p>
 
   <pre><code>Document
 └── html
     └── body
         └── main
-            └── button  ← event.target 已經確定</code></pre>
+            └── button ← target</code></pre>
 
-  <p>然後才是同一次 Event dispatch 的三個 phase：</p>
+  <p>同一次 dispatch 可以分成三個 phase：</p>
 
   <pre><code>Capture phase
 Document → html → body → main → button
@@ -216,177 +200,115 @@ button
 Bubble phase
 main → body → html → Document</code></pre>
 
-  <div class="box">
-    <strong>兩個非常重要的邊界：</strong><br>
-    ① Capture 開始以前，target 已經知道了；Capture 不是拿來一路找 target。<br>
-    ② Bubble 是從 target 的 parent 往外處理 ancestors；button 自己不會因為進入 Bubble 就自動再執行一次同一個 listener。
+  <p>一般 <code>click</code> 會 bubble。因此，如果 listener 註冊在 <code>document</code> 且沒有使用 capture，descendant button 的 click 可以在 Bubble phase 抵達 <code>document</code>。</p>
+
+  <div class="box tip">
+    target 在 dispatch 開始前就已經決定。Capture / Target / Bubble 描述的是<strong>同一個 Event 要怎麼沿 event path 被處理</strong>，不是用來尋找 target。
   </div>
 
-  <h2>9. Listener 什麼時候真的執行？</h2>
+  <h2>9. Browser 找到 listener，呼叫 callback</h2>
 
-  <p>當 dispatch 走到某個 EventTarget 時，瀏覽器會檢查那裡有沒有符合這次 Event type 與 phase 條件的 listener registration。</p>
+  <p>當 dispatch 到達符合的 listener registration，Browser 會呼叫先前登記的 callback，並把這次 Event object 當參數傳入。</p>
 
-  <p>例如先前登記的是：</p>
+  <pre><code>Browser dispatch
+      │ finds matching listener
+      ▼
+handleClick(event)
+            ▲
+            │ Browser passes Event object</code></pre>
 
-  <pre><code>document.addEventListener('click', handleClick)</code></pre>
+  <p>此時 JavaScript engine 才開始執行 callback body：</p>
 
-  <p>它是 document 上的 non-capture listener。對 descendant button 的一般 bubbling click 而言，Event 在 Target phase 處理完 button 後往 ancestor bubble，最後抵達 document；這時瀏覽器找到登記好的 callback，主動執行：</p>
+  <pre><code>function handleClick(event) {
+  console.log(event.target)
+}</code></pre>
 
-  <pre><code>handleClick(event)
-            ↑
-     瀏覽器把本次 Event object
-     當參數傳進 callback</code></pre>
-
-  <p>所以完整控制流不是：</p>
-
-  <pre><code>JavaScript 不停找 click  ✗</code></pre>
-
-  <p>而是：</p>
-
-  <pre><code>JavaScript 先登記 callback
-        ↓
-未來使用者 click
-        ↓
-Browser 建立 Event
-        ↓
-Browser dispatch Event
-        ↓
-Browser 找到符合的 listener registration
-        ↓
-Browser 呼叫 callback(event)
-        ↓
-JavaScript engine 執行 callback 裡的程式</code></pre>
-
-  <h2>10. 把 Lesson 1 的整條因果鏈串起來</h2>
-
-  <figure class="diagram">
-    <figcaption>
-      <strong>Faro 尚未介入以前</strong><br>
-      <span class="diagram-caption-note">這裡的箭頭表示「下一個因果步驟」，不是 DOM parent/child 關係。</span>
-    </figcaption>
-
-    <div class="diagram-flow">
-      <div class="diagram-node app">
-        <span class="node-kicker">使用者</span>
-        <span class="node-name">Click</span>
-        <span class="node-note">產生實體輸入</span>
-      </div>
-      <div class="diagram-connector"><div class="connector-line"></div></div>
-      <div class="diagram-node provider">
-        <span class="node-kicker">瀏覽器</span>
-        <span class="node-name">決定 target</span>
-        <span class="node-note">對應到 DOM element</span>
-      </div>
-      <div class="diagram-connector"><div class="connector-line"></div></div>
-      <div class="diagram-node provider">
-        <span class="node-kicker">瀏覽器</span>
-        <span class="node-name">建立＋分派 Event</span>
-        <span class="node-note">沿 event path 處理 listeners</span>
-      </div>
-      <div class="diagram-connector"><div class="connector-line"></div></div>
-      <div class="diagram-node processor">
-        <span class="node-kicker">JavaScript</span>
-        <span class="node-name">callback(event)</span>
-        <span class="node-note">開始執行你的程式邏輯</span>
-      </div>
-    </div>
-  </figure>
+  <h2>10. 完整因果鏈</h2>
 
   <pre><code>HTML source
-  → Browser 建立／管理 DOM objects
+    │ Browser parses
+    ▼
+DOM runtime model
+    │ Browser renders
+    ▼
+Visible page
 
-使用者 click
-  → Browser 收到輸入
-  → Browser 決定 DOM target
-  → Browser 建立 click Event object
-  → Browser dispatch Event
-  → 找到相符 listener registration
-  → Browser 呼叫 callback(event)
-  → JavaScript 在 callback 中讀 event.target</code></pre>
+User clicks
+    │ input received by
+    ▼
+Browser
+    │ determines
+    ▼
+DOM target
+    │ creates
+    ▼
+Event object
+    │ dispatches through
+    ▼
+Event path
+    │ reaches matching listener
+    ▼
+Browser calls callback(event)
+    │
+    ▼
+JavaScript executes</code></pre>
 
-  <h2>11. Faro 會從哪裡接手？</h2>
+  <h2>11. 這和 Faro 的交界在哪裡？</h2>
 
-  <p>到這裡都還是瀏覽器原生事件機制。Lesson 2 才把 Faro 接進來：</p>
+  <p>到目前為止都還是 Browser 原生機制。</p>
 
-  <pre><code>Browser click Event
-        ↓
-document 上事先登記的 Faro listener
-        ↓
-ClickInstrumentation.handleClick(event)
-        ↓
-從 DOM 讀 data-* 等 telemetry semantic
-        ↓
-Faro pushEvent(...)</code></pre>
+  <p>Faro click tracking 真正能介入的位置，是它自己先註冊一個 listener：</p>
 
-  <p>下一堂真正要回答的是：</p>
+  <pre><code>Browser Event
+    │ dispatch
+    ▼
+document listener
+    │ Browser calls
+    ▼
+ClickInstrumentation callback</code></pre>
 
-  <blockquote>ClickInstrumentation 拿到 browser Event 後，怎麼從 target / ancestors 找資料，又怎麼把它轉成 Faro telemetry？</blockquote>
+  <p>Lesson 2 就從這個 callback 開始，往下追它如何把 Browser Event 轉成 Faro telemetry。</p>
 
-  <h2>自我檢查</h2>
+  <h2>Self-check</h2>
 
-  <div class="quiz" data-quiz>
-    <div class="question">Q1. DOM object 是誰建立與管理的？</div>
-    <div class="choices">
-      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。瀏覽器建立／管理 DOM；JavaScript 透過 DOM API 取得 reference。">瀏覽器建立與管理，JavaScript 可以取得 reference 並操作</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ JavaScript 可以操作 DOM，但不是因為 DOM 是由 JavaScript 建立。">JavaScript 讀到 HTML 後自己建立</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ HTML source 是標記文字，不是 runtime DOM object。">HTML 原始文字本身就是 DOM object</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
-  </div>
+  <details>
+    <summary>1. HTML source、DOM、JavaScript reference 三者的關係是什麼？</summary>
+    <p>Browser 解析 HTML source，建立並管理 DOM runtime objects；JavaScript 透過 DOM API 取得這些 objects 的 reference。</p>
+  </details>
 
-  <div class="quiz" data-quiz>
-    <div class="question">Q2. <code>#daily-schedule-button</code> 的 <code>#</code> 代表什麼？</div>
-    <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ 這不是 Event type。">這是一種 click Event 名稱</button>
-      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。這是 selector 語法，表示選 id 為 daily-schedule-button 的 element。">CSS selector 語法，表示找指定 id 的 element</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ 名稱是範例作者自己取的。">瀏覽器保留的特殊 schedule API</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
-  </div>
+  <details>
+    <summary>2. <code>event.target</code> 指的是什麼？</summary>
+    <p>Browser 對這次 Event 判定的最初 DOM target object。</p>
+  </details>
 
-  <div class="quiz" data-quiz>
-    <div class="question">Q3. 使用者 click 後，<code>handleClick(event)</code> 為什麼會執行？</div>
-    <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ JavaScript 並不是一直 polling DOM 找 click。">JavaScript 一直輪詢 DOM，看到 click 後自己呼叫</button>
-      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。callback 先被登記；瀏覽器 dispatch Event 時找到它並呼叫。">callback 先被登記，瀏覽器 dispatch Event 時找到它並呼叫</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ Faro 在 Lesson 1 還沒介入。">Faro 先收到 click，再要求瀏覽器執行 callback</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
-  </div>
+  <details>
+    <summary>3. callback 是誰呼叫的？</summary>
+    <p>JavaScript 先登記 callback；事件發生後，由 Browser 的 event dispatch 機制在適當時機呼叫 callback，並傳入 Event object。</p>
+  </details>
 
-  <div class="quiz" data-quiz>
-    <div class="question">Q4. Bubble phase 開始時，哪個敘述正確？</div>
-    <div class="choices">
-      <button class="choice" data-correct="true" data-feedback-correct="✓ 正確。target 已在前面確定並完成 Target phase；Bubble 接著處理 ancestors。">target 已確定；接著從 target 的 parent 往外處理 ancestors</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ target 在 dispatch 以前就已經決定。">瀏覽器這時才開始尋找 target</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="✗ Bubble 不會讓 target 自己的同一個 listener 自動重跑。">target 的同一個 listener 會再執行一次</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
-  </div>
+  <details>
+    <summary>4. Capture phase 是拿來找 target 嗎？</summary>
+    <p>不是。target 在 dispatch 開始前就已確定；Capture / Target / Bubble 是 Event 沿 event path 被處理的階段。</p>
+  </details>
 
   <h2>Recap</h2>
+
   <ul>
-    <li>HTML source、DOM objects、rendered 畫面是不同層次。</li>
-    <li>DOM object 是瀏覽器建立與管理；JavaScript 取得的是它的 reference。</li>
-    <li><code>HTMLButtonElement</code> 是 button 對應的 DOM 介面／物件型別，不代表存在另一種「HTML object」。</li>
-    <li><code>id="daily-schedule-button"</code> 是範例作者取的識別名稱；<code>#daily-schedule-button</code> 是 selector。</li>
-    <li>DOM tree 的縮排代表 parent / child hierarchy，不是流程。</li>
-    <li>click Event 是瀏覽器建立的；<code>event.target</code> 是瀏覽器判定這次 Event 最初指向的 DOM object。</li>
-    <li>JavaScript 先登記 callback；Browser dispatch Event 時才主動呼叫 callback。</li>
-    <li>Capture / Target / Bubble 是同一次 Event dispatch 的不同階段；target 在這些 phase 開始以前就已確定。</li>
-    <li>Bubble 從 target 的 parent 往外走，不會讓 target 的同一個 listener 自動再跑一次。</li>
-    <li>Browser Event object 不等於 Faro telemetry。</li>
+    <li>HTML 是文件描述；Browser 解析後建立 DOM runtime model。</li>
+    <li>DOM object 由 Browser 建立與管理；JavaScript 取得的是 reference。</li>
+    <li>使用者輸入先進 Browser，由 Browser 決定這次 Event 的 target。</li>
+    <li>Browser 建立 Event object，其中 <code>event.target</code> reference 到 target DOM object。</li>
+    <li>JavaScript 用 <code>addEventListener()</code> 先登記 callback。</li>
+    <li>Browser dispatch Event；一般 click 可從 target 往 ancestors bubble。</li>
+    <li>dispatch 到符合的 listener 時，Browser 呼叫 <code>callback(event)</code>。</li>
   </ul>
 
-  <p class="cite">
-    主線來源：<a href="../source-documents/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a>。Browser prerequisite 詳解可回看 <a href="../reference/0001-dom-document-event-dispatch.html">Reference｜DOM、document 與事件分派</a> 與 <a href="../reference/0002-callback-function.html">Reference｜Callback 到底是什麼</a>。
-  </p>
+  <div class="box ask">
+    如果其中任何一步還不能自己重建因果鏈，先停在這裡問我。Lesson 2 會直接依賴這個模型。
+  </div>
 
-  <nav class="lesson-nav" aria-label="課程導覽">
-    <a href="../learning-map/index.html">← Learning Map</a>
-    <a href="0002-faro-click-instrumentation.html">Lesson 2｜How ClickInstrumentation Handles Browser Clicks →</a>
-  </nav>
-
-  <script src="../assets/quiz.js"></script>
+  <p><a href="../reference/0001-dom-document-event-dispatch.html">Reference：DOM / Document / Event Dispatch</a></p>
+  <p><a href="../reference/0002-callback-function.html">Reference：Callback Function</a></p>
+  <p><a href="0002-faro-click-instrumentation.html">Next: Lesson 2｜How ClickInstrumentation Handles Browser Clicks →</a></p>
 </body>
 </html>
