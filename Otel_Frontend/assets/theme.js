@@ -1,12 +1,26 @@
 (() => {
   const script = document.currentScript;
-  if (script?.src && !document.querySelector('link[data-mobile-learning-style]')) {
+
+  function ensureStylesheet(fileName, marker) {
+    if (!script?.src || document.querySelector(`link[${marker}]`)) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = new URL('mobile.css', script.src).href;
-    link.dataset.mobileLearningStyle = 'true';
+    link.href = new URL(fileName, script.src).href;
+    link.setAttribute(marker, 'true');
     document.head.appendChild(link);
   }
+
+  function ensureScript(fileName, marker) {
+    if (!script?.src || document.querySelector(`script[${marker}]`)) return;
+    const assetScript = document.createElement('script');
+    assetScript.src = new URL(fileName, script.src).href;
+    assetScript.setAttribute(marker, 'true');
+    document.head.appendChild(assetScript);
+  }
+
+  ensureStylesheet('mobile.css', 'data-mobile-learning-style');
+  ensureStylesheet('code-highlight.css', 'data-code-highlight-style');
+  ensureScript('code-highlight.js', 'data-code-highlight-script');
 
   const key = "learning-theme";
   const root = document.documentElement;
