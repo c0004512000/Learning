@@ -1,0 +1,44 @@
+/* Shared syntax highlighting for lesson code blocks. */
+:root {
+  --syntax-keyword: #7d2aa8;
+  --syntax-function: #075fa8;
+  --syntax-string: #2f7133;
+  --syntax-comment: #737373;
+  --syntax-number: #9a4f00;
+  --syntax-literal: #9a3e63;
+  --syntax-property: #7d531d;
+  --syntax-operator: #616161;
+}
+
+:root[data-theme="dark"] {
+  --syntax-keyword: #c792ea;
+  --syntax-function: #82aaff;
+  --syntax-string: #c3e88d;
+  --syntax-comment: #8f98a8;
+  --syntax-number: #f78c6c;
+  --syntax-literal: #ff9cac;
+  --syntax-property: #ffcb6b;
+  --syntax-operator: #89ddff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --syntax-keyword: #c792ea;
+    --syntax-function: #82aaff;
+    --syntax-string: #c3e88d;
+    --syntax-comment: #8f98a8;
+    --syntax-number: #f78c6c;
+    --syntax-literal: #ff9cac;
+    --syntax-property: #ffcb6b;
+    --syntax-operator: #89ddff;
+  }
+}
+
+.syntax-highlighted .syntax-keyword { color: var(--syntax-keyword); font-weight: 600; }
+.syntax-highlighted .syntax-function { color: var(--syntax-function); }
+.syntax-highlighted .syntax-string { color: var(--syntax-string); }
+.syntax-highlighted .syntax-comment { color: var(--syntax-comment); font-style: italic; }
+.syntax-highlighted .syntax-number { color: var(--syntax-number); }
+.syntax-highlighted .syntax-literal { color: var(--syntax-literal); }
+.syntax-highlighted .syntax-property { color: var(--syntax-property); }
+.syntax-highlighted .syntax-operator { color: var(--syntax-operator); }
