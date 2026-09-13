@@ -10,7 +10,7 @@
 </head>
 <body>
   <h1>User, Device, and Environment Context</h1>
-  <p class="subtitle">Milestone 2 · 同一筆 telemetry 的背景資料，到底是誰知道、誰更新、誰寫進 Faro</p>
+  <p class="subtitle">Milestone 2 · 同一筆 telemetry 的背景資料，誰提供、何時更新、Faro 怎麼使用</p>
 
   <div class="box tip">
     <strong>這堂課的目標</strong><br>
@@ -166,7 +166,7 @@ user id changed?
 
   <pre><code>enableDeviceTypeDetection: true</code></pre>
 
-  <p>一旦開啟，目前 package 的判定規則只有兩個來源。</p>
+  <p>一旦明確開啟，目前 package 的判定規則只有兩個來源。</p>
 
   <h3>第一步：頁面剛啟動時</h3>
 
@@ -247,7 +247,7 @@ meta.device.type         ← device detector 決定</code></pre>
 
   <p>package 不會自己看 Kubernetes namespace、網址或 <code>window.location</code> 然後猜這是哪個環境。</p>
 
-  <p>目前 verified source 至少證實 <code>environment</code> 會被拿去做 collector URL resolution：</p>
+  <p>目前 verified source 至少證實 <code>environment</code> 會被拿去做 collector URL resolution。這裡的 collector URL 先理解成：Browser 要把 Faro 資料送往的接收 URL；HTTP 與 CORS 細節會留到 Lesson 5。</p>
 
   <pre><code>environment
   │ lookup by package
@@ -274,7 +274,7 @@ meta.device.type         ← device detector 決定</code></pre>
 
   <div class="box ask">
     <strong>Evidence boundary</strong><br>
-    目前 source evidence 已能證實 environment 是 required init config，而且會決定 collector URL。Learning repo 尚未保存「每一筆 Browser request 中 environment 最終序列化在哪個 payload/meta 欄位」的 runtime sample；這會在 Lesson 5 用 Browser Network / payload evidence 驗證，不在這裡把未取樣結果寫成既成事實。
+    目前 source evidence 已能證實 environment 是 required init config，而且會決定 collector URL。Learning repo 尚未保存一筆 Browser request，直接證明 environment 在實際送出的資料裡最後長在哪個欄位；這會在 Lesson 5 用 Browser Network / payload evidence 驗證，不在這裡把未觀察結果寫成既成事實。
   </div>
 
   <h2>7. Foreman 與 Jeter：同一個 package，宿主資料來源可以完全不同</h2>
@@ -350,10 +350,10 @@ DOM data-* ─→ ClickInstrumentation ─→ click payload</code></pre>
   <div class="quiz" data-quiz>
     <div class="question">Q1. 為什麼 package 要讓宿主應用提供 <code>getUser()</code>？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="Device type 是另一條 detector 路徑。">讓 package 判斷 device type</button>
-      <button class="choice" data-correct="true" data-feedback-correct="登入資料放在哪裡是宿主應用自己的知識，因此 package 透過 callback 取得。">取得宿主應用目前的 user</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Collector URL 主要由 environment resolution 決定。">計算目前的 collector URL</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Click attribute 是 ClickInstrumentation 從 DOM 讀取。">讀取 DOM 的 click attribute</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Device type 是另一條 detector 路徑。">判斷 當前 裝置 類型</button>
+      <button class="choice" data-correct="true" data-feedback-correct="登入資料放在哪裡是宿主應用自己的知識，因此 package 透過 callback 取得。">取得 當前 使用者 狀態</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Collector URL 主要由 environment resolution 決定。">解析 當前 collector URL</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Click attribute 是 ClickInstrumentation 從 DOM 讀取。">讀取 當前 click 屬性</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
@@ -372,10 +372,10 @@ DOM data-* ─→ ClickInstrumentation ─→ click payload</code></pre>
   <div class="quiz" data-quiz>
     <div class="question">Q3. 下列哪個敘述最符合 Lesson 4 的資料路徑？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="User 不需要從 DOM data-* 取得。">User 從 click target 的 data-* 讀取</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Device meta 不是 trackAttributes 的 click payload。">Device 由 trackAttributes 建立 payload</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Environment 是 initFaro 的 required config，不是 Browser 自動猜測。">Environment 由 Browser 自動辨識</button>
-      <button class="choice" data-correct="true" data-feedback-correct="三種 context 的來源與 lifecycle 不同，package 只統一 integration contract。">Context 各有自己的來源與 lifecycle</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="User 不需要從 DOM data-* 取得。"><code>User</code> 由 DOM 屬性 提供</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Device meta 不是 trackAttributes 的 click payload。"><code>Device</code> 由 click payload 提供</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Environment 是 initFaro 的 required config，不是 Browser 自動猜測。"><code>Environment</code> 由 Browser 自動 提供</button>
+      <button class="choice" data-correct="true" data-feedback-correct="三種 context 的來源與 lifecycle 不同，package 只統一 integration contract。"><code>Context</code> 由 各自 來源 提供</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
@@ -383,10 +383,10 @@ DOM data-* ─→ ClickInstrumentation ─→ click payload</code></pre>
   <div class="quiz" data-quiz>
     <div class="question">Q4. stage telemetry 疑似送到錯的 Faro receiver，第一個最合理的檢查點是什麼？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="data-link-name 只影響 click payload extraction。">DOM 的 data-link-name</button>
-      <button class="choice" data-correct="true" data-feedback-correct="environment 會參與 collector URL resolution，先確認宿主應用實際傳入值。"><code>initFaro()</code> 的 environment</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="getUser() 決定 user state，不決定 receiver endpoint。"><code>getUser()</code> 的回傳值</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="pointerType 只會更新 device type。">最近一次 pointerType</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="data-link-name 只影響 click payload extraction。">檢查 DOM data-link-name 設定</button>
+      <button class="choice" data-correct="true" data-feedback-correct="environment 會參與 collector URL resolution，先確認宿主應用實際傳入值。">檢查 initFaro environment 設定</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="getUser() 決定 user state，不決定 receiver endpoint。">檢查 getUser 回傳 user</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="pointerType 只會更新 device type。">檢查 pointerType 最近 input</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
@@ -397,14 +397,14 @@ DOM data-* ─→ ClickInstrumentation ─→ click payload</code></pre>
     <li><strong>Context</strong> 是描述 telemetry 發生背景的資料；User、Device、Environment 不等於 Lesson 2 的 click payload。</li>
     <li><strong>User</strong> 的真實來源由宿主應用掌握；package 透過 <code>getUser()</code> callback 取得並同步到 Faro user state。</li>
     <li><strong>User lifecycle</strong> 不是只讀一次；初始化後會立即同步，之後在 click、visibilitychange、storage 等時機重新檢查 user id。</li>
-    <li><strong>Device</strong> 需要宿主應用明確 opt in；起始值看 <code>maxTouchPoints</code>，之後由 <code>pointerType</code> 動態更新。</li>
+    <li><strong>Device</strong> 需要宿主應用明確開啟；起始值看 <code>maxTouchPoints</code>，之後由 <code>pointerType</code> 動態更新。</li>
     <li><strong>Device meta</strong> 透過 Faro meta 路徑提供，不是由 DOM <code>data-*</code> 建立的 click payload。</li>
     <li><strong>Environment</strong> 是宿主應用在 <code>initFaro()</code> 提供的 required config，並參與 collector URL resolution。</li>
     <li><strong>責任邊界</strong>：宿主應用提供它才知道的 business/deployment truth；共用 package 統一同步、偵測與 Faro integration 機制。</li>
     <li><strong>Debug</strong> 時先判斷資料走哪一條路，再檢查對應來源；不要把 user、device、environment 都當成 ClickInstrumentation 欄位。</li>
   </ul>
 
-  <p class="cite">主要 verified evidence：<code>faro-click-tracking</code> release line commit <code>937d4a32e725877188a8d8a223529dece0449d4d</code> 的 <code>userSync.ts:5-71</code>、<code>deviceTypeDetector.ts:5-75</code>、<code>environmentUrls.ts:4-45</code>、<code>initFaro.ts:13-146</code>；Foreman <code>main</code> commit <code>4e032babef7aa30e5d13d7a506abe208945a5dee</code>；Jeter <code>dev</code> commit <code>3edd27eb44ac2af13d5c987f68e2be232aa0f6dd</code>。Runtime user PII 與每一筆 meta delivery 未取樣，因此本課不把未觀察到的 serialized payload 細節當成事實。</p>
+  <p class="cite">主要 verified evidence：<code>faro-click-tracking</code> release line commit <code>937d4a32e725877188a8d8a223529dece0449d4d</code> 的 <code>userSync.ts:5-71</code>、<code>deviceTypeDetector.ts:5-75</code>、<code>environmentUrls.ts:4-45</code>、<code>initFaro.ts:13-146</code>；Foreman <code>main</code> commit <code>4e032babef7aa30e5d13d7a506abe208945a5dee</code>；Jeter <code>dev</code> commit <code>3edd27eb44ac2af13d5c987f68e2be232aa0f6dd</code>。可識別個人的 runtime user data 與每一筆 meta delivery 未取樣，因此本課不把未觀察到的 Browser request 細節當成事實。</p>
 
   <div class="box ask">
     <strong>有哪一段不確定？</strong><br>
