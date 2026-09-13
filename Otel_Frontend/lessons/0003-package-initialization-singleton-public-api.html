@@ -6,467 +6,304 @@
   <title>Lesson 3｜Package Initialization, Singleton, and Public API</title>
   <link rel="stylesheet" href="../assets/style.css">
   <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js" defer></script>
 </head>
 <body>
   <h1>Package Initialization, Singleton, and Public API</h1>
-  <p class="subtitle">Milestone 2 · 宿主應用 → faro-click-tracking → Grafana Faro SDK</p>
+  <p class="subtitle">Milestone 2 · 宿主應用 → 公司套件 → Grafana Faro SDK</p>
 
   <div class="box tip">
     <strong>這堂課的目標</strong><br>
-    學完後，你應該能從宿主應用呼叫 <code>initFaro(config)</code> 開始，一路解釋套件如何建立 Faro runtime、為什麼要保存唯一的 Faro instance、為什麼重複初始化必須被阻止，以及 public API 與套件內部 helper 的責任邊界。
+    從 Foreman Assistant 呼叫 <code>initFaro()</code> 開始，理解 ClickInstrumentation 是怎麼被建立並啟動的、Faro instance 為什麼需要被保存，以及為什麼第二次初始化會被擋掉。
   </div>
 
-  <p>Lesson 2 已經追到 ClickInstrumentation 的內部：</p>
+  <div class="box ask">
+    <strong>本課 References</strong><br>
+    <a href="0002-faro-click-instrumentation.html">Lesson 2：ClickInstrumentation 如何處理 click →</a><br>
+    <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking lifecycle evidence →</a><br>
+    <a href="../sources/evidence/foreman-integration.md">Foreman Assistant integration evidence →</a>
+  </div>
+
+  <p>Lesson 2 是從一個已經存在的 ClickInstrumentation 往內看：</p>
 
   <pre><code>Browser click
-  → document listener
-  → ClickInstrumentation.handleClick(event)
-  → build payload
-  → api.pushEvent('click', payload)</code></pre>
+    ↓
+ClickInstrumentation.handleClick(event)
+    ↓
+api.pushEvent('click', payload)</code></pre>
 
-  <p>但還有一個更上游的問題：</p>
+  <p>現在往上追一層：</p>
 
-  <blockquote>這個 ClickInstrumentation 到底是誰建立、誰啟動，裡面的 <code>api</code> 又從哪裡來？</blockquote>
+  <blockquote>頁面剛啟動時，誰把 ClickInstrumentation 建起來？它又怎麼拿到 Faro 的 API？</blockquote>
 
-  <p>答案從宿主應用第一次初始化整個套件開始。</p>
+  <h2>1. 先分清楚三個角色</h2>
 
-  <h2>1. 先把三個角色分開</h2>
-
-  <p>這堂課只需要先建立三層：</p>
-
-  <pre><code>宿主應用
-  │ calls
-  ▼
+  <pre><code>Foreman Assistant
+      │ calls
+      ▼
 @sre2/faro-click-tracking
-  │ calls / configures
-  ▼
+      │ calls
+      ▼
 Grafana Faro Web SDK</code></pre>
 
   <div class="table-wrap">
     <table>
-      <thead><tr><th>角色</th><th>先理解成什麼</th></tr></thead>
+      <thead><tr><th>角色</th><th>這堂課只先記住</th></tr></thead>
       <tbody>
-        <tr><td>宿主應用</td><td>真正的前端產品。它知道自己的 app name、environment、要追哪些 DOM attributes，以及何時初始化。</td></tr>
-        <tr><td><code>@sre2/faro-click-tracking</code></td><td>公司共用套件。它把宿主設定轉成一致的 Faro 初始化方式，並加上 Click、User、Device 等公司需要的行為。</td></tr>
-        <tr><td>Grafana Faro Web SDK</td><td>真正提供 Faro runtime、telemetry API、transport 與 instrumentation framework 的底層 SDK。</td></tr>
+        <tr><td>Foreman Assistant</td><td>真正的前端應用；決定要開始使用這個 monitoring package。</td></tr>
+        <tr><td><code>@sre2/faro-click-tracking</code></td><td>公司共用套件；統一驗證設定、建立公司需要的 instrumentations，再呼叫 Faro SDK。</td></tr>
+        <tr><td>Grafana Faro Web SDK</td><td>底層 SDK；真正建立 Faro runtime，並讓 instrumentations 開始工作。</td></tr>
       </tbody>
     </table>
   </div>
 
-  <p>所以共用套件不是 Faro 本身；它是包在 Faro SDK 外面的公司層。</p>
+  <p>所以 <code>@sre2/faro-click-tracking</code> 不是 Faro 本身。它是公司包在 Faro Web SDK 外面的那一層。</p>
 
-  <h2>2. Public API 是「宿主應用被允許依賴的入口」</h2>
+  <h2>2. Foreman 是從 <code>initFaro()</code> 進來的</h2>
 
-  <p>宿主應用不應該知道套件裡每一個 internal file。它只應該依賴套件公開的 contract。</p>
-
-  <p>最重要的入口就是：</p>
+  <p>目前 Foreman Assistant 在 application bootstrap 前呼叫一次：</p>
 
   <pre><code>initFaro(config)</code></pre>
 
-  <p>另外像：</p>
+  <p>這是公司套件公開給應用使用的入口。也就是說，Foreman 只需要知道這個公開 contract，不需要自己去操作套件裡每一個 internal helper。</p>
 
-  <pre><code>setFaroUser(...)
-clearFaroUser(...)</code></pre>
+  <pre><code>Foreman Assistant
+    │ calls public API
+    ▼
+initFaro(config)
+    │
+    └── 套件內部怎麼拆檔、怎麼保存 instance
+        都是 package implementation</code></pre>
 
-  <p>也是宿主可以呼叫的 public API。</p>
+  <p>這就是這裡所說的 <strong>public API</strong>：宿主應用被允許依賴的穩定入口。</p>
 
-  <p>但下面這些屬於套件內部機制：</p>
+  <h2>3. <code>initFaro()</code> 和 <code>initializeFaro()</code> 不是同一個東西</h2>
 
-  <pre><code>ensureNotInitialized()
-registerFaroInstance(...)
-getFaroInstanceOrThrow(...)</code></pre>
-
-  <div class="box tip">
-    <strong>邊界</strong><br>
-    Public API 是宿主應用的 contract；internal helper 是套件為了實作 contract 使用的工具。宿主不應該直接依賴 internal helper，否則套件內部一重構，宿主也會被綁死。
-  </div>
-
-  <h2>3. 最容易混淆的兩個名字：<code>initFaro()</code> vs <code>initializeFaro()</code></h2>
-
-  <p>它們不是同一個 function。</p>
+  <p>名字很像，但責任不同：</p>
 
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Function</th><th>屬於誰</th><th>作用</th></tr></thead>
+      <thead><tr><th>Function</th><th>屬於誰</th><th>做什麼</th></tr></thead>
       <tbody>
-        <tr><td><code>initFaro(config)</code></td><td><code>@sre2/faro-click-tracking</code></td><td>公司共用套件提供給宿主應用的初始化入口。</td></tr>
-        <tr><td><code>initializeFaro({...})</code></td><td>Grafana Faro Web SDK</td><td>真正建立 Faro runtime instance，啟動 SDK 的 transports / instrumentations。</td></tr>
+        <tr><td><code>initFaro(config)</code></td><td>公司共用套件</td><td>驗證與組裝公司需要的設定，再呼叫底層 SDK。</td></tr>
+        <tr><td><code>initializeFaro({...})</code></td><td>Grafana Faro Web SDK</td><td>真正建立 Faro runtime instance，並啟動 instrumentations。</td></tr>
       </tbody>
     </table>
   </div>
 
-  <p>控制方向是：</p>
-
-  <pre><code>宿主應用
+  <pre><code>Foreman
   │ calls
   ▼
-initFaro(config)                 ← 公司共用套件
+initFaro(config)          ← 公司套件
   │ internally calls
   ▼
-initializeFaro({...})            ← Grafana Faro SDK
+initializeFaro({...})     ← Grafana Faro SDK
   │ returns
   ▼
 Faro instance</code></pre>
 
-  <p>因此你之後看 code 時，只要看到這兩個名字，就先問：「現在是在公司 wrapper 還是 Grafana SDK？」</p>
+  <h2>4. Lesson 2 的 ClickInstrumentation 就是在這裡被啟動</h2>
 
-  <h2>4. 為什麼初始化不是單純「new 一個 object」？</h2>
-
-  <p>初始化會產生 runtime side effects。</p>
-
-  <p>例如 Lesson 2 看過的：</p>
-
-  <pre><code>new ClickInstrumentation(...)
-        │
-        │ handed to Faro SDK
-        ▼
-initializeFaro(...)
-        │ initializes instrumentation
-        ▼
-document.addEventListener('click', ...)</code></pre>
-
-  <p>換句話說，成功初始化後，不只是記憶體裡多一個 object；Browser 裡已經開始有 listener、transport 與 telemetry runtime 在工作。</p>
-
-  <p>這也是為什麼「初始化幾次」是一個重要 lifecycle 問題。</p>
-
-  <h2>5. <code>initFaro()</code> 的主流程</h2>
-
-  <p>把現行實作先壓成最重要的順序：</p>
-
-  <pre><code>宿主應用 calls initFaro(config)
-        │
-        ▼
-ensureNotInitialized()
-        │
-        ├── 已初始化 → throw，立即停止
-        │
-        ▼
-validate / prepare config
-        │
-        ▼
-建立需要的 instrumentations
-        │
-        ├── Faro web instrumentations
-        ├── TracingInstrumentation
-        ├── ClickInstrumentation
-        └── UserSyncInstrumentation?   ← 有設定才建立
-        │
-        ▼
-Grafana initializeFaro({...})
-        │
-        ├── 建立 Faro runtime
-        └── 啟動 instrumentations / transport
-        │
-        ▼
-得到 faro instance
-        │
-        ▼
-registerFaroInstance(faro)
-        │
-        ▼
-其他 opt-in setup
-        │
-        ▼
-return faro</code></pre>
-
-  <p>Lesson 3 不需要先深入 User、Device、Environment 的細節；那些是下一課。這裡只要先抓住：</p>
-
-  <blockquote><code>initFaro()</code> 是公司共用套件的 orchestration layer：它把設定、公司自訂 instrumentation 與 Grafana Faro SDK 接起來。</blockquote>
-
-  <h2>6. Lesson 2 的 <code>ClickInstrumentation</code> 在這裡被接上 Faro</h2>
-
-  <p>Lesson 2 我們是從 <code>ClickInstrumentation</code> 裡面往下看。</p>
-
-  <p>現在從上面看：</p>
+  <p><code>initFaro()</code> 會準備公司需要的 instrumentations，其中包含 Lesson 2 的 ClickInstrumentation，然後把它交給 Faro SDK：</p>
 
   <pre><code>initFaro(config)
-  │
-  ├── new ClickInstrumentation({
-  │     trackAttributes: config.trackAttributes
-  │   })
-  │
-  ▼
-initializeFaro({
-  instrumentations: [
-    ...,
-    ClickInstrumentation,
-    ...
-  ]
-})</code></pre>
-
-  <p>也就是：</p>
-
-  <pre><code>宿主 config.trackAttributes
-        │ passed into
-        ▼
+    │ creates
+    ▼
 ClickInstrumentation
-        │ registered with
-        ▼
-Grafana Faro SDK instrumentation framework</code></pre>
+    │ passes into
+    ▼
+initializeFaro({ instrumentations: [...] })
+    │ SDK initializes
+    ▼
+ClickInstrumentation.initialize()
+    │ registers
+    ▼
+document click listener</code></pre>
 
-  <p>因此 <code>ClickInstrumentation</code> 不是宿主應用自己手動呼叫 <code>initialize()</code>；它被交給 Faro SDK，SDK 在初始化 instrumentation 時讓它開始工作。</p>
-
-  <h2>7. 為什麼套件要保存 Faro instance？</h2>
-
-  <p>關鍵原因不是「想做 singleton pattern」本身，而是後來出現了另一類 public API。</p>
-
-  <p><code>ClickInstrumentation</code> 身處 Faro instrumentation framework 裡，所以它能取得 SDK 提供的 API，最後呼叫：</p>
-
-  <pre><code>this.api.pushEvent(...)</code></pre>
-
-  <p>但 <code>setFaroUser()</code> 只是一般 exported function：</p>
-
-  <pre><code>宿主應用
-  │ calls
-  ▼
-setFaroUser(user)</code></pre>
-
-  <p>它不在 instrumentation object 裡，沒有一個天然的 <code>this.api</code> 可以使用。</p>
-
-  <p>因此套件需要一個共同可取得的 Faro instance：</p>
-
-  <pre><code>initFaro()
-  │ gets
-  ▼
-Faro instance
-  │ registerFaroInstance(faro)
-  ▼
-module-level faroInstance
-  │ later read by
-  ▼
-setFaroUser() / clearFaroUser() / other internal consumers</code></pre>
-
-  <p>這才是現行 singleton 的因果來源。</p>
-
-  <h2>8. 這裡的 Singleton 到底是什麼？</h2>
-
-  <p>先不要把 Singleton 想成複雜 design pattern。現行核心就是一個 module-scope variable：</p>
-
-  <pre><code>let faroInstance: Faro | undefined;</code></pre>
-
-  <p>初始化前：</p>
-
-  <pre><code>faroInstance === undefined</code></pre>
-
-  <p><code>initFaro()</code> 成功後：</p>
-
-  <pre><code>faroInstance = faro</code></pre>
-
-  <p>因此同一份套件 module 在這個網頁應用 runtime 中，大家都透過同一個變數取得同一個 Faro instance。</p>
+  <p>所以 Lesson 2 的 listener 並不是一直天然存在於 Browser 裡。它是在 application 啟動、Faro package 初始化成功後才被註冊。</p>
 
   <div class="box tip">
-    <strong>精確說法</strong><br>
-    這裡是「module-level singleton state」：套件刻意只保存一個 Faro instance reference。不是 Browser 自帶的全域 singleton，也不是 JavaScript 語言強制只能建立一個 Faro object。
+    <strong>因果順序</strong><br>
+    先有 <code>initFaro()</code> → SDK 建立 runtime → ClickInstrumentation 被 initialize → 才有 <code>document</code> listener → 後面的 click 才可能進 Faro。
   </div>
 
-  <h2>9. 第二次 <code>initFaro()</code> 的防護與可能風險</h2>
+  <h2>5. 為什麼初始化要特別防止「做第二次」？</h2>
 
-  <div class="box tip">
-    <strong>先分開 evidence 與風險推演</strong><br>
-    現行 source 與 tests 直接證明：成功初始化後再次呼叫 <code>initFaro()</code>，會在建立新的 SDK runtime 前 throw。下面的 duplicate listener／telemetry 是「如果沒有這項防護」的合理風險情境；目前 evidence 沒有證明它就是作者留下這項設計的完整歷史理由。
-  </div>
-
-  <p>假設完全沒有防護：</p>
-
-  <pre><code>第一次 initFaro()
-  → ClickInstrumentation A
-  → document listener A
-
-第二次 initFaro()
-  → ClickInstrumentation B
-  → document listener B</code></pre>
-
-  <p>此時一次 Browser click 可能同時走進兩條 listener：</p>
-
-  <pre><code>one Browser click
-  ├── listener A → pushEvent(...)
-  └── listener B → pushEvent(...)</code></pre>
-
-  <p>你看到的症狀就可能是「同一次互動送出重複 telemetry」。更糟的是，第二個 runtime 還可能覆蓋套件保存的 instance reference，讓實際啟動的 runtime 與 public API 使用的 instance lifecycle 變得不一致。</p>
-
-  <p>可以直接由現行 implementation 證實的行為是：</p>
-
-  <pre><code>initFaro()
-  ↓
-ensureNotInitialized()
-  ↓
-已經有 faroInstance ?
-  ├── yes → throw
-  └── no  → 才能繼續建立 Faro runtime</code></pre>
-
-  <h2>10. 在 <code>initializeFaro()</code> 之前檢查的效果</h2>
-
-  <p>因為如果先做：</p>
+  <p>因為初始化不是單純算出一個值。它會改變 Browser runtime：</p>
 
   <pre><code>initializeFaro(...)
-  ↓
-listener / transport 已經建立
-  ↓
-最後才發現「其實已初始化過」
-  ↓
-throw</code></pre>
+    ├── 建立 Faro runtime
+    ├── 啟動 instrumentations
+    ├── 註冊 listeners
+    └── 啟動 telemetry transport</code></pre>
 
-  <p>那錯誤雖然拋了，但副作用已經發生。</p>
+  <p>也就是說，初始化具有 <strong>runtime side effects</strong>：程式執行後，Browser 裡真的多了會持續工作的東西。</p>
 
-  <p>現行實作先做：</p>
+  <p>因此第二次初始化不能等做到一半才發現：</p>
 
-  <pre><code>ensureNotInitialized()
-  ↓
-確認安全
-  ↓
-initializeFaro(...)</code></pre>
+  <pre><code>第二次 initFaro()
+    ↓
+ensureNotInitialized()
+    ├── 已經初始化 → throw，停止
+    └── 尚未初始化 → 才繼續</code></pre>
 
-  <p>這個順序形成 fail-fast boundary：重複初始化會在新的 runtime side effect 發生前被拒絕。這是可由呼叫順序直接證明的 implementation effect；不需要進一步假定作者動機。</p>
+  <p>目前 implementation 已驗證：這個檢查發生在新的 <code>initializeFaro()</code> 之前，因此第二次呼叫會在建立另一個 Faro runtime 前失敗。</p>
 
-  <p>而 <code>registerFaroInstance(faro)</code> 存入 instance 前又再檢查一次，是最後一道防線。</p>
+  <h2>6. 第一個 Faro instance 建好後，為什麼還要保存起來？</h2>
 
-  <h2>11. Public API 在初始化前被呼叫會怎樣？</h2>
+  <p><code>initializeFaro()</code> 會回傳一個 Faro instance。可以先把它理解成：</p>
 
-  <p>以 user API 為例：</p>
+  <blockquote>目前這個頁面正在使用的 Faro runtime 的程式入口。</blockquote>
 
-  <pre><code>setFaroUser(user)
-  ↓
-getFaroInstanceOrThrow('setFaroUser')
-  ↓
-faroInstance 有值嗎？
-  ├── no  → throw：請先 initFaro()
-  └── yes → faro.api.setUser(user)</code></pre>
+  <p>套件會把這個 reference 保存起來：</p>
 
-  <p>所以套件 lifecycle 有一個明確順序：</p>
+  <pre><code>initializeFaro(...)
+    │ returns
+    ▼
+Faro instance
+    │ registerFaroInstance(faro)
+    ▼
+套件內保存的 faroInstance reference</code></pre>
 
-  <pre><code>未初始化
-  │
-  │ initFaro(config)
-  ▼
-已初始化
-  │
-  ├── setFaroUser(...)
-  ├── clearFaroUser(...)
-  └── 其他需要 Faro instance 的 API</code></pre>
+  <p>原因是 ClickInstrumentation 自己在 Faro instrumentation lifecycle 裡，可以直接取得 SDK 提供的 <code>api</code>；但套件裡其他普通 exported functions 不一定身處這個 instrumentation object 裡。</p>
 
-  <p>不能把這個順序倒過來。</p>
+  <p>這些 function 若之後需要操作同一個 Faro runtime，就必須能找到先前建立的那個 instance。</p>
 
-  <h2>12. Cleanup / dispose 的 public API 邊界</h2>
-
-  <p><code>ClickInstrumentation.destroy()</code> 與 <code>UserSyncInstrumentation.destroy()</code> 會移除它們各自建立的 listeners，device detector 也有 package-internal stop mechanism。這證明 SDK lifecycle 內部存在 cleanup 行為。</p>
-
-  <p>但目前 <code>@sre2/faro-click-tracking</code> 的 public exports 沒有 <code>dispose()</code>、<code>reset()</code> 或其他完整 teardown API。因此宿主應用不能依目前 package contract 假設：</p>
-
-  <pre><code>initFaro()
-  → public dispose()
-  → 再次 initFaro()</code></pre>
-
-  <div class="box">
-    <strong>精確邊界：</strong>可以證實 instrumentation 內部有 <code>destroy()</code>；不能教成宿主目前有公開的完整 cleanup／re-initialization lifecycle。
+  <div class="box tip">
+    Lesson 4 會正式處理 User、Device、Environment。這裡只需要知道：有些後續 public API 需要取得「同一個已初始化的 Faro instance」，所以 package 必須保存它。
   </div>
 
-  <h2>13. 整體 responsibility boundary</h2>
+  <h2>7. 保存一個 instance，就是這裡的 Singleton</h2>
 
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>責任</th><th>宿主應用</th><th>faro-click-tracking</th><th>Grafana Faro SDK</th></tr></thead>
-      <tbody>
-        <tr><td>決定何時啟動監控</td><td>✓</td><td></td><td></td></tr>
-        <tr><td>提供 app / environment / tracking config</td><td>✓</td><td></td><td></td></tr>
-        <tr><td>驗證並組裝公司共用設定</td><td></td><td>✓</td><td></td></tr>
-        <tr><td>建立 Click / UserSync 等公司自訂 instrumentation</td><td></td><td>✓</td><td></td></tr>
-        <tr><td>阻止重複 package initialization</td><td>應避免重複呼叫</td><td>✓ 強制防護</td><td></td></tr>
-        <tr><td>建立 Faro runtime instance</td><td></td><td>呼叫 SDK</td><td>✓</td></tr>
-        <tr><td>提供 Faro telemetry API / transport / instrumentation framework</td><td></td><td></td><td>✓</td></tr>
-        <tr><td>保存 package 內共用的 Faro instance reference</td><td></td><td>✓</td><td></td></tr>
-      </tbody>
-    </table>
-  </div>
+  <p>先從需求推回來：</p>
 
-  <h2>14. 把 Lesson 2 與 Lesson 3 接成一條線</h2>
+  <pre><code>頁面只初始化一次
+        ↓
+只建立一個主要 Faro runtime
+        ↓
+package 只保存一個 faroInstance reference
+        ↓
+後續 package functions 都拿同一個 instance</code></pre>
 
-  <pre><code>宿主應用啟動
+  <p>現行核心可以簡化成：</p>
+
+  <pre><code>let faroInstance = undefined
+
+initFaro() 成功後：
+faroInstance = faro</code></pre>
+
+  <p>這種「module 裡刻意只保存一個 instance」的狀態，這堂課才把它命名為 <strong>module-level singleton state</strong>。</p>
+
+  <p>它不是 JavaScript 語言規定 Faro 只能建立一個 object，也不是 Browser 自帶的限制；是這個 package 自己選擇的 lifecycle contract。</p>
+
+  <h2>8. 所以現行初始化順序可以縮成四步</h2>
+
+  <pre><code>1. ensureNotInitialized()
+      ↓
+2. validate / prepare config
+      ↓
+3. initializeFaro({...})
+      ↓ returns Faro instance
+4. registerFaroInstance(faro)</code></pre>
+
+  <p>這四步裡最重要的兩個邊界：</p>
+
+  <ul>
+    <li><code>ensureNotInitialized()</code> 在 runtime side effects 發生以前阻止第二次初始化。</li>
+    <li><code>registerFaroInstance()</code> 把成功建立的 Faro instance 保存給 package 後續使用。</li>
+  </ul>
+
+  <p>至於 User 怎麼同步、Device 怎麼判斷、Environment 怎麼決定 endpoint，全部留到 Lesson 4，不在這一課展開。</p>
+
+  <h2>9. 把 Lesson 2 和 Lesson 3 接起來</h2>
+
+  <pre><code>Application starts
     │
+    │ Foreman calls
     ▼
 initFaro(config)
-    │
-    ├── ensureNotInitialized()
-    │
-    ├── new ClickInstrumentation(...)
-    │
+    │ validates / orchestrates
     ▼
-Grafana initializeFaro(...)
-    │
-    ├── 建立 Faro runtime
-    ├── 啟動 ClickInstrumentation
-    └── ClickInstrumentation 掛 document listener
-    │
+initializeFaro({...})
+    │ creates Faro runtime
+    │ initializes ClickInstrumentation
     ▼
-registerFaroInstance(faro)
+document click listener exists
     │
-    ▼
-等待使用者操作
-    │
-    ▼
-Browser click
-    │
+    │ later Browser dispatches click
     ▼
 ClickInstrumentation.handleClick(event)
     │
     ▼
 api.pushEvent('click', payload)</code></pre>
 
-  <p>現在你已經不只知道「click 進來後怎麼處理」，也知道那條 listener 是在整個 package initialization lifecycle 的哪一步被啟動。</p>
+  <p>Lesson 2 回答「click 進入 ClickInstrumentation 後發生什麼」；Lesson 3 補上更上游的答案：「ClickInstrumentation 為什麼會在頁面裡開始工作」。</p>
 
   <h2>Self-check</h2>
 
-  <details>
-    <summary>1. <code>initFaro()</code> 和 <code>initializeFaro()</code> 是同一個 function 嗎？</summary>
-    <p>不是。<code>initFaro()</code> 是公司共用套件給宿主應用的 public API；<code>initializeFaro()</code> 是 Grafana Faro Web SDK 的初始化 function，前者內部會呼叫後者。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q1. Foreman 呼叫的 <code>initFaro()</code> 屬於哪一層？</div>
+    <div class="choices">
+      <button class="choice" data-correct="true" data-feedback-correct="initFaro() 是公司共用 package 對 host 暴露的入口。">公司共用 package</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Grafana SDK 的初始化 function 名稱是 initializeFaro()。">Grafana Faro SDK</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Browser 不提供 initFaro()。">Browser Web API</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Alloy 位於 Browser 之外，不是這個 function 的來源。">Grafana Alloy server</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
-  <details>
-    <summary>2. 為什麼套件需要保存 <code>faroInstance</code>？</summary>
-    <p>因為像 <code>setFaroUser()</code> 這種一般 exported function 不在 Faro instrumentation framework 裡，沒有自動取得的 <code>this.api</code>；它需要透過套件保存的 Faro instance 去呼叫 Faro API。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q2. ClickInstrumentation 的 document listener 什麼時候才會存在？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="Browser 不會自動替 Faro 建 listener。">HTML 解析完成以前</button>
+      <button class="choice" data-correct="true" data-feedback-correct="Faro SDK 初始化 instrumentation 時，ClickInstrumentation 才註冊 listener。">Faro runtime 初始化後</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="第一次 click 發生前，listener 就必須已經註冊。">第一次 click 發生後</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Alloy 不負責建立 Browser DOM listener。">Alloy 收到資料以後</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
-  <details>
-    <summary>3. Singleton 是 Browser 或 JavaScript 強制只能有一個 Faro object 嗎？</summary>
-    <p>不是。這是套件自己的 module-level state 設計：只保存一個 Faro instance reference，並主動阻止第二次 <code>initFaro()</code>。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q3. 為什麼第二次 <code>initFaro()</code> 要先被擋掉？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="DOM attribute 與 package initialization 是不同問題。">避免 DOM attribute 重複</button>
+      <button class="choice" data-correct="true" data-feedback-correct="初始化會建立 runtime、listener 等持續作用，因此要在新副作用出現前拒絕。">避免重建 runtime side effects</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="event.target 由 Browser 決定，與 singleton 無關。">避免 event target 改變</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="payload key normalization 不是初始化防護的目的。">避免 payload key 改名</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
-  <details>
-    <summary>4. Source 直接證明重複初始化一定會產生 duplicate telemetry 嗎？</summary>
-    <p>沒有。Source 直接證明第二次 <code>initFaro()</code> 會在建立新 runtime 前 throw；duplicate listener／telemetry 是移除防護後的合理風險推演，不是已證實的歷史設計理由。</p>
-  </details>
-
-  <details>
-    <summary>5. 為什麼 <code>ensureNotInitialized()</code> 必須放在 <code>initializeFaro()</code> 之前？</summary>
-    <p>要在任何 runtime side effect 發生前 fail fast。否則即使最後 throw，listener 或 transport 可能早已建立。</p>
-  </details>
-
-  <details>
-    <summary>6. 宿主目前能呼叫 package public <code>dispose()</code> 後重新初始化嗎？</summary>
-    <p>不能由目前 contract 得出這個結論。Instrumentation 內部有 <code>destroy()</code>，但 package public exports 沒有完整 <code>dispose()</code>／reset API。</p>
-  </details>
+  <div class="quiz" data-quiz>
+    <div class="question">Q4. 這裡的 singleton 最精確代表什麼？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="Browser 沒有這個強制規則。">Browser 強制單一 object</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="JavaScript 語言也沒有規定 Faro 只能建一次。">JavaScript 強制單一 object</button>
+      <button class="choice" data-correct="true" data-feedback-correct="package 自己保存一個 Faro instance reference，並阻止重複初始化。">Package 保存單一 instance</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Alloy 與 Browser 端 instance 保存無關。">Alloy 保存單一 instance</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
 
   <h2>Recap</h2>
 
   <ul>
-    <li>宿主應用呼叫公司套件的 <code>initFaro(config)</code>；公司套件再呼叫 Grafana SDK 的 <code>initializeFaro()</code>。</li>
-    <li><code>initFaro()</code> 是 orchestration layer：驗證設定、建立公司 instrumentation、呼叫底層 Faro SDK。</li>
-    <li>Grafana <code>initializeFaro()</code> 建立真正的 Faro runtime，並啟動 transport / instrumentations。</li>
-    <li>ClickInstrumentation 是在 package initialization 時交給 Faro SDK，因此 Lesson 2 的 document listener 也是在這個 lifecycle 中被啟動。</li>
-    <li>套件以 module-scope <code>faroInstance</code> 保存唯一的 Faro instance，讓一般 public API 也能存取 Faro API。</li>
-    <li>第二次 <code>initFaro()</code> 會在建立新 runtime 前被阻止；duplicate listener／telemetry 是缺少防護時的風險推演，不是已證實的作者 rationale。</li>
-    <li><code>ensureNotInitialized()</code> 在建立 runtime 前 fail fast；<code>registerFaroInstance()</code> 再做最後一道檢查。</li>
-    <li>需要 Faro instance 的 public API 若在初始化前被呼叫，會透過 <code>getFaroInstanceOrThrow()</code> 明確失敗。</li>
-    <li>內部 instrumentations 有 cleanup hooks，但 package 沒有公開完整的 <code>dispose()</code>／reset API。</li>
+    <li>Foreman 呼叫公司套件的 <code>initFaro(config)</code>；公司套件再呼叫 Grafana SDK 的 <code>initializeFaro()</code>。</li>
+    <li><code>initializeFaro()</code> 建立真正的 Faro runtime，並讓 ClickInstrumentation 開始工作。</li>
+    <li>因此 Lesson 2 的 <code>document</code> listener 是 package initialization 的 runtime side effect 之一。</li>
+    <li>第二次 <code>initFaro()</code> 會在新的 Faro runtime 建立前被拒絕。</li>
+    <li>成功建立的 Faro instance 會被 package 保存，讓後續 package functions 能存取同一個 runtime。</li>
+    <li>這個「只保存一個 Faro instance reference」才是目前 package 的 singleton state。</li>
+    <li>User、Device、Environment 的實際資料來源與 lifecycle 留到 Lesson 4。</li>
   </ul>
 
-  <h2>Primary sources</h2>
-  <ul>
-    <li><a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer)</a></li>
-    <li><a href="../sources/materials/4.%20Faro-Click-Tracking%20的歷史.html">Faro-Click-Tracking 的歷史</a> — package lifecycle 的 learner-designated source。</li>
-    <li><a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking durable evidence</a> — 現行 <code>initFaro</code>、<code>faroInstance</code>、重複初始化防護與 public API implementation evidence。</li>
-  </ul>
+  <div class="box ask">
+    如果你能不用看圖，自己從「Foreman 呼叫 <code>initFaro()</code>」一路說到「document click listener 被註冊」，這堂課的主模型就建立了。任何一段不確定，都可以直接問我那一段。
+  </div>
 
-  <p class="cite">本課以 corpus audit 已核對的現行 package contract / implementation 為準；歷史版本只在解釋現行設計的因果時使用。</p>
+  <p class="cite">
+    現行 implementation 依據：<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a>；Foreman 實際初始化位置與 package configuration：<a href="../sources/evidence/foreman-integration.md">Foreman integration evidence</a>。
+  </p>
 
   <nav class="lesson-nav" aria-label="課程導覽">
     <a href="0002-faro-click-instrumentation.html">← Lesson 2</a>
