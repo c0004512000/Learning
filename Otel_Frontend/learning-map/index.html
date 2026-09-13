@@ -13,7 +13,7 @@
 
   <div class="box tip">
     <strong>目前進度｜Milestone 2 · Lesson 3</strong><br>
-    主線目前在 Lesson 3。Lesson 0 / Lesson 1 已依實際 blocker 重構成「Browser runtime prerequisite → Event lifecycle」兩層；這些教材已建立，但仍不因教材存在就自動視為 mastered，後續需要 retrieval / practice evidence。
+    主線目前在 Lesson 3：從 Lesson 2 已知的 click handler 往上追，確認宿主應用如何透過 <code>initFaro()</code> 啟動 ClickInstrumentation。Lesson 0 / Lesson 1 的 prerequisite debt 仍保留，不因教材存在就自動視為 mastered。
   </div>
 
   <h2>Mission</h2>
@@ -52,9 +52,9 @@
 
   <h3>Milestone 2｜讀懂並安全修改 <code>@sre2/faro-click-tracking</code></h3>
   <div class="box tip">
-    <p><strong>Lesson 3｜Package Initialization, Singleton, and Public API</strong> <span class="cite">← 目前位置</span></p>
-    <p>目標：從宿主應用呼叫 <code>initFaro(config)</code> 往內追，分清楚宿主應用、共用套件與 Grafana Faro SDK 的責任；理解 <code>initFaro()</code> 與 <code>initializeFaro()</code> 的差異、module-level Faro instance、public API lifecycle，以及重複初始化為什麼必須被阻止。</p>
-    <p>來源：文件 3、文件 4，以及 corpus audit 已核對的現行 package contract / implementation。</p>
+    <p><strong>Lesson 3｜How <code>initFaro()</code> Starts Faro Click Tracking</strong> <span class="cite">← 目前位置</span></p>
+    <p>目標：從宿主應用實際呼叫 <code>initFaro()</code> 開始，追到 Grafana <code>initializeFaro()</code>、ClickInstrumentation 初始化與 <code>document</code> listener 註冊；理解 package 為什麼保存已建立的 Faro object，以及為什麼重複初始化會在新 object 建立前被拒絕。</p>
+    <p>來源：文件 3、文件 4，以及 <a href="../sources/evidence/foreman-integration.md">Foreman integration evidence</a>、<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a>。</p>
     <p><a href="../lessons/0003-package-initialization-singleton-public-api.html">開啟目前 Lesson 3 →</a></p>
   </div>
 
@@ -140,13 +140,14 @@
 
   <h2>目前主線</h2>
   <pre><code>宿主應用
-  → initFaro(config)
+  → initFaro(...)
   → ensureNotInitialized()
-  → 建立 package instrumentations
   → Grafana initializeFaro(...)
-  → Faro runtime + listeners / transport
-  → registerFaroInstance(faro)
-  → package public APIs 共用同一 Faro instance</code></pre>
+  → 建立 Faro object
+  → ClickInstrumentation 註冊 document listener
+  → registerFaroInstance(faro)</code></pre>
+
+  <p class="cite">User / Device / Environment 留到 Lesson 4；Tracing 留到後續 tracing Lessons。Lesson 3 不先要求記住 singleton、orchestration、instrumentation framework 等抽象術語。</p>
 
   <h2>Primary corpus</h2>
   <ol>
