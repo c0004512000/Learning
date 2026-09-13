@@ -14,12 +14,13 @@
 
   <div class="box tip">
     <strong>這堂課的目標</strong><br>
-    你要能從宿主應用呼叫 <code>initFaro()</code> 開始，追到 Lesson 2 的 <code>ClickInstrumentation</code> 何時被啟動；並看懂為什麼 package 要保存已建立的 Faro object，以及為什麼第二次初始化會被拒絕。
+    你要能從宿主應用呼叫 <code>initFaro()</code> 開始，追到公司 package 自己實作的 <code>ClickInstrumentation</code> 如何被啟動；看懂 listener registration 與 <code>handleClick</code> callback 的關係；並理解為什麼 package 要另外保存同一個 Faro object 的 reference。
   </div>
 
   <div class="box ask">
     <strong>本課 References</strong><br>
     <a href="0002-faro-click-instrumentation.html">Lesson 2：ClickInstrumentation 如何處理 click →</a><br>
+    <a href="../reference/0002-callback-function.html">Reference：Callback 到底是什麼 →</a><br>
     <a href="../sources/evidence/foreman-integration.md">Foreman integration evidence →</a><br>
     <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking implementation evidence →</a>
   </div>
@@ -31,9 +32,7 @@
   → ClickInstrumentation.handleClick(event)
   → api.pushEvent('click', payload)</code></pre>
 
-  <p>現在只補它的上一段：</p>
-
-  <blockquote>頁面剛啟動時，這個 <code>document</code> listener 是怎麼出現的？</blockquote>
+  <p>現在補它的上一段：這個 <code>ClickInstrumentation</code> 是誰建立的、listener 怎麼出現，以及 package 為什麼還要保存 Faro reference。</p>
 
   <h2>1. 先從宿主應用的真實設定開始</h2>
 
@@ -48,9 +47,7 @@
   getUser: /* Lesson 4 再看 */
 })</code></pre>
 
-  <p class="cite">上面只保留目前 evidence 已驗證的欄位與值，用來讀控制流程；不是逐字複製整份 <code>main.ts</code>。來源：Foreman <code>src/main.ts:11-34</code>。</p>
-
-  <p>先只看一件事：</p>
+  <p class="cite">這段只保留目前 evidence 已驗證的欄位與值，用來讀控制流程；不是逐字複製整份 <code>main.ts</code>。對照：<a href="../sources/evidence/foreman-integration.md">Foreman integration evidence</a>，來源位置為 Foreman <code>src/main.ts:11-34</code>。</p>
 
   <pre><code>宿主應用
   │ calls
@@ -69,59 +66,115 @@ initFaro(...)</code></pre>
   // validate config ...
 
   const faro = initializeFaro({
-    // ClickInstrumentation 等功能會在這裡交給 Faro
+    // package 自己建立的 ClickInstrumentation 會交給 Faro
   })
 
   registerFaroInstance(faro)
   return faro
 }</code></pre>
 
-  <p class="cite">這段是依現行 <code>initFaro.ts:13-146</code> 的已驗證呼叫順序整理出的等價 skeleton，不宣稱是逐字 source。</p>
-
-  <p>目前只需要認識兩個名字：</p>
+  <p class="cite">這段是依現行 <code>initFaro.ts:13-146</code> 的已驗證呼叫順序整理出的等價 skeleton，不宣稱是逐字 source。對照：<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking implementation evidence</a>。</p>
 
   <div class="table-wrap">
     <table>
       <thead><tr><th>名稱</th><th>這堂課怎麼理解</th></tr></thead>
       <tbody>
         <tr><td><code>initFaro()</code></td><td>公司 package 的入口。宿主應用呼叫它。</td></tr>
-        <tr><td><code>initializeFaro()</code></td><td>Grafana Faro Web SDK 提供的 function。公司 package 會呼叫它，真正建立 Faro。</td></tr>
+        <tr><td><code>initializeFaro()</code></td><td>Grafana Faro Web SDK 提供的 function。公司 package 會呼叫它，真正建立 Faro object。</td></tr>
       </tbody>
     </table>
   </div>
 
   <p><strong>SDK</strong> 在這裡只需要理解成：Grafana 提供、讓前端程式直接使用 Faro 的程式庫。</p>
 
-  <h2>3. Lesson 2 的 ClickInstrumentation 在這裡被啟動</h2>
+  <h2>3. <code>ClickInstrumentation</code> 是公司 package 自己實作的</h2>
 
-  <p><code>ClickInstrumentation</code> 你已經在 Lesson 2 看過：它就是那個會註冊 <code>document</code> click listener、收到 Browser Event 後建立 Faro click telemetry 的物件。</p>
+  <p><code>ClickInstrumentation</code> 不是 Grafana Faro SDK 直接提供的現成 click tracker。它是 <code>@sre2/faro-click-tracking</code> package 自己的程式物件，現行 implementation 位於 <code>features/click/clickInstrumentation.ts</code>。</p>
 
-  <p>Lesson 3 新增的只有它「何時開始工作」：</p>
+  <p>先只看這個 object 對本課重要的兩個 function：</p>
 
-  <pre><code>宿主應用 calls initFaro()
-        │
-        │ package prepares ClickInstrumentation
-        ▼
-initializeFaro(...)
-        │ Faro initializes ClickInstrumentation
-        ▼
-ClickInstrumentation.initialize()
-        │ registers
-        ▼
-document.addEventListener('click', ...)</code></pre>
+  <pre><code>ClickInstrumentation object
+├── initialize()
+│     └── 負責註冊 document click listener
+│
+└── handleClick(event)
+      └── click 發生後讀 event、組 payload、pushEvent(...)</code></pre>
 
-  <p>所以 <code>document</code> listener 並不是 Browser 天生就有，也不是第一次 click 發生時才建立。</p>
+  <p>package 建立這個物件，再把它交給 Faro SDK；Faro 初始化它時，才會執行它的 <code>initialize()</code>。</p>
 
-  <p>它是在頁面啟動階段，Faro 初始化這個功能時被註冊。</p>
+  <pre><code>@sre2/faro-click-tracking
+  │ creates
+  ▼
+ClickInstrumentation object
+  │ passes to
+  ▼
+Grafana initializeFaro(...)
+  │ initializes
+  ▼
+ClickInstrumentation.initialize()</code></pre>
 
-  <h2>4. 為什麼第二次 <code>initFaro()</code> 要被擋掉？</h2>
+  <p class="cite">這裡只使用目前 implementation evidence 已證實的責任邊界。對照：<a href="../sources/evidence/faro-click-tracking.md">Click implementation / initialization evidence</a>。</p>
 
-  <p>因為第一次初始化完成後，Browser 裡已經真的多了持續工作的東西，例如 Lesson 2 的 click listener。</p>
+  <div class="box tip">
+    這一課不用深入 Faro SDK 為什麼能啟動自訂 instrumentation。現在只需要知道責任邊界：<strong>ClickInstrumentation 是 package 寫的；Faro SDK 負責在初始化流程中啟動它。</strong>
+  </div>
+
+  <h2>4. listener、callback、<code>handleClick</code> 是三個不同層次</h2>
+
+  <p><code>ClickInstrumentation.initialize()</code> 會做出類似這件事：</p>
+
+  <pre><code>document.addEventListener(
+  'click',
+  this.handleClick
+)</code></pre>
+
+  <p>這行不是現在執行 <code>handleClick()</code>。它是在 Browser 裡建立一條 <strong>listener registration</strong>：</p>
+
+  <pre><code>listener registration
+├── EventTarget = document
+├── event type  = click
+└── callback    = this.handleClick</code></pre>
+
+  <p>所以四個角色要分開：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>角色</th><th>在這裡是什麼</th></tr></thead>
+      <tbody>
+        <tr><td><code>ClickInstrumentation</code></td><td>公司 package 自己實作、負責 click tracking 的 object。</td></tr>
+        <tr><td>listener registration</td><td>Browser 保存的監聽規則：在哪個 object、監聽哪種 event、之後要 call 哪個 callback。</td></tr>
+        <tr><td><code>handleClick</code></td><td>一個 function reference；被 listener registration 保存成 callback。</td></tr>
+        <tr><td><code>handleClick(event)</code></td><td>未來 Browser dispatch click 時，實際呼叫 callback 的那一次執行。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <pre><code>ClickInstrumentation.initialize()
+  │ calls Browser API
+  ▼
+document.addEventListener('click', this.handleClick)
+  │ creates
+  ▼
+Browser listener registration
+  │ stores callback reference to
+  ▼
+this.handleClick
+  │ Browser calls later during click dispatch
+  ▼
+handleClick(event)</code></pre>
+
+  <p>因此「click listener 的 callback」在目前這個 implementation 裡，就是 <code>handleClick</code>。</p>
+
+  <p class="cite">如果這裡的「為什麼傳 <code>handleClick</code> 而不是 <code>handleClick()</code>」還不直覺，直接看 <a href="../reference/0002-callback-function.html">Reference：Callback 到底是什麼</a>。這張 Reference 專門拆 function reference、listener registration 與 Browser 之後呼叫 callback 的關係。</p>
+
+  <h2>5. 為什麼第二次 <code>initFaro()</code> 要被擋掉？</h2>
+
+  <p>第一次初始化完成後，Browser 裡已經有持續工作的東西，例如上面的 click listener registration。</p>
 
   <pre><code>第一次 initFaro()
-  → Faro 建立
+  → Faro object 建立
   → ClickInstrumentation.initialize()
-  → document click listener 已存在</code></pre>
+  → document click listener 已註冊</code></pre>
 
   <p>因此第二次呼叫時，package 先做：</p>
 
@@ -131,104 +184,128 @@ document.addEventListener('click', ...)</code></pre>
 ├── yes → throw，停止
 └── no  → 才繼續 initializeFaro()</code></pre>
 
-  <p>重點不是記住 <code>ensureNotInitialized</code> 這個名字，而是看懂<strong>檢查發生在新的 Faro 建立以前</strong>。</p>
+  <p>重點不是背 <code>ensureNotInitialized</code>，而是看懂<strong>檢查發生在另一個 Faro object 與另一組功能建立以前</strong>。</p>
 
-  <p>因此目前可直接由 source 證實的是：</p>
-
-  <blockquote>第二次 <code>initFaro()</code> 會在建立第二個 Faro object 與另一組功能以前失敗。</blockquote>
-
-  <h2>5. <code>initializeFaro()</code> 回傳的東西是什麼？</h2>
-
-  <p><code>initializeFaro()</code> 成功後會回傳一個實際建立出來的 Faro JavaScript object：</p>
+  <h2>6. <code>initializeFaro()</code> 回傳的是一個實際 object</h2>
 
   <pre><code>const faro = initializeFaro(...)</code></pre>
 
-  <p>這個「實際建立出來的 object」就是這裡說的 <strong>instance</strong>。</p>
-
-  <p>不要先把 instance 想成特殊設計名詞。這裡只是在分：</p>
+  <p><code>initializeFaro()</code> 成功後會回傳實際建立出的 Faro JavaScript object。這個實際 object 就是這裡說的 <strong>instance</strong>。</p>
 
   <pre><code>Faro                 → 一種東西／型別概念
 faro 這個實際 object → 這次建立出的 instance</code></pre>
 
-  <h2>6. 為什麼 package 還要把這個 Faro object 存起來？</h2>
+  <h2>7. 為什麼還需要 <code>registerFaroInstance(faro)</code>？</h2>
 
-  <p>因為 <code>initFaro()</code> 結束後，package 裡其他 function 之後還可能需要操作<strong>同一個</strong> Faro object。</p>
+  <p>關鍵不是「還需不需要再建立 Faro」。<strong>不需要。</strong> Faro object 在 <code>initializeFaro()</code> 時就已經建立好了。</p>
 
-  <p>現行 source 已驗證 package 會保存一個 <code>faroInstance</code> reference：</p>
+  <p>真正的問題是：<code>faro</code> 是 <code>initFaro()</code> 裡面的 <strong>local variable</strong>，也就是只有這個 function 內的程式可以直接用這個名字。</p>
+
+  <pre><code>function initFaro() {
+  const faro = initializeFaro()
+
+  // 這裡看得到 faro
+}
+
+function anotherPackageFunction() {
+  // 這裡不能直接使用上面的 local faro
+}</code></pre>
+
+  <p>所以 package 若希望 <code>initFaro()</code> 結束後，其他 function 還能取得<strong>同一個 Faro object</strong>，就需要把它的 reference 保存到 function 外面的 variable。這裡的 <strong>module-level variable</strong> 只表示「寫在 function 外、由這個 package module 內的程式共用的 variable」。</p>
 
   <pre><code>let faroInstance
+
+function initFaro() {
+  const faro = initializeFaro()
+  registerFaroInstance(faro)
+}
 
 function registerFaroInstance(faro) {
   faroInstance = faro
 }</code></pre>
 
-  <p class="cite">這段用真實名稱表達目前 <code>faroInstance.ts:6-47</code> 已驗證的核心行為；為了教學省略 error handling 與其他細節。</p>
+  <p>這時不是兩顆 Faro：</p>
 
-  <p>因果關係是：</p>
+  <pre><code>local variable:  faro ──────────────┐
+                                    │ references
+                                    ▼
+                              Faro object A
+                                    ▲
+                                    │ references
+module variable: faroInstance ──────┘</code></pre>
 
-  <pre><code>initializeFaro(...)
-  │ returns the created Faro object
-  ▼
-faro
-  │ saved by
-  ▼
-registerFaroInstance(faro)
-  │
-  ▼
-package 之後仍能拿到同一個 Faro object</code></pre>
+  <p><code>faro</code> 與 <code>faroInstance</code> 是兩個 variable，但它們保存的是指向<strong>同一顆 object</strong> 的 reference。沒有 clone，也沒有第二次建立 instance。</p>
 
-  <p>Lesson 4 才會看到「哪些後續功能會用到它」。這一課不需要先學 User / Device 的細節。</p>
+  <p>等 <code>initFaro()</code> 執行結束後，local variable <code>faro</code> 不再是其他 package function 可直接使用的名稱；module-level <code>faroInstance</code> 仍然可以被 package 其他程式取得。</p>
+
+  <div class="box tip">
+    <strong>需求與 implementation 要分開：</strong><br>
+    真正需要的是「把同一個 Faro object 的 reference 保存到 <code>initFaro()</code> local scope 外」。<code>registerFaroInstance()</code> 是目前 package 選擇實作這個需求的 function；不是 JavaScript 規定一定要有這個 function。
+  </div>
+
+  <p class="cite">現行 source 已驗證 package 使用 module-scope <code>faroInstance</code>，並透過 <code>registerFaroInstance()</code> 保存成功建立的 Faro instance。對照：<a href="../sources/evidence/faro-click-tracking.md">singleton / public-surface evidence</a>，來源位置為 <code>faroInstance.ts:6-47</code>。</p>
 
   <div class="box tip">
     <strong>Optional terminology</strong><br>
-    這種「package 只保存一份主要 instance，並阻止重複初始化」的做法有時會被稱為 singleton-style state。這個名稱不是本課考點；只要理解上面的實際行為即可。
+    這種「package 只保存一份主要 instance，並阻止重複初始化」的做法有時會被稱為 singleton-style state。名稱不是本課考點；先理解 object 與 reference 的實際行為即可。
   </div>
 
-  <h2>7. 把 Lesson 2 與 Lesson 3 接成完整一段</h2>
+  <h2>8. 把 Lesson 2 與 Lesson 3 接成完整一段</h2>
+
+  <p class="cite">下面從初始化接回 <a href="0002-faro-click-instrumentation.html">Lesson 2 的 click handling</a>；Lesson 2 再往下拆 <code>event.target</code>、<code>closest()</code> 與 payload。</p>
 
   <pre><code>宿主應用啟動
   │ calls
   ▼
 initFaro(...)
-  │ checks first initialization
+  │ calls
   ▼
 initializeFaro(...)
-  │ creates Faro object
-  │ initializes ClickInstrumentation
+  │ creates
   ▼
-document click listener exists
-  │
-  │ later, Browser dispatches click
+Faro object
+  │ initializes package-provided object
   ▼
-ClickInstrumentation.handleClick(event)
+ClickInstrumentation.initialize()
+  │ creates Browser listener registration
+  ▼
+document + click + callback(handleClick)
+  │ Browser calls callback during later click dispatch
+  ▼
+handleClick(event)
   │ builds payload
   ▼
-api.pushEvent('click', payload)</code></pre>
+api.pushEvent('click', payload)
 
-  <p>所以這堂課真正新增的模型只有：</p>
-
-  <blockquote>Lesson 2 的 click handler 之所以會存在，是因為頁面啟動時先跑過這條初始化流程。</blockquote>
+同一時間：
+initializeFaro() 回傳的 Faro object
+  │ reference saved by
+  ▼
+registerFaroInstance(faro)
+  │
+  ▼
+module-level faroInstance 之後仍指向同一個 object</code></pre>
 
   <h2>Self-check</h2>
 
   <div class="quiz" data-quiz>
-    <div class="question">Q1. 宿主應用真正呼叫的是哪一個 function？</div>
+    <div class="question">Q1. <code>ClickInstrumentation</code> 是誰實作的？</div>
     <div class="choices">
-      <button class="choice" data-correct="true" data-feedback-correct="宿主應用呼叫公司 package 的 initFaro()。"><code>initFaro()</code></button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="initializeFaro() 是 package 內部再呼叫的 Grafana function。"><code>initializeFaro()</code></button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="handleClick() 是 click 發生後才會執行。"><code>handleClick()</code></button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="pushEvent() 是後面的 telemetry API。"><code>pushEvent()</code></button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Browser 只提供 DOM event 機制。">Browser 原生提供</button>
+      <button class="choice" data-correct="true" data-feedback-correct="它是 @sre2/faro-click-tracking package 自己實作的。">公司 package 實作</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Faro SDK 負責啟動它，但不是這個 class 的實作者。">Grafana SDK 內建</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Alloy 在 Browser 外，不負責這個 object。">Grafana Alloy 實作</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
 
   <div class="quiz" data-quiz>
-    <div class="question">Q2. <code>document</code> click listener 什麼時候被註冊？</div>
+    <div class="question">Q2. listener registration 與 <code>handleClick</code> 的關係最精確是哪一個？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="Browser 不會自動替 Faro 建立這個 listener。">Browser 開啟頁面時自動建立</button>
-      <button class="choice" data-correct="true" data-feedback-correct="Faro 初始化 ClickInstrumentation 時才會註冊。">初始化 ClickInstrumentation 時建立</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="listener 必須先存在，第一次 click 才能被接到。">第一次 click 發生後才建立</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Alloy 不負責 Browser DOM listener。">Alloy 收到 telemetry 後建立</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="handleClick 是 callback function，不是 registration 本身。">兩者是同一個 object</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="registration 建立時不會立刻執行 handleClick。">registration 會立即執行它</button>
+      <button class="choice" data-correct="true" data-feedback-correct="Browser 的 listener registration 保存 handleClick 的 function reference，之後 dispatch 時再呼叫。">registration 保存 callback reference</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Event object 是每次 click 才建立。">handleClick 保存 Event object</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
@@ -237,36 +314,48 @@ api.pushEvent('click', payload)</code></pre>
     <div class="question">Q3. 為什麼第二次 <code>initFaro()</code> 會先失敗？</div>
     <div class="choices">
       <button class="choice" data-correct="false" data-feedback-incorrect="這和 DOM attribute 沒有關係。">避免 data-* 被建立兩次</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="event.target 是 Browser 在每次 event 中決定的。">避免 event.target 被改掉</button>
-      <button class="choice" data-correct="true" data-feedback-correct="package 在新的 Faro 與功能建立以前就拒絕重複初始化。">避免再建立第二套 Faro 功能</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="event.target 是 Browser 每次 dispatch 時的事件資訊。">避免 event.target 被改掉</button>
+      <button class="choice" data-correct="true" data-feedback-correct="package 在新的 Faro 與另一組功能建立以前就拒絕重複初始化。">避免再建立第二套 Faro 功能</button>
       <button class="choice" data-correct="false" data-feedback-incorrect="payload key normalization 是另一個問題。">避免 link_name 被重新命名</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
 
   <div class="quiz" data-quiz>
-    <div class="question">Q4. package 為什麼要保存 <code>faroInstance</code>？</div>
+    <div class="question">Q4. <code>faro</code> 與 <code>faroInstance</code> 在成功註冊後是什麼關係？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="Browser 不會替 package 保存這個 object。">交給 Browser 自動管理</button>
-      <button class="choice" data-correct="true" data-feedback-correct="之後的 package function 還需要取得同一個已建立的 Faro object。">讓後續功能取得同一 object</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="DOM tree 與 Faro instance 保存是兩件事。">讓 DOM tree 記住 Faro</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Alloy 在 Browser 之外。">讓 Alloy 保存 Browser object</button>
+      <button class="choice" data-correct="true" data-feedback-correct="它們是不同 variable，但都 reference 同一個 Faro object。">兩個 reference 指同一 object</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="registerFaroInstance 不會 clone Faro。">兩個各自獨立的 object</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="faroInstance 是 JavaScript variable，不是 DOM node。">一個 object 一個 DOM node</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Browser 不會自動複製這個 instance。">Browser 自動建立副本</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q5. 為什麼 package 要保存 module-level <code>faroInstance</code>？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="Faro object 已經由 initializeFaro 建立，不需要再建一次。">為了再建立第二顆 Faro</button>
+      <button class="choice" data-correct="true" data-feedback-correct="local faro 只屬於 initFaro scope；module-level reference 讓其他 package function 之後仍可取得同一 object。">讓後續 function 找到同一 object</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="listener registration 與 instance 保存是不同責任。">為了保存 click listener 本身</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Alloy 不會存取 Browser JavaScript object。">為了傳 object 給 Alloy</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
 
   <h2>Recap</h2>
   <ul>
-    <li>宿主應用呼叫公司 package 的 <code>initFaro()</code>。</li>
-    <li><code>initFaro()</code> 內部再呼叫 Grafana 的 <code>initializeFaro()</code>。</li>
-    <li>Faro 初始化 <code>ClickInstrumentation</code> 時，Lesson 2 的 <code>document</code> click listener 才被註冊。</li>
+    <li>宿主應用呼叫公司 package 的 <code>initFaro()</code>；package 再呼叫 Grafana 的 <code>initializeFaro()</code>。</li>
+    <li><code>ClickInstrumentation</code> 是公司 package 自己實作的 object，不是 Faro SDK 內建的現成 click tracker。</li>
+    <li><code>ClickInstrumentation.initialize()</code> 會建立 Browser listener registration；這條 registration 的 callback reference 是 <code>handleClick</code>。</li>
+    <li>真正 click dispatch 到 <code>document</code> 時，Browser 才呼叫 <code>handleClick(event)</code>。</li>
+    <li><code>initializeFaro()</code> 建立並回傳實際 Faro object；這就是本課說的 instance。</li>
+    <li><code>registerFaroInstance()</code> 不會建立第二個 instance；它把同一個 object 的 reference 保存到 module-level <code>faroInstance</code>。</li>
+    <li>保存 module-level reference 的原因，是讓 <code>initFaro()</code> local scope 結束後，其他 package function 仍能取得同一個 Faro object。</li>
     <li>第二次 <code>initFaro()</code> 會在另一個 Faro object 與另一組功能建立以前被拒絕。</li>
-    <li><code>initializeFaro()</code> 回傳的實際 Faro object，就是這裡說的 instance。</li>
-    <li>package 保存 <code>faroInstance</code>，讓後續 function 還能取得同一個 Faro object。</li>
-    <li>「singleton」只是這種設計可能使用的名稱，不是本課需要背的概念。</li>
   </ul>
 
-  <p class="cite">現行行為依據：Foreman <code>src/main.ts:11-34</code>；faro-click-tracking <code>initFaro.ts:13-146</code>、<code>faroInstance.ts:6-47</code>。因目前 Learning repo 保存的是 verified evidence 而非私有 source 全文，本課只把可驗證的真實名稱、設定與控制順序帶入程式例子，不把重建 skeleton 冒充逐字 source。</p>
+  <p class="cite">現行行為依據：Foreman <code>src/main.ts:11-34</code>；faro-click-tracking <code>clickInstrumentation.ts:3-97</code>、<code>initFaro.ts:13-146</code>、<code>faroInstance.ts:6-47</code>。Learning repo 保存的是 verified evidence 而非私有 source 全文，因此程式骨架只呈現已驗證的真實名稱與控制關係，不冒充逐字 source。</p>
 
   <nav class="lesson-nav" aria-label="課程導覽">
     <a href="0002-faro-click-instrumentation.html">← Lesson 2</a>
