@@ -11,6 +11,8 @@
 - 遇到 prerequisite 卡點時，先判斷是最小 bridge、durable reference，還是需要獨立 prerequisite lesson；補完後要回到 Faro 主線。
 - 不因建立 reference 就判定 learner 有弱點；只有實際暴露、會影響後續教學的 misconception／gap／mental-model shift 才進 learning record。
 - Browser / JavaScript 基礎概念要先用「具體物件、誰持有、誰建立、誰呼叫誰、資料何時存在」建立因果模型，再給抽象名詞。
+- 新的 Browser event / API 名稱不能先裸露名稱再補定義；先描述使用者可觀察到的 Browser 行為與為什麼程式需要收到通知，再命名正式 event / API。
 - 避免「JS 抓到 event」等模糊說法。優先說明：browser 建立並分派 Event，listener registration 保存 callback，browser 再呼叫 callback(event)。
+- Lesson 內不要把前一課、Reference、primary material、evidence 全部集中成一個 References 清單。前一課只在依賴該 mental model 的位置銜接；Reference 放在概念第一次真正需要查閱的位置；source/evidence 緊貼它支撐的 claim；一般上一課／Learning Map 導覽留在 lesson navigation。
 - 技術翻譯需保留英文原詞並選擇符合該脈絡的繁中語意；DOM event 的 `dispatch` 採「分派」，避免誤解為網路傳送。
 - Quiz 選項在 render time shuffle，避免正確答案位置形成提示。
