@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CORS 與 Preflight｜Reference</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+  <h1>CORS 與 Preflight</h1>
+  <p class="subtitle">Reference · 從 Browser request options，一路對到 Alloy / FastAPI receiver 的 CORS 設定</p>
+
+  <p><a href="../lessons/0005-faro-browser-to-alloy-transport.html">← 回到 Lesson 5：Faro Browser-to-Alloy Transport</a></p>
+
+  <div class="box ask">
+    <strong>最短版本</strong><br>
+    <strong>CORS</strong> 全名是 <strong>Cross-Origin Resource Sharing</strong>。它不是「讓 request 可以送出去的 client library」，而是 Browser 執行的一套跨 origin 存取規則。當 request 不符合簡單請求條件時，Browser 可能先自動送 <code>OPTIONS</code> preflight，問 server：「我等等想用這個 method、帶這些 headers，你允許嗎？」
+  </div>
+
+  <h2>1. 先建立整條因果鏈</h2>
+
+  <pre><code>Faro / page code
+  │ decides actual request
+  │ method = POST
+  │ headers = Content-Type, X-Faro-Session-Id, traceparent ...
+  ▼
+Browser
+  │ sees cross-origin request
+  │ decides whether preflight is required
+  ▼
+OPTIONS /alloy
+  │ Origin
+  │ Access-Control-Request-Method: POST
+  │ Access-Control-Request-Headers: ...
+  ▼
+receiver / gateway
+  │ answers CORS policy
+  ▼
+Access-Control-Allow-Origin
+Access-Control-Allow-Methods
+Access-Control-Allow-Headers
+  │
+  ├─ allowed     → Browser sends the real POST
+  └─ not allowed → Browser blocks before the real POST</code></pre>
+
+  <p>所以最重要的責任邊界是：</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>誰</th><th>負責什麼</th></tr></thead>
+    <tbody>
+      <tr><td>Faro / JavaScript</td><td>決定真正想送的 request：URL、method、body、request headers 等。</td></tr>
+      <tr><td>Browser</td><td>判斷是不是 cross-origin、是否需要 preflight，並自動產生 CORS preflight headers。</td></tr>
+      <tr><td>Receiver / Gateway</td><td>用 response headers 宣告自己允許哪些 origin、method、headers。</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>2. 「Exporter / options 可以設定什麼？」先分成兩層</h2>
+
+  <p>如果你是在想 Browser 端的 request options，可以先用一般 <code>fetch()</code> 建立 mental model：</p>
+
+  <pre><code>fetch(receiverUrl, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-Faro-Session-Id": "...",
+    "traceparent": "..."
+  },
+  body: "...",
+  mode: "cors",
+  credentials: "omit"
+})</code></pre>
+
+  <p>這些設定會影響 Browser 最後需要做什麼，但<strong>你通常不自己寫 preflight request</strong>。</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Client request 設定</th><th>對 Preflight 的影響</th></tr></thead>
+    <tbody>
+      <tr><td><code>method</code></td><td>Browser 可能把它寫成 <code>Access-Control-Request-Method</code>。</td></tr>
+      <tr><td><code>headers</code></td><td>需要事先詢問的 header 名稱，會出現在 <code>Access-Control-Request-Headers</code>。</td></tr>
+      <tr><td><code>Content-Type</code></td><td>某些值不屬於 CORS safelisted content type，會使 request 需要 preflight。</td></tr>
+      <tr><td><code>credentials</code></td><td>如果要帶 Cookie / HTTP credentials，server 的 CORS policy 也必須允許 credentials，而且 origin wildcard 會受到限制。</td></tr>
+      <tr><td><code>mode: "cors"</code></td><td>告訴 Fetch 依 CORS 規則處理；它不會替你「繞過」CORS。</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="box tip">
+    <strong>不要手動塞這些 header</strong><br>
+    <code>Origin</code>、<code>Access-Control-Request-Method</code>、<code>Access-Control-Request-Headers</code> 是 Browser CORS 機制的一部分。正常的 Browser <code>fetch()</code> 流程中，是 Browser 依真正 request 自動產生，不是 Faro exporter 自己硬塞一份 preflight protocol。
+  </div>
+
+  <h2>3. Preflight request 到底在問什麼？</h2>
+
+  <p>以目前 Faro → <code>/alloy</code> 的驗證條件為例，概念上 Browser 會問：</p>
+
+  <pre><code>OPTIONS /alloy HTTP/1.1
+Origin: https://some-frontend.example.com
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: content-type,x-faro-session-id,traceparent</code></pre>
+
+  <p>翻成白話就是：</p>
+
+  <blockquote>「我是從這個 origin 來的。我等等想用 POST，而且 request 會帶這三種 headers。你允許嗎？」</blockquote>
+
+  <p><code>OPTIONS</code> 本身不是 telemetry POST。它只是 Browser 在真正 request 前做的能力詢問。</p>
+
+  <h2>4. Receiver 的 CORS response 怎麼跟 request 一一對上？</h2>
+
+  <p>你目前驗證到 stage / prod 回：</p>
+
+  <pre><code>HTTP 204
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: POST
+Access-Control-Allow-Headers:
+  content-type,x-faro-session-id,traceparent</code></pre>
+
+  <p>可以直接逐欄對：</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Browser 問</th><th>Server 回</th><th>意思</th></tr></thead>
+    <tbody>
+      <tr><td><code>Origin: https://...</code></td><td><code>Access-Control-Allow-Origin: *</code></td><td>這個 response 表示目前允許任意 origin。</td></tr>
+      <tr><td><code>Access-Control-Request-Method: POST</code></td><td><code>Access-Control-Allow-Methods: POST</code></td><td>Server 表示真正 request 可以使用 POST。</td></tr>
+      <tr><td><code>Access-Control-Request-Headers: ...</code></td><td><code>Access-Control-Allow-Headers: ...</code></td><td>Server 表示真正 POST 可以帶這些 request headers。</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><strong>HTTP 204</strong> 在這裡只代表 OPTIONS response 沒有 body 且 request 本身成功處理；真正決定 Browser 能不能繼續的，是 CORS response headers 是否符合它剛才問的條件。</p>
+
+  <div class="box ask">
+    <strong>很重要：Preflight 成功 ≠ telemetry 成功</strong><br>
+    Preflight 通過，只代表 Browser 被允許「接著嘗試 POST」。POST 可能仍然得到 4xx / 5xx，也可能成功進 Alloy 後在後續 pipeline 出問題。
+  </div>
+
+  <h2>5. 常見 CORS response headers</h2>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Response header</th><th>回答什麼問題</th></tr></thead>
+    <tbody>
+      <tr><td><code>Access-Control-Allow-Origin</code></td><td>哪些 origin 可以讓 Browser 使用這個 response。</td></tr>
+      <tr><td><code>Access-Control-Allow-Methods</code></td><td>Preflight 後允許真正 request 使用哪些 HTTP methods。</td></tr>
+      <tr><td><code>Access-Control-Allow-Headers</code></td><td>真正 request 可以帶哪些 request headers。</td></tr>
+      <tr><td><code>Access-Control-Allow-Credentials</code></td><td>是否允許帶 credentials 的跨 origin request。</td></tr>
+      <tr><td><code>Access-Control-Max-Age</code></td><td>Browser 可以把這次 preflight 結果 cache 多久。</td></tr>
+      <tr><td><code>Access-Control-Expose-Headers</code></td><td>哪些 response headers 可以讓 page JavaScript 讀到。</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><code>Allow-Headers</code> 和 <code>Expose-Headers</code> 很容易搞混：</p>
+
+  <pre><code>Allow-Headers
+  → client 在 request 裡「可以送哪些 header」
+
+Expose-Headers
+  → server response 回來後，JavaScript「可以讀哪些 response header」</code></pre>
+
+  <h2>6. Alloy <code>otelcol.receiver.faro</code> 的 CORS 可以怎麼設？</h2>
+
+  <p>Grafana Alloy current documentation 的 <code>otelcol.receiver.faro</code> 提供 <code>cors</code> block：</p>
+
+  <pre><code>otelcol.receiver.faro "frontend" {
+  endpoint = "0.0.0.0:12347"
+
+  cors {
+    allowed_origins = ["https://my-webapp.example.com"]
+    allowed_headers = ["X-Faro-Session-Id", "traceparent"]
+    exposed_headers = []
+    max_age         = 3600
+  }
+
+  output {
+    logs   = [...]
+    traces = [...]
+  }
+}</code></pre>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Alloy setting</th><th>大致對應</th></tr></thead>
+    <tbody>
+      <tr><td><code>allowed_origins</code></td><td><code>Access-Control-Allow-Origin</code></td></tr>
+      <tr><td><code>allowed_headers</code></td><td><code>Access-Control-Allow-Headers</code></td></tr>
+      <tr><td><code>exposed_headers</code></td><td><code>Access-Control-Expose-Headers</code></td></tr>
+      <tr><td><code>max_age</code></td><td><code>Access-Control-Max-Age</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>目前官方文件列出的 <code>otelcol.receiver.faro.cors</code> 參數裡，<strong>沒有獨立的 <code>allowed_methods</code> 設定</strong>。因此不要預期在這個 block 裡找到：</p>
+
+  <pre><code>allowed_methods = ["POST"]   # current otelcol.receiver.faro docs 沒有這個欄位</code></pre>
+
+  <p>你目前 runtime 實際觀察到的 preflight response 是 <code>Access-Control-Allow-Methods: POST</code>。這是 endpoint 實際 CORS response 的證據；如果要理解它是 receiver implementation 如何產生，就要再往 Faro receiver 的 HTTP handler / upstream implementation 查，而不是憑空假設 Alloy 有一個沒文件化的 <code>allowed_methods</code> field。</p>
+
+  <p>另外，Alloy 文件指出 <code>Content-Type</code> 等部分 headers 會被 CORS helper 隱含允許；<code>allowed_headers = ["*"]</code> 則代表允許所有 headers。你的 2026-09-12 runtime evidence 記錄目前 stage/prod receiver 的 origins / headers 是 permissive <code>*</code>。</p>
+
+  <h2>7. Client request 和 Alloy CORS 設定怎麼對照？</h2>
+
+  <pre><code>真正 POST 想做的事
+────────────────────────────
+method: POST
+headers:
+  Content-Type
+  X-Faro-Session-Id
+  traceparent
+
+         │ Browser derives preflight
+         ▼
+OPTIONS
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers:
+  content-type,x-faro-session-id,traceparent
+
+         │ receiver checks policy
+         ▼
+Alloy cors {
+  allowed_origins = [...]
+  allowed_headers = [...]
+}
+
+         │ receiver answers
+         ▼
+Access-Control-Allow-Origin: ...
+Access-Control-Allow-Methods: POST
+Access-Control-Allow-Headers: ...</code></pre>
+
+  <p>也就是說，<strong>不是 client 和 receiver 各自寫一份完全相同的 CORS 設定</strong>。Client 定義「我真正想送什麼」；Browser 把需求翻成 preflight；receiver policy 再回答「我允不允許」。</p>
+
+  <h2>8. FastAPI 裡通常怎麼做？</h2>
+
+  <p>FastAPI 通常使用 <code>CORSMiddleware</code>：</p>
+
+  <pre><code>from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://app.example.com"],
+    allow_methods=["POST"],
+    allow_headers=[
+        "Content-Type",
+        "X-Faro-Session-Id",
+        "traceparent",
+    ],
+    allow_credentials=False,
+    expose_headers=[],
+    max_age=600,
+)</code></pre>
+
+  <p>這裡就可以看到比 Alloy <code>otelcol.receiver.faro</code> 更直接的 mapping：</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>FastAPI CORSMiddleware</th><th>控制的概念</th></tr></thead>
+    <tbody>
+      <tr><td><code>allow_origins</code></td><td>允許哪些 Browser origins。</td></tr>
+      <tr><td><code>allow_methods</code></td><td>允許哪些 cross-origin HTTP methods。</td></tr>
+      <tr><td><code>allow_headers</code></td><td>允許 client request 帶哪些 headers。</td></tr>
+      <tr><td><code>allow_credentials</code></td><td>是否允許 credentials。</td></tr>
+      <tr><td><code>expose_headers</code></td><td>哪些 response headers 可被 Browser JavaScript 讀取。</td></tr>
+      <tr><td><code>max_age</code></td><td>preflight 結果可 cache 多久。</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>9. FastAPI / API Server 實務上要注意什麼？</h2>
+
+  <ul>
+    <li><strong>CORS 不是 authentication / authorization。</strong>允許某個 origin，不代表那個 caller 已經通過身分驗證或有 API 權限。</li>
+    <li><strong>CORS 主要是 Browser enforcement。</strong><code>curl</code>、server-to-server client 不會因為缺 CORS header 就被 Browser 擋，因為根本沒有 Browser 在中間執行這套限制。</li>
+    <li><strong>不要無腦 <code>*</code>。</strong>如果服務只應該被少數前端使用，明確列出 origins 比全部開放更容易控制。</li>
+    <li><strong>credentials 和 wildcard 要特別小心。</strong>FastAPI 官方文件明確指出，當 <code>allow_credentials=True</code> 時，origins / methods / headers 不能全部直接使用 wildcard，必須明確指定。</li>
+    <li><strong>Ingress / reverse proxy 可能也會碰 CORS。</strong>最後 Browser 看到的是整條 HTTP path 最終回覆的 headers；如果 gateway 增刪 CORS header，你只看 FastAPI / Alloy application config 可能會誤判。</li>
+    <li><strong>Preflight cache 會讓你覺得「怎麼沒有 OPTIONS」。</strong>如果之前的 preflight 還在 cache，有些後續 request 不一定每次都重新發 OPTIONS。</li>
+  </ul>
+
+  <h2>10. 用你目前的 <code>/alloy</code> evidence 練一次</h2>
+
+  <pre><code>Browser 想要：
+  POST /alloy
+  Content-Type: ...
+  X-Faro-Session-Id: ...
+  traceparent: ...
+
+你主動驗證的 OPTIONS 問：
+  Method = POST
+  Headers = content-type,x-faro-session-id,traceparent
+
+stage / prod 回：
+  204
+  Allow-Origin: *
+  Allow-Methods: POST
+  Allow-Headers: content-type,x-faro-session-id,traceparent</code></pre>
+
+  <p>因此截至 2026-09-12，你可以下的結論只有：</p>
+
+  <blockquote>這兩個 endpoint 對這組 preflight 條件回覆「允許」。</blockquote>
+
+  <p>你還不能把它推成：</p>
+
+  <blockquote>真實 Faro POST 已成功進 Alloy，或 Alloy 後續 pipeline 已成功。</blockquote>
+
+  <h2>11. Debug 時照這個順序看</h2>
+
+  <pre><code>1. DevTools Network 找 OPTIONS
+   │
+   ├─ Request Origin 對嗎？
+   ├─ Access-Control-Request-Method 對嗎？
+   └─ Access-Control-Request-Headers 有哪些？
+
+2. 看 OPTIONS response
+   │
+   ├─ Allow-Origin 有匹配嗎？
+   ├─ Allow-Methods 包含真正 method 嗎？
+   └─ Allow-Headers 包含真正要送的 headers 嗎？
+
+3. Preflight 通過後，再找真正 POST
+   │
+   ├─ POST 有沒有真的出現？
+   └─ POST response status 是什麼？
+
+4. POST 這一段成功後
+   │
+   └─ 才往 Alloy 收到資料後的 pipeline 查</code></pre>
+
+  <div class="box tip">
+    <strong>把 Lesson 5 原本的「fault domain」換成人話</strong><br>
+    Browser 把 HTTP request 成功送到 <code>/alloy</code>，只證明「Browser → Alloy HTTP endpoint」這一段成功。Alloy 收到後能不能解析、batch、再送 Collector，是下一段問題。<strong>前一段成功，不代表後一段成功。</strong>
+  </div>
+
+  <h2>Recap</h2>
+
+  <ul>
+    <li>CORS = <strong>Cross-Origin Resource Sharing</strong>。</li>
+    <li>真正 request 的 method / headers 來自 client；是否需要 preflight 是 Browser 決定。</li>
+    <li>Preflight 是 Browser 自動送的 <code>OPTIONS</code>，不是 telemetry POST。</li>
+    <li><code>Access-Control-Request-*</code> 是 Browser 的問題；<code>Access-Control-Allow-*</code> 是 server 的回答。</li>
+    <li>Alloy <code>otelcol.receiver.faro</code> current CORS block 可設定 origins、headers、exposed headers、max age；官方 current docs 沒有獨立 <code>allowed_methods</code> field。</li>
+    <li>FastAPI <code>CORSMiddleware</code> 則可以直接設定 origins、methods、headers、credentials、exposed headers、max age。</li>
+    <li>Preflight 成功只代表 Browser 可以繼續真正 request，不代表 telemetry pipeline 已成功。</li>
+  </ul>
+
+  <p class="cite">Primary references：<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS">MDN · Cross-Origin Resource Sharing (CORS)</a>、<a href="https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.receiver.faro/">Grafana Alloy · otelcol.receiver.faro</a>、<a href="https://fastapi.tiangolo.com/tutorial/cors/">FastAPI · CORS</a>。目前公司 stage/prod 行為證據：<a href="../sources/evidence/browser-to-alloy.md">Browser Faro endpoint and Alloy receiver evidence</a>。</p>
+
+  <nav class="lesson-nav" aria-label="課程導覽">
+    <a href="../lessons/0005-faro-browser-to-alloy-transport.html">← Lesson 5</a>
+    <a href="../learning-map/index.html">Learning Map →</a>
+  </nav>
+</body>
+</html>

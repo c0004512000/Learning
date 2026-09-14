@@ -246,7 +246,12 @@ receiver: https://collector.example.com/alloy
 host 不同
 → cross-origin</code></pre>
 
-  <p><strong>CORS</strong> 可以先理解成 Browser 執行的一套規則：目標 server 必須用 response header 表明「哪些 origin / method / request headers 可以跨 origin 使用我」。</p>
+  <p><strong>CORS (Cross-Origin Resource Sharing)</strong> 可以先理解成 Browser 執行的一套規則：目標 server 必須用 response header 表明「哪些 origin / method / request headers 可以跨 origin 使用我」。</p>
+
+  <div class="box tip">
+    <strong>想再深入 CORS / Preflight？</strong><br>
+    Lesson 5 主線只保留理解 Browser → <code>/alloy</code> 所需的最小模型。Request options 如何變成 preflight、Alloy receiver 的 CORS 設定、各個 <code>Access-Control-*</code> response header 怎麼讀，以及 FastAPI <code>CORSMiddleware</code> 的對照，整理在 <a href="../reference/0004-cors-preflight.html">Reference｜CORS 與 Preflight</a>。
+  </div>
 
   <h2>7. Preflight：Browser 可能先問「我可不可以這樣 POST？」</h2>
 
@@ -392,7 +397,7 @@ Lesson 5：telemetry 怎麼跨 Browser network boundary 離開頁面</code></pre
         <tr><td>資料準備送到錯的 host</td><td><code>initFaro({ environment })</code> + resolver</td><td>environment 決定 receiver URL。</td></tr>
         <tr><td>Browser Console 出現 CORS 錯誤</td><td>頁面 origin、目標 origin、preflight response</td><td>這是 Browser network boundary 的存取規則。</td></tr>
         <tr><td>以為 <code>backendUrls</code> 可以改 receiver</td><td>停止查 <code>backendUrls</code></td><td>它屬於 tracing header propagation，不是 Faro telemetry destination。</td></tr>
-        <tr><td><code>/alloy</code> request 有送，但後端仍查不到資料</td><td>先確認 HTTP response，再進下一層 receiver / pipeline</td><td>Browser-side delivery 和 Alloy 後續處理是兩個 fault domain。</td></tr>
+        <tr><td><code>/alloy</code> request 有送，但後端仍查不到資料</td><td>先看 <code>/alloy</code> 的 HTTP response；如果這一段成功，再查 Alloy 收到後往哪裡送</td><td>Browser 成功送到 <code>/alloy</code>，不代表 Alloy 後面的處理也一定成功。</td></tr>
       </tbody>
     </table>
   </div>
