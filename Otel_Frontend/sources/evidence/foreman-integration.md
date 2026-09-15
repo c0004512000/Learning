@@ -25,6 +25,7 @@
 ### Marked DOM interactions
 
 - `src/app/layout/main/main.component.html:42-84` 的系統入口以 `[attr.data-link-name]="item.subsystem"` 放在 `<p-button>` host 上。
+- `item.subsystem` 是 dynamic runtime data。這份 source evidence 證明的是「runtime 值會綁到 `data-link-name`」這個 contract，**不枚舉、也不證明目前部署中的任何特定 subsystem 名稱或對應 URL**。若教材或 Lab 需要具體值，必須從當下 live DOM / runtime evidence 讀取。
 - `src/app/shared/toolbar/toolbar.component.html:81-145` 有五個 static `data-link-name` 值（`UserGuide.UserGuide`、`ReferenceDocument.SDS`、`ReferenceDocument.AI`、`ReferenceDocument.ForemanManual`、`Contact.ContactAdministrator`）。
 - `src/app/shared/line-selector/line-selector.component.html:39` 的 `data-red-light-count` 不是 package 設定的 tracked name，因此不會成為 click payload。
 - 以 HEAD 的 25 個 HTML template 做 bounded scan：48 個 `<p-button>`、2 個 native `<button>`、2 個 `<a>`、7 個 `data-*` references（上述五個 static link、一個 dynamic link、一個 red-light counter）。這是 markup count，不是「已覆蓋的 business interaction 數量」。
@@ -34,6 +35,7 @@
 - 在 `src/app` 未找到 app 自有的通用 `Button` 或 `Link` wrapper；可辨識的 shared components 是 toolbar、line-selector、table-settings、field-components 等功能元件。大多數互動直接在 feature templates 使用 PrimeNG `p-button` 或少量 native elements。
 - PrimeNG `18.0.2` source（tag commit `aaef4d94aabcbdbc58e0d523a52f23ae05660810`）的 `packages/primeng/src/button/button.ts` 由 `<p-button>` host render 內部 native `<button>`。Foreman 的 `data-link-name` 因此位於 custom-element host，而不是直接位於 inner button；inner button 仍以 ancestor 路徑連到 host，package 的 `element.closest('[data-link-name]')` 可找到它。
 - 已有 source 能證明 PrimeNG 這個 render path；沒有 source 證明所有未來 wrapper、portal 或 overlay 都保持同一個 DOM ancestor 關係。
+- 上述 source model 不能取代 browser runtime verification；實際 deployed bundle 當下 render 的 node、attribute 與值仍應以 DevTools live DOM 為準。
 
 ### Runtime deployment
 
@@ -47,7 +49,7 @@
 - Marked interactions: `src/app/layout/main/main.component.html:42-84`、`src/app/shared/toolbar/toolbar.component.html:81-145`、`src/app/shared/line-selector/line-selector.component.html:39`。
 - Dependency versions: `package.json:24-31`、`package-lock.json` entry for `@sre2/faro-click-tracking` and `primeng`.
 - Shared-component scan: bounded `rg` over `src/**/*.ts` and `src/**/*.html` at commit above; no generic Button/Link component was found.
-- PrimeNG source: `https://github.com/primefaces/primeng/blob/aaef4d94aabcbdbc58e0d523a52f23ae05660810/packages/primeng/src/button/button.ts`.
+- PrimeNG source: `https://github.com/primefaces/primeng/blob/aaef4d94aabcbdbc58e0d523a52f23ae05660810/packages/primeng/src/button/button.ts`。
 - Runtime resources: Kubernetes deployment specs in namespaces `mes1-frontend` (read-only query at verification timestamp); credential values intentionally omitted.
 - Foreman PR #21: `https://github.com/garmin-tw-mfg-eng/XD-Foreman-Assistant/pull/21`，merge commit `f4a3688d3beed8f8448b78583cd93985884cff23`（init-before-bootstrap, marked templates, user callback, device opt-in and test plan）。
 
@@ -60,10 +62,11 @@
 
 - 沒有 app-level shared generic Button/Link 的 bounded scan 結果之外，尚未證明每一個 business interaction 是否都走上述 templates；markup count 不能回答此問題。
 - 尚未以瀏覽器逐一點擊驗證所有 marked/unmarked controls 的實際 event payload；PrimeNG ancestor 路徑由 source 可證實，但實際 bundle/runtime delivery 仍是另一層 evidence。
+- `item.subsystem` 的目前 runtime 值清單、各值是否正在特定環境顯示、以及它們對應的 route/query string，**未由這份 source evidence 證明**；不得把教材示例字串升格成 Foreman 現況事實。
 - `OTLP_COLLECTOR_URL` 的存在不能證明 Foreman 當前每一筆 Faro event 已成功抵達 Collector。
 
 ## Mission / Course relevance
 
 - 支援 Lesson 2 的 host marking、ancestor placement 與「data-* 是 validation requirement」模型。
 - 支援 Lesson 3/4 的 `initFaro`、user callback、device opt-in 與 environment boundary。
-- 支援 Lesson 6/10 的 coverage audit、DevTools payload 與 OpenSearch/Loki field 驗證。
+- 支援 Lesson 6/10 的 coverage audit、DevTools payload 與 OpenSearch/Loki field 驗證；Lesson 6 的具體 tracking value 必須由 live DOM 發現，不可由 source binding 自行推導。
