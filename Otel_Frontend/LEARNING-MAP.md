@@ -13,6 +13,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 ## Progress
 
 - **目前位置：Milestone 2 / Lesson 3**
+- **教材狀態：Lesson 0–6 的 durable lesson HTML 已建立；artifact 已建立不代表 learner 已完成或 mastered**
 - **主線狀態：Lesson 3 從 Lesson 2 的 click handler 往上追，確認宿主應用如何透過 `initFaro()` 啟動 ClickInstrumentation，以及 package 為什麼保存同一個 Faro object**
 - **Prerequisite debt：Lesson 0 / Lesson 1 的 Browser runtime 與 Event mental model 已重構，但仍需要 retrieval evidence 才能視為 mastered**
 - **Lesson 2 mastery：教材已建立，但仍不能只因教材已讀或已產生就視為 mastered；需要 retrieval / practice evidence**
@@ -115,6 +116,9 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 #### Lesson 4 — User, Device, and Environment Context
 **Objective:** 理解 user callback、device 判定、environment context 的來源、生命週期與寫入位置，能判斷應由宿主應用還是共用套件提供資料。
 
+**Durable lesson:**
+- `lessons/0004-user-device-environment-context.html`
+
 **Primary sources:**
 - `1. PI 前端監控案例.html`
 - `3. Faro-Click-Tracking Introduction (for developer).html`
@@ -132,6 +136,9 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 #### Lesson 5 — Faro SDK Initialization and Browser-to-Alloy Transport
 **Objective:** 理解 Faro SDK 初始化、receiver endpoint、payload/meta 與 CORS 的因果關係，能從 browser network request 判斷資料有沒有真正送出。
 
+**Durable lesson:**
+- `lessons/0005-faro-browser-to-alloy-transport.html`
+
 **Primary sources:**
 - `1. PI 前端監控案例.html`
 - `2. Grafana Faro & Alloy - 前端可觀測性.html`
@@ -148,10 +155,17 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 #### Lesson 6 — Browser-Side Verification with DevTools
 **Objective:** 能用 Elements / Console / Network 驗證 click target、callback/context、Faro payload、request headers、response 與 CORS，而不是只看畫面有沒有反應。
 
+**Durable lesson:**
+- `lessons/0006-browser-devtools-verification.html`
+
 **Primary sources:**
 - `1. PI 前端監控案例.html`
 - `2. Grafana Faro & Alloy - 前端可觀測性.html`
 - `3. Faro-Click-Tracking Introduction (for developer).html`
+
+**Durable evidence:**
+- `sources/evidence/faro-click-tracking.md`
+- `sources/evidence/browser-to-alloy.md`
 
 **Dependency:** Lesson 5。
 
