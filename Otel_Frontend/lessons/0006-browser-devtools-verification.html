@@ -10,448 +10,482 @@
 </head>
 <body>
   <h1>Browser-Side Verification with DevTools</h1>
-  <p class="subtitle">Milestone 3 · 不再猜「有沒有送」，而是用 Browser 證據逐層確認 click → Faro → /alloy</p>
+  <p class="subtitle">Milestone 3 · 用 Elements、Console、Sources、Network 把 click → Faro → /alloy 一層一層證明</p>
 
   <div class="box tip">
     <strong>這堂課的目標</strong><br>
-    當你在 Foreman Assistant 操作一個真實 UI 元素後，你要能用 Browser DevTools 回答四件事：目前 live DOM 上實際有什麼 tracking attribute、Browser 是否有 click listener、Faro 是否真的產生 <code>/alloy</code> request，以及 request 的 payload / response 能證明到哪一層。
+    不是叫你「照著 DevTools 點幾個按鈕」。你要能看懂每一層畫面到底在證明什麼：live DOM 有沒有 tracking attribute、document 上有沒有 click listener、那個 listener 是否真的執行、哪一筆 Network request 才是 telemetry POST，以及 preflight / POST 分別該看 Headers、Payload 還是 Response。
   </div>
 
-  <p><a href="0005-faro-browser-to-alloy-transport.html">Lesson 5</a> 已經建立這條預期資料流：</p>
+  <p><a href="0005-faro-browser-to-alloy-transport.html">Lesson 5</a> 已經建立預期資料流：</p>
 
   <pre><code>Browser click
-   │ Browser dispatches event
+   │ Browser dispatches Event
    ▼
 ClickInstrumentation
-   │ extracts configured data-* values
+   │ extracts data-* value
    ▼
-Faro event
-   │ Transport batches / sends
+Faro click event
+   │ Transport sends HTTP request
    ▼
-POST /alloy
-   │
-   └─ Browser CORS rules may apply</code></pre>
+POST /alloy</code></pre>
 
-  <p>Lesson 6 不再只看「程式應該怎麼跑」。這堂課只接受你在 Browser 當下可以拿到的證據。</p>
+  <p>Lesson 6 要做的是把每一條箭頭換成 runtime evidence。</p>
 
-  <h2>1. 先建立 Debug 原則：畫面有反應，不等於 telemetry 成功</h2>
+  <h2>1. 先建立這堂課的 Debug 順序</h2>
 
-  <p>你點一個 UI 元素後，頁面有反應，只能直接證明 application 的某個操作有發生。</p>
+  <pre><code>① Elements / Console
+   這個 UI 的 live DOM 到底有沒有 data-link-name？
 
-  <p>它不能單獨證明：</p>
+② Console / Sources
+   document 有 click listener 嗎？
+   需要時，click 發生後到底執行了哪段 callback？
 
-  <ul>
-    <li>目前 click target 或 ancestor 真的有 <code>data-link-name</code>。</li>
-    <li>ClickInstrumentation 真的建立了 click telemetry。</li>
-    <li>Transport 真的送出了 <code>/alloy</code> request。</li>
-    <li>CORS 允許了這次 request。</li>
-    <li>Alloy 後面的 Collector / storage 已經成功。</li>
-  </ul>
+③ Network
+   Browser 有沒有送 /alloy？
+   哪一筆是 preflight？哪一筆才是 telemetry POST？
 
-  <p>因此 Browser-side debug 依序找三層證據：</p>
+④ Payload / Response
+   POST 裡有沒有剛才那個 click？
+   receiver 對這筆 POST 回了什麼？</code></pre>
 
-  <pre><code>① DOM evidence
-   我現在實際選到哪個 node？tracking attribute 在哪裡？
+  <blockquote>Expected state → observed evidence → first broken boundary。</blockquote>
 
-② Runtime evidence
-   Browser 現在是否真的有 click listener / callback 路徑？
+  <h2>2. Elements + Console：先把「我點了什麼」變成可驗證資料</h2>
 
-③ Network evidence
-   Browser 是否真的送出 /alloy？request 裡實際有什麼？</code></pre>
-
-  <blockquote>先找到第一個不符合 expected state 的 boundary，再決定往哪裡查。</blockquote>
-
-  <h2>2. Elements：先分清楚 source template 與 live DOM</h2>
-
-  <p><strong>Elements</strong> 顯示的是目前頁面正在使用的 live DOM。對 Lesson 6 而言，它不是拿來看 HTML 排版，而是拿來驗證 Browser 這一刻實際有哪些 node 與 attribute。</p>
-
-  <p class="cite">Chrome DevTools 官方：<a href="https://developer.chrome.com/docs/devtools/elements/">Elements panel overview</a>、<a href="https://developer.chrome.com/docs/devtools/dom">Get started with viewing and changing the DOM</a>。</p>
-
-  <p>Foreman Assistant 的 source evidence 已驗證主畫面 template 有這個 dynamic binding：</p>
+  <p>Foreman Assistant source 已驗證主畫面 template 有：</p>
 
   <pre><code>&lt;p-button [attr.data-link-name]="item.subsystem" ...&gt;</code></pre>
 
-  <p>這份 source evidence 可以證明：</p>
+  <p>這只能證明 source 會把 runtime 的 <code>item.subsystem</code> 寫進 <code>data-link-name</code>；實際值仍要看 live DOM。</p>
 
-  <pre><code>item.subsystem 的 runtime 值
-   │ Angular binding writes
-   ▼
-data-link-name attribute</code></pre>
+  <p class="cite">Source contract：<a href="../sources/evidence/foreman-integration.md">Foreman Assistant host integration</a>。</p>
 
-  <p>但它<strong>不能證明目前部署中的某一個 subsystem 一定叫什麼名字</strong>。<code>item.subsystem</code> 是 runtime data；特定值必須從你眼前的 live DOM 讀出來，不能從教材先寫死。</p>
-
-  <p class="cite">Foreman Assistant source contract：<a href="../sources/evidence/foreman-integration.md">foreman-integration evidence</a>。目前 evidence 證明的是 dynamic binding 與 component boundary，不是某個固定 business subsystem 名稱。</p>
-
-  <p>另外，已驗證的 PrimeNG source 顯示 <code>&lt;p-button&gt;</code> host 會 render 內部 native <code>&lt;button&gt;</code>。因此 source model 可能是：</p>
-
-  <pre><code>p-button[data-link-name="...runtime value..."]
-   │ contains / renders
-   ▼
-button
-   │ user click may hit this inner node
-   ▼
-event.target</code></pre>
-
-  <p>注意「可能」兩個字：Lesson 6 的工作仍然是用 Elements 驗證目前 deployment 的實際 DOM，而不是拿 source model 當 runtime 結果。</p>
-
-  <h2>3. Console：直接重做 ClickInstrumentation 的 DOM lookup</h2>
-
-  <p>在 Elements 選中的 node，可以在 Console 用 <code>$0</code> 取得。</p>
-
-  <p class="cite">Chrome 官方：<a href="https://developer.chrome.com/docs/devtools/dom#console">Access nodes in the Console</a>、<a href="https://developer.chrome.com/docs/devtools/console/utilities">Console Utilities API</a>。</p>
-
-  <p>目前 package 已驗證的 click contract 是：從 <code>event.target</code> 開始，對 configured attribute 執行 <code>closest()</code>，沿 ancestor 往上找。</p>
-
-  <p class="cite">現行 package contract：<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a>。</p>
-
-  <p>所以選中一個真實 UI node 後，直接執行：</p>
+  <p>用 Element Picker 選中你真的看得到的 UI，再到 Console 執行：</p>
 
   <pre><code>$0.tagName
 $0.closest('[data-link-name]')
 $0.closest('[data-link-name]')?.getAttribute('data-link-name')</code></pre>
 
-  <p>只有兩種值得保留的結果：</p>
-
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>結果</th><th>你現在能證明什麼</th></tr></thead>
-      <tbody>
-        <tr><td>得到一個字串</td><td>目前這個 node 的 ancestor path 上真的存在 <code>data-link-name</code>；這個字串就是這次 runtime evidence。</td></tr>
-        <tr><td>得到 <code>null</code> / <code>undefined</code></td><td>目前這個 node 的 ancestor path 沒找到該 attribute；不要自行補一個預期值。</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <p>如果得到一個實際字串，把它抄下來。下面 Lab 會把這個「你自己讀到的原始值」稱為 <code>TRACKING_VALUE</code>。這只是 Lab 筆記名稱，不是 Foreman 的程式變數。</p>
-
-  <h3>document 上真的有 click listener 嗎？</h3>
-
-  <p>Chrome DevTools 還提供 <code>getEventListeners()</code> utility：</p>
-
-  <pre><code>getEventListeners(document).click</code></pre>
-
-  <p>如果得到 listener 陣列，你可以證明目前 <code>document</code> 上存在 click listener registrations；但不能只靠這個陣列就宣稱其中某個一定是 Faro。</p>
-
-  <p>真的需要 execution evidence 時，再使用 <strong>Sources → Event Listener Breakpoints → click</strong>，重做一次 click，從暫停位置與 call stack 看實際 callback。</p>
-
-  <p class="cite">Chrome 官方：<a href="https://developer.chrome.com/docs/devtools/javascript/breakpoints#event-listener-breakpoints">Event listener breakpoints</a>。</p>
-
-  <h2>4. Network：真正回答 telemetry 有沒有離開 Browser</h2>
-
-  <p>DOM 與 listener 都只是前置條件。要回答「Faro 有沒有往 receiver 送」，要看 Network。</p>
-
-  <p class="cite">Chrome 官方：<a href="https://developer.chrome.com/docs/devtools/network/overview">Network panel overview</a>、<a href="https://developer.chrome.com/docs/devtools/network/reference">Network features reference</a>。</p>
-
-  <p>最小流程：</p>
-
-  <ol>
-    <li>開啟 DevTools → <strong>Network</strong>。</li>
-    <li>確認 recording 開啟。</li>
-    <li>清掉舊 request。</li>
-    <li>Filter 輸入 <code>alloy</code>。</li>
-    <li>再做一次你準備驗證的 UI 操作。</li>
-  </ol>
-
-  <p>不要建立這個錯誤等式：</p>
-
-  <pre><code>1 click = 1 request = 1 event</code></pre>
-
-  <p>目前 package 有 click throttle，而 Faro Transport 也可能 batch telemetry。因此你要找的是：<strong>操作之後產生的 request，能不能用 payload 裡的實際資料與剛才的 DOM evidence 對上</strong>。</p>
-
-  <h2>5. 一個 /alloy request，固定看五個地方</h2>
-
-  <pre><code>1. Request URL / Method
-2. Request Headers
-3. Payload
-4. Status / Response Headers
-5. Response</code></pre>
-
-  <h3>5.1 URL / Method</h3>
-
-  <p>先看 Browser 實際送去哪裡，不要從目前頁面的 hostname 猜 receiver。</p>
-
-  <p>目前 verified package resolver 是：</p>
-
-  <pre><code>tw-stage → https://pek8s-staging.garmin.com/alloy
-tw-prod  → https://shixpa-peproxy00.garmin.com/alloy</code></pre>
-
-  <p>但 Lesson 6 的 runtime 判斷仍以 Network 顯示的 <strong>Request URL</strong> 為準。</p>
-
-  <p class="cite">Endpoint / CORS runtime evidence：<a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a>。</p>
-
-  <h3>5.2 Headers</h3>
-
-  <p>至少觀察：</p>
-
-  <pre><code>Origin
-Content-Type
-X-Faro-Session-Id（如果有）
-traceparent（目前只記錄有／沒有）</code></pre>
-
-  <p><code>traceparent</code> 的 propagation 意義留到 Lesson 7；這堂課只把它當成 Network evidence。</p>
-
-  <h3>5.3 Payload</h3>
-
-  <p>這裡不要先背 JSON path。先做最直接的 correlation：</p>
-
-  <pre><code>Live DOM 讀到的 TRACKING_VALUE
-   │ ClickInstrumentation extracts
-   ▼
-click event data
-   │ Faro Transport sends
-   ▼
-/alloy request body 裡能找到同一個值</code></pre>
-
-  <p>如果 request 存在，但找不到剛才的 <code>TRACKING_VALUE</code>，你現在只能說「這個 request 尚未證明就是剛才那個 tracked click」，不能直接把問題丟給 Collector。</p>
-
-  <p>接著再觀察 <code>meta</code> 裡實際出現的 user / session / device / app context。source configuration 只能告訴你「應該怎麼設定」，Network payload 才是這一刻的 runtime evidence。</p>
-
-  <h3>5.4 Status / Response / CORS</h3>
-
-  <p>如果看到 <code>OPTIONS</code>，那通常是 CORS preflight，不是 telemetry POST 本身。</p>
-
-  <pre><code>OPTIONS
-  ├─ Access-Control-Request-Method
-  └─ Access-Control-Request-Headers
-
-server response
-  ├─ Access-Control-Allow-Origin
-  ├─ Access-Control-Allow-Methods
-  └─ Access-Control-Allow-Headers</code></pre>
-
-  <p>目前 2026-09-12 的 read-only runtime evidence 只驗證 stage / prod endpoint 對測試 preflight 回過 204 與允許 headers；它沒有送 telemetry POST，因此不能拿那次結果取代你現在 Browser 裡的 POST evidence。</p>
-
-  <p class="cite">現行 CORS evidence：<a href="../sources/evidence/browser-to-alloy.md">Browser Faro endpoint and Alloy receiver</a>。</p>
-
-  <div class="box ask">
-    <strong>沒有看到 OPTIONS，不等於沒有 CORS</strong><br>
-    Browser 可能重用已快取的 preflight 結果。判斷這次是否成功，仍要一起看真正 POST、response 與 Console evidence。
-    <p class="cite">MDN：<a href="https://developer.mozilla.org/en-US/docs/Glossary/Preflight_request">Preflight request</a>。</p>
-  </div>
-
-  <h2 id="foreman-assistant-hands-on-lab">Hands-on Lab｜用現在看得到的 Foreman Assistant UI 跑一次</h2>
-
-  <div class="box tip">
-    <strong>Lab 的核心規則：先觀察，再命名</strong><br>
-    這個 Lab 不預設任何 Foreman business function 名稱，也不預設某個 query parameter 一定存在。你只使用「目前 Stage 頁面真的看得到、Elements 真的選得到、Console 真的讀得到」的值。
-  </div>
-
-  <p>使用 Stage Foreman Assistant：<a href="https://pek8s-staging.garmin.com/foreman-assistant/#/main">開啟 Stage Foreman Assistant 主畫面</a>。</p>
-
-  <p>最後要拿到這五份 evidence：</p>
-
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Evidence</th><th>你要回答的問題</th></tr></thead>
-      <tbody>
-        <tr><td>Live DOM</td><td>我實際選到哪個 node？ancestor path 有沒有 <code>data-link-name</code>？</td></tr>
-        <tr><td>Tracking value</td><td>如果有，Browser 現在實際讀到的值是什麼？</td></tr>
-        <tr><td>Runtime listener</td><td><code>document</code> 現在是否存在 click listeners？</td></tr>
-        <tr><td>Network request</td><td>這次 UI 操作後是否產生可關聯的 <code>/alloy</code> request？</td></tr>
-        <tr><td>Payload / Response</td><td>同一個 tracking value 是否進入 payload？HTTP boundary 結果是什麼？</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <h3>Lab 0｜先把畫面與 Network 清乾淨</h3>
-
-  <ol>
-    <li>登入 Stage Foreman Assistant，停在 <code>/foreman-assistant/#/main</code>。</li>
-    <li>按 <code>F12</code> 打開 DevTools。</li>
-    <li>到 <strong>Network</strong>，確認 recording 開啟。</li>
-    <li>勾選 <strong>Preserve log</strong>。</li>
-    <li>按 Clear，Filter 輸入 <code>alloy</code>。</li>
-    <li>先不要做你要驗證的正常 click。</li>
-  </ol>
-
-  <p>目的只有一個：減少舊 telemetry，讓後面的 request 比較容易跟這次操作做時間與 payload correlation。</p>
-
-  <h3>Lab 1｜Element Picker：先找一個目前真的存在的 UI 元素</h3>
-
-  <ol>
-    <li>點 DevTools 左上角 <strong>Select an element</strong>，或按 <code>Ctrl+Shift+C</code>。</li>
-    <li>在 Foreman Assistant 主畫面，選一個你現在<strong>真的看得到</strong>的可點 UI 元素。不要照教材搜尋固定名稱。</li>
-    <li>Elements 停住後，切到 Console。</li>
-    <li>執行：</li>
-  </ol>
+  <p>你這次實際看到的是：</p>
 
   <pre><code>$0.tagName
+→ "SPAN"
+
 $0.closest('[data-link-name]')
-$0.closest('[data-link-name]')?.getAttribute('data-link-name')</code></pre>
+→ p-button[data-link-name="EfficiencyAbnormalReport"]
 
-  <p>現在分兩條路：</p>
+getAttribute('data-link-name')
+→ "EfficiencyAbnormalReport"</code></pre>
 
-  <pre><code>A. 得到實際字串
-   → 抄下原字串，後面稱為 TRACKING_VALUE
+  <p>所以這次 runtime evidence 是：</p>
 
-B. 得到 null / undefined
-   → 這個 node 的 ancestor path 沒有 data-link-name
-   → 這本身就是有效 evidence
-   → 若你要完成 tracked-click E2E，再換另一個目前可見的 UI 元素測</code></pre>
+  <pre><code>SPAN
+  │ closest('[data-link-name]') 往 ancestor 找
+  ▼
+p-button[data-link-name="EfficiencyAbnormalReport"]</code></pre>
 
   <div class="box ask">
-    <strong>不要因為 source 說 main template 有 dynamic binding，就替 runtime 補值</strong><br>
-    source 只證明 <code>[attr.data-link-name]="item.subsystem"</code> 這條 binding 存在於已驗證的 source revision。Lab 必須用 live DOM 證明目前部署實際 render 了什麼值、實際 ancestor 關係長什麼樣。
+    <strong>這裡不需要任何 TRACKING_VALUE 之類的新名詞</strong><br>
+    後面只要一直說「剛才從 live DOM 讀到的 <code>data-link-name</code> 值」。你這次的值就是 <code>EfficiencyAbnormalReport</code>。這是目前這一次 runtime observation，不代表所有環境永遠都有同一個名稱。
   </div>
 
-  <h3>Lab 2｜確認 runtime listener 前置條件</h3>
+  <p class="cite">本次實際 Browser observation：<a href="../sources/evidence/foreman-browser-lab-2026-09-16.md">Foreman Assistant Browser DevTools lab evidence</a>。</p>
+
+  <h2>3. getEventListeners(document).click：畫面很多，但你只需要讀五件事</h2>
 
   <p>Console 執行：</p>
 
   <pre><code>getEventListeners(document).click</code></pre>
 
-  <p>記錄結果：</p>
-
-  <ul>
-    <li>有陣列：可以證明 <code>document</code> 現在有 click listener registrations。</li>
-    <li>空或沒有：source expectation 與目前 runtime observation 不一致，這就是要定位的 boundary。</li>
-  </ul>
-
-  <p>如果你需要證明某個 listener 是否真的執行 Faro 的 click callback，再使用 Event Listener Breakpoint；不要只看 listener 數量猜。</p>
-
-  <h3>Lab 3｜正常操作一次，再看 /alloy</h3>
-
-  <ol>
-    <li>回 Network，再 Clear 一次，Filter 保持 <code>alloy</code>。</li>
-    <li>正常操作 Lab 1 選定的 UI 一次。</li>
-    <li>觀察這次操作之後新增的 <code>/alloy</code> request。</li>
-    <li>不要要求「一定立刻出現一個一對一 request」；Transport 可能 batch。</li>
-  </ol>
-
-  <p>你現在只能做這兩種判斷：</p>
-
-  <pre><code>有新的 /alloy request
-   → Browser transport boundary 有 request evidence
-   → 下一步看 payload 能否跟 TRACKING_VALUE 對上
-
-沒有可觀察到的新 /alloy request
-   → 還不能往 Collector 查
-   → 回 Browser / Faro event / Transport boundary 定位</code></pre>
-
-  <h3>Lab 4｜用你自己讀到的 TRACKING_VALUE 做 payload correlation</h3>
-
-  <p>如果 Lab 1 得到了一個實際 tracking value，現在打開操作後新增的 <code>/alloy</code> POST，切到 <strong>Payload</strong>。</p>
-
-  <p>直接找那個<strong>完全相同的原字串</strong>。</p>
-
-  <pre><code>Live DOM
-  data-link-name = TRACKING_VALUE
-          │
-          ▼
-/alloy payload
-  click event data 內找到同一個 TRACKING_VALUE</code></pre>
-
-  <p>找到：你有一條從 live DOM → click extraction → network payload 的 runtime evidence chain。</p>
-
-  <p>找不到：只代表目前這個 request 還不能證明帶了那次 tracked click。回頭看 event callback、batching / request correlation 與 Transport，不要直接跳到 downstream。</p>
-
-  <p>接著再看 payload 實際存在的 user / session / device / app meta；只記錄你真的看到的欄位。</p>
-
-  <h3>Lab 5｜最後才看 Headers / Response / CORS</h3>
-
-  <p>對真正的 <code>POST /alloy</code> 記錄：</p>
-
-  <pre><code>Request URL
-Request Method
-Origin
-Content-Type
-X-Faro-Session-Id（如果有）
-traceparent（有／沒有）
-Status
-Response Headers
-Response</code></pre>
-
-  <p>如果同時看到 <code>OPTIONS</code>，再看它的 preflight request / response headers。不要把 OPTIONS 204 當成 POST 成功。</p>
-
-  <h3>Lab 6｜把結果壓成一張 SRE evidence card</h3>
-
-  <pre><code>Foreman UI action:
-  我實際操作的 UI = ?
-
-DOM evidence:
-  $0.tagName = ?
-  closest('[data-link-name]') = ?
-  TRACKING_VALUE = ? / not found
-
-Runtime evidence:
-  document click listeners = ?
-  是否需要 breakpoint = ?
-
-Network evidence:
-  /alloy POST URL = ?
-  status = ?
-  payload 是否找到同一個 TRACKING_VALUE = ?
-  實際存在的 user/device/app meta = ?
-  OPTIONS / CORS evidence = ?
-
-First broken boundary:
-  DOM / listener / Faro event / transport / CORS / receiver / none observed</code></pre>
-
-  <p>你能根據這張 card 指出第一個不符合 expected state 的 boundary，就完成了 Lesson 6。</p>
-
-  <h2>6. 證據層級：每一層能證明什麼</h2>
+  <p>DevTools 回傳的是「目前註冊在 <code>document</code> 上的 click listeners 清單」。畫面裡會有很多 JavaScript object 細節，但這個 Lab 不需要全部懂。</p>
 
   <div class="table-wrap">
     <table>
-      <thead><tr><th>證據</th><th>能證明</th><th>不能單獨證明</th></tr></thead>
+      <thead><tr><th>你畫面上的欄位</th><th>這堂課要怎麼讀</th></tr></thead>
       <tbody>
-        <tr><td>頁面操作有反應</td><td>Application 某段 UI 行為發生。</td><td>Faro telemetry 已送出。</td></tr>
-        <tr><td>Live DOM 有 <code>data-link-name</code></td><td>目前 ancestor path 有可抽取資料。</td><td><code>pushEvent()</code> 已執行。</td></tr>
-        <tr><td><code>document</code> 有 click listener</td><td>目前有 listener registration。</td><td>該 listener 一定是 Faro 或已執行。</td></tr>
-        <tr><td><code>/alloy</code> POST 出現</td><td>Browser 建立並送出 HTTP request。</td><td>這個 request 一定含剛才的 click。</td></tr>
-        <tr><td>Payload 找到同一 tracking value</td><td>這個 request 可與剛才 tracked click 關聯。</td><td>Collector / storage 已成功。</td></tr>
-        <tr><td>POST 有成功 response</td><td>Browser → receiver 這一跳有成功 evidence。</td><td>Alloy 後續 pipeline 已完整成功。</td></tr>
+        <tr><td><code>length: 1</code></td><td>DevTools 目前看到 1 個 document click listener registration。</td></tr>
+        <tr><td><code>type: "click"</code></td><td>這個 registration 處理的是 click event。</td></tr>
+        <tr><td><code>useCapture: false</code></td><td>不是 capture listener；它在 bubbling 路徑上處理 click。</td></tr>
+        <tr><td><code>listener.name: "globalZoneAwareCallback"</code></td><td>DevTools 目前露出的是 Zone.js wrapper function，不是直接把 Faro 的函式名稱顯示給你。</td></tr>
+        <tr><td><code>[[FunctionLocation]]: zone.js:1201</code></td><td>這個 wrapper function 的程式位置。它只能證明目前看到的是 Zone.js 這層。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><code>passive</code>、<code>once</code>、<code>Scopes</code>、<code>Prototype</code> 等欄位目前不是 Lesson 6 的重點，不要被它們拖走。</p>
+
+  <div class="box tip">
+    <strong>你目前已經證明什麼？</strong><br>
+    <code>document</code> 上確實有一個 click listener registration，而且 DevTools 顯示它目前經過 Zone.js wrapper。<strong>你還沒有證明這個 wrapper 最後一定呼叫 Faro 的 click callback。</strong>
+  </div>
+
+  <h2>4. Event Listener Breakpoint：真正看「click 發生後跑了哪段程式」</h2>
+
+  <p><code>getEventListeners()</code> 看的是「已註冊什麼」。Event Listener Breakpoint 看的是「事件真的發生時，Browser 正在執行什麼」。Chrome 官方對這種 breakpoint 的定義就是：指定事件發生後，在 listener code 執行時暫停。 </p>
+
+  <p class="cite"><a href="https://developer.chrome.com/docs/devtools/javascript/breakpoints#event-listener-breakpoints">Chrome DevTools · Event listener breakpoints</a>。</p>
+
+  <h3>Lab 2A｜把 click breakpoint 打開</h3>
+
+  <ol>
+    <li>切到 <strong>Sources</strong>。</li>
+    <li>在右側找到 <strong>Event Listener Breakpoints</strong>。如果右側面板太窄，先展開側欄。</li>
+    <li>展開包含 click 的事件分類（Chromium DevTools 通常會放在 Mouse 類別）。</li>
+    <li>勾選 <strong>click</strong>。</li>
+    <li>回到 Foreman Assistant，正常點剛才那個 UI。</li>
+    <li>JavaScript 會暫停；回 Sources 看目前停在哪一行，以及右側 <strong>Call Stack</strong>。</li>
+  </ol>
+
+  <h3>如果先停在 zone.js，不代表失敗</h3>
+
+  <p>你剛才的 listener 本來就顯示 <code>globalZoneAwareCallback</code> 與 <code>zone.js</code>，所以 breakpoint 先停在 Zone.js wrapper 是合理結果。</p>
+
+  <pre><code>Browser dispatch click
+   │ calls registered listener
+   ▼
+Zone.js wrapper
+   │ invokes wrapped callback/task
+   ▼
+實際 application / library callback</code></pre>
+
+  <p>這時主要看 <strong>Call Stack</strong>，必要時使用 <strong>Step into</strong> 繼續往真正 callback 走。你要找的不是某個固定行號，而是能辨識 ClickInstrumentation 行為的 evidence，例如：</p>
+
+  <pre><code>closest('[data-link-name]')
+getAttribute('data-link-name')
+pushEvent('click', ...)</code></pre>
+
+  <p>如果 source map 能直接顯示 <code>faro-click-tracking</code> / <code>clickInstrumentation</code>，那會更容易；如果目前只能看到 Zone.js wrapper、無法追到 Faro callback，就要誠實記成「document click listener 已執行，但尚未把 execution path 證明到 Faro callback」。</p>
+
+  <h2>5. 進 Network 以前，先學會看 request list</h2>
+
+  <p>Network filter 輸入 <code>alloy</code> 後，你的畫面出現兩種不同 request：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Network row</th><th>角色</th><th>這堂課主要看哪裡</th></tr></thead>
+      <tbody>
+        <tr><td><code>Type: preflight</code><br><code>Method: OPTIONS</code><br><code>Status: 204</code></td><td>Browser 先問 receiver：「接下來這種 cross-origin POST 可以送嗎？」</td><td><strong>Headers</strong>。不要期待 Payload；Response body 也通常不是重點。</td></tr>
+        <tr><td><code>Type: fetch</code><br><code>Method: POST</code><br><code>Status: 202</code></td><td>真正送 Faro telemetry 的 HTTP request。</td><td><strong>Headers + Payload + Status</strong>。Response body 有可能是空的。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>所以不要看到每一列都從 Headers、Payload、Preview、Response 全部翻一次。不同 request 有不同問題。</p>
+
+  <h3>Network list 的欄位先只讀這些</h3>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>欄位</th><th>你現在要知道的意思</th></tr></thead>
+      <tbody>
+        <tr><td>Name</td><td>request 的資源名稱；這裡都是 <code>alloy</code>，所以單靠 Name 分不出是哪一筆。</td></tr>
+        <tr><td>Status</td><td>HTTP status。你目前看到 preflight 204、POST 202。</td></tr>
+        <tr><td>Type</td><td>快速分辨 <code>preflight</code> 與真正 <code>fetch</code>。</td></tr>
+        <tr><td>Initiator</td><td>哪段 runtime code 觸發 request；看到 <code>zone.js</code> 只代表目前顯示的呼叫入口，不等於那筆一定是 click telemetry。</td></tr>
+        <tr><td>Time</td><td>這筆 request 花多久；目前不是判斷 click 是否正確的主要 evidence。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>6. Preflight：只回答「Browser 被允許送 POST 嗎？」</h2>
+
+  <p>先點 <code>Type = preflight</code> 的那一列。你的畫面顯示：</p>
+
+  <pre><code>Request Method: OPTIONS
+Status Code: 204 No Content
+Request URL: https://shixpa-peproxy00.garmin.com/alloy</code></pre>
+
+  <p>這一筆主要看 <strong>Headers</strong>。</p>
+
+  <h3>Request Headers 要問</h3>
+
+  <pre><code>Origin 是誰？
+Access-Control-Request-Method 想送什麼 method？
+Access-Control-Request-Headers 想帶哪些 headers？</code></pre>
+
+  <h3>Response Headers 要問</h3>
+
+  <pre><code>Access-Control-Allow-Origin 允許這個 origin 嗎？
+Access-Control-Allow-Methods 允許 POST 嗎？
+Access-Control-Allow-Headers 允許 Browser 想帶的 headers 嗎？</code></pre>
+
+  <p>你這次畫面至少能看到 receiver 回：</p>
+
+  <pre><code>Access-Control-Allow-Methods: POST
+Access-Control-Allow-Headers: content-type,x-faro-session-id
+Access-Control-Allow-Origin: *</code></pre>
+
+  <p>DevTools 在 Response 顯示：</p>
+
+  <pre><code>Failed to load response data
+No content available for preflight request</code></pre>
+
+  <p>在你這筆 <code>204 No Content</code> preflight 裡，這不是「request 壞掉」的證據。204 本來就表示沒有 response body；對 preflight，真正要看的就是 status 與 CORS response headers。</p>
+
+  <div class="box ask">
+    <strong>Preflight 成功 ≠ telemetry POST 成功</strong><br>
+    它只代表 Browser 在這組條件下得到「可以繼續送真正 request」的 CORS permission evidence。後面仍然要看 POST。
+  </div>
+
+  <h2>7. POST：這才是你要找 click telemetry 的地方</h2>
+
+  <p>接著點 <code>Type = fetch</code> 的 <code>alloy</code> 列。先看 <strong>Headers → General</strong>：</p>
+
+  <pre><code>Request Method: POST
+Status Code: 202 Accepted
+Request URL: https://shixpa-peproxy00.garmin.com/alloy</code></pre>
+
+  <p><code>202 Accepted</code> 可以證明 receiver 在 HTTP boundary 接受了這筆 request。它不能單獨證明 Collector / OpenSearch 已經成功。</p>
+
+  <h3>POST 最重要的是 Payload</h3>
+
+  <p>因為你現在要回答：</p>
+
+  <blockquote>這幾筆 POST 裡，到底哪一筆是剛才那個 <code>EfficiencyAbnormalReport</code> click？</blockquote>
+
+  <p>做法不是靠 request 順序猜，而是逐筆點 POST 的 <strong>Payload</strong>，找：</p>
+
+  <pre><code>events
+  └─ name: "click"
+      └─ attributes
+          └─ link_name: "EfficiencyAbnormalReport"</code></pre>
+
+  <p>你這次已經找到一筆：</p>
+
+  <pre><code>Live DOM
+  data-link-name="EfficiencyAbnormalReport"
+          │
+          │ ClickInstrumentation extracts
+          ▼
+POST /alloy Payload
+  events[0].name = "click"
+  events[0].attributes.link_name = "EfficiencyAbnormalReport"
+          │
+          ▼
+HTTP response
+  202 Accepted</code></pre>
+
+  <div class="box tip">
+    <strong>這才是 Lesson 6 最重要的一條 runtime evidence chain</strong><br>
+    不是「我看到一堆 alloy request」，而是「我在 DOM 讀到的同一個值，真的出現在某一筆 click event payload 裡，而且那筆 POST 收到 202」。
+  </div>
+
+  <p class="cite">本次 runtime evidence：<a href="../sources/evidence/foreman-browser-lab-2026-09-16.md">Foreman Assistant Browser DevTools lab evidence</a>。</p>
+
+  <h3>為什麼你看到好幾筆 202 POST？</h3>
+
+  <p>不要先假設每一筆都是同一個 click。Faro 可以送不同 telemetry，Transport 也可能 batch。Lesson 6 的判斷方式永遠是<strong>看 Payload 內容做 correlation</strong>，不是看到四筆 POST 就猜「click 被送四次」。</p>
+
+  <h2>8. POST 的 Response 要不要看？要，但它回答的是另一個問題</h2>
+
+  <p>POST 的判讀順序：</p>
+
+  <pre><code>General
+  → URL / Method / Status 對不對？
+
+Payload
+  → 裡面是不是我剛才要驗證的 click？
+
+Response Headers / Response
+  → receiver 對這筆 request 回什麼？</code></pre>
+
+  <p>你這次 POST 是 <code>202 Accepted</code>，Response header 還顯示 <code>Content-Length: 0</code>。因此 Response body 空白本身並不奇怪。</p>
+
+  <p>這層能證明：</p>
+
+  <pre><code>Browser
+  │ POST /alloy
+  │ Payload contains matching click
+  ▼
+receiver
+  │ returns 202
+  ▼
+Browser → receiver boundary 有成功 evidence</code></pre>
+
+  <p>但下一段：</p>
+
+  <pre><code>receiver → Alloy pipeline → Collector → storage</code></pre>
+
+  <p>仍然需要後續 evidence，不能靠 202 直接推論完成。</p>
+
+  <h2>9. 你這次還看到一個非常重要的環境事實</h2>
+
+  <p>你目前頁面是：</p>
+
+  <pre><code>https://pek8s-staging.garmin.com/foreman-assistant/#/main</code></pre>
+
+  <p>但實際 Faro request 是：</p>
+
+  <pre><code>https://shixpa-peproxy00.garmin.com/alloy</code></pre>
+
+  <p>而 Payload meta 裡的 environment 是：</p>
+
+  <pre><code>tw-prod</code></pre>
+
+  <p>這不是教材推論，而是你現在 Browser runtime 真的觀察到的結果。既有 source evidence 也顯示 Foreman 的 <code>src/main.ts</code> 目前傳入 <code>environment: 'tw-prod'</code>，所以 runtime 與 source 在這一點上相符。</p>
+
+  <p class="cite"><a href="../sources/evidence/foreman-integration.md">Foreman source evidence</a> · <a href="../sources/evidence/foreman-browser-lab-2026-09-16.md">本次 Browser runtime evidence</a></p>
+
+  <div class="box ask">
+    <strong>先不要直接叫它「錯誤」</strong><br>
+    我們目前只證明「Stage page 實際把 Faro environment 當成 <code>tw-prod</code>，並送到 prod receiver」。要判斷這是不是 bug，還需要明確的 deployment requirement / intended policy。
+  </div>
+
+  <h2 id="foreman-assistant-hands-on-lab">Hands-on Lab｜完整重跑一次</h2>
+
+  <h3>Lab 0｜準備</h3>
+  <ol>
+    <li>登入 Stage Foreman Assistant 主畫面。</li>
+    <li>開 DevTools。</li>
+    <li>Network 勾 <strong>Keep log / Preserve log</strong>，Filter 輸入 <code>alloy</code>。</li>
+    <li>先 Clear，避免舊 request 混進來。</li>
+  </ol>
+
+  <h3>Lab 1｜DOM</h3>
+  <ol>
+    <li>Element Picker 選一個目前真的可點 UI。</li>
+    <li>Console 執行 <code>$0.tagName</code>。</li>
+    <li>執行 <code>$0.closest('[data-link-name]')</code>。</li>
+    <li>執行 <code>$0.closest('[data-link-name]')?.getAttribute('data-link-name')</code>。</li>
+    <li>直接記住「剛才讀到的 <code>data-link-name</code> 值」，不要另外發明變數名稱。</li>
+  </ol>
+
+  <h3>Lab 2｜Listener registration</h3>
+  <ol>
+    <li>執行 <code>getEventListeners(document).click</code>。</li>
+    <li>只記錄：listener 數量、<code>type</code>、<code>useCapture</code>、listener function name / location。</li>
+    <li>不要因為看到 Zone.js wrapper 就宣稱已證明 Faro callback。</li>
+  </ol>
+
+  <h3>Lab 2A｜Listener execution</h3>
+  <ol>
+    <li>Sources → Event Listener Breakpoints。</li>
+    <li>展開 click 所在分類並勾選 click。</li>
+    <li>正常操作同一個 UI。</li>
+    <li>暫停後看目前 source line 與 Call Stack。</li>
+    <li>若停在 Zone.js，沿 stack / Step into 繼續找真正 callback。</li>
+    <li>只有找到可辨識的 ClickInstrumentation execution path，才把「Faro click callback 已執行」記成已證實。</li>
+  </ol>
+
+  <h3>Lab 3｜Network：先分類，不要直接亂點 tab</h3>
+  <ol>
+    <li>回 Network，重新 Clear。</li>
+    <li>正常 click 一次。</li>
+    <li>先看每一列的 <strong>Type</strong>：<code>preflight</code> 還是 <code>fetch</code>。</li>
+    <li>preflight → 看 Headers 的 CORS request / response headers。</li>
+    <li>fetch POST → 先看 General 的 URL / Method / Status，再看 Payload。</li>
+  </ol>
+
+  <h3>Lab 4｜找出真正對應這次 click 的 POST</h3>
+  <ol>
+    <li>逐筆打開 <code>fetch</code> POST。</li>
+    <li>到 Payload 找 <code>events[].name = "click"</code>。</li>
+    <li>再找 <code>attributes.link_name</code>。</li>
+    <li>只有 <code>link_name</code> 等於剛才 live DOM 讀到的 <code>data-link-name</code> 值，才把這筆 POST 跟剛才 click 關聯起來。</li>
+  </ol>
+
+  <h3>Lab 5｜判斷 Browser → receiver boundary</h3>
+  <ol>
+    <li>確認這筆 matching POST 的 status。</li>
+    <li>看 Response Headers。</li>
+    <li>Response body 空白時先看 status 與 <code>Content-Length</code>，不要自動當成失敗。</li>
+    <li>若 POST 成功，只把 Browser → receiver 標成有成功 evidence；不要跨到 Collector / storage。</li>
+  </ol>
+
+  <h3>Lab 6｜Evidence card</h3>
+
+  <pre><code>DOM:
+  selected node = ?
+  data-link-name ancestor = ?
+  data-link-name value = ?
+
+Listener registration:
+  document click listener count = ?
+  listener wrapper/name/location = ?
+
+Listener execution:
+  event breakpoint paused at = ?
+  Faro callback path proven = yes / no / not yet
+
+Preflight:
+  OPTIONS URL = ?
+  status = ?
+  allow-origin / methods / headers = ?
+
+Matching POST:
+  POST URL = ?
+  status = ?
+  events[].name = ?
+  attributes.link_name = ?
+  是否等於 DOM 的 data-link-name = ?
+
+Boundary conclusion:
+  first broken boundary = ? / none observed through receiver</code></pre>
+
+  <h2>10. 證據層級總表</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Evidence</th><th>能證明</th><th>不能單獨證明</th></tr></thead>
+      <tbody>
+        <tr><td>Live DOM 有 <code>data-link-name</code></td><td>目前 ancestor path 有可抽取值。</td><td>Faro callback 已執行。</td></tr>
+        <tr><td><code>getEventListeners()</code> 有 click registration</td><td>document 目前有 click listener。</td><td>該 listener 就是 Faro。</td></tr>
+        <tr><td>Event Listener Breakpoint + call stack</td><td>事件發生時實際執行路徑。</td><td>除非 stack/source 能辨識到 Faro，否則仍不能硬說是 Faro。</td></tr>
+        <tr><td>OPTIONS 204 + CORS headers</td><td>該次 preflight 得到 permission response。</td><td>telemetry POST 成功。</td></tr>
+        <tr><td>POST Payload 有相同 <code>link_name</code></td><td>這筆 POST 可跟剛才 tracked click 關聯。</td><td>downstream storage 成功。</td></tr>
+        <tr><td>Matching POST 202</td><td>Browser → receiver 有 accepted evidence。</td><td>Collector / OpenSearch 已成功。</td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="box">
     <strong>Primary source 與 evidence</strong><br>
-    本課沿用 <a href="../sources/materials/1.%20PI%20前端監控案例.html">PI 前端監控案例</a> 的 Foreman Assistant 情境、<a href="../sources/materials/2.%20Grafana%20Faro%20%26%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy - 前端可觀測性</a> 的 instrumentation / transport / meta 模型，以及 <a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction</a> 的 package 主線。現行 host integration 以 <a href="../sources/evidence/foreman-integration.md">foreman-integration evidence</a> 為準；click contract 以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a> 為準；receiver / CORS 以 <a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a> 為準。
+    本課沿用 <a href="../sources/materials/1.%20PI%20前端監控案例.html">PI 前端監控案例</a>、<a href="../sources/materials/2.%20Grafana%20Faro%20%26%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy - 前端可觀測性</a>、<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction</a>。現行 package contract 以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a> 為準；Foreman source 以 <a href="../sources/evidence/foreman-integration.md">foreman-integration evidence</a> 為準；本次實際 DevTools observation 以 <a href="../sources/evidence/foreman-browser-lab-2026-09-16.md">2026-09-16 browser lab evidence</a> 為準。
   </div>
 
   <h2>Self-check</h2>
 
   <div class="quiz" data-quiz>
-    <div class="question">Q1. Source template 有 <code>[attr.data-link-name]="item.subsystem"</code>，最合理的結論是？</div>
+    <div class="question">Q1. <code>getEventListeners(document).click</code> 顯示 <code>globalZoneAwareCallback</code>，最精確的結論是？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="dynamic binding 不能證明某個固定 runtime 值。">目前值必定是教材寫的名稱</button>
-      <button class="choice" data-correct="true" data-feedback-correct="source 證明 binding；實際值仍要從 runtime DOM 觀察。">目前值要由 live DOM 證明</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="source template 不能取代 Network payload。">目前 payload 已經一定含該值</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="source code 不等於目前 runtime execution evidence。">目前 listener 已經一定執行完成</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="目前只看到 Zone.js wrapper，還不能直接證明 Faro。">已直接證明 Faro handleClick 已執行</button>
+      <button class="choice" data-correct="true" data-feedback-correct="目前能直接證明的是 document 有 click registration，且 DevTools 露出 Zone.js wrapper。">document 有 click listener registration</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="listener registration 與 receiver 狀態是不同 evidence layer。">Alloy receiver 一定已經收到資料</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="看到 wrapper 不能證明 click payload 一定存在。">click payload 一定已包含 link_name</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
 
   <div class="quiz" data-quiz>
-    <div class="question">Q2. <code>$0.closest('[data-link-name]')</code> 回傳 <code>null</code>，第一個合理結論是？</div>
+    <div class="question">Q2. Network 的 <code>OPTIONS 204 preflight</code> 最主要應該看哪一區？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="沒有 DOM attribute 不能直接推論 Collector。">Collector exporter 已經發生故障</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="不能自行替 runtime 補上教材預期值。">應該手動假設 tracking value</button>
-      <button class="choice" data-correct="true" data-feedback-correct="這只證明目前這條 ancestor path 沒找到 attribute。">目前 ancestor path 沒有命中</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="沒有 attribute 也不能直接證明 CORS 狀態。">目前 CORS preflight 一定失敗</button>
+      <button class="choice" data-correct="true" data-feedback-correct="preflight 主要驗證 CORS request / response headers。">Headers 的 CORS 欄位</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="preflight 不是 Faro click telemetry body。">Payload 的 click event</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="204 通常沒有 body，Response 空白不代表失敗。">Response body 的 JSON</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Preview 不是判讀 preflight permission 的主要 evidence。">Preview 的畫面內容</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
 
   <div class="quiz" data-quiz>
-    <div class="question">Q3. Network 完全沒有新的 <code>/alloy</code> request，下一步最合理的是？</div>
+    <div class="question">Q3. 有四筆 <code>POST /alloy</code>，怎麼找哪一筆對應剛才的 click？</div>
     <div class="choices">
-      <button class="choice" data-correct="true" data-feedback-correct="沒有 Browser request evidence 時，先留在 Browser / Faro boundary。">回查 Browser / Faro 前置流程</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="沒有 request 還沒有證據指向 Collector。">直接查 Collector exporter 錯誤</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="storage 是更後面的 fault domain。">直接查 OpenSearch index mapping</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="沒有 request 不代表 CORS 必定是原因。">直接判定 receiver CORS 錯誤</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="request 順序不能可靠證明內容。">永遠挑第一筆 POST</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Status 相同只能說 HTTP 結果相同，不能識別 click。">挑所有 202 的 POST</button>
+      <button class="choice" data-correct="true" data-feedback-correct="用 live DOM 的實際 data-link-name 與 Payload 的 link_name 做 correlation。">比對 Payload 的 link_name</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Initiator 是 runtime call site，不等於 telemetry event identity。">只看 Initiator 是 zone.js</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
 
   <div class="quiz" data-quiz>
-    <div class="question">Q4. Network 看到 <code>OPTIONS 204</code>，可以直接證明哪一件事？</div>
+    <div class="question">Q4. Matching POST 回 <code>202 Accepted</code>，目前最遠能證明到哪裡？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="OPTIONS 不是 telemetry POST 本身。">同一筆 POST 已經成功寫入</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Collector 不在 preflight 的證明範圍。">Collector 已經收到同一筆資料</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="storage success 需要 downstream evidence。">OpenSearch 已經查得到同一筆</button>
-      <button class="choice" data-correct="true" data-feedback-correct="它直接證明的是該次 preflight response。">該次 preflight 收到 204 response</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="202 不足以證明 storage ingestion。">OpenSearch 已成功寫入</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="202 不足以證明 Collector pipeline 完整成功。">Collector exporter 已成功</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="這比單純 preflight 多證明了一層。">只證明 CORS preflight</button>
+      <button class="choice" data-correct="true" data-feedback-correct="目前可以證明 matching telemetry request 被 receiver 在 HTTP boundary 接受。">Browser 到 receiver 已接受</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
@@ -459,23 +493,16 @@ First broken boundary:
   <h2>Recap</h2>
 
   <ul>
-    <li><strong>Source template 與 runtime DOM 是兩層 evidence</strong>；dynamic binding 可以證明資料來源位置，不能替你證明目前實際值。</li>
-    <li><strong>Elements + <code>$0</code></strong> 用來驗證目前 target / ancestor path 是否真的有 <code>data-link-name</code>。</li>
-    <li><strong>找不到 attribute 也是有效 evidence</strong>；不要補一個教材預設值。</li>
-    <li><strong><code>getEventListeners(document).click</code></strong> 能證明 listener registrations 存在，但不能單獨證明某個 callback 就是 Faro。</li>
-    <li><strong>Network</strong> 才能回答 Browser 是否真的建立 / 送出 <code>/alloy</code> request。</li>
-    <li><strong>1 click 不保證 1 request</strong>；要用 live DOM 讀到的 tracking value 與 payload 做 correlation。</li>
-    <li><strong>OPTIONS</strong> 是 preflight evidence，不等於 telemetry POST 成功。</li>
-    <li><strong>POST 成功 response</strong> 只證明 Browser → receiver 這一跳；Alloy / Collector / storage 仍是後續 fault domains。</li>
-    <li><strong>Debug 順序</strong>：Expected state → observed evidence → first broken boundary。</li>
+    <li><strong>live DOM 的實際值先讀出來</strong>；不要拿教材 placeholder 取代 runtime evidence。</li>
+    <li><strong><code>getEventListeners()</code> 只先證明 registration</strong>；你這次看到的是 Zone.js wrapper。</li>
+    <li><strong>Event Listener Breakpoint 用來取得 execution evidence</strong>；停在 Zone.js 時再沿 Call Stack / Step into 找真正 callback。</li>
+    <li><strong>preflight 與 POST 是兩個不同問題</strong>：preflight 主要看 CORS Headers；POST 才看 click Payload。</li>
+    <li><strong>多筆 POST 不靠順序猜</strong>；用 DOM 的 <code>data-link-name</code> 與 Payload 的 <code>link_name</code> 做 correlation。</li>
+    <li><strong>202 Accepted 只證明 Browser → receiver</strong>；不能直接跳到 Collector / storage。</li>
+    <li><strong>本次 runtime 額外證明</strong>：Stage Foreman page 實際以 <code>tw-prod</code> Faro environment 送到 prod receiver；是否符合 intended policy 另行驗證。</li>
   </ul>
 
-  <div class="box ask">
-    <strong>下一堂再處理 trace propagation</strong><br>
-    Lesson 6 只要求你能在 Network Headers 觀察 <code>traceparent</code> 是否存在。Lesson 7 才處理它如何讓 backend 延續 frontend 的 trace context。
-  </div>
-
-  <p>如果 Lab 任何一步看到的 runtime 跟教材 expected state 不一致，直接把那一層的實際畫面或值丟回來；後續 debug 應該從那個 boundary 開始，而不是跳層猜。</p>
+  <p>如果 Event Listener Breakpoint 下一步停住，把 <strong>Sources 畫面 + Call Stack</strong> 截圖丟回來，就可以接著判讀那一層是不是 Faro callback。</p>
 
   <p><a href="0005-faro-browser-to-alloy-transport.html">← Lesson 5</a> · <a href="../learning-map/index.html">Learning Map →</a></p>
 </body>
