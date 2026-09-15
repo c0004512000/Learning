@@ -413,6 +413,194 @@ Conclusion:
 先不要查 Collector。
 第一個 broken boundary 還在 Faro / Browser transport 之前。</code></pre>
 
+  <h2 id="foreman-assistant-hands-on-lab">Hands-on Lab｜用 Foreman Assistant 真實 UI 跑一次 Lesson 6</h2>
+
+  <div class="box tip">
+    <strong>這個 Lab 要拿到的不是「頁面操作成功」，而是一條完整 evidence chain</strong><br>
+    建議使用 Stage Foreman Assistant 產生測試 telemetry：<a href="https://pek8s-staging.garmin.com/foreman-assistant/#/main?system=DailySchedule">開啟 Stage Foreman Assistant · DailySchedule</a>。Primary material 也記錄 Production 監控目標是 <a href="https://shixpa-peproxy00.garmin.com/foreman-assistant/#/main">Production Foreman Assistant</a>；這個 Lab 不需要去 Production 製造測試資料。
+  </div>
+
+  <p>完成 Lab 時，你應該能拿出這五份實際 Browser evidence：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Evidence</th><th>你要回答的問題</th></tr></thead>
+      <tbody>
+        <tr><td>Live DOM</td><td>我實際選到哪個 node？<code>data-link-name</code> 在它自己還是 ancestor？</td></tr>
+        <tr><td>Console lookup</td><td><code>closest('[data-link-name]')</code> 實際找到什麼值？</td></tr>
+        <tr><td>Runtime listener</td><td><code>document</code> 現在是否真的有 click listeners？</td></tr>
+        <tr><td>Network request</td><td>這次 UI 操作後，Browser 是否真的產生 <code>/alloy</code> request？</td></tr>
+        <tr><td>Payload / Response</td><td>DOM 的值有沒有進 telemetry？Browser → receiver 這一跳結果是什麼？</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Lab 0｜先把 Foreman Assistant 與 DevTools 準備好</h3>
+
+  <ol>
+    <li>開啟上面的 Stage Foreman Assistant。若你要觀察「主畫面的系統入口」，回到 <code>/foreman-assistant/#/main</code>；若要直接使用 DailySchedule 頁面，也可以留在帶 <code>?system=DailySchedule</code> 的 URL。</li>
+    <li>按 <code>F12</code> 打開 Chrome DevTools。</li>
+    <li>先切到 <strong>Network</strong>，確認左上角 recording 是開啟狀態。</li>
+    <li>勾選 <strong>Preserve log</strong>。這樣即使 Foreman Assistant 的操作造成 route change，也比較不容易把剛才的 request 從畫面上清掉。</li>
+    <li>先按 Clear 清掉舊 request，Filter 輸入 <code>alloy</code>，但<strong>先不要 click 測試目標</strong>。</li>
+  </ol>
+
+  <p>這一步的目的只有一個：讓接下來出現的 request 比較能歸因到你這一次操作，而不是前面殘留的 telemetry。</p>
+
+  <h3>Lab 1｜先不要點功能：用 Element Picker 抓真實 Foreman DOM</h3>
+
+  <p>Foreman Assistant 目前的 source evidence 已驗證：主畫面的系統入口使用 PrimeNG <code>&lt;p-button&gt;</code>，而 <code>data-link-name</code> 放在這個 host element；PrimeNG 再在裡面 render 真正可點擊的 native <code>&lt;button&gt;</code>。</p>
+
+  <pre><code>p-button[data-link-name="DailySchedule"]
+   │ contains / renders
+   ▼
+button
+   │ user may actually click this inner node
+   ▼
+Browser Event target</code></pre>
+
+  <p class="cite">Foreman Assistant 目前 host integration、marked DOM interaction 與 PrimeNG render boundary：<a href="../sources/evidence/foreman-integration.md">foreman-integration evidence</a>。</p>
+
+  <ol>
+    <li>在 DevTools 點左上角的 <strong>Select an element</strong> 圖示，或按 <code>Ctrl+Shift+C</code>。</li>
+    <li>回到 Foreman Assistant，把游標移到一個主畫面系統入口，例如 DailySchedule，再點一下。這次 click 是給 DevTools 選 DOM node，不是正常執行 application action。</li>
+    <li>Elements 會停在你實際選中的 node。不要先假設它就是帶 <code>data-link-name</code> 的那層。</li>
+    <li>切到 Console，依序執行下面三行。</li>
+  </ol>
+
+  <pre><code>$0.tagName
+$0.closest('[data-link-name]')
+$0.closest('[data-link-name]')?.getAttribute('data-link-name')</code></pre>
+
+  <p>你要觀察的是：</p>
+
+  <pre><code>$0
+  = 你目前真正選中的 node
+
+$0.closest('[data-link-name]')
+  = ClickInstrumentation 從這個 node 往 ancestor 找到的 tracking host
+
+getAttribute('data-link-name')
+  = 這次 click 預期會被抽出的原始值</code></pre>
+
+  <div class="box ask">
+    <strong>這一步如果看到 inner <code>BUTTON</code>，反而是好教材</strong><br>
+    你不需要硬找「attribute 為什麼沒有直接在 button 上」。Lesson 6 要你證明的正是：實際 target 可以是內層 node，而 package 仍能透過 <code>closest()</code> 找到 ancestor 上的 <code>data-link-name</code>。這就是 source code 模型被 Browser live DOM 證實的瞬間。
+  </div>
+
+  <h3>Lab 2｜確認 runtime 前置條件：document 現在真的有 click listeners 嗎？</h3>
+
+  <p>在 Console 執行：</p>
+
+  <pre><code>getEventListeners(document).click</code></pre>
+
+  <p>如果得到 listener 陣列，你可以說：</p>
+
+  <blockquote>目前這個 live page 的 <code>document</code> 上確實存在 click listener registrations。</blockquote>
+
+  <p>你還<strong>不能</strong>只靠這個結果說「其中某個一定是 Faro」。如果你真的要拿 execution evidence，再到 <strong>Sources → Event Listener Breakpoints</strong> 啟用 click breakpoint，接著正常點一次 Foreman UI，從暫停位置與 call stack 看實際 callback。</p>
+
+  <h3>Lab 3｜現在才正常 click：看這次操作有沒有真的產生 /alloy request</h3>
+
+  <p>回到 Network。Filter 應該仍是 <code>alloy</code>，然後正常操作剛才選的 Foreman Assistant UI 一次。</p>
+
+  <p>這裡刻意只做<strong>一次清楚的操作</strong>。目前 package 對同一個 target 有 300 ms throttle，而且 Faro Transport 也不保證「一個 click 就一定形成一個獨立 request」，所以不要用連點去製造更多雜訊。</p>
+
+  <p>接著問：</p>
+
+  <pre><code>這次 UI click 之後
+   │
+   ├─ Network 有新的 /alloy
+   │    → Browser transport boundary 有 request evidence
+   │
+   └─ Network 完全沒有 /alloy
+        → 先留在 Browser / Faro 前置流程查</code></pre>
+
+  <div class="box">
+    <strong>Foreman-specific：不要用目前頁面的 hostname 猜 receiver</strong><br>
+    直接記錄 Network 裡的實際 Request URL。Package 的 verified resolver 是 <code>tw-stage → https://pek8s-staging.garmin.com/alloy</code>、<code>tw-prod → https://shixpa-peproxy00.garmin.com/alloy</code>。但 Foreman source 與 deployed runtime 是不同 evidence layer；Lab 的工作是先觀察 Browser 這一刻真的送去哪裡，再決定是否需要追 environment/configuration。
+  </div>
+
+  <h3>Lab 4｜把剛才的 DOM 值，真的在 Faro request body 裡找回來</h3>
+
+  <p>點開新的 <code>/alloy</code> POST，切到 <strong>Payload</strong>。</p>
+
+  <p>不要先背 JSON path。你已經在 Lab 1 得到一個真實值，例如：</p>
+
+  <pre><code>DailySchedule</code></pre>
+
+  <p>現在直接在 request body 找這個值，並確認它落在 click event 對應的資料裡。這個比「我看到一個 <code>link_name</code> key」更可靠，因為你是在做端對端對照：</p>
+
+  <pre><code>Live DOM
+  data-link-name="DailySchedule"
+          │ ClickInstrumentation extracts
+          ▼
+Faro click telemetry
+  找得到同一個 DailySchedule 值</code></pre>
+
+  <p>接著再看 <code>meta</code>，觀察 user / session / device / app context 是否存在。Foreman 目前 source evidence 顯示：<code>getUser()</code> 從 localStorage 讀 employee，device detection 有啟用；但<strong>以你眼前這個 request 實際出現的內容為準</strong>，不要拿 source configuration 取代 runtime observation。</p>
+
+  <p class="cite">Foreman <code>getUser()</code>、device opt-in 與 <code>trackAttributes=['data-link-name']</code>：<a href="../sources/evidence/foreman-integration.md">foreman-integration evidence</a>。</p>
+
+  <h3>Lab 5｜最後看 Headers / Response / CORS，不要把 OPTIONS 當 POST</h3>
+
+  <p>對真正的 <code>POST /alloy</code>，記錄：</p>
+
+  <pre><code>Request URL
+Request Method
+Origin
+Content-Type
+X-Faro-Session-Id（如果有）
+traceparent（目前只記錄有／沒有）
+Status
+Response Headers
+Response</code></pre>
+
+  <p>如果同時看到 <code>OPTIONS /alloy</code>，再打開它看：</p>
+
+  <pre><code>Access-Control-Request-Method
+Access-Control-Request-Headers
+
+↓ server response
+
+Access-Control-Allow-Origin
+Access-Control-Allow-Methods
+Access-Control-Allow-Headers</code></pre>
+
+  <div class="box ask">
+    <strong>沒有看到 OPTIONS，不等於這次完全沒有 CORS</strong><br>
+    Browser 可以快取成功的 preflight 結果，因此後續相同條件的 request 不一定每次都重新出現 OPTIONS。這時不要硬把「沒有 OPTIONS」判成異常；以真正 POST 是否被 Browser 允許、response 與 Console evidence 一起判斷。
+    <p class="cite">MDN：<a href="https://developer.mozilla.org/en-US/docs/Glossary/Preflight_request">Preflight request</a>；preflight response 可由 <code>Access-Control-Max-Age</code> 快取。</p>
+  </div>
+
+  <h3>Lab 6｜把結果壓成一張 SRE evidence card</h3>
+
+  <p>完成後，不要只回答「有成功」或「沒成功」。把你看到的結果壓成下面這個格式：</p>
+
+  <pre><code>Foreman UI action:
+  我操作了哪個功能？
+
+DOM evidence:
+  $0 = ?
+  closest('[data-link-name]') = ?
+  data-link-name value = ?
+
+Runtime evidence:
+  document click listeners = ?
+  是否需要 breakpoint 證明 callback = ?
+
+Network evidence:
+  /alloy POST URL = ?
+  status = ?
+  payload 是否找到相同 link value = ?
+  user/device meta = ?
+  OPTIONS / CORS evidence = ?
+
+First broken boundary:
+  DOM / listener / Faro event / transport / CORS / receiver / none observed</code></pre>
+
+  <p>如果你可以根據這張 card 告訴我「第一個沒有符合 expected state 的 boundary 在哪裡」，你就真的做到了 Lesson 6，而不是只學會 DevTools 哪個按鈕在哪。</p>
+
   <h2>8. 這堂課最重要的不是 DevTools 按鈕，而是「證據層級」</h2>
 
   <div class="table-wrap">
@@ -430,7 +618,7 @@ Conclusion:
 
   <div class="box">
     <strong>Primary source 與 evidence</strong><br>
-    本課沿用 <a href="../sources/materials/1.%20PI%20前端監控案例.html">PI 前端監控案例</a> 的 Foreman Assistant click-tracking情境、<a href="../sources/materials/2.%20Grafana%20Faro%20%26%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy - 前端可觀測性</a> 的 instrumentation / transport / meta 模型，以及 <a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction</a> 的 package 主線。現行 click contract 以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a> 為準；stage/prod receiver 與 CORS contract 以 <a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a> 為準。DevTools 操作則以 Chrome 官方 Elements / Console / Network 文件補足原教材沒有完整教學的操作細節。
+    本課沿用 <a href="../sources/materials/1.%20PI%20前端監控案例.html">PI 前端監控案例</a> 的 Foreman Assistant click-tracking情境、<a href="../sources/materials/2.%20Grafana%20Faro%20%26%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy - 前端可觀測性</a> 的 instrumentation / transport / meta 模型，以及 <a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction</a> 的 package 主線。現行 Foreman host integration 以 <a href="../sources/evidence/foreman-integration.md">foreman-integration evidence</a> 為準；click contract 以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a> 為準；stage/prod receiver 與 CORS contract 以 <a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a> 為準。DevTools 操作則以 Chrome 官方 Elements / Console / Network 文件補足原教材沒有完整教學的操作細節。
   </div>
 
   <h2>Self-check</h2>
@@ -501,6 +689,7 @@ Conclusion:
     <li><strong>Network</strong> 才能回答 telemetry 是否真的跨 Browser network boundary 往 <code>/alloy</code> 送。</li>
     <li><strong>Headers</strong> 驗證 HTTP transport contract；<strong>Payload</strong> 驗證 events / meta 實際資料；兩者不要混成同一層。</li>
     <li><strong>OPTIONS</strong> 是 preflight evidence，不等於 telemetry POST 已成功。</li>
+    <li><strong>Foreman Assistant Lab</strong> 把同一條 evidence chain 套到真實 UI：先抓 live DOM，再對照 <code>data-link-name</code>、listener、<code>/alloy</code>、payload 與 response。</li>
     <li><strong>POST 成功 response</strong> 才代表 Browser → receiver 這一跳有成功證據；Alloy / Collector / storage 仍是後續 fault domains。</li>
     <li><strong>Debug 順序</strong>：Expected state → observed evidence → first broken boundary。</li>
   </ul>
