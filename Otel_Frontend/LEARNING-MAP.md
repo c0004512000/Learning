@@ -168,6 +168,9 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 - `sources/evidence/browser-to-alloy.md`
 - `sources/evidence/foreman-browser-debug-lab.md`（2026-09-16 Playwright + CDP runtime lab；教材建立不代表 learner mastered）
 
+**必要 bridge / Reference:**
+- `reference/0005-devtools-workspaces-for-faro.html`：Elements / Console / Sources / Network 的內容差異與 claim → panel 選擇；不擴張為完整 DevTools 課程。
+
 **Dependency:** Lesson 5。
 
 ### Milestone 4 — Frontend ↔ Backend distributed trace

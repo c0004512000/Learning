@@ -17,7 +17,8 @@
     面對「click telemetry 到底有沒有送出」，你不再從 Network 隨便點一筆 request 猜答案。你會先定義 claim，再選對 Browser boundary 與 evidence，最後明確停在 evidence 能證明的最遠位置。
   </div>
 
-  <h2>1. SRE 先問 claim，不先問「要點哪個 tab」</h2>
+  <h2 id="workspace-bridge">1. SRE 先問 claim，不先問「要點哪個 tab」</h2>
+  <p>先備能力只需要到「能選對 evidence 工作區」，不是精通 DevTools。若還無法區分 DOM 樹、Console 輸出、程式停點與 request table，先讀 <a href="../reference/0005-devtools-workspaces-for-faro.html">Faro debugging 的四個 DevTools 工作區</a>：它說明各區主要內容、適合回答的問題與證明限制，再返回本 Lab。</p>
   <pre><code>我現在想證明什麼？
   ↓ 決定責任邊界
 這個問題位於哪個 Browser boundary？
@@ -47,7 +48,7 @@ DevTools 哪個 panel / tab 能看到？
 
   <p class="diagram-caption-note">手機閱讀：寬幅 evidence 圖可在圖框內左右滑動；頁面本身不會橫向溢出。</p>
 
-  <h2>2. Lab A｜先看真實 UI，再找 live DOM</h2>
+  <h2 id="dom-lab">2. Lab A｜先看真實 UI，再找 live DOM</h2>
   <figure class="diagram evidence-shot">
     <img src="../assets/lesson-6/01-foreman-main-runtime.png" alt="Foreman Assistant Stage 主頁，右上角個人帳號區已遮罩">
     <figcaption><strong>真實 Stage main UI。</strong>看中間的 staging banner 與目前入口卡片；右上角帳號區以明確區塊遮罩。這證明擷取當時頁面的實際畫面；它不能證明 Faro listener 或 telemetry transport 正常。</figcaption>
@@ -66,7 +67,7 @@ DevTools 哪個 panel / tab 能看到？
   </figure>
   <p class="cite">Sanitized raw evidence：<a href="../sources/evidence/raw/lesson6-dom-runtime.json">lesson6-dom-runtime.json</a>。先前人工看過的 <code>EfficiencyAbnormalReport</code> 也在此次 live DOM candidates 中，但本次 correlation 使用的是實際選定的 <code>DailySchedule</code>，不能混用。</p>
 
-  <h2>3. Lab B｜listener registration：只讀七個欄位</h2>
+  <h2 id="listener-lab">3. Lab B｜listener registration：只讀七個欄位</h2>
   <p>DevTools Console 的 <code>getEventListeners(document).click</code> 與 CDP <code>DOMDebugger.getEventListeners</code> 都在回答 registration。此次 CDP 結果：</p>
   <figure class="diagram evidence-shot">
     <img src="../assets/lesson-6/03-document-click-listener.png" alt="由 CDP runtime evidence 繪製的 document click listener 欄位卡">
@@ -78,7 +79,7 @@ DevTools 哪個 panel / tab 能看到？
   </div>
   <p class="cite">Raw evidence：<a href="../sources/evidence/raw/lesson6-document-click-listeners.json">lesson6-document-click-listeners.json</a>。</p>
 
-  <h2>4. Lab C｜breakpoint：從 Zone.js 走到 Faro callback</h2>
+  <h2 id="breakpoint-lab">4. Lab C｜breakpoint：從 Zone.js 走到 Faro callback</h2>
   <p>CDP 啟用 <code>Debugger</code>，再用 <code>DOMDebugger.setEventListenerBreakpoint({ eventName: 'click' })</code>。Playwright 點擊同一個 <code>DailySchedule</code> element 後，Browser 回報 <code>Debugger.paused</code>。</p>
   <p>第一次停點確實是 Zone.js wrapper。Lab 沒有因此宣稱 Faro 已執行，而是對 <code>#document</code> listener 做<strong>有限 120 次</strong> <code>stepInto</code>；總計保存 125 個 pause snapshots，最後實際走到：</p>
   <figure class="diagram evidence-shot">
@@ -97,7 +98,7 @@ pushEvent                         /foreman-assistant/main.js:123009</code></pre>
   <p>這比「call stack 裡好像有 zone.js」更強：它把 Browser dispatch → Zone.js wrapper → Faro callback → extraction → <code>pushEvent</code> 串成 execution chain。行號是當次 deployed bundle 的 1-based line，只是 evidence locator，不是永久 contract。</p>
   <p class="cite">Raw evidence：<a href="../sources/evidence/raw/lesson6-click-breakpoint.json">lesson6-click-breakpoint.json</a>。</p>
 
-  <h2>5. Lab D｜Network request list 先分流，再開 tab</h2>
+  <h2 id="network-lab">5. Lab D｜Network request list 先分流，再開 tab</h2>
   <p>看到 <code>alloy</code> 不要立刻點 Payload。先用前三個判斷欄位分流：</p>
   <pre><code>Method + Type + Status
   OPTIONS + preflight + 204  → CORS negotiation
