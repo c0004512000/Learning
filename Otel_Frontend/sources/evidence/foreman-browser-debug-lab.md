@@ -225,3 +225,17 @@ All new images are placed beside their relevant Lesson 6 steps; four workspace e
 New durable projections: [Network](raw/lesson6-devtools-ui-network.json), [paused call frames](raw/lesson6-devtools-ui-pause.json). These are privacy-reduced exports of CDP-backed frontend runtime data, not full HAR or Scope dumps. Request identifiers, authentication headers, trace payloads and personal metadata are intentionally not retained. Script URL was not captured in the new pause export and is explicitly marked there.
 
 Remaining unknowns: intended environment policy/bug conclusion and all downstream processing after receiver HTTP acceptance. No learner mastery claim follows from these artifacts.
+
+## Lesson integration review — 2026-09-16
+
+Canonical Learning-from-docs main and all six Required context files were read. The revision consumes existing evidence; no fresh Stage login or runtime capture was needed.
+
+Original curriculum coverage remains: (1) causal debug order, (2) live DOM / picker / $0 / closest / getAttribute, (3) document registration, (4) event breakpoint and Zone wrapper, (5) Network row reading, (6) OPTIONS / CORS / 204, (7) POST payload correlation and batching, (8) response/status boundary, (9) environment observation versus intended policy, (10) evidence scope. Full hands-on checklist and the original four quiz blocks remain. Runtime screenshots now accompany the same teaching sequence rather than a parallel set of supplements.
+
+Consistency corrections: one current captured DOM value (DailySchedule); historical manual value isolated in a labeled comparison; seven listener fields throughout; event breakpoint separated from callback line breakpoint; pause-before-execution distinguished from visible source context; breakpoint cleanup and Resume precede the new Network click; General classification precedes payload identity; matching POST status is interpreted only for the identified request. Missing evidence does not by itself establish a failed boundary. The two capture passes remain distinct.
+
+Screenshot annotation is a deterministic SVG red-outline teaching layer supplied by shared `assets/evidence-annotations.css`; no PNG pixels were changed and no runtime UI was synthesized. All twelve Lesson figures and four Reference figures disclose the annotation and retain learner-facing reading focus, proof scope and limits. Thus raw PNG previews in GitHub are unchanged; the annotated view is the lesson/reference HTML.
+
+Local QA: existing Chrome context connected through Playwright/CDP; no browser launched/downloaded. Lesson and Reference tested at 1440×1000 and 390×1000 in dark/light themes (eight combinations): no document horizontal overflow, images decoded, overlay/image bounds aligned, unique IDs, all relative file/anchor links valid, no tested local HTTP 4xx/5xx or page errors. Original four quiz blocks compared exactly after whitespace normalization against the original curriculum baseline `9a8fbc4` (origin/main at test time, before fetching the merged PR #21); correct and incorrect feedback tested. Desktop/mobile reading screenshots and all captured PNGs visually inspected. Wide DevTools images intentionally permit scrolling inside their figure only; surrounding prose/captions do not require horizontal scrolling.
+
+This is local artifact QA, not deployed GitHub Pages QA. Runtime unknowns and learner progress are unchanged. Existing historical privacy remediation is not equivalent to deleting values from earlier Git commits; history was not rewritten by this integration.

@@ -18,3 +18,4 @@
 - Lesson 內不要把前一課、Reference、primary material、evidence 全部集中成一個 References 清單。前一課只在依賴該 mental model 的位置銜接；Reference 放在概念第一次真正需要查閱的位置；source/evidence 緊貼它支撐的 claim；一般上一課／Learning Map 導覽留在 lesson navigation。
 - 技術翻譯需保留英文原詞並選擇符合該脈絡的繁中語意；DOM event 的 `dispatch` 採「分派」，避免誤解為網路傳送。
 - Quiz 選項在 render time shuffle，避免正確答案位置形成提示。
+- 真實 runtime／DevTools 截圖使用紅色方框標出該段要看的位置；紅框是透明的教學標示，保留底圖，不改造 evidence。caption 必須說明讀取重點與證明限制。
