@@ -188,7 +188,7 @@ All screenshots under [`../../assets/lesson-6/`](../../assets/lesson-6/):
 7. `07-alloy-click-post-payload.png` — rendered from captured CDP POST payload evidence.
 8. `08-alloy-post-response.png` — rendered from captured CDP response evidence.
 
-The rendered cards are not Chrome DevTools screenshots and are labeled accordingly in both the images and Lesson 6 captions.
+The six rendered cards are historical visualizations, not Chrome DevTools screenshots. They are no longer embedded in Lesson 6: the lesson now uses shared-style HTML summaries and actual UI captures. Their source JSON remains authoritative; historical images are retained without modifying captured runtime artifacts.
 
 ## Unknown / not proven
 

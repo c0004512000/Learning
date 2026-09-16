@@ -23,6 +23,8 @@ The required capability is Faro integration/debugging, not general DevTools mast
 
 Learner explicitly says screenshots help them learn. Future Faro debug instructions should pair panel selection with a concrete real UI example and explain its content regions; a rendered field summary alone does not establish UI literacy. This is a teaching constraint, not evidence the learner can yet execute the debugging workflow independently.
 
+Learner rejects fixed dark-blue bitmap evidence cards as inconsistent with the HTML course. Derived constraint: use the existing shared stylesheet for summaries, diagrams and callouts; reserve screenshots for actual runtime UI. Do not bake small text, a separate palette or theme into learner-facing summary images. Lesson 6 removes all six such embedded cards while preserving their raw evidence and real DevTools captures.
+
 ## Progress
 
 No learner retrieval/practice was demonstrated in this maintenance turn. Do not mark DevTools or Lesson 6 mastered, and do not advance the main course position.
