@@ -1,0 +1,16 @@
+{
+  "verifiedDate": "2026-09-16",
+  "capture": "Projected actual paused details from the Chrome DevTools frontend SDK DebuggerModel backed by CDP; no Scope values retained",
+  "reason": "other",
+  "breakpointKind": "Line breakpoint at runtime-verified main.js handleClick entry",
+  "scriptURL": "Not captured in this projected paused-details export; mapped script and Zone.js stack are visible in 12-devtools-faro-paused-ui.png",
+  "frames": [
+    {"functionName":"ClickInstrumentation.handleClick","line":131710,"column":29},
+    {"functionName":"invokeTask","line":327,"column":171},
+    {"functionName":"runTask","line":135,"column":37},
+    {"functionName":"invokeTask","line":398,"column":26},
+    {"functionName":"invokeTask","line":924,"column":12},
+    {"functionName":"globalCallback","line":953,"column":23},
+    {"functionName":"globalZoneAwareCallback","line":970,"column":12}
+  ]
+}

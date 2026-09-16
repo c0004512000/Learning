@@ -192,9 +192,43 @@ The rendered cards are not Chrome DevTools screenshots and are labeled according
 
 ## Unknown / not proven
 
-- Actual Chrome DevTools UI screenshots: not captured. The environment reliably exposed CDP output, so learner-facing visualizations were rendered from that evidence instead.
-- Exact Network `Time` duration: not captured in the durable raw evidence.
+- Initial capture did not include Chrome DevTools UI or Network duration. These gaps are addressed by the separate UI supplement below; do not merge the two request sets.
 - Intended policy for Stage UI using `tw-prod`: unknown.
 - Successful processing after the receiver HTTP boundary: not proven.
 - Collector receipt/export, OpenSearch document creation, and Grafana visibility: not tested in this Browser-only lab.
 - Learner mastery: not inferred from artifact creation or lab execution.
+
+## Actual DevTools UI supplement — 2026-09-16
+
+- Verified at: projected NetworkLog export `2026-09-16T10:05:51.278Z` (18:05:51 Asia/Taipei); screenshots around 18:00–18:06.
+- Browser: existing Chrome 153, controlled with standalone Playwright Core following explicit learner authorization. No browser executable was downloaded or installed.
+- Authentication: user manually completed login; the same Playwright Browser context was retained for all UI captures.
+- Genuine frontend: Chrome's built-in `devtools://devtools/bundled/devtools_app.html`, connected to the Stage target over local CDP. These are actual frontend screenshots, not rendered cards or a reconstructed DevTools page.
+- Stage live DOM independently confirmed 29 tracking elements; selected attribute value again `DailySchedule`.
+- Console's actual `getEventListeners(document).click` projection showed one click listener, all three flags false, function name `globalZoneAwareCallback`.
+- Event listener breakpoint settings were captured with only Mouse → click checked. Playwright-injected listener and source-map/ignore-list behavior affected first visible pauses; arbitrary event-listener pauses must not be attributed to Faro.
+- The loaded runtime `main.js` was inspected to locate `this.handleClick`; a line breakpoint at bundle line 131710 actually paused inside `ClickInstrumentation.handleClick`. The frontend mapped it to `clickInstrumentation.js:29`; Call Stack showed Zone.js invokeTask/runTask/globalCallback/globalZoneAwareCallback. The pause reason for this image is `other`, not the initial lab's `EventListener`.
+- The code visible beside a paused frame is source context. The screenshot proves callback entry, but does not independently prove every visible line executed. Initial bounded-stepping JSON remains the evidence for extraction and pushEvent execution.
+- Network captured 13 `/alloy` rows in this supplement, including OPTIONS 204 and POST 202. Method and Waterfall columns were enabled in the actual frontend. Time values were observable (approximately 10–74 ms in the list); these are not the initial six-request capture.
+- Matching POST was selected by payload, not order: `events[0].name=click`, `events[0].attributes.link_name=DailySchedule`; `events[1]` was a resource event. Environment remained `tw-prod`, receiver remained `https://shixpa-peproxy00.garmin.com/alloy`.
+- OPTIONS Response actually displayed “Failed to load response data / No content available for preflight request”; General for that request was 204. POST Response displayed an empty editor; its General was 202 with response Content-Length 0.
+- Privacy: user/session metadata and trace payloads are omitted or redacted in the new whitelisted JSON projection. Actual POST header screenshot replaces the session header value with `[REDACTED]`; no authentication values are retained. Screenshots were visually reviewed. Scope objects containing possible personal values were not expanded.
+
+### New actual UI screenshots
+
+9. `09-devtools-elements-ui.png` — Elements tab, tracked host, DOM tree, Styles, breadcrumb.
+10. `10-devtools-console-listener-ui.png` — Console query and seven-field reading bridge.
+11. `11-devtools-click-breakpoint-setup-ui.png` — Sources event listener breakpoint click checkbox; visible VM script is Playwright instrumentation, not Faro evidence.
+12. `12-devtools-faro-paused-ui.png` — actual callback line breakpoint, source-mapped source and Zone.js Call Stack.
+13. `13-devtools-network-list-ui.png` — real Method/Status/Type/Initiator/Size/Time/Waterfall table.
+14. `14-devtools-preflight-headers-ui.png` — actual OPTIONS General and CORS request/response headers.
+15. `15-devtools-click-payload-ui.png` — events → click → attributes.link_name, plus separate resource event.
+16. `16-devtools-post-status-ui.png` — matching POST 202 and response length 0; session header value redacted.
+17. `17-devtools-post-response-ui.png` — same matching POST empty body.
+18. `18-devtools-preflight-response-ui.png` — unavailable preflight body, not HTTP failure evidence.
+
+All new images are placed beside their relevant Lesson 6 steps; four workspace examples are also embedded in [Reference 0005](../../reference/0005-devtools-workspaces-for-faro.html). Each caption explains location, reading focus, proof scope and limits.
+
+New durable projections: [Network](raw/lesson6-devtools-ui-network.json), [paused call frames](raw/lesson6-devtools-ui-pause.json). These are privacy-reduced exports of CDP-backed frontend runtime data, not full HAR or Scope dumps. Request identifiers, authentication headers, trace payloads and personal metadata are intentionally not retained. Script URL was not captured in the new pause export and is explicitly marked there.
+
+Remaining unknowns: intended environment policy/bug conclusion and all downstream processing after receiver HTTP acceptance. No learner mastery claim follows from these artifacts.

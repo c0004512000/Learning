@@ -31,9 +31,10 @@
   <p>在 Chrome 按 <code>F12</code> 或 <code>Ctrl + Shift + I</code> 開啟 DevTools。主要工作區名稱通常在 tab strip；窄視窗可能把部分名稱收進 <code>»</code>。DevTools 可停靠右側、底部或獨立視窗，因此不要記「永遠在右上角」，要認名稱與區域用途。</p>
   <p><strong>Drawer</strong> 是主要工作區下方可展開的輔助區域；按 <code>Esc</code> 可切換顯示。Console 可以在 Drawer 出現，所以你可能同時看到 Elements 的 DOM 樹與底下的 Console；這仍是同一個頁面的觀察工具。</p>
   <p><strong>Panel 與 tab 層級不同：</strong>Network 是工作區；Headers、Payload、Response 是「選定某筆 request 後」的細節 tabs。還沒選 request 時找不到 Payload，不代表 Faro 沒有 payload。</p>
-  <p class="cite">操作位置可隨 Chrome 版本與 dock layout 改變。本 Reference 是概念與操作 bridge，不是假造的 DevTools screenshot。</p>
+  <p class="cite">以下是 2026-09-16 真實 Stage runtime 的 Chrome 153 內建 DevTools frontend 截圖，透過 Playwright 擷取；不是手繪或 CDP 渲染卡。此處為獨立頁面 layout，dock 位置可能不同，請認名稱與資料區域。</p>
 
   <h2 id="elements">3. Elements：目前頁面的結構</h2>
+  <figure class="diagram evidence-shot"><img src="../assets/lesson-6/09-devtools-elements-ui.png" alt="真實 DevTools Elements，頂端工作區列、左側 live DOM、右側 Styles、底部 ancestor breadcrumb"><figcaption><strong>位置：</strong>頂端選中 Elements；左側是 DOM 樹，藍底是選定的 <code>p-button</code>，底部是 ancestor breadcrumb；右側 Styles 是 CSS，不是 telemetry。<strong>看哪裡：</strong>藍底 node 上的 <code>data-link-name="DailySchedule"</code>。這證明 live attribute 存在，不證明 callback 執行。</figcaption></figure>
   <p>DOM 樹是 Browser 當下管理的頁面結構，外觀像 HTML，但不等於 repository 原始 template。展開父節點可以看到 children；attributes 則跟在 element tag 上。右側或下方常有 Styles／Computed，用來看 CSS；Faro click Lab 不需要先深入 CSS。</p>
   <ol>
     <li>用 <strong>Element Picker</strong>（<code>Ctrl + Shift + C</code>）在頁面點選想觀察的 UI。</li>
@@ -45,6 +46,7 @@
   <p class="cite"><a href="https://developer.chrome.com/docs/devtools/elements">Chrome 官方：Elements overview</a> · <a href="../lessons/0006-browser-devtools-verification.html#dom-lab">返回 DOM Lab →</a></p>
 
   <h2 id="console">4. Console：查值與查看訊息</h2>
+  <figure class="diagram evidence-shot"><img src="../assets/lesson-6/10-devtools-console-listener-ui.png" alt="真實 DevTools Console，唯讀 listener 查詢指令與一列結果表"><figcaption><strong>位置：</strong>頂端 Console；上方 toolbar 用來清除／過濾訊息，中間是 expression 與結果，藍色 <code>&gt;</code> 是輸入提示列。<strong>看哪裡：</strong>table 只有 index 0 一列，type 是 click，三個 flags 都 false，functionName 是 <code>globalZoneAwareCallback</code>。這是 registration，不是 Faro execution；<code>undefined</code> 是 <code>console.table</code> 的回傳值，不代表沒有 listener。</figcaption></figure>
   <p>Console 有兩種主要內容：程式／Browser 輸出的訊息，以及你輸入 expression 後得到的結果。它不是自動記錄所有函式執行的完整流水帳。</p>
   <p>在 Elements 選好 node 後，DevTools 的 <code>$0</code> 代表最近選定的 DOM node。這是 DevTools helper，不是 Foreman 自己定義的變數。可以查：</p>
   <pre><code>$0.tagName
@@ -56,6 +58,7 @@ getEventListeners(document).click</code></pre>
   <p class="cite"><a href="https://developer.chrome.com/docs/devtools/console">Chrome 官方：Console overview</a> · <a href="../lessons/0006-browser-devtools-verification.html#listener-lab">返回 listener Lab →</a></p>
 
   <h2 id="sources">5. Sources：程式檔與執行現場</h2>
+  <figure class="diagram evidence-shot"><img src="../assets/lesson-6/12-devtools-faro-paused-ui.png" alt="真實 DevTools Sources 暫停在 clickInstrumentation.js 的 handleClick，右側 Scope 與 Zone.js call stack"><figcaption><strong>位置：</strong>頂端 Sources；左側 navigator 選檔，中間 code editor 黃底是當下停點，右側 debugger sidebar 的 Scope／Call Stack 顯示執行現場，最上排藍色三角形是 Resume。<strong>看哪裡：</strong><code>this.handleClick</code> 裡的第 29 行與右側 Zone.js frames。這次 line breakpoint 證明 Faro callback 已進入；source map 顯示原始檔名，不能把只讀 source 誤認成 execution。Scope 未展開可能含個資的物件。</figcaption></figure>
   <p>Sources 常分成三區：檔案 navigator（選載入的 script）、code editor（看程式碼）、debugger sidebar（breakpoint 與停點資訊）。部署可能顯示 bundle，例如 <code>main.js</code>；source map 若可用，才可能映射回原始檔名。沒有原始檔名不等於函式沒有執行。</p>
   <p><strong>Breakpoint</strong> 是要求 debugger 在指定條件暫停 JavaScript 的工具。Event Listener Breakpoint 對 click 暫停時，先看：</p>
   <ul>
@@ -69,6 +72,7 @@ getEventListeners(document).click</code></pre>
   <p class="cite"><a href="https://developer.chrome.com/docs/devtools/sources">Chrome 官方：Sources overview</a> · <a href="../lessons/0006-browser-devtools-verification.html#breakpoint-lab">返回 breakpoint Lab →</a></p>
 
   <h2 id="network">6. Network：HTTP 往返紀錄</h2>
+  <figure class="diagram evidence-shot"><img src="../assets/lesson-6/13-devtools-network-list-ui.png" alt="真實 DevTools Network，alloy filter、Method Status Type Initiator Size Time 與 Waterfall"><figcaption><strong>位置：</strong>頂端 Network；toolbar 紅色 recording icon 表示正在記錄，下一排是 filter；中間 table 一列一筆 request，右側 Waterfall 是各筆時間線。<strong>看哪裡：</strong>Method + Status + Type，分出 OPTIONS／204／preflight 與 POST／202／fetch。這能分 request role，不能識別哪列有 click；需再看 Payload。上方 overview 的時間軸也不是下游處理流程。</figcaption></figure>
   <p>一列通常是一筆 request，不是一個 click。一次 click 可帶來 application request、resource telemetry、tracing telemetry 與 click telemetry；preflight 也是另一列。先看 <strong>Method + Type + Status</strong>，再選細節 tab。</p>
   <ol>
     <li>操作前先開 Network，確認 recording 啟用；它不會自動補回所有開啟前的 request。</li>

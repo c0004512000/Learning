@@ -17,7 +17,11 @@ The required capability is Faro integration/debugging, not general DevTools mast
 - Explain what the workspace contains before asking the learner to operate it.
 - Choose the workspace from the claim, not from memorized screen coordinates.
 - Separate visible source from actual execution, registration from callback invocation, request existence from payload identity, and receiver status from downstream success.
-- Keep actual DevTools screenshot collection distinct from rendered CDP evidence; the new conceptual Reference does not fill that outstanding visual evidence gap.
+- Keep actual DevTools screenshot collection distinct from rendered CDP evidence. The Reference now embeds four genuine workspace captures; Lesson 6 also includes breakpoint settings, actual Faro pause and request detail screenshots, each with reading focus and proof limits.
+
+## Visual learning prerequisite
+
+Learner explicitly says screenshots help them learn. Future Faro debug instructions should pair panel selection with a concrete real UI example and explain its content regions; a rendered field summary alone does not establish UI literacy. This is a teaching constraint, not evidence the learner can yet execute the debugging workflow independently.
 
 ## Progress
 

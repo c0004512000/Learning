@@ -1,0 +1,522 @@
+{
+  "verifiedAt": "2026-09-16T10:05:51.278Z",
+  "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+  "capture": "Actual Chrome built-in DevTools frontend attached to same manually authenticated Playwright context; projected CDP-backed NetworkLog runtime records",
+  "rows": [
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "OPTIONS",
+      "status": 204,
+      "type": "preflight",
+      "durationMs": 33,
+      "requestHeaders": {
+        "Access-Control-Request-Headers": "content-type,x-faro-session-id",
+        "Access-Control-Request-Method": "POST",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "access-control-allow-credentials": "true",
+        "access-control-allow-headers": "content-type,x-faro-session-id",
+        "access-control-allow-methods": "POST",
+        "access-control-allow-origin": "*"
+      }
+    },
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "type": "fetch",
+      "durationMs": 19,
+      "requestHeaders": {
+        "Content-Length": "1532",
+        "Content-Type": "application/json",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "Content-Length": "0",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-origin": "*"
+      },
+      "payload": {
+        "meta": {
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "device": {
+            "type": "desktop"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "user": "[REDACTED]",
+          "session": "[REDACTED]"
+        },
+        "events": [
+          {
+            "name": "faro.performance.resource",
+            "domain": "browser",
+            "timestamp": "2026-09-16T09:55:14.193Z",
+            "attributes": {
+              "omitted": "Non-click attributes omitted for privacy"
+            }
+          }
+        ],
+        "hasTraces": false
+      }
+    },
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "type": "fetch",
+      "durationMs": 20,
+      "requestHeaders": {
+        "Content-Length": "2747",
+        "Content-Type": "application/json",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "Content-Length": "0",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-origin": "*"
+      },
+      "payload": {
+        "meta": {
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "device": {
+            "type": "desktop"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "user": "[REDACTED]",
+          "session": "[REDACTED]"
+        },
+        "hasTraces": false
+      }
+    },
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "type": "fetch",
+      "durationMs": 13,
+      "requestHeaders": {
+        "Content-Length": "4449",
+        "Content-Type": "application/json",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "Content-Length": "0",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-origin": "*"
+      },
+      "payload": {
+        "meta": {
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "device": {
+            "type": "desktop"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "user": "[REDACTED]",
+          "session": "[REDACTED]"
+        },
+        "events": [
+          {
+            "name": "faro.tracing.xml-http-request",
+            "domain": "browser",
+            "timestamp": "2026-09-16T09:55:14.214Z",
+            "attributes": {
+              "omitted": "Non-click attributes omitted for privacy"
+            }
+          }
+        ],
+        "hasTraces": true,
+        "traces": "[REDACTED: trace payload omitted for privacy]"
+      }
+    },
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "type": "fetch",
+      "durationMs": 10,
+      "requestHeaders": {
+        "Content-Length": "1534",
+        "Content-Type": "application/json",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "Content-Length": "0",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-origin": "*"
+      },
+      "payload": {
+        "meta": {
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "device": {
+            "type": "desktop"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "user": "[REDACTED]",
+          "session": "[REDACTED]"
+        },
+        "events": [
+          {
+            "name": "faro.performance.resource",
+            "domain": "browser",
+            "timestamp": "2026-09-16T10:00:15.276Z",
+            "attributes": {
+              "omitted": "Non-click attributes omitted for privacy"
+            }
+          }
+        ],
+        "hasTraces": false
+      }
+    },
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "OPTIONS",
+      "status": 204,
+      "type": "preflight",
+      "durationMs": 35,
+      "requestHeaders": {
+        "Access-Control-Request-Headers": "content-type,x-faro-session-id",
+        "Access-Control-Request-Method": "POST",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "access-control-allow-credentials": "true",
+        "access-control-allow-headers": "content-type,x-faro-session-id",
+        "access-control-allow-methods": "POST",
+        "access-control-allow-origin": "*"
+      }
+    },
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "type": "fetch",
+      "durationMs": 18,
+      "requestHeaders": {
+        "Content-Length": "4449",
+        "Content-Type": "application/json",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "Content-Length": "0",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-origin": "*"
+      },
+      "payload": {
+        "meta": {
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "device": {
+            "type": "desktop"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "user": "[REDACTED]",
+          "session": "[REDACTED]"
+        },
+        "events": [
+          {
+            "name": "faro.tracing.xml-http-request",
+            "domain": "browser",
+            "timestamp": "2026-09-16T10:00:15.328Z",
+            "attributes": {
+              "omitted": "Non-click attributes omitted for privacy"
+            }
+          }
+        ],
+        "hasTraces": true,
+        "traces": "[REDACTED: trace payload omitted for privacy]"
+      }
+    },
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "OPTIONS",
+      "status": 204,
+      "type": "preflight",
+      "durationMs": 74,
+      "requestHeaders": {
+        "Access-Control-Request-Headers": "content-type,x-faro-session-id",
+        "Access-Control-Request-Method": "POST",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "access-control-allow-credentials": "true",
+        "access-control-allow-headers": "content-type,x-faro-session-id",
+        "access-control-allow-methods": "POST",
+        "access-control-allow-origin": "*"
+      }
+    },
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "type": "fetch",
+      "durationMs": 14,
+      "requestHeaders": {
+        "Content-Length": "1534",
+        "Content-Type": "application/json",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "Content-Length": "0",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-origin": "*"
+      },
+      "payload": {
+        "meta": {
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "device": {
+            "type": "desktop"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "user": "[REDACTED]",
+          "session": "[REDACTED]"
+        },
+        "events": [
+          {
+            "name": "faro.performance.resource",
+            "domain": "browser",
+            "timestamp": "2026-09-16T10:00:32.856Z",
+            "attributes": {
+              "omitted": "Non-click attributes omitted for privacy"
+            }
+          }
+        ],
+        "hasTraces": false
+      }
+    },
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "type": "fetch",
+      "durationMs": 16,
+      "requestHeaders": {
+        "Content-Length": "4449",
+        "Content-Type": "application/json",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "Content-Length": "0",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-origin": "*"
+      },
+      "payload": {
+        "meta": {
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "device": {
+            "type": "desktop"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "user": "[REDACTED]",
+          "session": "[REDACTED]"
+        },
+        "events": [
+          {
+            "name": "faro.tracing.xml-http-request",
+            "domain": "browser",
+            "timestamp": "2026-09-16T10:00:32.935Z",
+            "attributes": {
+              "omitted": "Non-click attributes omitted for privacy"
+            }
+          }
+        ],
+        "hasTraces": true,
+        "traces": "[REDACTED: trace payload omitted for privacy]"
+      }
+    },
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "type": "fetch",
+      "durationMs": 14,
+      "requestHeaders": {
+        "Content-Length": "1659",
+        "Content-Type": "application/json",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "Content-Length": "0",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-origin": "*"
+      },
+      "payload": {
+        "meta": {
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "device": {
+            "type": "desktop"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "user": "[REDACTED]",
+          "session": "[REDACTED]"
+        },
+        "events": [
+          {
+            "name": "click",
+            "domain": "browser",
+            "timestamp": "2026-09-16T10:00:58.865Z",
+            "attributes": {
+              "link_name": "DailySchedule"
+            }
+          },
+          {
+            "name": "faro.performance.resource",
+            "domain": "browser",
+            "timestamp": "2026-09-16T10:00:38.080Z",
+            "attributes": {
+              "omitted": "Non-click attributes omitted for privacy"
+            }
+          }
+        ],
+        "hasTraces": false
+      }
+    },
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "OPTIONS",
+      "status": 204,
+      "type": "preflight",
+      "durationMs": 31,
+      "requestHeaders": {
+        "Access-Control-Request-Headers": "content-type,x-faro-session-id",
+        "Access-Control-Request-Method": "POST",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "access-control-allow-credentials": "true",
+        "access-control-allow-headers": "content-type,x-faro-session-id",
+        "access-control-allow-methods": "POST",
+        "access-control-allow-origin": "*"
+      }
+    },
+    {
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "type": "fetch",
+      "durationMs": 25,
+      "requestHeaders": {
+        "Content-Length": "4453",
+        "Content-Type": "application/json",
+        "Origin": "https://pek8s-staging.garmin.com"
+      },
+      "responseHeaders": {
+        "Content-Length": "0",
+        "access-control-allow-credentials": "true",
+        "access-control-allow-origin": "*"
+      },
+      "payload": {
+        "meta": {
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "device": {
+            "type": "desktop"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "user": "[REDACTED]",
+          "session": "[REDACTED]"
+        },
+        "events": [
+          {
+            "name": "faro.tracing.xml-http-request",
+            "domain": "browser",
+            "timestamp": "2026-09-16T10:00:58.935Z",
+            "attributes": {
+              "omitted": "Non-click attributes omitted for privacy"
+            }
+          }
+        ],
+        "hasTraces": true,
+        "traces": "[REDACTED: trace payload omitted for privacy]"
+      }
+    }
+  ]
+}
