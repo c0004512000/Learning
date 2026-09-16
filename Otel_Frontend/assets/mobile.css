@@ -46,6 +46,12 @@ blockquote code,
   overscroll-behavior-inline: contain;
 }
 
+.evidence-shot {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 img,
 svg,
 video,
@@ -66,6 +72,11 @@ canvas {
     margin: 0 auto 3rem;
     padding: 0.8rem 0.85rem 3rem;
     overflow-x: hidden;
+  }
+
+  .evidence-shot img {
+    width: 62rem;
+    max-width: none;
   }
 
   .theme-toggle {

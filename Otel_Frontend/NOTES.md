@@ -1,5 +1,7 @@
 # Notes
 
+- DevTools 深度以 Faro 導入／debug 能力為界：必須理解工作區內容差異、選對 evidence、完成 Faro causal chain；其他功能僅補必要 bridge，不擴張成 DevTools mastery 課程。
+
 - 學習重心：既有方案接手、協助導入、前後端 Trace 串接、維運、修改與優化。
 - 技術選型與主要 SDK 開發在交接前大致完成；後續 Skill／IDP 整合、試點串接、文件與推廣是任務重心。
 - HTML 是第一線教學範圍，但不能只讀 rendered text；程式碼、PR、圖、runtime bundle、DevTools、Grafana、OpenSearch 與 Confluence 延伸內容都要用來交叉驗證。
