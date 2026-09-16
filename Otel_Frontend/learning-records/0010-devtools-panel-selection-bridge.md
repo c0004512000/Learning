@@ -27,6 +27,10 @@ Learner rejects fixed dark-blue bitmap evidence cards as inconsistent with the H
 
 ## Progress
 
-Maintenance constraint clarified by the learner: adding a runtime Lab must preserve the existing lesson's explanatory sequence, complete hands-on steps, original quiz and recap. Lesson 6 is restored from main and enhanced through clearly identified in-section runtime supplements; old manual observations and the new Playwright/CDP pass are kept distinct. Future changes must compare against the baseline for unintended content loss before delivery.
+Maintenance constraint clarified by the learner: adding a runtime Lab must preserve the existing lesson's explanatory sequence, complete hands-on steps, original quiz and recap. Lesson 6 integrates the original ten conceptual sections and full hands-on checklist with the new screenshots in one causal sequence, rather than retaining two parallel explanations. The original four quizzes remain intact; old manual observations and the new Playwright/CDP passes are explicitly distinct. Future changes must compare against the baseline for unintended content loss before delivery.
 
 No learner retrieval/practice was demonstrated in this maintenance turn. Do not mark DevTools or Lesson 6 mastered, and do not advance the main course position.
+
+## Screenshot reading constraint
+
+Learner requests red rectangular focus marks on genuine screenshots. Use deterministic transparent SVG overlays in shared CSS, keep captured PNG pixels unchanged, and state that red boxes are teaching annotations. Mark the active workspace and the evidence region relevant to the caption; do not fabricate DevTools UI or turn annotations into runtime claims.
