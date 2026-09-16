@@ -53,6 +53,26 @@
 - Runtime resources: Kubernetes deployment specs in namespaces `mes1-frontend` (read-only query at verification timestamp); credential values intentionally omitted.
 - Foreman PR #21: `https://github.com/garmin-tw-mfg-eng/XD-Foreman-Assistant/pull/21`，merge commit `f4a3688d3beed8f8448b78583cd93985884cff23`（init-before-bootstrap, marked templates, user callback, device opt-in and test plan）。
 
+## Source recheck — 2026-09-17
+
+直接重讀上述 pinned checkout 與全部 48 個可達 commits，確認 render/config findings 一致，並補上歷史與 value-origin proof。遠端最新 `main` HEAD 本次未取得，不能把 source snapshot 等同本日最新部署。
+
+`data-link-name` 首次出現在 Faro 導入 PR #21 的 commit `f4a3688d3beed8f8448b78583cd93985884cff23`（2026-08-20）；其 parent `a06bfe22d34f7d446ffffa42e53123330505ebf8` 及其餘更早可達 trees 都沒有該 literal。原本存在的是 subsystem identifiers；DOM attribute 是新加入的。
+
+```html
+<!-- foreman-assistant/src/app/layout/main/main.component.html:46 -->
+[attr.data-link-name]="item.subsystem"
+```
+
+```ts
+// foreman-assistant/src/app/layout/main/main.component.ts:314–316
+subsystem: Subsytem[Subsytem.DailySchedule],
+...this.selectedLineResourceInfo?.dailyScheduleSysInfo
+  ?.systemSummary,
+```
+
+`setPanelList()` 明確列出 35 個 configured enum entries。這是 source configuration；仍不證明 live deployment 顯示哪些值或各值的 URL。全部 6 個 render declarations、35 entries、每個 button/anchor/interactive component snippet、完整七組搜尋與 SDK→Alloy path 見 [source 調查報告](data-link-name-investigation-2026-09-17.md)。
+
 ## Possible integration recommendation (not current state)
 
 - 若需要提高 coverage，應在真正 clickable DOM node 或可證實為 ancestor 的 host 加上 `data-*`，並以 representative browser click/DevTools evidence 驗證，而不是把所有 `<p-button>` 數量當成 coverage。
