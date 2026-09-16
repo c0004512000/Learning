@@ -181,14 +181,7 @@ All screenshots under [`../../assets/lesson-6/`](../../assets/lesson-6/):
 
 1. `01-foreman-main-runtime.png` — real page screenshot; personal account region visibly redacted.
 2. `02-live-dom-click-target.png` — real page screenshot with Playwright-added yellow highlight; personal account region visibly redacted.
-3. `03-document-click-listener.png` — rendered from captured CDP listener evidence.
-4. `04-click-breakpoint-callstack.png` — rendered from captured CDP pause/step evidence.
-5. `05-network-alloy-list.png` — rendered from captured CDP Network evidence.
-6. `06-alloy-preflight-headers.png` — rendered from captured CDP OPTIONS evidence.
-7. `07-alloy-click-post-payload.png` — rendered from captured CDP POST payload evidence.
-8. `08-alloy-post-response.png` — rendered from captured CDP response evidence.
-
-The six rendered cards are historical visualizations, not Chrome DevTools screenshots. They are no longer embedded in Lesson 6: the lesson now uses shared-style HTML summaries and actual UI captures. Their source JSON remains authoritative; historical images are retained without modifying captured runtime artifacts.
+The current inventory contains these two page screenshots plus the ten actual DevTools UI screenshots listed below. Summary visualizations are presented as shared-style HTML, not separate bitmap cards. Screenshot filename numbering is intentionally non-contiguous; it is not an indication of missing required evidence. Sanitized runtime JSON is retained independently.
 
 ## Unknown / not proven
 

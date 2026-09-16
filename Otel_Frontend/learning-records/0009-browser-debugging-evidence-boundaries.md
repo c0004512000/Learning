@@ -56,8 +56,8 @@ The tool panel is chosen after the claim, not before it.
 When the environment cannot reliably capture real Chrome DevTools UI:
 
 - retain sanitized CDP raw output;
-- render a learner-facing visualization only from captured values;
-- label it “Rendered from captured CDP runtime evidence”;
+- present any learner-facing summary only from captured values, using shared-style HTML;
+- label it as a summary of captured CDP runtime evidence;
 - never present the visualization as an original DevTools screenshot;
 - pair every figure with “what to inspect / what it proves / what it cannot prove.”
 
