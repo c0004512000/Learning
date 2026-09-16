@@ -21,7 +21,7 @@
 - 對每一個設定的 attribute，從 `event.target`（含自身）呼叫 `closest([attribute])` 向 ancestor 查找；找到才以 `getAttribute()` 取原值，未找到的欄位省略，不是錯誤。
 - payload 只包含命中的 `trackAttributes`，不自動加入 `link_name`、`device_type` 或其他欄位。payload 為空物件時不呼叫 `pushEvent()`，也不佔用 throttle timestamp。
 - key 先去除前綴 `data-`，再把其餘 `-` 改為 `_`；之後由 Faro/OTel translator 形成 `event_data_<key>`。
-- 同一個 `EventTarget` 的事件在 300 ms 內只送第一筆；以 `WeakMap<EventTarget, number>` 記錄。超過 300 ms 可再送。`pushEvent('click', payload)` 是唯一送出呼叫。
+- 同一個 `EventTarget` 的事件在 300 ms 內只讓第一筆進入 `pushEvent()`；以 `WeakMap<EventTarget, number>` 記錄。超過 300 ms 可再呼叫 `pushEvent('click', payload)`，它是 ClickInstrumentation 唯一的 event API 呼叫。2026-09-17 補充：Faro SDK 2.9.0 的 `packages/core/src/api/events/initialize.ts` 另有 event dedupe 與 user-action buffering；package 呼叫次數不等於 HTTP POST 次數，source proof 見 [調查報告](data-link-name-investigation-2026-09-17.md)。
 
 ### Initialisation, singleton and cleanup
 
@@ -57,7 +57,7 @@
 - PR #26（merge commit `f3c5a0de0dd267d62a7259748252b5247e734122`，2026-08-12）與其 tests/description 證實 `trackAttributes` 的 `data-*` validation、未命中欄位省略；它沒有留下「為什麼 mandatory」的作者理由。
 - PR #30（merge commit `18464e867453dda0315ed51297bb17d1360863c6`，2026-08-13）加入 `toPayloadKey()`。code/test 明確把 `data-panel-topic` 轉成 `panel_topic`，理由是 translator 的 `event_data_` 欄位若保留 hyphen 會造成 Loki query 解析問題。這是 key normalization 的理由，不是 `data-*` mandatory 的證明。
 - PR #31（merge commit `269322f01e922d6b85656e72e06e6cee5fd7294c`）確認 payload 僅由 host attributes 組成、空 payload 丟棄，並把 device detection 做成 opt-in；PR #32（merge commit `937d4a32e725877188a8d8a223529dece0449d4d`）為目前 release line。
-- 初始實作 commit `ca043905366203c4f7dfae35b4f097e870201c36`（2026-08-04）已使用 data-attribute contract；後續 `7d8427b5fb147a29234fb6b3cbeba5138db24a0a`、`bd4c040a55ccdf8be30c659978c7bba5f2c5c4d` 延伸 link-name/data-attribute handling。`git log -S`、PR、tests 與歷史文件沒有證明過 `key`、`href`、`id`、`class` 或 `aria-*` 曾是正式支援的 `trackAttributes` 輸入。
+- 2026-09-17 直接重讀 Git blobs 後更正：初始實作 commit `ca043905366203c4f7dfae35b4f097e870201c36`（2026-08-04）**沒有 data-link-name / trackAttributes contract**，而是 `getDirectTextContent(target)` → `pushEvent('click', { link_name: linkName })`。`7d8427b5fb147a29234fb6b3cbeba5138db24a0a` 首先在設計文件加入 `data-link-name`；其後 `bd4c040a55ccdf8be30c659978c7bba5f2c5c4d0` 才在 `src/clickInstrumentation.ts` 加入 `LINK_NAME_ATTRIBUTE`、`closest()` / `getAttribute()` override。完整 source snippets 與 104 個可達 commits 的查證見 [調查報告](data-link-name-investigation-2026-09-17.md)。原記錄把初始實作寫成已採用 data-attribute contract 是錯誤；原 `bd4c040...` SHA 也缺尾碼 `0`。
 
 ## Unknown / not proven
 
