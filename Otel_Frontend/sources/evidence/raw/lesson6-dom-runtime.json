@@ -1,0 +1,298 @@
+{
+  "verifiedAt": "2026-09-16T02:35:04.314Z",
+  "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+  "pageUrl": "https://pek8s-staging.garmin.com/foreman-assistant/#/main",
+  "pageHost": "pek8s-staging.garmin.com",
+  "selectedElement": {
+    "tag": "P-BUTTON",
+    "dataLinkName": "DailySchedule"
+  },
+  "clickTarget": {
+    "tag": "SPAN",
+    "role": null
+  },
+  "closest": {
+    "tag": "P-BUTTON",
+    "dataLinkName": "DailySchedule"
+  },
+  "ancestorStructure": [
+    {
+      "tag": "SPAN",
+      "hasDataLinkName": false,
+      "dataLinkName": null
+    },
+    {
+      "tag": "DIV",
+      "hasDataLinkName": false,
+      "dataLinkName": null
+    },
+    {
+      "tag": "BUTTON",
+      "hasDataLinkName": false,
+      "dataLinkName": null
+    },
+    {
+      "tag": "P-BUTTON",
+      "hasDataLinkName": true,
+      "dataLinkName": "DailySchedule"
+    },
+    {
+      "tag": "P",
+      "hasDataLinkName": false,
+      "dataLinkName": null
+    },
+    {
+      "tag": "DIV",
+      "hasDataLinkName": false,
+      "dataLinkName": null
+    },
+    {
+      "tag": "DIV",
+      "hasDataLinkName": false,
+      "dataLinkName": null
+    },
+    {
+      "tag": "DIV",
+      "hasDataLinkName": false,
+      "dataLinkName": null
+    }
+  ],
+  "clickPoint": {
+    "x": 43.1875,
+    "y": 258.1875
+  },
+  "candidates": [
+    {
+      "index": 0,
+      "tag": "P-BUTTON",
+      "dataLinkName": "DailySchedule",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 1,
+      "tag": "P-BUTTON",
+      "dataLinkName": "SystemNotes",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 2,
+      "tag": "P-BUTTON",
+      "dataLinkName": "MachineMaintenance",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 3,
+      "tag": "P-BUTTON",
+      "dataLinkName": "AuxiliaryMaterials",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 4,
+      "tag": "P-BUTTON",
+      "dataLinkName": "Handover",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 5,
+      "tag": "P-BUTTON",
+      "dataLinkName": "MaterialTracking",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 6,
+      "tag": "P-BUTTON",
+      "dataLinkName": "JobWorkflowApproval",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 7,
+      "tag": "P-BUTTON",
+      "dataLinkName": "FindPart",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 8,
+      "tag": "P-BUTTON",
+      "dataLinkName": "WarehouseManagement",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 9,
+      "tag": "P-BUTTON",
+      "dataLinkName": "InventoryOperations",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 10,
+      "tag": "P-BUTTON",
+      "dataLinkName": "FifoToolkit",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 11,
+      "tag": "P-BUTTON",
+      "dataLinkName": "WIP",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 12,
+      "tag": "P-BUTTON",
+      "dataLinkName": "LineController",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 13,
+      "tag": "P-BUTTON",
+      "dataLinkName": "HourlyProductionUnits",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 14,
+      "tag": "P-BUTTON",
+      "dataLinkName": "JobAnalysis",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 15,
+      "tag": "P-BUTTON",
+      "dataLinkName": "MFGPortal",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 16,
+      "tag": "P-BUTTON",
+      "dataLinkName": "CFT",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 17,
+      "tag": "P-BUTTON",
+      "dataLinkName": "EfficiencyAbnormalReport",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 18,
+      "tag": "P-BUTTON",
+      "dataLinkName": "Console",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 19,
+      "tag": "P-BUTTON",
+      "dataLinkName": "FacilityMaintenance",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 20,
+      "tag": "P-BUTTON",
+      "dataLinkName": "FixtureCheckInOut",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 21,
+      "tag": "P-BUTTON",
+      "dataLinkName": "Attendance",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 22,
+      "tag": "P-BUTTON",
+      "dataLinkName": "ManualWorkHourReporting",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 23,
+      "tag": "P-BUTTON",
+      "dataLinkName": "LCHourReporting",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 24,
+      "tag": "P-BUTTON",
+      "dataLinkName": "OvertimeSystem",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 25,
+      "tag": "P-BUTTON",
+      "dataLinkName": "LeaveSystem",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 26,
+      "tag": "P-BUTTON",
+      "dataLinkName": "ESDRecord",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 27,
+      "tag": "P-BUTTON",
+      "dataLinkName": "LaborPerformance",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    },
+    {
+      "index": 28,
+      "tag": "P-BUTTON",
+      "dataLinkName": "OperatorPreAssignment",
+      "visible": true,
+      "clickableTag": "BUTTON",
+      "clickableRole": null
+    }
+  ]
+}

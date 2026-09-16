@@ -166,6 +166,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 **Durable evidence:**
 - `sources/evidence/faro-click-tracking.md`
 - `sources/evidence/browser-to-alloy.md`
+- `sources/evidence/foreman-browser-debug-lab.md`（2026-09-16 Playwright + CDP runtime lab；教材建立不代表 learner mastered）
 
 **Dependency:** Lesson 5。
 
