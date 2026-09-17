@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 7｜Frontend-to-Backend Trace Context Propagation</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+  <h1>Frontend-to-Backend Trace Context Propagation</h1>
+  <p class="subtitle">Milestone 4 · 先理解為什麼 parent relationship 會在 HTTP 邊界消失，再看 <code>traceparent</code> 怎麼把它帶過去</p>
+
+  <div class="box tip">
+    <strong>這堂課的目標</strong><br>
+    你要能從第一性原理解釋：Browser 與 backend 明明是兩個不同 process／runtime，為什麼最後還能在 tracing system 裡變成同一條 trace；以及 <code>backendUrls</code>、<code>traceparent</code>、backend instrumentation 各自負責哪一段。
+  </div>
+
+  <p><a href="0006-browser-devtools-verification.html">Lesson 6</a> 已經建立一個重要習慣：<strong>不要因為設定存在就宣稱 runtime 已成功。</strong>Lesson 7 繼續沿用這個 evidence boundary。</p>
+
+  <h2>1. 先不談 <code>traceparent</code>：為什麼跨到 backend 後關係會消失？</h2>
+
+  <p>假設 Browser 正在執行一個 HTTP request，tracing library 在 Browser memory 裡知道：</p>
+
+  <pre><code>Browser memory
+
+Trace T
+└─ HTTP client span A</code></pre>
+
+  <p>這裡的「Trace T 裡有 span A」只是一個 runtime 裡的資料關係。</p>
+
+  <p>接著 Browser 真的送出 HTTP request：</p>
+
+  <pre><code>Browser runtime                         Backend runtime
+
+Trace T
+└─ span A
+     │
+     │ sends HTTP request
+     ├───────────────────────────────────────> request arrives
+                                             │
+                                             └─ backend only sees HTTP data</code></pre>
+
+  <p>問題來了：</p>
+
+  <blockquote>Backend process 根本看不到 Browser memory 裡的 span A。那它怎麼知道「我現在處理的這筆 request，應該接在 span A 後面」？</blockquote>
+
+  <p>HTTP 只會跨 process boundary 傳送實際被序列化的資料，例如 URL、method、headers、body。Browser 裡面的 JavaScript object、span object、function reference，都不會自己穿過網路。</p>
+
+  <div class="box ask">
+    <strong>所以 propagation 必須存在</strong><br>
+    如果想保留 parent/child 關係，就必須把「足以重建 trace 關係的最小資訊」轉成 HTTP 可以攜帶的資料，再由 backend 讀回來。
+  </div>
+
+  <h2>2. 先建立最小 trace / span 模型</h2>
+
+  <p>這堂課只需要兩個 ID：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>概念</th><th>先這樣理解</th></tr></thead>
+      <tbody>
+        <tr><td><code>trace ID</code></td><td>整次跨系統工作共用的 ID。只要還在同一條 distributed trace，frontend / backend spans 都保留同一個 trace ID。</td></tr>
+        <tr><td><code>span ID</code></td><td>某一個 operation 自己的 ID。每個 span 有自己的 span ID。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>例如：</p>
+
+  <pre><code>Trace ID = T
+
+Browser HTTP client span
+  span ID = A
+
+Backend server span
+  span ID = B
+  parent = A
+
+Backend DB span
+  span ID = C
+  parent = B</code></pre>
+
+  <p>這樣 tracing system 才能畫成：</p>
+
+  <pre><code>Trace T
+
+A  Browser HTTP client span
+└─ B  Backend server span
+   └─ C  Database span</code></pre>
+
+  <p>注意：<strong>同一條 trace 不代表所有 span 都共用同一個 span ID。</strong>共用的是 trace ID；每個 operation 有自己的 span ID，再另外記住 parent relationship。</p>
+
+  <h2>3. <code>traceparent</code> 就是跨 HTTP 邊界的「最小關係描述」</h2>
+
+  <p>W3C Trace Context 把這套跨服務資訊標準化成 HTTP header。核心 header 叫：</p>
+
+  <pre><code>traceparent</code></pre>
+
+  <p>version <code>00</code> 的格式是：</p>
+
+  <pre><code>traceparent: 00-&lt;trace-id&gt;-&lt;parent-id&gt;-&lt;trace-flags&gt;</code></pre>
+
+  <p>用一組<strong>教材假值</strong>：</p>
+
+  <pre><code>traceparent: 00-7f3a9c0d21b54e7aa4b0e7d3c8712f60-5c1d7a9b3e204f11-01
+             │  │                                │                │
+             │  │                                │                └─ trace-flags
+             │  │                                └─ parent-id
+             │  └─ trace-id
+             └─ version</code></pre>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Field</th><th>意義</th></tr></thead>
+      <tbody>
+        <tr><td><code>00</code></td><td>traceparent format version。</td></tr>
+        <tr><td><code>trace-id</code></td><td>整條 trace 的 ID；version 00 是 32 個 lowercase hex characters。</td></tr>
+        <tr><td><code>parent-id</code></td><td>caller 目前 operation/request 的 ID；常見 tracing system 中就是 caller span ID，version 00 是 16 個 lowercase hex characters。</td></tr>
+        <tr><td><code>trace-flags</code></td><td>tracing flags；<code>01</code> 常見地表示 sampled bit 被設置，但它不是「一定成功寫入 storage」的保證。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="cite">W3C 定義見 <a href="https://www.w3.org/TR/trace-context-1/#traceparent-header">Trace Context §3.2</a>；本課重用的查表版在 <a href="../reference/0006-w3c-traceparent.html">Reference｜W3C traceparent 快速查表</a>。</p>
+
+  <h2>4. 最容易誤會：<code>parent-id</code> 不是 backend 要沿用的 span ID</h2>
+
+  <p>假設 Browser 這次 outbound HTTP span 是：</p>
+
+  <pre><code>traceId = T
+spanId  = A</code></pre>
+
+  <p>那 Browser 送出去的 context 可以表示成：</p>
+
+  <pre><code>traceparent = 00-T-A-...</code></pre>
+
+  <p>Backend 收到後，不是把自己的 span ID 也設成 A。Backend 要建立自己的 operation：</p>
+
+  <pre><code>Browser                         HTTP                        Backend
+
+client span A
+traceId = T
+spanId  = A
+    │
+    │ injects context
+    ▼
+traceparent = 00-T-A-...
+                               │
+                               │ carries caller context
+                               ▼
+                                                   server span B
+                                                   traceId      = T
+                                                   spanId       = B
+                                                   parentSpanId = A</code></pre>
+
+  <p>所以真正的關係是：</p>
+
+  <pre><code>同一個 traceId T
+
+A (Browser)
+└─ B (Backend)</code></pre>
+
+  <div class="box tip">
+    <strong>記憶點</strong><br>
+    <code>trace-id</code> 回答「我們是不是同一條 trace？」；<code>parent-id</code> 回答「接收端的新 operation 應該接在 caller 的哪個 operation 後面？」
+  </div>
+
+  <h2>5. 這件事在你們的 Faro package 裡是怎麼接起來的？</h2>
+
+  <p>你們的宿主專案不是直接操作 OpenTelemetry 的 propagation API；它是透過公司 package：</p>
+
+  <pre><code>initFaro({
+  ...,
+  backendUrls: [
+    'https://api.example.com',
+    /^https:\/\/\/.*\.example\.com$/,
+  ],
+})</code></pre>
+
+  <p>現行 package evidence 已確認：</p>
+
+  <pre><code>host app
+  │ passes
+  ▼
+backendUrls
+  │
+  │ package forwards as
+  ▼
+TracingInstrumentation
+  └─ instrumentationOptions.propagateTraceHeaderCorsUrls</code></pre>
+
+  <p>接著 Faro Web SDK v2.9.0 的實作再做兩件事：</p>
+
+  <pre><code>TracingInstrumentation
+  │
+  ├─ registers → W3CTraceContextPropagator
+  │
+  └─ registers → Fetch / XHR instrumentation
+                    │
+                    └─ receives propagateTraceHeaderCorsUrls</code></pre>
+
+  <p>所以三個角色要分開：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>角色</th><th>責任</th></tr></thead>
+      <tbody>
+        <tr><td><code>backendUrls</code></td><td>告訴 package 哪些 backend/business API URL 應該被納入 cross-origin trace-header propagation 設定。</td></tr>
+        <tr><td>Fetch / XHR instrumentation</td><td>觀察 Browser network operation，建立／管理 HTTP tracing span，並在適用的 request 上使用 propagator。</td></tr>
+        <tr><td><code>W3CTraceContextPropagator</code></td><td>把目前 trace context 序列化成標準 W3C header，或從 incoming carrier 還原 context。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="cite">Internal contract：<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a>。Faro v2.9.0 source verification：<a href="../sources/linked/external/trace-context-and-faro-web-tracing.md">trace-context and Faro web-tracing source pointers</a>。</p>
+
+  <div class="box ask">
+    <strong><code>backendUrls</code> 不是 Alloy URL</strong><br>
+    它是「哪些 business/backend request 要參與 propagation」的設定。Faro telemetry 要送去哪個 receiver，是另一條 transport/export 路徑。
+  </div>
+
+  <h2>6. 這裡其實有兩條完全不同的網路路徑</h2>
+
+  <p>這是 Lesson 7 最重要的責任邊界。</p>
+
+  <figure class="diagram">
+    <figcaption><strong>Path A｜Business request：用 context 建立前後端關係</strong></figcaption>
+    <pre><code>Browser application
+  │
+  │ sends business HTTP request
+  │ Header: traceparent = 00-T-A-...
+  ▼
+Backend API
+  │
+  │ extracts caller context
+  ▼
+Backend span B
+traceId = T
+parent = A</code></pre>
+  </figure>
+
+  <figure class="diagram">
+    <figcaption><strong>Path B｜Telemetry export：把 span 資料送去觀測系統</strong></figcaption>
+    <pre><code>Browser span A
+  │ exports telemetry
+  ▼
+Faro receiver / Alloy / Collector
+  │
+  ▼
+Tempo
+
+Backend span B
+  │ exports via OTLP
+  ▼
+Collector
+  │
+  ▼
+Tempo</code></pre>
+  </figure>
+
+  <p><strong>Propagation</strong> 傳的是 context；<strong>export</strong> 傳的是 span telemetry。</p>
+
+  <p>這代表幾個很實際的情境：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>情境</th><th>可能看到什麼</th></tr></thead>
+      <tbody>
+        <tr><td>Propagation 失敗，但 API request 本身成功</td><td>Frontend 與 backend 都有 trace，但變成兩條不同 trace。</td></tr>
+        <tr><td>Propagation 成功，但 Browser span export 失敗</td><td>Backend 可能延續同一個 trace context，但 Tempo 裡缺 frontend parent span。</td></tr>
+        <tr><td>Propagation 成功，但 backend span export 失敗</td><td>Browser span 可見，但 backend operation 沒出現在 trace backend。</td></tr>
+        <tr><td>兩邊都 export，但 trace ID 不同</td><td>要查 propagation / extraction，而不是先怪 Tempo grouping。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>7. Backend 收到 <code>traceparent</code> 後發生什麼？</h2>
+
+  <p>先不綁死某個 framework，從 tracing system 的必要行為理解：</p>
+
+  <pre><code>Incoming HTTP request
+  │
+  ├─ has valid traceparent?
+  │       │
+  │       ├─ yes → extract traceId + caller parent context
+  │       │          │
+  │       │          └─ create current server operation in same trace
+  │       │
+  │       └─ no  → no incoming parent context
+  │                  │
+  │                  └─ create a new trace context
+  ▼
+Backend handles request</code></pre>
+
+  <p>W3C processing model明確區分「收到 traceparent」與「沒收到 traceparent」兩種情況。收到合法 context 時，tracing system 才有資訊延續原本的 trace；沒有時，它只能從自己這邊建立新的 trace context。</p>
+
+  <p class="cite">Specification basis: <a href="https://www.w3.org/TR/trace-context-1/#processing-model">W3C Trace Context §4 Processing Model</a>。</p>
+
+  <h3>Jeter backend 已知設定</h3>
+
+  <p>現有 evidence 已確認 Jeter backend：</p>
+
+  <ul>
+    <li>是 ASP.NET Core application。</li>
+    <li>啟用了 OpenTelemetry ASP.NET Core tracing instrumentation。</li>
+    <li>backend spans 透過 OTLP exporter 送往設定的 Collector endpoint。</li>
+    <li>CORS policy 對設定的 frontend origin 開放 method / headers。</li>
+  </ul>
+
+  <p>這些 configuration 證明「它具備參與這條 tracing chain 的設定」。但目前還沒有一筆 runtime capture 能證明某個 concrete Browser <code>traceparent</code> 已被這個 backend span 實際接上。</p>
+
+  <p class="cite">Current-state evidence: <a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter host integration and tracing chain</a>。</p>
+
+  <h2>8. Cross-origin 時，CORS 會插在 propagation 前面</h2>
+
+  <p>如果 frontend 與 backend 是不同 origin，Browser 要送帶有 <code>traceparent</code> 的 request，就還要經過 CORS policy。</p>
+
+  <pre><code>Frontend origin
+  │
+  │ wants to send business request + traceparent
+  ▼
+Browser CORS check
+  │
+  ├─ permission OK → actual request can carry traceparent
+  │
+  └─ permission denied → actual business request can be blocked</code></pre>
+
+  <p>所以 primary source 6 才會特別寫：</p>
+
+  <blockquote>Backend 也需要允許 <code>traceparent</code> header。</blockquote>
+
+  <p>這裡沿用 Lesson 5–6 的 CORS mental model，但要注意現在看的不是 <code>POST /alloy</code>，而是<strong>frontend → business backend API</strong>。</p>
+
+  <p><a href="../reference/0004-cors-preflight.html">Reference｜CORS / Preflight →</a></p>
+
+  <h2>9. 套回 Jeter：目前「已證明」與「尚未證明」</h2>
+
+  <h3>已證明的 configuration path</h3>
+
+  <pre><code>Jeter frontend
+  │
+  │ initFaro({ backendUrls: [new RegExp(BACKEND_URL)] })
+  │
+  ├─ scenario API calls use `${BACKEND_URL}${path}`
+  │
+  ▼
+Faro tracing configuration
+  │
+  │ backendUrls → propagateTraceHeaderCorsUrls
+  ▼
+Fetch/XHR tracing + W3C propagator
+
+Jeter backend
+  │
+  ├─ ASP.NET Core OpenTelemetry tracing enabled
+  └─ OTLP exporter configured</code></pre>
+
+  <h3>尚未證明的 runtime chain</h3>
+
+  <pre><code>① Browser business request
+   Headers 裡真的出現某一個 traceparent
+          │
+          ▼
+② Backend server span
+   真的使用該 incoming context
+          │
+          ▼
+③ Tempo
+   frontend span + backend span
+   真的以同一 traceId、正確 parent relationship 出現</code></pre>
+
+  <div class="box">
+    <strong>Lesson 7 到這裡就停</strong><br>
+    這堂課的 tangible win 是能解釋 propagation mechanism 與 responsibility boundary。真正抓一筆 request，把 Browser header、backend span、Tempo trace 三層對起來，是 Lesson 8 的 runtime-verification 任務。
+  </div>
+
+  <h2>10. Troubleshooting：先找哪一個 boundary 壞掉</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Observed symptom</th><th>先懷疑哪個 boundary</th><th>下一個 evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Business request 沒有 <code>traceparent</code></td><td>frontend tracing / URL matching / propagation</td><td>Network request headers + <code>backendUrls</code> runtime value</td></tr>
+        <tr><td>Preflight 不允許 <code>traceparent</code></td><td>backend CORS</td><td>OPTIONS request/response headers + Console CORS error</td></tr>
+        <tr><td>Request 有 <code>traceparent</code>，backend trace ID 卻不同</td><td>backend extraction / instrumentation</td><td>incoming header + backend span context</td></tr>
+        <tr><td>Backend trace ID 對了，但 Tempo 缺 frontend span</td><td>frontend telemetry export</td><td>Faro trace export / receiver / Collector evidence</td></tr>
+        <tr><td>Frontend span 可見，但 backend span 不見</td><td>backend export / Collector</td><td>backend OTLP exporter + Collector receiver/exporter evidence</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <blockquote>Expected relationship → observed header/context → first broken propagation/export boundary。</blockquote>
+
+  <h2>Self-check</h2>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q1. 為什麼 Browser 裡已經存在 span，backend 還需要 <code>traceparent</code>？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="HTTP 不會自動複製 Browser memory 裡的 JavaScript object。">因為 backend 需要下載 Browser span object</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。跨 process boundary 時，parent relationship 必須先被序列化成 HTTP 能攜帶的 context。">因為 runtime memory 不會跨 HTTP 邊界</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="traceparent 與 request body encoding 是不同責任。">因為 JSON body 一定需要 trace header</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Alloy export 與 business request propagation 是兩條不同 path。">因為 Alloy 需要替 backend 建立 request</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q2. <code>traceparent</code> 裡的 <code>parent-id</code> 最精確代表什麼？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="整條 trace 的 ID 是 trace-id。">整條 distributed trace 的共同 ID</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="backend 會建立自己的 span ID。">backend 即將建立的新 span ID</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="trace-flags 才負責 tracing flags。">這筆 request 的 sampling 設定值</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。它代表 caller 目前 operation；接收端建立自己的 span，再把 caller ID 記成 parent。">caller 目前 operation 的識別 ID</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q3. API 回 200 OK，但 Browser business request 沒有 <code>traceparent</code>，最合理的 tracing 結論是？</div>
+    <div class="choices">
+      <button class="choice" data-correct="true" data-feedback-correct="對。功能成功與 distributed trace propagation 是不同 claim；backend 可能自己開新 trace。">request 可成功但 trace 可能分開</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="沒有 header 不代表 backend request 一定失敗。">backend 一定無法處理這個 request</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Tempo 是否寫入還需要另外看 telemetry export。">Tempo 一定已經有完整前後端 trace</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="HTTP 200 不能證明 tracing context。">200 已證明 parent relationship 正確</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q4. Browser request 有正確 <code>traceparent</code>，backend 也延續同一 trace，但 Tempo 缺 frontend span。下一個最該查哪條 path？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="backend 已經延續同一 trace，這不是第一個缺口。">backend 的 CORS propagation path</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="traceparent 已存在，URL matching 至少已不是目前最直接的缺口。">backendUrls 的 URL matching</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。Propagation 與 span export 分開；header 成功不保證 frontend span telemetry 已到 Tempo。">frontend span 的 telemetry export path</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="business response status 不會補回 missing frontend telemetry。">business API 的 response body</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <h2>Recap</h2>
+
+  <ul>
+    <li><strong>Browser 與 backend 是不同 runtime</strong>：Browser memory 裡的 span relationship 不會自己跨 HTTP。</li>
+    <li><strong>Propagation 的必要性</strong>：要延續 parent/child 關係，必須把最小 trace context 序列化進 request。</li>
+    <li><strong><code>trace-id</code> 是整條 trace 的 ID</strong>；同一條 distributed trace 裡的 spans 共用它。</li>
+    <li><strong><code>parent-id</code> 是 caller 目前 operation 的 ID</strong>；backend 會建立新的 span ID，再把 caller ID 記成 parent。</li>
+    <li><strong>Faro 預設使用 W3C Trace Context propagator</strong>，並把 URL propagation 設定交給 Fetch/XHR tracing instrumentation。</li>
+    <li><strong>你們 package 的 <code>backendUrls</code> 是 backend/business API pattern</strong>，不是 Alloy Faro receiver URL。</li>
+    <li><strong>Business propagation 與 telemetry export 是兩條 path</strong>：<code>traceparent</code> 傳 context；Faro/OTLP 傳 span telemetry。</li>
+    <li><strong>Cross-origin propagation 還受 CORS 控制</strong>；backend 需要允許實際要送的 tracing header。</li>
+    <li><strong>設定存在不等於 runtime join 已證明</strong>：Jeter 目前有 configuration evidence，但 concrete header → backend parent → Tempo chain 留給 Lesson 8。</li>
+  </ul>
+
+  <div class="box">
+    <strong>Primary source 與 evidence</strong><br>
+    本課以 <a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">前後端 Trace 串接範例</a> 為 primary source，搭配 <a href="../sources/evidence/trace-context-propagation.md">trace-context propagation evidence</a>、<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking contract</a>、<a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter tracing evidence</a>，並用 W3C Trace Context 與 Faro Web SDK v2.9.0 source 補足標準與 implementation semantics。
+  </div>
+
+  <p>任何一段如果看起來像「ID 突然變了」或「為什麼 header 有了還不算成功」，直接把那一段貼回來問；這堂課的重點就是把 propagation 與 export 的責任分乾淨。</p>
+
+  <nav class="lesson-nav" aria-label="課程導覽">
+    <a href="0006-browser-devtools-verification.html">← Lesson 6</a>
+    <a href="../reference/0006-w3c-traceparent.html">Traceparent Reference</a>
+    <a href="../learning-map/index.html">Learning Map →</a>
+  </nav>
+</body>
+</html>
