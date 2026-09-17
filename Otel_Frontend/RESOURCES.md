@@ -11,12 +11,18 @@
 
 ## Authoritative product / implementation references
 
+- [W3C Trace Context Recommendation](https://www.w3.org/TR/trace-context-1/)
+  `traceparent` / `tracestate` 的標準格式與 processing model；Lesson 7 用來確認 `trace-id`、`parent-id`、`trace-flags` 與 incoming/outgoing propagation semantics。
 - [Grafana Alloy `otelcol.receiver.faro`](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.receiver.faro/)
   Receiver、CORS、輸出與 stability 的現行官方規格；用來校正文內版本敘述與設定。
 - [Grafana Faro instrumentation](https://grafana.com/docs/grafana-cloud/observe-and-act/monitor-applications/frontend-observability/instrument/)
   Faro 官方 instrumentation 與前端觀測能力；用於理解 SDK 預設與選配行為。
 - [Grafana Faro Web SDK repository](https://github.com/grafana/faro-web-sdk)
   SDK、web tracing 與 `propagateTraceHeaderCorsUrls` 的一手實作來源。
+- [Grafana Faro Web SDK v2.9.0 `TracingInstrumentation`](https://github.com/grafana/faro-web-sdk/blob/v2.9.0/packages/web-tracing/src/instrumentation.ts)
+  Lesson 7 的 versioned implementation evidence：預設 `W3CTraceContextPropagator`、`propagateTraceHeaderCorsUrls` 與 Browser tracing registration。
+- [Grafana Faro Web SDK v2.9.0 default OTel instrumentations](https://github.com/grafana/faro-web-sdk/blob/v2.9.0/packages/web-tracing/src/getDefaultOTELInstrumentations.ts)
+  確認 shared tracing options 進入 Fetch / XHR instrumentation；用來區分 URL matching、HTTP instrumentation 與 context serialization 的責任。
 - [OpenTelemetry Collector Faro translator](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/aad2838d6990eb031e7f4913269c3153cb5c2b4a/pkg/translator/faro/logs_to_faro.go)
   Faro payload 轉成 OTel logs 時的欄位命名與 `event_data_` 前綴來源。
 - [OTel filter processor v0.101](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/release/v0.101.x/processor/filterprocessor/README.md)
@@ -70,13 +76,14 @@
 - [`sources/evidence/faro-click-tracking.md`](sources/evidence/faro-click-tracking.md)：package click/user/device/environment/singleton contract 與歷史 unknown。
 - [`sources/evidence/foreman-integration.md`](sources/evidence/foreman-integration.md)：Foreman host integration、DOM placement、PrimeNG boundary 與 runtime images。
 - [`sources/evidence/jeter-integration-and-tracing.md`](sources/evidence/jeter-integration-and-tracing.md)：Jeter frontend/backend tracing configuration 與 runtime join gap。
+- [`sources/evidence/trace-context-propagation.md`](sources/evidence/trace-context-propagation.md)：W3C `traceparent` semantics、Faro propagation wiring、business request vs telemetry export boundary，以及 Lesson 8 所需 runtime proof gap。
 - [`sources/evidence/browser-to-alloy.md`](sources/evidence/browser-to-alloy.md)：environment resolver、Alloy receiver、CORS preflight。
 - [`sources/evidence/collector-pipeline.md`](sources/evidence/collector-pipeline.md)：stage/prod Collector topology、versions、processors、routing。
 - [`sources/evidence/opensearch-field-lifecycle.md`](sources/evidence/opensearch-field-lifecycle.md)：Faro field translation、mapping、index 與 cluster routing。
 - [`sources/evidence/grafana-current-state.md`](sources/evidence/grafana-current-state.md)：dashboard/datasource current state 與 query-surface conflict。
 - [`EVIDENCE-GAP-REPORT.md`](EVIDENCE-GAP-REPORT.md)：claim-by-claim status、缺口與 troubleshooting readiness。
 
-本輪實際使用的 linked source pointers：[`sources/linked/internal/`](sources/linked/internal/)（Garmin repos、Confluence pointers）與 [`sources/linked/external/`](sources/linked/external/)（PrimeNG、Faro translator、processor semantics）。
+本輪實際使用的 linked source pointers：[`sources/linked/internal/`](sources/linked/internal/)（Garmin repos、Confluence pointers）與 [`sources/linked/external/`](sources/linked/external/)（PrimeNG、Faro translator、processor semantics、W3C Trace Context、Faro web-tracing implementation）。
 
 ## Wisdom (Communities)
 
