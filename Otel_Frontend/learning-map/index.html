@@ -22,7 +22,7 @@
   <div class="box">
     <strong>Course Map 怎麼看</strong><br>
     8 份 primary source 已完成 corpus audit，因此主課程路徑可以先完整規劃。這不代表後面所有 Lessons 都已寫好；未來 Lesson 只會在真正走到時才依你的理解程度產生完整教材。Lesson 0 是實際學習過程暴露出的必要 prerequisite，不代表課程擴張成完整 Frontend 基礎課。<br><br>
-    <strong>教材狀態與學習進度是兩件事：</strong>目前 Lesson 0–7 的教材都已建立，但你的 learner progress 仍維持在 Lesson 3，直到有足夠 retrieval / practice evidence 才往前移。
+    <strong>教材狀態與學習進度是兩件事：</strong>目前 Lesson 0–7 的教材都已建立，但 learner progress 仍維持在 Lesson 3，直到有足夠 retrieval / practice evidence 才往前移。
   </div>
 
   <div class="box">
@@ -57,9 +57,10 @@
 
   <div class="box">
     <p><strong>Lesson 2｜How ClickInstrumentation Handles Browser Clicks</strong></p>
-    <p>目標：從 <code>document</code> 原生 click listener 往下追，理解 <code>trackAttributes</code>、<code>closest()</code>、payload filtering、300ms throttle 與 <code>api.pushEvent()</code> 的責任邊界。</p>
-    <p>來源：文件 3、文件 4。</p>
+    <p>目標：從 <code>document</code> click listener 往下追，理解 <code>event.target</code>、<code>closest()</code>、<code>trackAttributes</code>、payload filtering 與 <code>api.pushEvent()</code>；並分清 Foreman application state 的 <code>subsystem</code>、DOM 的 <code>data-link-name</code>、telemetry 的 <code>link_name</code> 三個層次。</p>
+    <p>來源：文件 3、文件 4，以及 <a href="../sources/evidence/data-link-name-investigation-2026-09-17.md">data-link-name source investigation</a>。</p>
     <p><a href="../lessons/0002-faro-click-instrumentation.html">開啟 Lesson 2 →</a></p>
+    <p><a href="../reference/0007-data-link-name-device-adoption.html">Reference｜data-link-name、subsystem 與 Device Adoption →</a></p>
   </div>
 
   <h3 id="milestone-2">Milestone 2｜讀懂並安全修改 <code>@sre2/faro-click-tracking</code></h3>
@@ -72,9 +73,10 @@
 
   <div class="box">
     <p><strong>Lesson 4｜User, Device, and Environment Context</strong></p>
-    <p>目標：理解 user callback、device 判定、environment context 的資料來源、生命週期與責任邊界，能判斷資料應由宿主應用還是共用 package 提供與處理。</p>
+    <p>目標：理解 user callback、device 判定、environment context 的資料來源與生命週期；並能把 tablet / desktop adoption 拆成「哪種 telemetry signal 被拿來計數」與「該 signal 發生時的 device context」，避免把 feature-entry event 比例誤稱為所有 session / user / action 的裝置比例。</p>
     <p>來源：文件 1、文件 3、文件 4，以及 Foreman／Jeter／faro-click-tracking verified evidence。</p>
     <p><a href="../lessons/0004-user-device-environment-context.html">開啟 Lesson 4 →</a></p>
+    <p><a href="../reference/0007-data-link-name-device-adoption.html">Reference｜Feature signal 如何接到 Device KPI →</a></p>
   </div>
 
   <h3 id="milestone-3">Milestone 3｜Host integration 與 Browser DevTools 驗證</h3>
@@ -87,7 +89,7 @@
 
   <div class="box">
     <p><strong>Lesson 6｜Browser-Side Verification with DevTools</strong></p>
-    <p>目標：用 Elements / Console / Network 驗證 click target、context、Faro payload、headers、response 與 CORS，而不是只看畫面有沒有反應。</p>
+    <p>目標：用 Elements / Console / Network 驗證 click target、context、Faro payload、headers、response 與 CORS，而不是只看畫面有沒有反應。Lesson 2 / Reference 0007 已先建立 <code>closest('[data-link-name]')</code> 中 CSS selector 與 <code>getAttribute('data-link-name')</code> attribute name 的語法邊界。</p>
     <p>來源：<a href="../sources/materials/1.%20PI%20前端監控案例.html">文件 1</a>、<a href="../sources/materials/2.%20Grafana%20Faro%20&%20Alloy%20-%20前端可觀測性.html">文件 2</a>、<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">文件 3</a>；現行 click contract 與 Browser-to-Alloy runtime contract 分別以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a>、<a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a> 為準。</p>
     <p><a href="../lessons/0006-browser-devtools-verification.html">開啟 Lesson 6 →</a></p>
     <p class="cite">教材已建立；這表示可直接閱讀，不代表 learner progress 已完成 Lesson 6。</p>
@@ -135,7 +137,7 @@
     <p>來源：整個 in-scope corpus 中與導入、部署、trace、OpenSearch 有關的內容，以及 corpus audit 已核對的 runtime evidence。</p>
   </div>
 
-  <h2>目前實際走出的 prerequisite branches</h2>
+  <h2>目前實際走出的 prerequisite / Reference branches</h2>
 
   <h3>Browser runtime / JavaScript host environment</h3>
   <div class="box">
@@ -160,6 +162,13 @@
   <h3>Faro object reference</h3>
   <div class="box">
     <p>已建立的橋接：<code>initializeFaro()</code> 只建立一個 Faro object；local <code>faro</code> 與 module-level <code>faroInstance</code> 是兩個 variable，但都 reference 同一個 object。這讓 Lesson 4 可以直接討論後續 user/device context 如何作用在同一個 Faro lifecycle，而不需要再把它誤解成第二個 instance。</p>
+  </div>
+
+  <h3>data-link-name semantic bridge / Device adoption</h3>
+  <div class="box">
+    <p>Lesson 2 與 Lesson 4 之間新增一張 durable Reference，解決同一組 source evidence 橫跨兩堂課的問題：Foreman 原本的 <code>subsystem</code> identifier 如何被投影成 DOM <code>data-link-name</code>，再轉成 click <code>link_name</code>；以及這個 click signal 如何和獨立的 <code>device.type</code> meta 組合成 tablet / desktop adoption 的 observation point。</p>
+    <p>這個 branch 同時保留重要邊界：目前是 selective feature-entry tracking，不是完整 clickstream；如果 KPI 分母是 subsystem entry events，得到的是「被追蹤入口事件的裝置分布」，不能自動擴大成全部 sessions / users / actions。</p>
+    <p><a href="../reference/0007-data-link-name-device-adoption.html">Reference｜data-link-name、subsystem 與 Device Adoption →</a></p>
   </div>
 
   <h2>目前主線</h2>
