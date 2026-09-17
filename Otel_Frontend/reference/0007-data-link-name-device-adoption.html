@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>data-link-name、subsystem 與 Device Adoption｜Reference</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+  <h1>data-link-name、subsystem 與 Device Adoption</h1>
+  <p class="subtitle">Reference · 從 Foreman application value → DOM → Faro telemetry → tablet / desktop KPI</p>
+
+  <div class="box ask">
+    <strong>先記住這條主線</strong><br>
+    Foreman 原本就有 <code>subsystem</code> 這種「功能識別值」；導入 Faro 時，才新增 <code>data-link-name</code>，把既有識別值投影到 DOM。ClickInstrumentation 再從 DOM 讀出它，形成 <code>link_name</code>。Device 則走另一條 Faro meta 路徑。
+  </div>
+
+  <pre><code>Foreman application state
+item.subsystem = "DailySchedule"
+        │ Angular binding copies value to DOM
+        ▼
+DOM
+&lt;p-button data-link-name="DailySchedule"&gt;
+        │ ClickInstrumentation reads attribute
+        ▼
+click payload
+link_name = "DailySchedule"
+
+Browser / device detector
+        │ maintains current input classification
+        ▼
+Faro meta
+device.type = tablet / desktop</code></pre>
+
+  <h2>1. 原本有的是 <code>subsystem</code>，不是 <code>data-link-name</code></h2>
+
+  <p>Git history 已驗證：Foreman 在 Faro 導入前就有 <code>Subsytem</code> identifiers 與 <code>system.subsystem</code>。例如 <code>DailySchedule</code>、<code>MaterialTracking</code>、<code>EfficiencyAbnormalReport</code>。它們用來識別「這個 Foreman 功能／子系統是誰」。</p>
+
+  <p>原本的 application logic 甚至已經會把這個值交給 Foreman 自己的 Web Log：</p>
+
+  <pre><code>this.insertForemanWebLog(topic, system.subsystem)</code></pre>
+
+  <p><code>insertForemanWebLog()</code> 是 Foreman 自己的 TypeScript function，不是 Browser / HTML 的固定名詞，也不是一個 DOM attribute。這行只證明 <code>subsystem</code> 在 Faro 以前就已經具有 application semantic；Web Log 最後如何儲存，要看該 function 的實作。</p>
+
+  <h2>2. Faro 導入時，才把既有值投影到 DOM</h2>
+
+  <p>2026-08-20 的可達 Foreman commit 同時加入 Faro initialization 與這條 template binding：</p>
+
+  <pre><code>&lt;p-button
+  [pTooltip]="getSystemTooltip(item)"
+  [attr.data-link-name]="item.subsystem"
+  (onClick)="openSystemLink(panel.topic, item)"
+&gt;</code></pre>
+
+  <p>這裡要分清兩層：</p>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>東西</th><th>存在位置</th><th>例子</th></tr></thead>
+    <tbody>
+      <tr><td><code>item.subsystem</code></td><td>Angular / TypeScript application state</td><td><code>"DailySchedule"</code></td></tr>
+      <tr><td><code>data-link-name</code></td><td>Browser runtime DOM attribute</td><td><code>data-link-name="DailySchedule"</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>所以不是 Faro 同時抓兩個值；而是同一個 application value 被 Angular 寫到 DOM，Faro 再從 DOM 讀它。</p>
+
+  <h2>3. <code>data-*</code> 是標準 custom-data 機制，但 <code>data-link-name</code> 不是業界固定名稱</h2>
+
+  <p>HTML 的 <code>data-*</code> 是標準化的 custom data attribute 機制。Browser 通常也會保留其他未知 attribute，但 <code>data-*</code> 才是 HTML 明確提供給 application 放自訂資料的標準路徑。</p>
+
+  <p><code>data-link-name</code> 這個具體名稱不是 HTML、Faro 或 OpenTelemetry 的固定 convention。Foreman 之所以使用它，是因為公司 Faro package 的 tracking contract 設定：</p>
+
+  <pre><code>trackAttributes: ['data-link-name']</code></pre>
+
+  <p>它的 value 也不是 Browser 從畫面文字、<code>href</code> 或 route 自動推導；Main page 直接使用 <code>item.subsystem</code>。</p>
+
+  <h2>4. 為什麼 <code>closest('[data-link-name]')</code> 有中括號？</h2>
+
+  <p>整句是 JavaScript；但 <code>closest()</code> 的參數是一個 <strong>CSS selector string</strong>。</p>
+
+  <pre><code>$0.closest('[data-link-name]')
+│  │       └────────────────── CSS selector：有這個 attribute 的 element
+│  └────────────────────────── JavaScript DOM method
+└───────────────────────────── DevTools 目前選到的 DOM element</code></pre>
+
+  <p>CSS selector 的 attribute 語法是：</p>
+
+  <pre><code>[data-link-name]                 → 有這個 attribute
+[data-link-name="DailySchedule"] → attribute value 等於 DailySchedule</code></pre>
+
+  <p>找到 element 後，<code>getAttribute()</code> 做的是另一件事：它直接接受 attribute name，所以不用 selector 的中括號。</p>
+
+  <pre><code>$0.closest('[data-link-name]')?.getAttribute('data-link-name')
+          │ 找 element                         │ 讀 attribute value
+          │ 參數是 selector                    │ 參數是 attribute name
+          ▼                                    ▼
+[data-link-name]                           data-link-name</code></pre>
+
+  <h2>5. <code>link</code> 在這裡不等於 HTML <code>&lt;a&gt;</code></h2>
+
+  <p>Source inventory 已確認：有 <code>data-link-name</code> 的主要位置是 Main subsystem tile template，以及 Toolbar 的五個固定功能：</p>
+
+  <pre><code>UserGuide.UserGuide
+ReferenceDocument.SDS
+ReferenceDocument.AI
+ReferenceDocument.ForemanManual
+Contact.ContactAdministrator</code></pre>
+
+  <p>這些標記掛在 <code>&lt;p-button&gt;</code> host，不代表 HTML hyperlink。反過來，inventory 中的兩個 <code>&lt;a&gt;</code> declaration 都沒有 <code>data-link-name</code>。</p>
+
+  <p>因此在這個專案裡，<code>data-link-name</code> 更接近「被選定來做 telemetry 的 UI 功能入口識別值」，而不是「超連結顯示文字」。</p>
+
+  <h2>6. 不是所有 click 都要形成 Faro click event</h2>
+
+  <p>目前 template inventory 有 48 個 <code>p-button</code> declarations，其中只有 6 個 declaration 自己有 <code>data-link-name</code>；Main 那一個 declaration 會透過迴圈 render 多顆 subsystem tiles。</p>
+
+  <p>ClickInstrumentation 雖然把 listener 掛在 <code>document</code>，但收到 click 後仍要找到 configured tracking attribute 才會送：</p>
+
+  <pre><code>Browser click
+  │ bubbles to document
+  ▼
+ClickInstrumentation
+  │ starts at event.target
+  ▼
+closest('[data-link-name]')
+  ├── found     → { link_name: value } → pushEvent('click', ...)
+  └── not found → empty payload        → stop</code></pre>
+
+  <p>所以「Browser 看到了 click」和「Faro 送出一筆有業務語意的 click telemetry」不是同一件事。</p>
+
+  <h2>7. 這跟 tablet / desktop 的原始需求怎麼接起來？</h2>
+
+  <p>這個學習案例的產品問題是：Foreman 正在推動平板化，希望知道使用行為裡 tablet 與 desktop 的比例。</p>
+
+  <p>這時要分清兩條資料：</p>
+
+  <pre><code>這次操作是哪個功能？
+→ click payload.link_name
+
+這次 telemetry 的當下輸入分類？
+→ meta.device.type</code></pre>
+
+  <p>Device detection 不是等到 <code>data-link-name</code> click 才啟動。Foreman 初始化時開啟 <code>enableDeviceTypeDetection</code>；package 維護目前 device type，並透過 Faro meta provider 提供背景資料。</p>
+
+  <p>目前 implementation 的 device type 也不是永久硬體類別：初始值看 <code>maxTouchPoints</code>；之後 <code>pointerType='mouse'</code> 會更新為 desktop，<code>pointerType='touch'</code> 會更新為 tablet。更精確地說，它表示「目前最近一次可辨識的輸入型態」。</p>
+
+  <h2>8. 為什麼只追主要入口，仍可能足以回答 KPI？</h2>
+
+  <p>如果產品 KPI 真正問的是：</p>
+
+  <blockquote>使用者進入 Foreman 的主要功能時，是使用 tablet 還是 desktop？</blockquote>
+
+  <p>那 subsystem entry 是一個穩定的 observation point：</p>
+
+  <pre><code>user = A123
+link_name = DailySchedule
+device.type = tablet</code></pre>
+
+  <p>此時不必把每個 Submit、Cancel、Dropdown 都標上 <code>data-link-name</code>，也能統計「被追蹤的主要功能入口」使用何種 device。</p>
+
+  <div class="box tip">
+    <strong>但不要把指標說大了</strong><br>
+    如果分母是這些 tracked feature-entry events，得到的是「主要功能入口事件的 tablet / desktop 分布」。它不自動等於「所有 Foreman sessions 的裝置分布」、也不等於「所有 user 的裝置分布」。分母必須先定義。
+  </div>
+
+  <h2>9. 電腦與平板切換：真正可能漏掉的是 signal，不是 device context 被鎖死</h2>
+
+  <p>同一個 user 在電腦與平板各開一個 Foreman browser，會是兩個不同 browser runtime，各自維護自己的 device state。平板不會因為電腦先送過 click，就永久被算成 desktop。</p>
+
+  <p>真正的 coverage 問題是：</p>
+
+  <blockquote>平板上後續有沒有產生「你拿來當 KPI 分母」的可靠 telemetry signal？</blockquote>
+
+  <p>如果 KPI 只統計有 <code>data-link-name</code> 的 feature-entry clicks，而使用者已經停在某個功能頁、之後只按未標記的 Submit，那些操作不會靠目前的 ClickInstrumentation 形成新的 <code>link_name</code> event。這表示 clickstream coverage 有限；不表示 device detector 不再工作。</p>
+
+  <h2>10. 目前已證明什麼，還缺什麼？</h2>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Claim</th><th>目前狀態</th></tr></thead>
+    <tbody>
+      <tr><td><code>subsystem</code> 在 Faro 以前已存在</td><td>Source history 已證明。</td></tr>
+      <tr><td><code>data-link-name</code> 與 Faro 導入一起加入</td><td>Source history 已證明。</td></tr>
+      <tr><td>Main binding 使用 <code>item.subsystem</code></td><td>Source 已證明。</td></tr>
+      <tr><td>Click 找不到 tracked attribute 就不送</td><td>Package implementation 已證明。</td></tr>
+      <tr><td>Device meta 與 click payload 是不同路徑</td><td>Package implementation 已證明。</td></tr>
+      <tr><td>一筆 production-queryable event 可同時用 user + device + link_name 聚合</td><td><strong>仍需要 runtime / backend query evidence 驗證。</strong></td></tr>
+      <tr><td>Tablet / desktop KPI 的正式分母</td><td><strong>需要產品定義；不能由 source code 自動推導。</strong></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="box">
+    <strong>Source evidence</strong><br>
+    <a href="../sources/evidence/data-link-name-investigation-2026-09-17.md">data-link-name source investigation →</a><br>
+    <a href="../sources/evidence/data-link-name-clickable-inventory-2026-09-17.md">clickable template inventory →</a><br>
+    <a href="../sources/evidence/faro-click-tracking.md">Faro package evidence →</a>
+  </div>
+
+  <nav class="lesson-nav" aria-label="課程導覽">
+    <a href="../lessons/0002-faro-click-instrumentation.html">← Lesson 2：ClickInstrumentation</a>
+    <a href="../lessons/0004-user-device-environment-context.html">Lesson 4：User / Device Context →</a>
+  </nav>
+</body>
+</html>
