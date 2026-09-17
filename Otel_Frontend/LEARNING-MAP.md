@@ -13,7 +13,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 ## Progress
 
 - **目前位置：Milestone 2 / Lesson 3**
-- **教材狀態：Lesson 0–6 的 durable lesson HTML 已建立；artifact 已建立不代表 learner 已完成或 mastered**
+- **教材狀態：Lesson 0–7 的 durable lesson HTML 已建立；artifact 已建立不代表 learner 已完成或 mastered**
 - **主線狀態：Lesson 3 從 Lesson 2 的 click handler 往上追，確認宿主應用如何透過 `initFaro()` 啟動 ClickInstrumentation，以及 package 為什麼保存同一個 Faro object**
 - **Prerequisite debt：Lesson 0 / Lesson 1 的 Browser runtime 與 Event mental model 已重構，但仍需要 retrieval evidence 才能視為 mastered**
 - **Lesson 2 mastery：教材已建立，但仍不能只因教材已讀或已產生就視為 mastered；需要 retrieval / practice evidence**
@@ -176,14 +176,33 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 ### Milestone 4 — Frontend ↔ Backend distributed trace
 
 #### Lesson 7 — Frontend-to-Backend Trace Context Propagation
-**Objective:** 從 trace ID / span relationship 出發理解 propagation，能解釋 `traceparent` 是在哪裡產生、如何跨 HTTP request 傳遞，以及 backend 如何延續同一條 trace。
+**Objective:** 從 Browser / backend 不共享 runtime memory 的必要性出發，理解 trace ID / span relationship 與 W3C propagation；能解釋 `traceparent` 如何跨 business HTTP request 傳遞 caller context、backend 如何建立自己的 span 並延續同一 trace，以及 propagation 與 telemetry export 為什麼必須分開看。
+
+**Durable lesson:**
+- `lessons/0007-frontend-backend-trace-context-propagation.html`
 
 **Primary source:**
 - `6. 前後端 Trace 串接範例.html`
 
-**Supporting source:**
+**Supporting source / evidence:**
 - `2. Grafana Faro & Alloy - 前端可觀測性.html`
-- Faro Web SDK tracing implementation / configuration evidence
+- `sources/evidence/faro-click-tracking.md`
+- `sources/evidence/jeter-integration-and-tracing.md`
+- `sources/evidence/trace-context-propagation.md`
+- W3C Trace Context Recommendation
+- Grafana Faro Web SDK v2.9.0 tracing implementation
+
+**Durable reference:**
+- `reference/0006-w3c-traceparent.html`
+
+**Established model:**
+- Browser 與 backend 是不同 runtime；span object / parent relationship 不會自己跨 HTTP boundary。
+- `trace-id` 識別整條 distributed trace；每個 operation 有自己的 span ID。
+- `traceparent` version 00 是 `version-trace-id-parent-id-trace-flags`。
+- `parent-id` 代表 caller 的 current operation；backend 建立自己的新 span ID，並把 caller ID 記成 parent while retaining the trace ID。
+- package `backendUrls` → Faro `propagateTraceHeaderCorsUrls`；它描述 backend/business API target，不是 Alloy Faro receiver URL。
+- Business request 上的 propagation 與 Faro/OTLP span telemetry export 是兩條不同 path。
+- Jeter configuration path 已驗證；concrete Browser header → backend parent → Tempo join 尚未有 runtime proof，留給 Lesson 8。
 
 **Dependency:** Lessons 5–6。
 
@@ -198,6 +217,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 - Grafana Tempo datasource
 - `sources/evidence/jeter-integration-and-tracing.md`
 - `sources/evidence/grafana-current-state.md`
+- `sources/evidence/trace-context-propagation.md`
 
 **Dependency:** Lesson 7。
 
