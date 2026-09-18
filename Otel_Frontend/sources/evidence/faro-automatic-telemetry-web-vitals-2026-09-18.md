@@ -69,4 +69,3 @@ Before marking the PR ready, capture a new complete UI pass:
 ## Course relevance
 
 Reference 0007 is the next available Reference number; Lesson 0007 is a separate namespace. This is a reusable payload lookup and DevTools verification aid for Lessons 5/6. It adds no main-path milestone, learner completion, or mastery claim. Full Lighthouse/CrUX/SEO coverage is outside scope.
-
