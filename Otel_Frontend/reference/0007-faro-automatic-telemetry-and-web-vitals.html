@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Reference｜Faro automatic telemetry 與 Web Vitals</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/evidence-annotations.css"><script src="../assets/theme.js"></script></head>
+<body>
+<h1>Faro automatic telemetry 與 Web Vitals</h1>
+<p class="subtitle">Reference · 跟著真實 DevTools 找到 SDK 自動送出的 measurements</p>
+<nav aria-label="返回主線"><a href="../lessons/0005-faro-browser-to-alloy-transport.html#automatic-telemetry-reference">← Lesson 5：Transport</a> · <a href="../lessons/0006-browser-devtools-verification.html#automatic-telemetry-reference">Lesson 6：DevTools →</a></nav>
+<div class="box tip"><strong>這份查表支援哪裡？</strong><br>Lesson 5：browser → Alloy 的 payload 不只有 custom event。Lesson 6：在 Network／Payload 辨認 Web Vitals。它補足既有任務的證據讀法，不增加主線 Lesson 或新的學習里程碑。</div>
+<p>本次在已登入的 Foreman Stage 實際捕捉 Faro Web SDK 2.9.0 的 INP、CLS、LCP。先走操作，再解讀值；最後核對為何屬於 automatic telemetry。</p>
+<p><a href="#workflow">照著操作</a> · <a href="#values">Payload 查表</a> · <a href="#inp">INP 因果拆解</a> · <a href="#automatic">自動來源證據</a> · <a href="#boundary">責任邊界</a></p>
+<p class="cite"><a href="../sources/evidence/faro-automatic-telemetry-web-vitals-2026-09-18.md">Evidence Card：完整條件、來源、限制</a> · <a href="../sources/evidence/raw/web-vitals-main-network-2026-09-18.json">本輪 Network 原始紀錄（已移除身分與 headers 值）</a></p>
+<h2>1. 先建立預期：沒有 custom event，仍可能有 telemetry</h2>
+<p>頁面載入、使用者互動、畫面位移都能被 Browser 觀測。啟用的 Web Vitals instrumentation 使用這些觀測計算指標，自動交給 Faro measurement API，再由 transport 組成 HTTP body。你不必替每個效能值寫 <code>pushEvent()</code>。</p>
+<pre><code>Browser 的效能觀測
+→ Web Vitals callback 計算／回報
+→ Faro measurement API
+→ transport 批次組成 body.measurements[]
+→ POST /alloy</code></pre>
+<p>「自動」有條件：SDK 初始化、對應 instrumentation 啟用、Browser 支援與回報時機。不是每一筆 POST 都會同時帶 INP、CLS、LCP；也不能光看欄位名稱就證明 callback 是自動呼叫。</p>
+<h2 id="workflow">2. 實作：從頁面走到 measurements</h2>
+<p>使用課程的測試頁面，避免操作會提交業務資料的按鈕。本輪 Chrome desktop viewport 1440 × 960；值只代表這個受控 session，不拿來評定正式產品效能。</p>
+<h3>準備紀錄，再載入與操作</h3>
+<p>開頁面 → 開 DevTools → Network。先設定錄製、Preserve log 與 alloy filter，清除舊紀錄，再 reload。使用未加 business tracking 的 hamburger 產生一次可見互動。</p>
+<figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/reference-7/01-network-recording-ready.png" alt="先準備 Network：真實 Browser／DevTools 截圖" width="1440" height="960"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="19.79" y="4.17" width="4.51" height="2.60"/><rect x="0.21" y="7.08" width="14.24" height="2.50"/><rect x="0.56" y="9.79" width="45.14" height="2.50"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；底圖為真實截圖。手機可在圖內左右滑動。</span><strong>1. 先準備 Network。</strong>點 Network，確認錄製紅點開啟，勾選 Preserve log，Filter 輸入 alloy。清除既有紀錄後再重新載入；不要靠底部舊計數推論新 request 數量。</figcaption></figure><figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/reference-7/02-main-page-after-reload.png" alt="重新載入實際頁面：真實 Browser／DevTools 截圖" width="1440" height="960"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="40.14" y="1.56" width="19.79" height="6.25"/><rect x="0.63" y="1.46" width="3.82" height="5.52"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；底圖為真實截圖。手機可在圖內左右滑動。</span><strong>2. 重新載入實際頁面。</strong>本次使用已登入的 Foreman Stage；等主畫面出現後，點左上角 hamburger。右上帳號區只在截圖像素遮罩，沒有插入會影響 LCP 的 DOM。</figcaption></figure><figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/reference-7/03-safe-sidebar-interaction.png" alt="產生互動，再離開本次 document：真實 Browser／DevTools 截圖" width="1440" height="960"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="0.00" y="0.00" width="22.22" height="100.00"/><rect x="17.01" y="2.29" width="3.68" height="5.63"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；底圖為真實截圖。手機可在圖內左右滑動。</span><strong>3. 產生互動，再離開本次 document。</strong>打開 sidebar 後可用右上 X 關閉，接著 reload。這輪以 reload 觸發回報；不要求你呼叫 Faro API。保留 Network 紀錄才能看離開前的 measurement。</figcaption></figure>
+<p>INP／CLS 的回報可能要等頁面生命週期結束。此輪以 reload 讓舊 document 回報；如果當下沒有看到，保留紀錄、核對 instrumentation 與互動條件，不能直接宣稱 SDK 沒有收集。</p>
+<h3>選 POST，展開真正送出的 body</h3>
+<figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/reference-7/04-alloy-request-list.png" alt="從 /alloy 找 POST：真實 Browser／DevTools 截圖" width="1440" height="960"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="0.56" y="9.79" width="45.14" height="2.50"/><rect x="28.54" y="19.90" width="17.43" height="3.44"/><rect x="0.00" y="52.40" width="54.38" height="2.40"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；底圖為真實截圖。手機可在圖內左右滑動。</span><strong>4. 從 /alloy 找 POST。</strong>紅框依序是 filter、Method／Status、這次 INP／CLS 的 canceled POST。先分清 OPTIONS 與 POST；不能假設第一列就是目標，也不能用紅色 request 推論 payload 不存在。</figcaption></figure>
+<div class="box ask"><strong>不要混淆「有 payload」與「接收成功」</strong><br>本輪 INP／CLS 的 request <code>54748.145</code> 已建立 POST body，但 reload 時 canceled，沒有 HTTP response。另有相同 metric id 的 <code>54748.146</code>，接收結果未知；不推測是 retry，也不算成新互動。</div>
+<figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/reference-7/05-payload-find-measurements.png" alt="點 request，再點 Payload：真實 Browser／DevTools 截圖" width="1440" height="960"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="21.11" y="21.04" width="4.65" height="2.71"/><rect x="15.97" y="29.17" width="31.25" height="2.71"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；底圖為真實截圖。手機可在圖內左右滑動。</span><strong>5. 點 request，再點 Payload。</strong>選取目標 POST，點 Payload，看 Request Payload 的 measurements。這裡是送出的 body；Response 是另一邊回傳的內容。meta 保持收合，不分享 user／session。</figcaption></figure><figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/reference-7/06-measurements-array-expanded.png" alt="展開 measurements：真實 Browser／DevTools 截圖" width="1440" height="960"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="15.97" y="29.17" width="31.60" height="2.71"/><rect x="16.67" y="31.35" width="28.13" height="3.33"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；底圖為真實截圖。手機可在圖內左右滑動。</span><strong>6. 展開 measurements。</strong>點左側小三角。此 request 有 index 0 與 1，代表同一批 body 內兩筆 measurement；不是兩個 request，也不是兩次使用者互動。</figcaption></figure><figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/reference-7/07-web-vitals-type.png" alt="展開 index 0，核對 type：真實 Browser／DevTools 截圖" width="1440" height="960"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="17.36" y="36.04" width="11.11" height="2.29"/><rect x="17.29" y="37.81" width="36.11" height="2.29"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；底圖為真實截圖。手機可在圖內左右滑動。</span><strong>7. 展開 index 0，核對 type。</strong>找 type: "web-vitals"，再往下展開 values。這個 type 辨認資料種類；要證明自動產生，還需要後面的 instrumentation 與 callback 證據。</figcaption></figure><figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/reference-7/08-inp-constituent-values.png" alt="讀 values.inp 與三段時間：真實 Browser／DevTools 截圖" width="1440" height="960"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="18.06" y="41.25" width="5.56" height="2.29"/><rect x="18.06" y="43.13" width="20.14" height="2.29"/><rect x="18.06" y="48.23" width="22.22" height="4.17"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；底圖為真實截圖。手機可在圖內左右滑動。</span><strong>8. 讀 values.inp 與三段時間。</strong>這輪 inp = 64 ms；input_delay 約 1.8、processing_duration 約 2.3、presentation_delay 約 59.9 ms。先記下數字與單位，再讀因果拆解，不從單一 duration 猜 root cause。</figcaption></figure><figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/reference-7/09-inp-context.png" alt="展開 context，辨認這是哪種互動：真實 Browser／DevTools 截圖" width="1440" height="960"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="17.36" y="36.15" width="79.17" height="5.00"/><rect x="17.36" y="43.13" width="18.06" height="4.06"/><rect x="18.06" y="53.75" width="6.94" height="2.40"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；底圖為真實截圖。手機可在圖內左右滑動。</span><strong>9. 展開 context，辨認這是哪種互動。</strong>interaction_target 指向 hamburger，interaction_type 是 pointer，load_state 是 complete。navigation_type: "reload" 與 rating: "good" 是此 metric 的背景，不是 custom business context。</figcaption></figure>
+<h3>再辨認 CLS，換筆 request 看 LCP</h3>
+<figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/reference-7/10-cls-values-and-context.png" alt="收起 index 0，展開 index 1：真實 Browser／DevTools 截圖" width="1440" height="960"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="17.36" y="43.23" width="18.06" height="4.06"/><rect x="17.36" y="48.44" width="12.50" height="2.40"/><rect x="18.06" y="51.88" width="22.57" height="2.40"/><rect x="18.06" y="55.42" width="29.17" height="4.17"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；底圖為真實截圖。手機可在圖內左右滑動。</span><strong>10. 收起 index 0，展開 index 1。</strong>第二筆仍是 type: "web-vitals"，values.cls 約 0.00203469。context 的 rating／navigation_type 同樣可讀；largest_shift_target 是 toolbar 附近元素，不能只靠 selector 就說是剛才點擊造成。</figcaption></figure><figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/reference-7/11-lcp-values-and-context.png" alt="換一筆 request 找 LCP：真實 Browser／DevTools 截圖" width="1440" height="960"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="17.36" y="34.27" width="79.17" height="2.50"/><rect x="17.36" y="39.69" width="18.06" height="4.06"/><rect x="17.36" y="44.90" width="11.81" height="2.40"/><rect x="18.06" y="49.90" width="29.17" height="5.83"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；底圖為真實截圖。手機可在圖內左右滑動。</span><strong>11. 換一筆 request 找 LCP。</strong>LCP 不在上面的 INP／CLS body；另選含 values.lcp 的 POST。本輪 lcp = 268 ms；context.element 指向 toolbar 的 h1，rating 為 good、navigation_type 為 reload。</figcaption></figure><figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/reference-7/12-lcp-post-accepted.png" alt="回看同一筆 LCP 的 Headers：真實 Browser／DevTools 截圖" width="1440" height="960"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="16.25" y="21.04" width="4.72" height="2.71"/><rect x="31.32" y="29.17" width="17.71" height="4.48"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；底圖為真實截圖。手機可在圖內左右滑動。</span><strong>12. 回看同一筆 LCP 的 Headers。</strong>保留同筆 request，點 Headers，General 顯示 POST／202 Accepted。這證明 receiver HTTP boundary 接收了這筆 LCP request；不等於下游已寫入，也不能挪用來證明另一筆 canceled INP／CLS 成功。</figcaption></figure>
+<p>本輪 LCP request <code>54748.143</code> 回覆 202；INP／CLS 沒有接收成功證據。measurement 來源、HTTP 接收、後端儲存是不同證據層次，必須分開判斷。</p>
+<h2 id="values">3. Payload 查表：values 與 context 各回答什麼？</h2>
+<p>以下摘錄來自同一筆 INP／CLS body，保留實際數值；省略其他 measurement 欄位與 meta。完整內容請查原始紀錄，不把摘錄當整筆 request。</p>
+<pre><code>{
+  "measurements": [
+    {
+      "type": "web-vitals",
+      "values": {
+        "inp": 64,
+        "delta": 64,
+        "input_delay": 1.800000011920929,
+        "processing_duration": 2.300000011920929,
+        "presentation_delay": 59.89999997615814,
+        "interaction_time": 24321.5,
+        "next_paint_time": 24385.5
+      },
+      "context": {
+        "rating": "good",
+        "navigation_type": "reload",
+        "load_state": "complete",
+        "interaction_type": "pointer",
+        "navigation_entry_id": "S6kEiCtJ9d"
+      }
+    },
+    {
+      "type": "web-vitals",
+      "values": {
+        "cls": 0.0020346900720164605,
+        "delta": 0.0020346900720164605,
+        "largest_shift_time": 248.40000000596046,
+        "largest_shift_value": 0.0015081661522633745
+      },
+      "context": {
+        "rating": "good",
+        "navigation_type": "reload",
+        "load_state": "complete",
+        "navigation_entry_id": "S6kEiCtJ9d"
+      }
+    }
+  ]
+}</code></pre>
+<table><thead><tr><th>找哪裡</th><th>讀成什麼</th></tr></thead><tbody>
+<tr><td><code>measurements[]</code></td><td>此 body 的 measurement 集合；index 是陣列位置。</td></tr>
+<tr><td><code>type: "web-vitals"</code></td><td>measurement 種類，不是 custom event 的 name。</td></tr>
+<tr><td><code>values</code></td><td>數字：主指標、變化量與 attribution 時間。</td></tr>
+<tr><td><code>context</code></td><td>背景：rating、navigation 類型、互動／元素資訊。不是業務語意自動補齊。</td></tr>
+<tr><td><code>id</code>、<code>navigation_entry_id</code></td><td>原始 context 中可用來辨認 metric／navigation；不是 app user id。</td></tr>
+<tr><td><code>timestamp</code></td><td>本筆回報的時間；別和相對 navigation 的 interaction_time 混用。</td></tr>
+<tr><td><code>delta</code></td><td>相對前次回報的變化。本輪等於主值，不保證每次都相等。</td></tr>
+</tbody></table>
+<p>INP／LCP 與 constituents 是毫秒；CLS 是無單位分數。浮點尾數不是另一個延遲來源。optional attribution 欄位會依指標、版本與資料存在而變；此版還有 truthiness guard，零值可能省略，不能拿「欄位沒出現」等同「沒有該階段」。</p>
+<h2 id="inp">4. INP：從點下去，到真正看見下一次畫面</h2>
+<p>INP 描述互動到下一次 paint 的延遲。體感是「我點了，畫面多久才回應？」它不是 API round-trip，也不代表所有非同步業務工作完成。此輪被選為 INP 的 target 是打開選單的 hamburger，不能把最後一次關閉選單當成這個值。</p>
+<pre><code>使用者互動
+  ↓ input_delay ≈ 1.8 ms
+Browser / event loop 等待，還不能開始處理
+  ↓ processing_duration ≈ 2.3 ms
+JavaScript 事件處理
+  ↓ presentation_delay ≈ 59.9 ms
+處理結束，Browser 準備並呈現下一次畫面
+  ↓
+使用者看到下一次 paint
+合計 ≈ 64 ms（values.inp）</code></pre>
+<p>這能告訴你本次時間主要落在哪段，但 presentation_delay 大並不能單獨證明是哪個 CSS、rendering 或主執行緒工作造成；追 root cause 需要另外的 performance evidence。interaction_time 與 next_paint_time 的差也為 64 ms，它們是相對時間，不是 UTC timestamp。</p>
+<p class="cite">定義與回報條件：<a href="https://web.dev/articles/inp">官方 INP 說明</a>。</p>
+<h3>CLS 與 LCP 只讀到本任務需要的深度</h3>
+<p><strong>CLS：</strong>衡量未預期的版面位移，體感是想點的內容突然挪位置。此輪分數約 0.00203，不是 0.203% 也不是毫秒。largest_shift_value 約 0.00151 是單次最大 shift，不等於整個 CLS；largest_shift_target 只指出元素位置，不建立原因。</p>
+<p><strong>LCP：</strong>最大可見內容的呈現里程碑，體感是主要內容什麼時候出現。本輪 toolbar h1 被辨認為 element，lcp 268 ms、time_to_first_byte 約 27.4 ms、element_render_delay 約 240.6 ms；不代表所有資源、所有互動或頁面業務資料都完成。</p>
+<p><code>rating: "good"</code> 是 library 對該 metric 的分類；<code>navigation_type: "reload"</code> 表示這輪 navigation 類型。這次測試的 good 不代表正式使用者整體都 good。</p>
+<p class="cite"><a href="https://web.dev/articles/cls">官方 CLS</a> · <a href="https://web.dev/articles/lcp">官方 LCP</a>。本查表不延伸 Lighthouse、CrUX 或 SEO。</p>
+<h2 id="automatic">5. 為什麼可以說是 Faro 自動送的？</h2>
+<p>Payload 證明 Browser 建立了 web-vitals measurement；來源證據補上自動 instrumentation 的因果鏈。本輪只 reload、操作選單，沒有人工呼叫 Faro measurement API；部署中的 main.js 確實初始化 WebVitalsInstrumentation，並包含 INP／CLS／LCP 的 callback → corePushMeasurement 欄位映射。</p>
+<p>另做一輪獨立 Sources 停點驗證，捕捉到部署中的 Web Vitals TTFB callback 進入 <code>corePushMeasurement</code>，call frame 的 arguments 是 metric values／context。這直接支撐 callback 自動呼叫的機制；不是上面 INP 64 ms 的同一次停點，Debugger 測試數值也不混入主觀測。</p>
+<p class="cite"><a href="../sources/evidence/raw/web-vitals-deployed-source-locations-2026-09-18.json">部署檔 source 位置與 SHA-256</a> · <a href="../sources/evidence/raw/web-vitals-callback-origin-2026-09-18.json">獨立 callback 停點紀錄</a> · 對照同版 <a href="https://github.com/grafana/faro-web-sdk/blob/v2.9.0/packages/web-sdk/src/instrumentations/webVitals/webVitalsWithAttribution.ts">Faro 2.9.0 欄位映射</a>與 <a href="https://github.com/grafana/faro-web-sdk/blob/v2.9.0/packages/web-sdk/src/config/getWebInstrumentations.ts">預設 instrumentation 清單</a>。</p>
+<h2 id="boundary">6. Automatic telemetry 與 business semantics 的邊界</h2>
+<table><thead><tr><th>資料</th><th>誰負責／能回答什麼</th></tr></thead><tbody>
+<tr><td>web-vitals／inp／cls／lcp</td><td>SDK 與 Browser-side automatic instrumentation：互動、呈現、位移的觀測。</td></tr>
+<tr><td>data-link-name → link_name</td><td>額外 click instrumentation＋頁面標記：這個按鈕在業務上叫什麼。</td></tr>
+<tr><td>subsystem</td><td>應用整合的語意：操作屬於哪個系統／區域。</td></tr>
+<tr><td>user context</td><td>應用在登入等時機設定：該 session 的使用者身分；不是 Web Vitals metric id。</td></tr>
+</tbody></table>
+<p>本次 hamburger 沒有 business tracking ancestor，仍能被 INP attribution 辨認；但那串 CSS selector 不會替你定義「DailySchedule」或業務 subsystem。自動有效能證據，與額外標記才有業務語意，是兩個責任。</p>
+<h2>7. 自己驗證一次</h2>
+<p>回到你的 Network，找一筆 POST，展開 measurements 並指出 type、主值與 context。再回 Headers，說清楚你這筆 request 的接收結果；沒看到的指標就記為未觀測，不補造數值。</p>
+<details><summary>檢查：看到 web-vitals＋inp，就能說 click event 已成功存進後端嗎？</summary><p>不能。它是 measurement，不是 custom click event；Payload 證明 body 的內容，Headers 才支撐 HTTP 結果，後端儲存需要另外的 evidence。本輪 INP／CLS 正是 canceled 的例子。</p></details>
+<details><summary>檢查：選單按鈕沒有 data-link-name，為什麼仍可能有 INP？</summary><p>Web Vitals instrumentation 觀測 Browser 互動，不依賴業務 click 標記。data-link-name 是額外 business instrumentation 的輸入，兩者不能互相代替。</p></details>
+<div class="box tip"><strong>帶回 Lesson 5／6</strong><br>先分清 events 與 measurements，再辨認 web-vitals 的 values／context；用實際 callback 證據支撐自動來源，用同筆 Headers 判斷接收。保留「未觀測／未知／canceled」的界線，才是可以重跑的驗證。</div>
+<nav aria-label="繼續學習"><a href="../lessons/0005-faro-browser-to-alloy-transport.html#automatic-telemetry-reference">回 Lesson 5：Transport</a> · <a href="../lessons/0006-browser-devtools-verification.html#automatic-telemetry-reference">回 Lesson 6：DevTools</a></nav>
+</body></html>

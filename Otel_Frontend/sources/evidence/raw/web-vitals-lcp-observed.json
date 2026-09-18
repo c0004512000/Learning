@@ -1,0 +1,29 @@
+{
+  "reviewedAt": "2026-09-18",
+  "captureVerifiedAt": "2026-09-16T02:35:14.329Z",
+  "source": "lesson6-alloy-network.json",
+  "projection": "Request identity, HTTP status and measurements only; historical capture, not a new observation",
+  "requestId": "2928.35",
+  "url": "https://shixpa-peproxy00.garmin.com/alloy",
+  "method": "POST",
+  "status": 202,
+  "measurements": [
+    {
+      "type": "web-vitals",
+      "values": {
+        "lcp": 3156,
+        "delta": 3156,
+        "element_render_delay": 3025.100000000093,
+        "time_to_first_byte": 130.89999999990687
+      },
+      "timestamp": "2026-09-16T02:35:05.377Z",
+      "context": {
+        "id": "v5-1789526101479-4606450969808",
+        "rating": "needs-improvement",
+        "navigation_type": "navigate",
+        "navigation_entry_id": "qneYAM8qtW",
+        "element": "#lesson6-runtime-redaction"
+      }
+    }
+  ]
+}

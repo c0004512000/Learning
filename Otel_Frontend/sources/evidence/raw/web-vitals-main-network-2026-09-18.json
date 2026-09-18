@@ -1,0 +1,844 @@
+{
+  "verifiedAt": "2026-09-18T10:41:18.066Z",
+  "capture": "Playwright Core 1.61.1, existing Chrome, actual built-in DevTools NetworkLog; no custom rendering",
+  "privacy": "meta.user, meta.session, browser fingerprint and HTTP header values omitted; measurement values/context unchanged",
+  "page": "https://pek8s-staging.garmin.com/foreman-assistant/#/main",
+  "requests": [
+    {
+      "requestId": "443375929C0F52752B81769D63B23A6C",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "requestId": "8E0C0A3DE5A24D1F7B5A472C746AB036",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "OPTIONS",
+      "status": null
+    },
+    {
+      "requestId": "54748.111",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": null,
+      "failed": true,
+      "canceled": true,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "measurements": [
+          {
+            "type": "web-vitals",
+            "values": {
+              "cls": 0.00203661908436214,
+              "delta": 0.00203661908436214,
+              "largest_shift_value": 0.0015100951646090535,
+              "largest_shift_time": 442.7000000178814
+            },
+            "timestamp": "2026-09-18T10:34:20.843Z",
+            "context": {
+              "id": "v5-1789727604400-3967816922132",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "rxnjtXdH2T",
+              "load_state": "complete",
+              "largest_shift_target": "app-main>app-toolbar>div.flex.h-20.items-center.justify-between.px-3>div.flex.items-center"
+            }
+          },
+          {
+            "type": "web-vitals",
+            "values": {
+              "lcp": 460,
+              "delta": 460,
+              "element_render_delay": 441.89999997615814,
+              "time_to_first_byte": 18.100000023841858
+            },
+            "timestamp": "2026-09-18T10:34:20.844Z",
+            "context": {
+              "id": "v5-1789727604172-1852046047042",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "rxnjtXdH2T",
+              "element": "app-toolbar>div.flex.h-20.items-center.justify-between.px-3>div.flex.items-center>h1.text-white"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.112",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": null,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "measurements": [
+          {
+            "type": "web-vitals",
+            "values": {
+              "cls": 0.00203661908436214,
+              "delta": 0.00203661908436214,
+              "largest_shift_value": 0.0015100951646090535,
+              "largest_shift_time": 442.7000000178814
+            },
+            "timestamp": "2026-09-18T10:34:20.843Z",
+            "context": {
+              "id": "v5-1789727604400-3967816922132",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "rxnjtXdH2T",
+              "load_state": "complete",
+              "largest_shift_target": "app-main>app-toolbar>div.flex.h-20.items-center.justify-between.px-3>div.flex.items-center"
+            }
+          },
+          {
+            "type": "web-vitals",
+            "values": {
+              "lcp": 460,
+              "delta": 460,
+              "element_render_delay": 441.89999997615814,
+              "time_to_first_byte": 18.100000023841858
+            },
+            "timestamp": "2026-09-18T10:34:20.844Z",
+            "context": {
+              "id": "v5-1789727604172-1852046047042",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "rxnjtXdH2T",
+              "element": "app-toolbar>div.flex.h-20.items-center.justify-between.px-3>div.flex.items-center>h1.text-white"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.137",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          }
+        },
+        "events": [
+          {
+            "name": "session_resume",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:34:20.943Z"
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.138",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "measurements": [
+          {
+            "type": "web-vitals",
+            "values": {
+              "ttfb": 27.400000005960464,
+              "delta": 27.400000005960464,
+              "connection_duration": 16.30000001192093,
+              "request_duration": 10.299999982118607,
+              "waiting_duration": 0.4000000059604645,
+              "cache_duration": 0.4000000059604645
+            },
+            "timestamp": "2026-09-18T10:34:21.070Z",
+            "context": {
+              "id": "v5-1789727660937-1139121736656",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "S6kEiCtJ9d"
+            }
+          },
+          {
+            "type": "web-vitals",
+            "values": {
+              "fcp": 248,
+              "delta": 248,
+              "first_byte_to_fcp": 220.59999999403954,
+              "time_to_first_byte": 27.400000005960464
+            },
+            "timestamp": "2026-09-18T10:34:21.089Z",
+            "context": {
+              "id": "v5-1789727660937-2690544072687",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "S6kEiCtJ9d",
+              "load_state": "complete"
+            }
+          }
+        ],
+        "events": [
+          {
+            "name": "faro.performance.navigation",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:34:20.811Z"
+          },
+          {
+            "name": "faro.performance.resource",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:34:20.961Z"
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.139",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "events": [
+          {
+            "name": "faro.performance.resource",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:34:20.997Z"
+          },
+          {
+            "name": "faro.performance.resource",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:34:21.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.140",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "events": [
+          {
+            "name": "faro.performance.resource",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:34:20.996Z"
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.141",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "events": [
+          {
+            "name": "faro.tracing.xml-http-request",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:34:21.052Z"
+          },
+          {
+            "name": "faro.tracing.xml-http-request",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:34:21.223Z"
+          },
+          {
+            "name": "faro.tracing.xml-http-request",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:34:21.262Z"
+          },
+          {
+            "name": "faro.tracing.xml-http-request",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:34:21.600Z"
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.143",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "measurements": [
+          {
+            "type": "web-vitals",
+            "values": {
+              "lcp": 268,
+              "delta": 268,
+              "element_render_delay": 240.59999999403954,
+              "time_to_first_byte": 27.400000005960464
+            },
+            "timestamp": "2026-09-18T10:34:45.222Z",
+            "context": {
+              "id": "v5-1789727660937-4649186803274",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "S6kEiCtJ9d",
+              "element": "app-toolbar>div.flex.h-20.items-center.justify-between.px-3>div.flex.items-center>h1.text-white"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "CC3546B2CE39A1515224195AB2BA5251",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "requestId": "54748.144",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        }
+      }
+    },
+    {
+      "requestId": "D55CE8EF856DC4F4476A439B9218272D",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "requestId": "45A066C6B82971B9E1CDBAA8E39A37C1",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "OPTIONS",
+      "status": 204
+    },
+    {
+      "requestId": "8E65F99A8604338A9543A5419D34F797",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "OPTIONS",
+      "status": null
+    },
+    {
+      "requestId": "54748.145",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": null,
+      "failed": true,
+      "canceled": true,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "measurements": [
+          {
+            "type": "web-vitals",
+            "values": {
+              "inp": 64,
+              "delta": 64,
+              "interaction_time": 24321.5,
+              "presentation_delay": 59.89999997615814,
+              "input_delay": 1.800000011920929,
+              "processing_duration": 2.300000011920929,
+              "next_paint_time": 24385.5
+            },
+            "timestamp": "2026-09-18T10:37:43.423Z",
+            "context": {
+              "id": "v5-1789727660937-2123246053692",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "S6kEiCtJ9d",
+              "load_state": "complete",
+              "interaction_target": "button.p-button.p-button-icon-only.p-button-lg.p-component.p-ripple>span.p-button-icon.pi.pi-bars",
+              "interaction_type": "pointer"
+            }
+          },
+          {
+            "type": "web-vitals",
+            "values": {
+              "cls": 0.0020346900720164605,
+              "delta": 0.0020346900720164605,
+              "largest_shift_value": 0.0015081661522633745,
+              "largest_shift_time": 248.40000000596046
+            },
+            "timestamp": "2026-09-18T10:37:43.423Z",
+            "context": {
+              "id": "v5-1789727661087-8462307728656",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "S6kEiCtJ9d",
+              "load_state": "complete",
+              "largest_shift_target": "app-main>app-toolbar>div.flex.h-20.items-center.justify-between.px-3>div.flex.items-center"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.146",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": null,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "measurements": [
+          {
+            "type": "web-vitals",
+            "values": {
+              "inp": 64,
+              "delta": 64,
+              "interaction_time": 24321.5,
+              "presentation_delay": 59.89999997615814,
+              "input_delay": 1.800000011920929,
+              "processing_duration": 2.300000011920929,
+              "next_paint_time": 24385.5
+            },
+            "timestamp": "2026-09-18T10:37:43.423Z",
+            "context": {
+              "id": "v5-1789727660937-2123246053692",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "S6kEiCtJ9d",
+              "load_state": "complete",
+              "interaction_target": "button.p-button.p-button-icon-only.p-button-lg.p-component.p-ripple>span.p-button-icon.pi.pi-bars",
+              "interaction_type": "pointer"
+            }
+          },
+          {
+            "type": "web-vitals",
+            "values": {
+              "cls": 0.0020346900720164605,
+              "delta": 0.0020346900720164605,
+              "largest_shift_value": 0.0015081661522633745,
+              "largest_shift_time": 248.40000000596046
+            },
+            "timestamp": "2026-09-18T10:37:43.423Z",
+            "context": {
+              "id": "v5-1789727661087-8462307728656",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "S6kEiCtJ9d",
+              "load_state": "complete",
+              "largest_shift_target": "app-main>app-toolbar>div.flex.h-20.items-center.justify-between.px-3>div.flex.items-center"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.171",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          }
+        },
+        "events": [
+          {
+            "name": "session_resume",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:37:43.608Z"
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.172",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "measurements": [
+          {
+            "type": "web-vitals",
+            "values": {
+              "fcp": 64,
+              "delta": 64,
+              "first_byte_to_fcp": 36.599999994039536,
+              "time_to_first_byte": 27.400000005960464
+            },
+            "timestamp": "2026-09-18T10:37:43.731Z",
+            "context": {
+              "id": "v5-1789727863603-6149153024581",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "S6kEiCtJ9d",
+              "load_state": "dom-interactive"
+            }
+          },
+          {
+            "type": "web-vitals",
+            "values": {
+              "ttfb": 27.400000005960464,
+              "delta": 27.400000005960464,
+              "connection_duration": 14.099999994039536,
+              "request_duration": 10.100000023841858,
+              "waiting_duration": 2.5,
+              "cache_duration": 0.699999988079071
+            },
+            "timestamp": "2026-09-18T10:37:43.753Z",
+            "context": {
+              "id": "v5-1789727863603-3842787864137",
+              "rating": "good",
+              "navigation_type": "reload",
+              "navigation_entry_id": "cBmn9CqfKN"
+            }
+          }
+        ],
+        "events": [
+          {
+            "name": "faro.performance.navigation",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:37:43.392Z"
+          },
+          {
+            "name": "faro.performance.resource",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:37:43.640Z"
+          },
+          {
+            "name": "faro.performance.resource",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:37:43.691Z"
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.173",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "events": [
+          {
+            "name": "faro.performance.resource",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:37:43.693Z"
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.174",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "events": [
+          {
+            "name": "faro.performance.resource",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:37:43.690Z"
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.175",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        },
+        "events": [
+          {
+            "name": "faro.tracing.xml-http-request",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:37:43.737Z"
+          },
+          {
+            "name": "faro.tracing.xml-http-request",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:37:43.776Z"
+          },
+          {
+            "name": "faro.tracing.xml-http-request",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:37:43.873Z"
+          },
+          {
+            "name": "faro.tracing.xml-http-request",
+            "domain": "browser",
+            "timestamp": "2026-09-18T10:37:44.251Z"
+          }
+        ]
+      }
+    },
+    {
+      "requestId": "54748.176",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "POST",
+      "status": 202,
+      "postData": {
+        "meta": {
+          "sdk": {
+            "name": "faro-web",
+            "version": "2.9.0"
+          },
+          "app": {
+            "name": "foreman-assistant",
+            "version": "1.0.15-dev",
+            "environment": "tw-prod"
+          },
+          "page": {
+            "url": "https://pek8s-staging.garmin.com/foreman-assistant/#/main"
+          },
+          "device": {
+            "type": "desktop"
+          }
+        }
+      }
+    },
+    {
+      "requestId": "D6241CE2C55AE16DEF35BBBCD10B65DE",
+      "url": "https://shixpa-peproxy00.garmin.com/alloy",
+      "method": "OPTIONS",
+      "status": 204
+    }
+  ]
+}
