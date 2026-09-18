@@ -1,0 +1,47 @@
+{
+  "verifiedAt": "2026-09-18T10:44:35.383Z",
+  "sourceUrl": "https://pek8s-staging.garmin.com/foreman-assistant/main.js",
+  "sourceSha256": "5a0832a60f97cc7fa41fdf39be3722153758c613684c4673ea68ab2b3f09d18c",
+  "positions": [
+    {
+      "symbol": "var WebVitalsWithAttribution = class",
+      "found": true,
+      "lineNumber": 125261
+    },
+    {
+      "symbol": "measureINP() {",
+      "found": true,
+      "lineNumber": 125311
+    },
+    {
+      "symbol": "measureCLS() {",
+      "found": true,
+      "lineNumber": 125273
+    },
+    {
+      "symbol": "measureLCP() {",
+      "found": true,
+      "lineNumber": 125339
+    },
+    {
+      "symbol": "measureTTFB() {",
+      "found": true,
+      "lineNumber": 125361
+    },
+    {
+      "symbol": "this.corePushMeasurement({",
+      "found": true,
+      "lineNumber": 125402
+    },
+    {
+      "symbol": "new WebVitalsInstrumentation()",
+      "found": true,
+      "lineNumber": 126447
+    },
+    {
+      "symbol": "const webVitals = new WebVitalsWithAttribution",
+      "found": true,
+      "lineNumber": 125425
+    }
+  ]
+}

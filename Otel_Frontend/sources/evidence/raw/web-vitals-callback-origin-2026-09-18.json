@@ -1,0 +1,109 @@
+{
+  "verifiedAt": "2026-09-18T10:43:41.606Z",
+  "capture": "Separate callback-origin pass after primary numeric capture; breakpoint timings are not performance evidence",
+  "sourceUrl": "https://pek8s-staging.garmin.com/foreman-assistant/main.js",
+  "sourceSha256": "5a0832a60f97cc7fa41fdf39be3722153758c613684c4673ea68ab2b3f09d18c",
+  "breakpoint": {
+    "needle": "this.corePushMeasurement({",
+    "lineNumber": 125402
+  },
+  "privacy": "Call-frame function names/source locations and Web Vitals metric arguments only; no general scope dump, user/session identity or credentials",
+  "pauses": [
+    {
+      "reason": "other",
+      "metric": {
+        "values": {
+          "ttfb": 11.800000011920929,
+          "delta": 11.800000011920929,
+          "request_duration": 11.300000011920929,
+          "waiting_duration": 0.5
+        },
+        "context": {
+          "id": "v5-1789728218908-1684829503829",
+          "rating": "good",
+          "navigation_type": "reload",
+          "navigation_entry_id": "a9S5TLrBpk"
+        }
+      },
+      "frames": [
+        {
+          "functionName": "pushMeasurement",
+          "url": "https://pek8s-staging.garmin.com/foreman-assistant/main.js",
+          "scriptId": "2996",
+          "lineNumber": 125402,
+          "columnNumber": 10
+        },
+        {
+          "functionName": "V.reportAllChanges._a",
+          "url": "https://pek8s-staging.garmin.com/foreman-assistant/main.js",
+          "scriptId": "2996",
+          "lineNumber": 125378,
+          "columnNumber": 12
+        },
+        {
+          "functionName": "",
+          "url": "https://pek8s-staging.garmin.com/foreman-assistant/main.js",
+          "scriptId": "2996",
+          "lineNumber": 125229,
+          "columnNumber": 5
+        },
+        {
+          "functionName": "",
+          "url": "https://pek8s-staging.garmin.com/foreman-assistant/main.js",
+          "scriptId": "2996",
+          "lineNumber": 124790,
+          "columnNumber": 225
+        },
+        {
+          "functionName": "",
+          "url": "https://pek8s-staging.garmin.com/foreman-assistant/main.js",
+          "scriptId": "2996",
+          "lineNumber": 125224,
+          "columnNumber": 81
+        },
+        {
+          "functionName": "timer",
+          "url": "https://pek8s-staging.garmin.com/foreman-assistant/polyfills.js",
+          "scriptId": "2999",
+          "lineNumber": 1428,
+          "columnNumber": 27
+        },
+        {
+          "functionName": "invokeTask",
+          "url": "https://pek8s-staging.garmin.com/foreman-assistant/polyfills.js",
+          "scriptId": "2999",
+          "lineNumber": 327,
+          "columnNumber": 171
+        },
+        {
+          "functionName": "runTask",
+          "url": "https://pek8s-staging.garmin.com/foreman-assistant/polyfills.js",
+          "scriptId": "2999",
+          "lineNumber": 135,
+          "columnNumber": 37
+        },
+        {
+          "functionName": "invokeTask",
+          "url": "https://pek8s-staging.garmin.com/foreman-assistant/polyfills.js",
+          "scriptId": "2999",
+          "lineNumber": 398,
+          "columnNumber": 26
+        },
+        {
+          "functionName": "ZoneTask.invoke",
+          "url": "https://pek8s-staging.garmin.com/foreman-assistant/polyfills.js",
+          "scriptId": "2999",
+          "lineNumber": 387,
+          "columnNumber": 38
+        },
+        {
+          "functionName": "data.args.<computed>",
+          "url": "https://pek8s-staging.garmin.com/foreman-assistant/polyfills.js",
+          "scriptId": "2999",
+          "lineNumber": 1402,
+          "columnNumber": 26
+        }
+      ]
+    }
+  ]
+}

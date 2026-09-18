@@ -1,0 +1,36 @@
+{
+  "url": "file:///C:/Users/fbrandon/Desktop/Learning/Garmin/Observability/Frontend_Faro_SDK_Integration/Learning/Otel_Frontend/reference/0007-faro-automatic-telemetry-and-web-vitals.html",
+  "at": "2026-09-18T11:16:44.396Z",
+  "checks": [
+    {
+      "width": 1440,
+      "scrollWidth": 1425,
+      "images": true,
+      "figures": 12,
+      "rectangles": 32,
+      "figureScrollable": true,
+      "selfCheckOpens": true,
+      "brokenLinks": []
+    },
+    {
+      "width": 390,
+      "scrollWidth": 375,
+      "images": true,
+      "figures": 12,
+      "rectangles": 32,
+      "figureScrollable": true,
+      "selfCheckOpens": true,
+      "brokenLinks": []
+    },
+    {
+      "width": 320,
+      "scrollWidth": 305,
+      "images": true,
+      "figures": 12,
+      "rectangles": 32,
+      "figureScrollable": true,
+      "selfCheckOpens": true,
+      "brokenLinks": []
+    }
+  ]
+}
