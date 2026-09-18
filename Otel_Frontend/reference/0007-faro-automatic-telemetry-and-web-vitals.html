@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reference｜Faro automatic telemetry 與 Web Vitals</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/evidence-annotations.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+  <h1>Faro automatic telemetry 與 Web Vitals</h1>
+  <p class="subtitle">Reference · 從 /alloy 的 request body 辨認 SDK 自動收集的效能資料</p>
+  <nav aria-label="返回主線"><a href="../lessons/0005-faro-browser-to-alloy-transport.html">← Lesson 5：Transport</a> · <a href="../lessons/0006-browser-devtools-verification.html#network-lab">Lesson 6：DevTools →</a></nav>
+
+  <div class="box tip"><strong>先建立預期</strong><br>一筆 Faro POST 不一定只有 custom click event。SDK 啟用相應 instrumentation 後，也會根據 Browser 的觀測自動產生 telemetry；Web Vitals 是其中一種。Lesson 5 用這份查表理解「送出去的內容有哪些」，Lesson 6 用它辨認 Payload 裡的 measurements。</div>
+  <div class="box ask"><strong>這份圖例的證據範圍</strong><br>目前已查到 2026-09-16 保存的一筆真實 LCP measurement；尚未取得 INP／CLS 的實際 payload 與展開截圖。以下明確區分「已觀測」與「2.9.0 source 提供的查找路徑」。四張真實 UI 圖沿用 Lesson 6，只支撐操作位置，不冒充 Web Vitals 結果圖。</div>
+  <p class="cite"><a href="../sources/evidence/faro-automatic-telemetry-web-vitals-2026-09-18.md">Evidence Card：日期、版本、來源與限制</a></p>
+  <p><a href="#workflow">直接重跑 DevTools 流程</a> · <a href="#observed">已觀測 payload</a> · <a href="#inp">INP 因果拆解</a> · <a href="#boundary">責任邊界</a></p>
+
+  <h2>1. 沒寫 custom event，仍可能有 telemetry</h2>
+  <p>頁面載入、使用者點擊、Browser 更新畫面，都有可觀測的時間或視覺變化。Web Vitals instrumentation 註冊相關 callback，接收 Browser 衍生的指標，再交給 Faro measurement API。你不需要為每一次效能觀測手動呼叫 <code>pushEvent('click', ...)</code>。</p>
+  <pre><code>Browser 效能觀測
+  │ Web Vitals library 計算指標
+  ▼
+WebVitalsInstrumentation
+  │ 自動呼叫 measurement API
+  ▼
+Faro measurement
+  │ Transport 組成並送出 HTTP body
+  ▼
+POST /alloy → body.measurements[]</code></pre>
+  <p>「自動」仍有條件：SDK 必須初始化、該 instrumentation 必須啟用，Browser 必須提供觀測，且要達到該指標的回報時機。它不表示每一筆 POST 都有全部指標。</p>
+  <p class="cite">對照 runtime 的 <code>meta.sdk.version = "2.9.0"</code>，使用同版 <a href="https://github.com/grafana/faro-web-sdk/blob/v2.9.0/packages/web-sdk/src/config/getWebInstrumentations.ts">預設 instrumentation list</a> 與 <a href="https://github.com/grafana/faro-web-sdk/blob/v2.9.0/packages/web-sdk/src/instrumentations/webVitals/instrumentation.ts">初始化入口</a>，避免拿不同版本的欄位當保證。</p>
+
+  <h2 id="workflow">2. DevTools：先找到送出的 body，再找指標</h2>
+  <h3>步驟 1｜先開頁面與 recording，再重新載入</h3>
+  <ol>
+    <li>開啟已授權的 <a href="https://pek8s-staging.garmin.com/foreman-assistant/#/main">Foreman Assistant Stage main</a> 並登入。</li>
+    <li>按 <code>F12</code> 或 <code>Ctrl + Shift + I</code>，選 <strong>Network</strong>。窄視窗時從 <code>»</code> 找工作區。</li>
+    <li>確認 recording icon 為紅色，開 <strong>Keep log／Preserve log</strong>，Filter 輸入 <code>alloy</code>，按 Clear。</li>
+    <li>重新載入頁面，保持前景，等主要內容出現。只看開 DevTools 前的紀錄，可能漏掉載入 telemetry。</li>
+  </ol>
+  <figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/lesson-6/01-foreman-main-runtime.png" alt="Lesson 6 真實 Foreman Stage main 頁面，帳號區已遮罩"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="40" y="1" width="20" height="7"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；沿用 Lesson 6 真實截圖。</span>先確認正在看的產品頁面與 staging banner。這張只證明頁面外觀，不證明 instrumentation 啟用；不要拿主頁截圖代替 payload。</figcaption></figure>
+
+  <h3>步驟 2｜在 /alloy 清單分辨 POST 與 OPTIONS</h3>
+  <figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/lesson-6/13-devtools-network-list-ui.png" alt="真實 Network alloy filter 和 request 清單，Method Status Type 可分辨 POST 與 preflight"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="16.6" y="4" width="4.8" height="2.7"/><rect x="0.2" y="9.4" width="46" height="2.3"/><rect x="28.6" y="20" width="25.8" height="7.3"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；沿用 Lesson 6 真實截圖。</span>依序看 Network → alloy filter → Method／Status／Type。圖中是下午補拍的 13 列，不是下方 LCP raw evidence 的早上六筆；列數與 request 順序不能跨 pass 比對。</figcaption></figure>
+  <ol>
+    <li>若沒有 Method 欄，右鍵點表頭並開啟 Method。</li>
+    <li>找 <code>POST</code>，常見 Type 是 <code>fetch</code>；<code>OPTIONS / preflight</code> 回答 CORS 許可，不是 metrics body。</li>
+    <li>點 POST 的 Name cell，才會出現 request 詳細 tabs。先到 <strong>Headers → General</strong> 讀 URL、Method、Status。</li>
+  </ol>
+  <figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/lesson-6/16-devtools-post-status-ui.png" alt="真實 POST Headers General 的 alloy URL POST method 202 status"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="16.4" y="20.1" width="4.8" height="2.9"/><rect x="14.1" y="25.8" width="36.4" height="6.2"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；沿用 Lesson 6 真實截圖。</span>讀 General，確認選到 telemetry POST。這張是 Lesson 6 的 click request，只教你看哪裡；不是新取得的 Web Vitals POST。</figcaption></figure>
+
+  <h3>步驟 3｜Payload → measurements → type → values → context</h3>
+  <figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/lesson-6/15-devtools-click-payload-ui.png" alt="真實選定 POST 後的 Payload tab，展開 events 顯示 click 與 DailySchedule"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="21" y="20.1" width="4.8" height="2.9"/><rect x="14.6" y="24" width="17" height="2.2"/><rect x="16" y="28" width="44" height="10"/></svg></div><figcaption><span class="evidence-mark-note">紅框為教學標示；沿用 Lesson 6 真實截圖。</span>先認 Payload tab 與 Request payload 樹。圖中展開的是 <code>events</code>，只展示 custom click 的對照；要找 Web Vitals，重跑時必須找到另一筆含 <code>measurements</code> 的 POST。這張沒有 INP／CLS 欄位。</figcaption></figure>
+  <ol>
+    <li>點 <strong>Payload</strong>，展開 <strong>Request payload</strong> 的頂層 object。</li>
+    <li>找 <code>measurements</code>，展開陣列，再展開每個 index。不要固定只看 <code>0</code>。</li>
+    <li>讀 <code>type</code>，找 <code>"web-vitals"</code>。不要把 <code>events[].name</code> 當 measurement type。</li>
+    <li>展開同一個 measurement 的 <code>values</code>。找 <code>inp</code>、<code>cls</code> 或 <code>lcp</code>；它們可能分在不同 measurements／POST 中。</li>
+    <li>展開同一個 measurement 的 <code>context</code>，讀 <code>rating</code> 與 <code>navigation_type</code>。不要把另一筆 measurement 的 context 配到這個值。</li>
+    <li>若只看到 events 或 logs，繼續逐筆檢查 POST；不要因一筆沒有 measurements 就說 SDK 不會送。</li>
+  </ol>
+  <p><code>Payload</code> 是 Browser 送出的 body；<code>Response</code> 是 receiver 回覆。要證明 SDK 送了 metrics，去 Payload；要證明 HTTP 是否接受，回同筆 Headers 看 status。</p>
+  <p class="cite"><a href="https://developer.chrome.com/docs/devtools/network/reference#payload">Chrome 官方 Network / Payload 操作</a></p>
+
+  <h3>步驟 4｜讓互動與回報時機真的發生</h3>
+  <ol>
+    <li>頁面載入完成後，做一次安全的 click、tap 或鍵盤操作，例如既有唯讀導覽。只捲動或 hover 不足以產生 INP 互動。</li>
+    <li>切到另一個 tab，讓原頁面進入 hidden，再切回；保留 Network log，等 SDK 的 batch／回報完成。</li>
+    <li>回去逐筆讀 POST，記錄實際找到的 metric 與 request。<code>reportAllChanges</code> 設定與生命週期會影響何時回報，不能預設 click 後第一筆 POST 一定有 INP。</li>
+    <li>測試完先保留原始效能資料，再對保存的截圖遮罩敏感區；不要先插入大型遮罩 DOM，避免改變被量測的畫面。</li>
+  </ol>
+  <p>目前保存的 capture 沒有 INP／CLS；重跑若仍缺少，就記「未捕捉」，再檢查 recording、是否有 qualifying interaction、hidden 時機、SDK 設定與 Browser 支援。CLS 是分數，可能為零；零與欄位不存在不是同一件事。</p>
+
+  <h2 id="observed">3. 已觀測：一筆 request 同時有 events 與 measurements</h2>
+  <p>Lesson 6 早上 capture 的 request <code>2928.35</code> 是 POST／202，SDK 為 2.9.0。它的 body 同時包含 resource event 與下列 measurement。這是保存的真實 JSON 節錄，<strong>不是 DevTools 截圖</strong>：</p>
+  <pre><code>"measurements": [
+  {
+    "type": "web-vitals",
+    "values": {
+      "lcp": 3156,
+      "delta": 3156,
+      "element_render_delay": 3025.100000000093,
+      "time_to_first_byte": 130.89999999990687
+    },
+    "timestamp": "2026-09-16T02:35:05.377Z",
+    "context": {
+      "id": "v5-1789526101479-4606450969808",
+      "rating": "needs-improvement",
+      "navigation_type": "navigate",
+      "navigation_entry_id": "qneYAM8qtW",
+      "element": "#lesson6-runtime-redaction"
+    }
+  }
+]</code></pre>
+  <div class="box ask"><strong>先看 element，再決定數字能拿來做什麼</strong><br>這筆 <code>element</code> 指向 capture 加入的遮罩。它證明 Web Vitals telemetry 確實出現在 HTTP body，但 <code>3156</code> 與 <code>needs-improvement</code> 不能拿來評估 Foreman 原本的產品效能。</div>
+  <div class="table-wrap"><table><thead><tr><th>欄位</th><th>怎麼讀</th></tr></thead><tbody>
+    <tr><td><code>measurements</code></td><td>量測訊號陣列；與 events 並列。</td></tr>
+    <tr><td><code>type</code></td><td>這筆量測的類型；web-vitals。</td></tr>
+    <tr><td><code>values.lcp</code></td><td>最大可見內容的 render milestone，毫秒；此例受遮罩影響。</td></tr>
+    <tr><td><code>values.delta</code></td><td>相對該 metric 前一次回報的變化量；不是 HTTP 耗時。</td></tr>
+    <tr><td><code>element_render_delay</code>／<code>time_to_first_byte</code></td><td>LCP attribution 的 render delay／首位元組時間，毫秒；不是 INP constituents。</td></tr>
+    <tr><td><code>timestamp</code></td><td>measurement 的時間，不保證等於 HTTP 發送時間。</td></tr>
+    <tr><td><code>context.id</code></td><td>metric identity，不是 user ID。</td></tr>
+    <tr><td><code>rating</code></td><td>該 metric 的等級；不是全站健康度。</td></tr>
+    <tr><td><code>navigation_type</code></td><td>navigation 情境；此例 navigate，不能當成 business subsystem。</td></tr>
+    <tr><td><code>navigation_entry_id</code>／<code>element</code></td><td>navigation 關聯與被量測 element 的線索。</td></tr>
+  </tbody></table></div>
+  <p class="cite"><a href="../sources/evidence/raw/web-vitals-lcp-observed.json">Bounded projection</a> · <a href="../sources/evidence/raw/lesson6-alloy-network.json">完整原始 capture</a> · <a href="https://web.dev/articles/lcp">LCP 官方定義</a></p>
+
+  <h2>4. INP／CLS：重跑時要找的欄位</h2>
+  <p>下表是 <strong>Faro 2.9.0 source 的查找指南，尚未在這次 runtime evidence 看到</strong>。它沒有任何捏造的數值。</p>
+  <div class="table-wrap"><table><thead><tr><th>查找路徑</th><th>體感與用途</th></tr></thead><tbody>
+    <tr><td><code>values.inp</code></td><td>使用者操作後，到下一個畫面回饋的延遲，毫秒；頁面 INP 代表整段訪問的互動反應，不能把每一次 click 都當成最終 INP。</td></tr>
+    <tr><td><code>values.cls</code></td><td>閱讀或準備點擊時，內容意外跳動的視覺不穩定程度；沒有時間單位。</td></tr>
+    <tr><td><code>input_delay</code>／<code>processing_duration</code>／<code>presentation_delay</code></td><td>位於 INP measurement 的 values；把反應延遲拆成等待、處理、呈現。</td></tr>
+    <tr><td><code>interaction_time</code>／<code>next_paint_time</code></td><td>INP values 的時間位置線索，勿當三個 duration 再加總。</td></tr>
+    <tr><td><code>context.interaction_target</code>／<code>interaction_type</code>／<code>load_state</code></td><td>可能的互動 target、互動類型與載入階段；不會自動提供 business link_name。</td></tr>
+    <tr><td><code>largest_shift_value</code>／<code>largest_shift_time</code>／<code>context.largest_shift_target</code></td><td>CLS attribution 的線索；value/time 在 values，target 在 context。</td></tr>
+  </tbody></table></div>
+  <p>2.9.0 對 optional attribution 使用 truthiness guard，值為零可能省略。找不到 <code>input_delay</code>，不能直接推論 Browser 完全沒等待。</p>
+  <p class="cite"><a href="https://github.com/grafana/faro-web-sdk/blob/v2.9.0/packages/web-sdk/src/instrumentations/webVitals/webVitalsWithAttribution.ts">Faro 2.9.0 欄位實作</a> · <a href="https://web.dev/articles/inp">INP 定義與回報條件</a> · <a href="https://web.dev/articles/cls">CLS 定義</a></p>
+
+  <h2 id="inp">5. INP 的因果拆解：點了，為什麼還沒看到回饋？</h2>
+  <p>先從使用者出發：手指點下後，Browser 不一定立刻執行 handler；執行完 handler 也不等於畫面已更新。</p>
+  <figure class="diagram"><pre><code>使用者開始互動
+  │ Browser 等待目前工作，才能開始處理
+  │ input_delay
+  ▼
+開始執行相關 event handlers
+  │ JavaScript／相關 handler 工作佔用時間
+  │ processing_duration
+  ▼
+相關 handlers 處理結束
+  │ Browser 等待／完成呈現下一個 frame 的工作
+  │ presentation_delay
+  ▼
+下一個 frame 可呈現，使用者得到畫面回饋</code></pre><figcaption>箭頭表示同一次互動沿時間前進。三段 duration 是查找延遲所在的模型，不是目前已捕捉的三個數值。</figcaption></figure>
+  <p>如果 input delay 偏長，先找互動前 main thread 是否被其他工作佔住；processing 偏長，找 handlers 的同步工作；presentation 偏長，找 handler 結束後到下一個 frame 的等待與 render 工作。這是縮小調查方向，不能單靠某個欄位斷言是哪段程式造成。</p>
+  <p>INP 看的是下一個 frame 的回饋，不是「遠端查詢完成、整個業務流程成功」。例如按鈕很快顯示 loading，API 十秒後才完成，兩者是不同 boundary。</p>
+  <p class="cite"><a href="https://web.dev/articles/inp#whats_in_an_interaction">Browser 官方互動時間模型</a></p>
+
+  <h2 id="boundary">6. SDK 懂時間，business semantics 仍由應用提供</h2>
+  <div class="table-wrap"><table><thead><tr><th>資料</th><th>誰負責給它意義</th></tr></thead><tbody>
+    <tr><td>Web Vitals measurements</td><td>Browser performance observation 與 SDK instrumentation：延遲、視覺穩定性、載入體感。</td></tr>
+    <tr><td><code>data-link-name</code>／<code>subsystem</code></td><td>宿主 markup／business model，再由 custom ClickInstrumentation 擷取；Browser 不知道此 UI 是哪個業務入口。</td></tr>
+    <tr><td>業務 user context</td><td>宿主提供 getUser 或明確設定 user，再由 UserSync/Faro 附帶；SDK session identity 不等於業務登入身分。</td></tr>
+  </tbody></table></div>
+  <p>因此，看到 Web Vitals 不代表 <code>link_name</code> 或 user context 都有正確 instrumentation；缺少 business attribute 也不代表 Browser 無法提供效能指標。</p>
+  <p class="cite"><a href="../sources/evidence/faro-click-tracking.md">Package click／user contract</a> · <a href="../sources/evidence/foreman-integration.md">Host subsystem binding</a></p>
+
+  <h2>7. 什麼足以支持「SDK 自動送的」？</h2>
+  <p>Payload 中的 measurements／web-vitals，直接證明 request 含這類 measurement；同版 source 則證明預設 instrumentation 會從 Browser observation 自動呼叫 measurement API。兩者一起支持自動收集的機制與實際傳送事實。</p>
+  <p>但 type 字串本身不是 call-stack proof：應用也能手動用相同 type 呼叫 <code>pushMeasurement</code>。若要把某筆 measurement 的起源完整證明到自動 callback，還要確認部署中的 instrumentation 初始化與 callback execution；本次沒有捕捉那段 stack。重跑時不要手動 push metric，再把自己的 API 呼叫當成 automatic evidence。</p>
+  <p>同筆 POST 回 202 只證明 receiver HTTP boundary 接受。它不證明 Alloy → Collector → storage 全部成功。</p>
+  <pre><code>重跑後保存自己的 evidence card：
+capture 時間／Browser／頁面／SDK version
+實際 reload、互動與 hidden 時機
+request URL／method／status／request locator
+measurements 的 index／type／values／context
+是否確認 automatic instrumentation 已初始化
+callback origin：已捕捉／尚未捕捉
+截圖：Network → POST → Payload → 指標／context
+尚未看到的欄位與不能推論的 boundary</code></pre>
+
+  <h2>Self-check</h2>
+  <details><summary>看到四筆 POST，要怎麼找 Web Vitals？</summary><p>逐筆打開 Payload 的 measurements，按 type 與 values 辨認；不能按 request 順序或 202 status 猜內容。</p></details>
+  <details><summary>INP 有值，是否代表 data-link-name 或登入 user 都正確？</summary><p>沒有這種推論。效能與 business semantics 來源不同，要分別找 evidence。</p></details>
+  <details><summary>此例 LCP = 3156，能評估 Foreman 原本的效能嗎？</summary><p>不能。context.element 指向 capture 加入的遮罩，只能用來辨認 measurement 結構與傳送事實。</p></details>
+  <h2>Recap</h2>
+  <ul>
+    <li>Faro POST 可含 automatic telemetry 與 custom events；一筆 request 不等於一個 click。</li>
+    <li>先找 POST，再看 Payload → measurements → type → values → 同筆 context。</li>
+    <li>已保存 LCP 的真實 payload；INP／CLS 與展開截圖仍待取得。</li>
+    <li>INP 分等待、處理、呈現；CLS 是視覺穩定性分數；LCP 是載入呈現時間。</li>
+    <li>Business link_name／subsystem／user 需要宿主與額外 instrumentation。</li>
+    <li>Payload、callback origin、HTTP 接受與 storage 寫入，各有自己的證據邊界。</li>
+  </ul>
+  <p>如果找不到某個欄位，帶著 measurement 路徑、操作時機與已遮罩截圖向 agent 追問，再回到主線。</p>
+  <p><a href="../lessons/0005-faro-browser-to-alloy-transport.html">← Lesson 5</a> · <a href="../lessons/0006-browser-devtools-verification.html#network-lab">Lesson 6 Network →</a></p>
+</body>
+</html>
+
