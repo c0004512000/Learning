@@ -1,0 +1,33 @@
+{
+  "verified_at": "2026-09-19T20:00:57.8280436Z",
+  "trace_id": "6faa6779a2970a3f82ad77e9ab9f4eb7",
+  "datasource": "temp123",
+  "environment": "tw-stage",
+  "spans": [
+    {
+      "name": "GET https://pek8s-staging.garmin.com/jeter-faro-trace-demo-backend/api/scenario/slow",
+      "service": "jeter-faro-trace-demo-frontend",
+      "start_time_unix_nano": "1789848030629000000",
+      "parent_span_id_base64": null,
+      "kind": "SPAN_KIND_CLIENT",
+      "span_id_base64": "SD4mniSaxrQ="
+    },
+    {
+      "name": "main",
+      "service": "jeter-faro-trace-demo-backend",
+      "start_time_unix_nano": "1789848032623702700",
+      "parent_span_id_base64": "vK8cOh/3ywc=",
+      "kind": "SPAN_KIND_CLIENT",
+      "span_id_base64": "pUeijyA6tUg="
+    },
+    {
+      "name": "GET api/Scenario/slow",
+      "service": "jeter-faro-trace-demo-backend",
+      "start_time_unix_nano": "1789848030614632600",
+      "parent_span_id_base64": "SD4mniSaxrQ=",
+      "kind": "SPAN_KIND_SERVER",
+      "span_id_base64": "vK8cOh/3ywc="
+    }
+  ],
+  "privacy": "Only service, span identity/relationship, name, kind, timestamp retained."
+}

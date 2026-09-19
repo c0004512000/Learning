@@ -1,0 +1,41 @@
+{
+  "verified_at": "2026-09-19T20:03:09.3418645Z",
+  "events": [
+    {
+      "line_number": 0,
+      "kind": "console_exception",
+      "marker": "OTEL_FRONTEND_EVIDENCE_20260920_0415",
+      "timestamp": 1789848188969.729
+    },
+    {
+      "kind": "request",
+      "request_id": "12564.15",
+      "url": "https://pek8s-staging.garmin.com/alloy",
+      "timestamp": 1789848189.216953,
+      "method": "POST"
+    },
+    {
+      "kind": "response",
+      "request_id": "12564.15",
+      "status": 202
+    }
+  ],
+  "method": "controlled uncaught Error in demo page",
+  "post_projections": [
+    {
+      "request_id": "12564.15",
+      "app_name": "jeter-faro-trace-demo-frontend",
+      "exception_count": 1,
+      "contains_marker": true,
+      "top_keys": [
+        "meta",
+        "exceptions"
+      ],
+      "environment": "tw-stage"
+    }
+  ],
+  "environment": "tw-stage",
+  "application": "Jeter Faro Trace Demo",
+  "privacy": "No full payload, user meta, session, cookies or auth headers retained.",
+  "marker": "OTEL_FRONTEND_EVIDENCE_20260920_0415"
+}

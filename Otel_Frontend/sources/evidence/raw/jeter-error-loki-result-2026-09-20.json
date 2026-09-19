@@ -1,0 +1,18 @@
+{
+  "start_unix_nano": 1789847314652000000,
+  "end_unix_nano": 1789848214652000000,
+  "matches": [
+    {
+      "service_name": "jeter-faro-trace-demo-frontend",
+      "contains_marker": true,
+      "line_retained": false,
+      "timestamp_unix_nano": "1789848189202029241"
+    }
+  ],
+  "verified_at": "2026-09-19T20:03:34.9563613Z",
+  "privacy": "No log lines or credentials retained; only service, timestamp, unique marker equality.",
+  "status": "success",
+  "environment": "tw-stage",
+  "query": "{service_name=\"jeter-faro-trace-demo-frontend\"} |= \"OTEL_FRONTEND_EVIDENCE_20260920_0415\"",
+  "datasource": "loki123"
+}
