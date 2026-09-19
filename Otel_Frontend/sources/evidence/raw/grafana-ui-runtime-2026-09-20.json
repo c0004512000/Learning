@@ -1,0 +1,27 @@
+{
+  "tempo": {
+    "datasource_uid": "temp123",
+    "ui_result": "trace opened; 3 spans; frontend and backend service rows visible",
+    "screenshots": [
+      "assets/special-lesson-evidence/grafana-tempo-query-redacted.png",
+      "assets/special-lesson-evidence/grafana-tempo-spans-redacted.png"
+    ],
+    "trace_id": "6faa6779a2970a3f82ad77e9ab9f4eb7"
+  },
+  "browser": "existing authenticated Chrome session",
+  "loki": {
+    "range_from": "2026-09-19T20:02:00Z",
+    "ui_result": "Total: 1; matching log row shown",
+    "screenshots": [
+      "assets/special-lesson-evidence/grafana-loki-query-redacted.png",
+      "assets/special-lesson-evidence/grafana-loki-result-redacted.png"
+    ],
+    "query": "{service_name=\"jeter-faro-trace-demo-frontend\"} |= \"OTEL_FRONTEND_EVIDENCE_20260920_0415\"",
+    "datasource_uid": "loki123",
+    "range_to": "2026-09-19T20:06:00Z"
+  },
+  "grafana_root": "https://pek8s-staging.garmin.com/grafana",
+  "verified_at": "2026-09-19T20:18:59.2279777Z",
+  "privacy": "Account avatar masked in all repo screenshots. Loki session/user fields and remainder of log row masked. Full unredacted screenshots not stored in repository.",
+  "environment": "tw-stage"
+}

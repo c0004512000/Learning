@@ -33,3 +33,7 @@
 ## Limitations / next decisive observation
 
 The browser and Tempo data are privacy-reduced projections, not a full HAR or Tempo payload. Specific Alloy/Collector transport for the frontend span was not independently observed in this same capture; its presence in Tempo establishes storage/query visibility. A real DevTools and Grafana UI screenshot is still needed for future learner-facing workflow guidance. Do not retain cookies, authorization headers, or account identity.
+
+## Later UI observation
+
+After learner sign-in, the real Grafana Explore trace query and frontend/backend span tree were captured in [dated Grafana UI evidence](grafana-ui-runtime-2026-09-20.md). This resolves the Grafana UI screenshot gap stated above. A DevTools instructional screenshot remains separate from the CDP Network record.

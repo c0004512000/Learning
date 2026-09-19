@@ -37,3 +37,7 @@
 ## Limitations / next decisive observation
 
 The test used a controlled uncaught error in the stage demo because no existing frontend-error button was observed. It is a runtime test of Faro's error capture, not evidence that Jeter's existing scenario buttons throw frontend errors. Capture actual DevTools and Grafana screenshots before turning this into learner-facing UI instructions. The existing Foreman dashboard query returned zero streams for its stated 24-hour window; the correct query for **this Jeter record** is the separate Jeter service/marker query above. No dashboard was changed.
+
+## Later UI observation
+
+After learner sign-in, the actual Grafana Explore Loki query and matching error row were captured in [dated Grafana UI evidence](grafana-ui-runtime-2026-09-20.md). This resolves the Grafana UI screenshot gap stated above. The log row's user/session fields are masked in repository screenshots. A DevTools instructional screenshot remains separate from the CDP Network record.
