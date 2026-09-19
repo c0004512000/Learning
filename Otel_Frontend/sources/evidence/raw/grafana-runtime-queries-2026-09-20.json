@@ -1,0 +1,85 @@
+{
+  "loki_query": {
+    "limit": 1,
+    "query": "{service_name=\"foreman-assistant\"}",
+    "start_unix_nano": 1789761256649000000,
+    "status": "success",
+    "stream_count": 0,
+    "end_unix_nano": 1789847656649000000
+  },
+  "tempo_trace_lookups": [
+    {
+      "trace_id": "40b6756f9c90365547a0b642c77d557f",
+      "spans": [
+        {
+          "kind": "SPAN_KIND_SERVER",
+          "parent_span_id_base64": null,
+          "span_id_base64": "qlj24cFzHT4=",
+          "name": "GET api/Scenario/slow",
+          "start_time_unix_nano": "1789846837811371100",
+          "service": "jeter-faro-trace-demo-backend"
+        },
+        {
+          "kind": "SPAN_KIND_CLIENT",
+          "parent_span_id_base64": "qlj24cFzHT4=",
+          "span_id_base64": "X+pNiTvwvN0=",
+          "name": "main",
+          "start_time_unix_nano": "1789846839859566800",
+          "service": "jeter-faro-trace-demo-backend"
+        }
+      ]
+    },
+    {
+      "trace_id": "edd5a2b40c655f1879881d419b74568d",
+      "spans": [
+        {
+          "kind": "SPAN_KIND_SERVER",
+          "parent_span_id_base64": null,
+          "span_id_base64": "IB183kt/eSs=",
+          "name": "GET api/Scenario/slow",
+          "start_time_unix_nano": "1789846804070618200",
+          "service": "jeter-faro-trace-demo-backend"
+        },
+        {
+          "kind": "SPAN_KIND_CLIENT",
+          "parent_span_id_base64": "IB183kt/eSs=",
+          "span_id_base64": "YIguZ2s0Rok=",
+          "name": "main",
+          "start_time_unix_nano": "1789846806450466900",
+          "service": "jeter-faro-trace-demo-backend"
+        }
+      ]
+    }
+  ],
+  "datasources": {
+    "loki": "loki123",
+    "tempo": "temp123"
+  },
+  "environment": "tw-stage",
+  "auth_source": "GRAFANA_TW_STAGE_DASHBOARD_TOKEN (value not retained)",
+  "verified_at": "2026-09-19T19:54:16.6498492+00:00",
+  "tempo_search_window": {
+    "end_unix_seconds": 1789847656,
+    "limit": 20,
+    "start_unix_seconds": 1789242856,
+    "services": [
+      {
+        "trace_ids": [
+          "40b6756f9c90365547a0b642c77d557f",
+          "edd5a2b40c655f1879881d419b74568d"
+        ],
+        "query": "{ resource.service.name = \"jeter-faro-trace-demo-backend\" }",
+        "result_count": 2,
+        "service": "jeter-faro-trace-demo-backend"
+      },
+      {
+        "trace_ids": [],
+        "query": "{ resource.service.name = \"jeter-faro-trace-demo-frontend\" }",
+        "result_count": 0,
+        "service": "jeter-faro-trace-demo-frontend"
+      }
+    ]
+  },
+  "privacy": "Only service names, trace/span IDs, span names/relationships and result counts retained. No token, logs, personal attributes or auth headers.",
+  "grafana": "https://pek8s-staging.garmin.com/grafana"
+}

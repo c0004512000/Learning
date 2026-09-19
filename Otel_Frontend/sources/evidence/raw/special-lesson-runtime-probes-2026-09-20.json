@@ -1,0 +1,46 @@
+{
+  "method": "PowerShell Invoke-WebRequest; unauthenticated; no browser instrumentation",
+  "application": "Jeter Faro Trace Demo",
+  "checks": [
+    {
+      "name": "jeter_frontend",
+      "method": "GET",
+      "body_retained": false,
+      "url": "https://pek8s-staging.garmin.com/jeter-faro-trace-demo-frontend/",
+      "status": 200
+    },
+    {
+      "name": "jeter_runtime_config",
+      "method": "GET",
+      "body_retained": false,
+      "url": "https://pek8s-staging.garmin.com/jeter-faro-trace-demo-frontend/config.js",
+      "status": 200
+    },
+    {
+      "name": "jeter_slow_demo_api",
+      "method": "GET",
+      "body_retained": false,
+      "url": "https://pek8s-staging.garmin.com/jeter-faro-trace-demo-backend/api/scenario/slow",
+      "status": 200
+    },
+    {
+      "name": "grafana_datasources",
+      "body_retained": false,
+      "url": "https://pek8s-staging.garmin.com/grafana/api/datasources",
+      "error_class": "HttpResponseException",
+      "method": "GET",
+      "status": 401
+    },
+    {
+      "name": "grafana_tempo_proxy",
+      "body_retained": false,
+      "url": "https://pek8s-staging.garmin.com/grafana/api/datasources/proxy/uid/temp123/api/traces/00000000000000000000000000000000",
+      "error_class": "HttpResponseException",
+      "method": "GET",
+      "status": 401
+    }
+  ],
+  "privacy": "No response bodies, cookies, authorization values, session identifiers, or personal metadata retained.",
+  "environment": "tw-stage",
+  "verified_at": "2026-09-19T19:40:37.5661342Z"
+}
