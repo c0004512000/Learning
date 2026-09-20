@@ -68,6 +68,9 @@ body {
   overflow-wrap: break-word;
 }
 
+/* Keep the independent evidence lesson readable on wide displays. */
+body.special-lesson { max-width: var(--max-width); }
+
 img,
 svg,
 video,
@@ -709,3 +712,4 @@ blockquote {
 
   .quiz { padding: 1rem; }
 }
+
