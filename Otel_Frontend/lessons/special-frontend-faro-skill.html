@@ -277,21 +277,46 @@
     <p><strong>判斷：</strong>同一 T 加上 Frontend client 與 Backend server 才是第一層證據；Backend parent = Frontend span 才完成 join。只有其中一端時，先查該端的 telemetry export 或 context extraction。</p>
   </div>
 
-  <h2>4. Frontend error：從 Console 走到 Loki</h2>
-  <figure class="visual-card" aria-label="Frontend error 到 Grafana Loki 的概念流程">
-    <p class="visual-label">因果圖｜每一個箭頭都是要另外驗證的 boundary</p>
+  <h2>4. Baseline console / error observability：先知道 Faro 預設收什麼</h2>
+  <figure class="visual-card" aria-label="Faro Web SDK baseline console 與 error capability map">
+    <p class="visual-label">Capability map｜Faro Web SDK v2.9.0</p>
     <div class="flow-stack">
-      <div class="flow-node"><strong>Browser error</strong><small>Console 看到 uncaught error</small></div>
-      <div class="flow-arrow"><span>captured by</span></div>
-      <div class="flow-node"><strong>Faro</strong><small>放進 telemetry payload</small></div>
-      <div class="flow-arrow"><span>exports POST /alloy to</span></div>
-      <div class="flow-node"><strong>Receiver</strong><small>回 202 只代表接受</small></div>
-      <div class="flow-arrow"><span>forwards through configured route to</span></div>
-      <div class="flow-node"><strong>Loki</strong><small>Grafana query 能找到才算 storage visibility</small></div>
+      <div class="flow-node"><strong>Basic <code>initializeFaro()</code></strong><small>先建立 Browser telemetry baseline</small></div>
+      <div class="flow-arrow"><span>automatically captures</span></div>
+      <div class="flow-node"><strong>Uncaught errors</strong><small>走 error / exception signal</small></div>
+      <div class="flow-node"><strong><code>console.info</code> / <code>console.warn</code> / <code>console.error</code></strong><small>預設 console capture；<code>console.error</code> 預設轉成 error signal</small></div>
+      <div class="flow-node"><strong>Web Vitals</strong><small>也是 basic Web SDK baseline，但不是本課重點</small></div>
     </div>
-    <figcaption>這是 error path 的因果圖，不是部署拓撲 screenshot。Collector 的每個跳點仍要以各自證據界定。</figcaption>
+    <figcaption>這是 SDK capability map，不是 Jeter runtime screenshot。v2.9.0 預設不收 <code>console.log</code>、<code>console.debug</code>、<code>console.trace</code>；若你的 Skill 要「所有 console levels」，必須另外調整 console instrumentation。</figcaption>
   </figure>
-  <p>這次使用 Jeter stage 的受控錯誤 marker <code>OTEL_VISUAL_CHECK_20260920_B</code>。它是 unique test identifier，不是時間戳，也沒有改動業務資料。因為沒有觀察到安全的 error button，這一段是 <strong>Evidence Walkthrough</strong>，不是要求 learner 注入 exception 的 Lab。</p>
+  <p>所以未來 Skill 裡的「Browser console log baseline」不能寫成模糊的「Faro 會把所有 <code>console.*</code> 都收走」。目前版本預設收 <strong>info / warn / error</strong>；其中 <code>console.error()</code> 預設走 Faro error path。若公司 baseline 想連 <code>console.log()</code>、debug、trace 都收，就要把這件事當成<strong>明確的額外設定</strong>，而不是 SDK default。</p>
+  <div class="table-wrap"><table><thead><tr><th>Browser signal</th><th>v2.9.0 baseline</th><th>Skill 要知道的邊界</th></tr></thead><tbody>
+    <tr><td>uncaught exception</td><td>自動 capture</td><td>屬於 Errors instrumentation；不是 console log。</td></tr>
+    <tr><td><code>console.info()</code></td><td>預設 capture</td><td>送成 log signal。</td></tr>
+    <tr><td><code>console.warn()</code></td><td>預設 capture</td><td>送成 log signal。</td></tr>
+    <tr><td><code>console.error()</code></td><td>預設 capture</td><td>預設轉成 error signal；可配置成 log。</td></tr>
+    <tr><td><code>console.log()</code> / debug / trace</td><td>預設不 capture</td><td>若需求要收，Skill 必須顯式調整 console instrumentation。</td></tr>
+    <tr><td>fetch / XHR API request</td><td>不是 basic Web SDK tracing baseline</td><td>要加入 <code>@grafana/faro-web-tracing</code> 的 <code>TracingInstrumentation</code>；Section 5 再把它放進 Skill baseline。</td></tr>
+  </tbody></table></div>
+  <p class="source-note">版本化依據：<a href="../sources/evidence/faro-baseline-capabilities-2026-09-20.md">Faro baseline capability evidence</a>。這裡描述 SDK capability；目標 repo 是否真的有啟用，仍要由 Agent 檢查 source 與 runtime。</p>
+
+  <h3>Runtime example｜一筆 uncaught error 從 Browser 走到 Loki</h3>
+  <figure class="visual-card" aria-label="Frontend uncaught error 到 Grafana Loki 的概念流程">
+    <p class="visual-label">因果圖｜這只是 baseline 裡的一條 error path</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>Browser uncaught error</strong><small>Jeter Console 看到受控 error</small></div>
+      <div class="flow-arrow"><span>captured by Faro errors instrumentation</span></div>
+      <div class="flow-node"><strong>Faro exception telemetry</strong><small>出現在 outbound <code>exceptions[]</code></small></div>
+      <div class="flow-arrow"><span>POST /alloy to</span></div>
+      <div class="flow-node"><strong>Alloy / Faro receiver</strong><small>HTTP 202 只證明 request accepted</small></div>
+      <div class="flow-arrow"><span>configured route continues through Collector</span></div>
+      <div class="flow-node"><strong>Collector</strong><small>本次沒有 record-specific receive/export observation</small></div>
+      <div class="flow-arrow"><span>stored as logs / exceptions in</span></div>
+      <div class="flow-node"><strong>Loki → Grafana</strong><small>用同一 marker 查到才證明 storage visibility</small></div>
+    </div>
+    <figcaption>Collector 被畫進架構，但沒有把未觀察到的單筆 hop 說成 runtime proof。下面的 screenshots 驗證 Browser、receiver 與 Loki 這幾個實際觀察點。</figcaption>
+  </figure>
+  <p>這次使用 Jeter stage 的受控錯誤 marker <code>OTEL_VISUAL_CHECK_20260920_B</code>。它是 unique test identifier，不是時間戳，也沒有改動業務資料。因為沒有觀察到安全的 error button，這一段是 <strong>Evidence Walkthrough</strong>，不是要求 learner 注入 exception 的 Lab。這筆 evidence 證明的是 <strong>uncaught error path</strong>；它不是整個 console capability map 的替代品。</p>
 
   <figure class="evidence-shot">
     <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-error-console-focus-annotated.png"><img src="../assets/special-lesson-evidence/jeter-error-console-annotated.png" alt="真實 Jeter DevTools Console，紅框標示受控 frontend error marker" loading="lazy"></picture></div>
@@ -333,60 +358,103 @@
     <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-loki-result-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-loki-result-annotated.png" alt="真實 Grafana Loki result，紅框標示同一 frontend error marker，user 和 session 已裁掉" loading="lazy"></picture></div>
     <figcaption><span class="evidence-mark-note">真實 Grafana Loki result；user/session 欄位已在裁切前移除，紅框只標示 marker。</span><code>Total: 1</code>，而且 exception row 含相同 marker、<code>kind=exception</code>、<code>level=error</code>。<a href="../assets/special-lesson-evidence/grafana-loki-result-redacted.png">隱私檢查後底圖</a></figcaption>
   </figure>
-  <p>現在才可以下完整結論：同一個 marker 從 Browser Console → Faro <code>exceptions[]</code> → receiver 202 → Grafana Loki result 被對上。Collector 的 record-specific receive/export metrics 沒有在本次 capture 取得，因此不能把每一個 Collector hop 寫成已逐跳觀察。</p>
+  <p>現在才可以下這筆 runtime evidence 的完整結論：同一個 marker 從 Browser uncaught error → Faro <code>exceptions[]</code> → receiver 202 → Grafana Loki result 被對上。這證明一條 error path；它不等於「所有 console levels 都已在這次 capture 逐一測過」。Collector 的 record-specific receive/export metrics 也沒有在本次 capture 取得，因此不能把每一個 Collector hop 寫成已逐跳觀察。</p>
   <div class="table-wrap"><table class="boundary-table"><thead><tr><th>觀察</th><th>這次能證明</th><th>還不能證明</th></tr></thead><tbody>
-    <tr><td>Console marker</td><td>Browser 真的發生 error</td><td>Faro 或 storage 已收到</td></tr>
-    <tr><td><code>exceptions[]</code></td><td>Faro 把 error 放進 outbound payload</td><td>downstream storage 可查</td></tr>
+    <tr><td>Console marker</td><td>Browser 真的發生這筆 uncaught error</td><td>其他 console levels 的 runtime capture</td></tr>
+    <tr><td><code>exceptions[]</code></td><td>Faro 把這筆 error 放進 outbound payload</td><td>downstream storage 可查</td></tr>
     <tr><td>HTTP 202</td><td>receiver 接受 request</td><td>Loki 一定有資料</td></tr>
     <tr><td>Loki Total: 1</td><td>這筆 marker 在 Grafana 可查</td><td>所有 Collector hop 都有逐筆 metrics</td></tr>
   </tbody></table></div>
   <details>
     <summary>Evidence source 與限制</summary>
-    <p>完整去敏紀錄在 <a href="../sources/evidence/special-lesson-visual-runtime-2026-09-20.md">visual runtime evidence</a> 與 <a href="../sources/evidence/raw/special-lesson-visual-runtime-2026-09-20.json">raw projection</a>。既有 Alloy → Collector → Loki 路徑屬於 source/config evidence；本次只把 receiver acceptance 與 Loki visibility 分開驗證，沒有改 dashboard 或 production data。</p>
+    <p>SDK baseline capability 見 <a href="../sources/evidence/faro-baseline-capabilities-2026-09-20.md">Faro baseline capability evidence</a>；這筆 Jeter runtime 的完整去敏紀錄在 <a href="../sources/evidence/special-lesson-visual-runtime-2026-09-20.md">visual runtime evidence</a> 與 <a href="../sources/evidence/raw/special-lesson-visual-runtime-2026-09-20.json">raw projection</a>。既有 Alloy → Collector → Loki 路徑屬於 source/config evidence；本次只把 receiver acceptance 與 Loki visibility 分開驗證，沒有改 dashboard 或 production data。</p>
   </details>
 
-  <h2>5. 把觀察抽象成 Agent Skill decision flow</h2>
-  <figure class="visual-card" aria-label="Agent Skill 從 repo 到 Grafana 的決策流程">
-    <p class="visual-label">決策圖｜先辨識，再最小修改，再逐層驗證</p>
+  <h2>5. Agent Skill 的 baseline-first decision flow</h2>
+  <figure class="visual-card" aria-label="Frontend Faro Skill 的 baseline 與 extension 兩層決策流程">
+    <p class="visual-label">Mental model｜先建立最低觀測能力，再談客製化</p>
     <div class="flow-stack">
-      <div class="flow-node"><strong>Receive frontend repo</strong></div>
-      <div class="flow-arrow"><span>detect framework、package manager、entry point</span></div>
-      <div class="flow-node"><strong>Find existing Faro + runtime config</strong></div>
-      <div class="flow-arrow"><span>find HTTP mechanism、backend base URL、propagation pattern</span></div>
-      <div class="flow-node"><strong>Choose the minimum code change</strong></div>
-      <div class="flow-arrow"><span>preserve business instrumentation；build / test</span></div>
-      <div class="flow-node"><strong>Verify Browser → receiver → storage → Grafana</strong></div>
-      <div class="flow-arrow"><span>if backend tracing exists, verify same T and parent = A</span></div>
-      <div class="flow-node"><strong>Accept, fix, or ask for project-specific input</strong></div>
+      <div class="flow-node"><strong>Receive frontend repo</strong><small>先辨識 framework、package manager、entry point、現有 Faro</small></div>
+      <div class="flow-arrow"><span>audit existing capabilities</span></div>
+      <div class="flow-node"><strong>Baseline target</strong><small>Web SDK + console/error + API tracing + telemetry transport + Grafana visibility</small></div>
+      <div class="flow-arrow"><span>only fill the missing capability</span></div>
+      <div class="flow-node"><strong>Build / test / runtime verify</strong><small>證明 baseline 真的工作，不只 source 看起來有設定</small></div>
+      <div class="flow-arrow"><span>user 還有 baseline 無法回答的 business question？</span></div>
+      <div class="flow-node"><strong>Extension layer（optional）</strong><small>先定義需要的額外資料，再選 configuration / Faro API / custom instrumentation</small></div>
+      <div class="flow-arrow"><span>verify the customized signal</span></div>
+      <div class="flow-node"><strong>Done</strong><small>baseline 與 project-specific extension 分開維護</small></div>
     </div>
-    <figcaption>概念圖；箭頭代表 Agent 的下一個 decision boundary，不是某個專案的自動化腳本。</figcaption>
+    <figcaption>未來 Skill 的第一個問題不是「我要改哪些檔案」，而是「這個 repo 距離我們要求的 baseline capability 還缺哪一塊？」</figcaption>
   </figure>
-  <div class="generic-specific">
-    <div><h3>GENERIC｜可重用的 Skill 工作</h3><ul><li>找 entry point 與 package manager</li><li>找 Faro dependency / initialization</li><li>找 fetch、XHR、axios、custom client</li><li>找 backend base URL 與 propagation pattern</li><li>檢查 error capture、API tracing、Faro export</li><li>build/test，做 Browser 與 Grafana runtime verify</li></ul></div>
-    <div><h3>PROJECT-SPECIFIC｜不能硬套的語意</h3><ul><li>Foreman 的 <code>data-link-name</code></li><li>Foreman 的 <code>subsystem</code></li><li>business KPI 與 click semantics</li><li>特定 user callback 或 domain event</li><li>部署 URL、CORS policy、可用的安全測試 path</li></ul></div>
-  </div>
-  <p>通用 Skill 應把左欄做成檢查流程；右欄要保留現有專案語意，或明確要求 project-specific input。不能因為 Foreman 有欄位，就把它變成所有 Frontend 的 Faro requirement。</p>
-  <div class="table-wrap"><table><thead><tr><th>Agent 必做的檢查</th><th>分類</th><th>找不到／失敗時</th></tr></thead><tbody>
-    <tr><td>1. Detect frontend framework</td><td>generic</td><td>讀 package scripts 與 source 結構；不確定就保留未知。</td></tr>
-    <tr><td>2. Detect package manager</td><td>generic</td><td>用 lockfile 決定安裝／驗證指令，不要猜。</td></tr>
-    <tr><td>3. Detect existing Faro dependency</td><td>generic</td><td>缺少才規劃導入；已有則檢查版本與用途。</td></tr>
-    <tr><td>4. Find application entry point</td><td>generic</td><td>追到 Browser 真正載入的 module。</td></tr>
-    <tr><td>5. Find Faro initialization</td><td>generic</td><td>已有初始化先保留，避免雙重初始化。</td></tr>
-    <tr><td>6. Find runtime environment / config source</td><td>generic method / project value</td><td>確認 deployment config；不要把 stage URL 寫死。</td></tr>
-    <tr><td>7. Detect HTTP mechanism</td><td>generic</td><td>檢查 fetch、XHR、axios 與 custom wrapper。</td></tr>
-    <tr><td>8. Detect backend base URLs</td><td>generic method / project value</td><td>URL 不明不可猜，需要 project input。</td></tr>
-    <tr><td>9. Determine trace propagation URL patterns</td><td>generic method / project value</td><td>用實際 Network request 確認 pattern 是否 match。</td></tr>
-    <tr><td>10. Check frontend error instrumentation</td><td>generic</td><td>分開確認 Console error 是否進 Faro payload。</td></tr>
-    <tr><td>11. Check API request tracing</td><td>generic</td><td>確認 business request 是否產生 client span。</td></tr>
-    <tr><td>12. Preserve existing business instrumentation</td><td>generic rule / project fields</td><td>保留 business logic，不移植 Foreman 欄位。</td></tr>
-    <tr><td>13. Apply minimal code changes</td><td>generic</td><td>只補已證明的缺口，避免重寫既有 client。</td></tr>
-    <tr><td>14. Build / test</td><td>generic</td><td>build 成功不等於 runtime 成功。</td></tr>
-    <tr><td>15. Verify browser telemetry</td><td>generic method / environment access</td><td>看 Console、Network、payload 與 status。</td></tr>
-    <tr><td>16. Verify collector delivery</td><td>generic method / environment access</td><td>若沒有 record-specific evidence，標為未證明。</td></tr>
-    <tr><td>17. Verify Grafana visibility</td><td>generic method / environment access</td><td>用正確 datasource、時間與 query 查 storage。</td></tr>
-    <tr><td>18. Verify frontend-backend correlation when tracing exists</td><td>conditional generic</td><td>用當次 T 檢查 Backend parent = Frontend span；沒有 Backend tracing 就標明未適用。</td></tr>
+
+  <p><strong>Baseline 是你要為 Skill 定義的最低能力，不等於所有 Faro SDK default。</strong>例如 basic Web SDK 已經會收 uncaught errors 與預設 console levels，但 API request tracing 要再加入 <code>@grafana/faro-web-tracing</code> 的 <code>TracingInstrumentation</code>。它的 default OTel setup 才會 instrument <code>fetch</code> / XHR。換句話說，未來 Skill 應該檢查「能力有沒有存在」，而不是只檢查「package 有沒有安裝」。</p>
+
+  <figure class="visual-card" aria-label="Frontend Faro baseline capability target">
+    <p class="visual-label">Baseline target｜第一版 Skill 最少要能建立／確認</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>1. Faro Web SDK initialized</strong><small>在真正會執行的 application entry path；receiver / environment 指向正確部署環境</small></div>
+      <div class="flow-arrow"><span>provides browser-level signals</span></div>
+      <div class="flow-node"><strong>2. Console + error baseline</strong><small>至少理解 default info / warn / error + uncaught errors；需要全 levels 時才擴充設定</small></div>
+      <div class="flow-arrow"><span>add API observability baseline</span></div>
+      <div class="flow-node"><strong>3. <code>TracingInstrumentation</code></strong><small>讓 fetch / XHR 產生 frontend HTTP tracing data</small></div>
+      <div class="flow-arrow"><span>when cross-origin distributed tracing is needed</span></div>
+      <div class="flow-node"><strong>4. Propagation target + CORS</strong><small><code>backendUrls</code> / <code>propagateTraceHeaderCorsUrls</code> 決定 trace context 要送到哪些 backend；它不是 request-capture list</small></div>
+      <div class="flow-arrow"><span>export and prove</span></div>
+      <div class="flow-node"><strong>5. Receiver → storage → Grafana</strong><small>console/error 查 Loki；trace 查 Tempo；每一層按 evidence boundary 驗收</small></div>
+    </div>
+    <figcaption>這張圖回答「Agent 到底要建立哪些最低能力」。Section 3/4 的 runtime screenshots 則回答「完成後怎麼證明」。</figcaption>
+  </figure>
+
+  <div class="table-wrap"><table><thead><tr><th>Baseline capability</th><th>Agent 要查什麼</th><th>缺少時才做什麼</th></tr></thead><tbody>
+    <tr><td>Web SDK / transport</td><td>dependency、初始化位置、app metadata、receiver/environment</td><td>在真正 entry path 做最小初始化；不要建立第二個 instance。</td></tr>
+    <tr><td>Console / error</td><td>目前 console instrumentation 與 levels；Errors instrumentation</td><td>保留 SDK default；只有需求明確要求更多 levels 時才調整。</td></tr>
+    <tr><td>API request tracing</td><td>是否有 <code>@grafana/faro-web-tracing</code> / <code>TracingInstrumentation</code>；實際 request 是 fetch、XHR 或 wrapper</td><td>補 tracing capability，並以 Browser Network / Tempo 驗證。</td></tr>
+    <tr><td>Cross-origin propagation</td><td>實際 backend URL、propagation pattern、CORS</td><td>只對需要串 distributed trace 的 backend 設定 pattern；實際 origin/header policy 是 project-specific value。</td></tr>
+    <tr><td>Grafana visibility</td><td>正確 datasource、service/app identity、query 與 time range</td><td>查第一個沒有 evidence 的 boundary，不從 Grafana 空白直接猜 code 壞了。</td></tr>
   </tbody></table></div>
-  <p class="source-note">這個順序整理自 <a href="../sources/evidence/special-lesson-skill-design-findings-2026-09-20.md">skill-design findings</a>；它是設計與審查 checklist，不是現在要直接寫出的完整 Skill。</p>
+
+  <div class="box tip">
+    <strong><code>backendUrls</code> 再確認一次</strong><br>
+    <code>TracingInstrumentation</code> 會對 fetch / XHR 做 HTTP tracing；<code>backendUrls</code>（對應 <code>propagateTraceHeaderCorsUrls</code>）處理的是「哪些 backend URL 要帶 W3C trace context」。因此：<strong>API request instrumentation ≠ propagation URL allow-list</strong>。
+  </div>
+
+  <h3>Baseline 不夠時，才進 Extension layer</h3>
+  <figure class="visual-card" aria-label="從 business question 推導 custom instrumentation 的流程">
+    <p class="visual-label">Design flow｜不要先選技術，再硬找需求</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>User 的 business question</strong><small>Baseline telemetry 回答不了什麼？</small></div>
+      <div class="flow-arrow"><span>derive required additional context</span></div>
+      <div class="flow-node"><strong>需要新增哪些 data？</strong><small>DOM context、application state、user/device metadata、domain event…</small></div>
+      <div class="flow-arrow"><span>choose the smallest Faro extension point</span></div>
+      <div class="flow-node"><strong>Configuration / Faro API / custom instrumentation</strong><small>能用既有 option 就不要先寫 listener；真的缺 browser behavior 才做 custom instrumentation</small></div>
+      <div class="flow-arrow"><span>runtime verify</span></div>
+      <div class="flow-node"><strong>Grafana 能回答原 business question</strong><small>這才是 customization 的完成條件</small></div>
+    </div>
+    <figcaption>這是通用設計模型；不是要把 Foreman 的 implementation 複製到所有 repo。</figcaption>
+  </figure>
+
+  <div class="generic-specific">
+    <div><h3>GENERIC｜Skill 可以自動化</h3><ul><li>找 entry point、package manager、Faro dependency</li><li>audit baseline console/error capability</li><li>audit fetch/XHR API tracing capability</li><li>辨識 backend URL 與是否需要 cross-origin propagation</li><li>檢查 CORS 是否允許所需 propagation</li><li>build/test + Browser / Grafana runtime verify</li></ul></div>
+    <div><h3>PROJECT-SPECIFIC｜值或語意不能猜</h3><ul><li>實際 receiver / environment / backend URL</li><li>實際允許的 CORS origins / headers</li><li>Foreman 的 <code>data-link-name</code> / <code>subsystem</code></li><li>business KPI、click semantics、domain event</li><li>特定 user callback 與安全測試 path</li></ul></div>
+  </div>
+  <p>通用 Skill 應自動處理「怎麼找、怎麼判斷、怎麼驗證」；project-specific 的 URL 值與 business semantics 則來自 repo/runtime 或 user requirement，不能從 Foreman 推廣。</p>
+
+  <details>
+    <summary>Reference｜把原本 18-step checklist 收進來</summary>
+    <div class="table-wrap"><table><thead><tr><th>Stage</th><th>Agent 工作</th><th>核心判斷</th></tr></thead><tbody>
+      <tr><td>Inspect</td><td>framework、package manager、entry point、Faro、runtime config、HTTP mechanism</td><td>先理解現況，不要預設檔案路徑或 framework。</td></tr>
+      <tr><td>Baseline audit</td><td>console/error、TracingInstrumentation、backend URLs、receiver/environment</td><td>區分 SDK default、額外 tracing capability、project-specific values。</td></tr>
+      <tr><td>Modify</td><td>只補缺少的 capability，保留既有 business instrumentation</td><td>避免雙重初始化或重寫現有 HTTP client。</td></tr>
+      <tr><td>Verify</td><td>build/test → Browser → receiver → storage → Grafana；有 backend tracing 再驗證 same trace / parent</td><td>設定存在不等於 runtime 成功。</td></tr>
+      <tr><td>Extend</td><td>baseline 無法回答 business question 時才設計 custom instrumentation</td><td>先推導需要的 data，再選 extension mechanism。</td></tr>
+    </tbody></table></div>
+  </details>
+
+  <div class="box">
+    <strong>TODO（刻意不在這堂課展開）</strong><br>
+    未來可把 Foreman Assistant 補成完整 custom-instrumentation case study：<code>business question → required data → Click Listener / ClickInstrumentation / attributes / callbacks → Grafana answer</code>。這不是撰寫第一版 Faro Skill 前的 blocker，所以目前只留下後續入口。
+  </div>
+  <p class="source-note">Capability boundary：<a href="../sources/evidence/faro-baseline-capabilities-2026-09-20.md">Faro baseline capability map</a>。既有 Agent 檢查項目的 evidence basis 仍在 <a href="../sources/evidence/special-lesson-skill-design-findings-2026-09-20.md">skill-design findings</a>。</p>
 
   <h2>6. Debug 時找第一個證據中斷</h2>
   <figure class="visual-card debug-tree">
@@ -460,4 +528,3 @@
   </nav>
 </body>
 </html>
-
