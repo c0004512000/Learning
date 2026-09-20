@@ -8,140 +8,429 @@
   <link rel="stylesheet" href="../assets/evidence-annotations.css">
   <script src="../assets/theme.js"></script>
   <script src="../assets/quiz.js" defer></script>
+  <style>
+    /* Small diagrams explain concepts; every runtime UI in this lesson is a real PNG. */
+    .special-lesson .lesson-lead { border-left: 4px solid var(--success); }
+    .special-lesson .visual-card {
+      margin: 1.6rem 0 1.1rem;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    .special-lesson .visual-card figcaption,
+    .special-lesson .evidence-shot figcaption { margin-top: .8rem; }
+    .special-lesson .visual-label {
+      margin: 0 0 .7rem;
+      color: var(--muted);
+      font-size: .8rem;
+      font-weight: 600;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .special-lesson .flow-stack { display: grid; gap: .45rem; }
+    .special-lesson .flow-node {
+      padding: .65rem .75rem;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--info);
+      border-radius: 6px;
+      background: var(--paper);
+    }
+    .special-lesson .flow-node strong { display: block; }
+    .special-lesson .flow-node small { color: var(--muted); }
+    .special-lesson .flow-arrow {
+      display: grid;
+      justify-items: center;
+      color: var(--muted);
+      font-size: .82rem;
+      line-height: 1.2;
+    }
+    .special-lesson .flow-arrow::after { content: "↓"; font-size: 1.25rem; line-height: 1; }
+    .special-lesson .flow-arrow span { max-width: 17rem; text-align: center; }
+    .special-lesson .two-paths { display: grid; gap: 1rem; }
+    .special-lesson .path {
+      padding: .8rem;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--paper);
+    }
+    .special-lesson .path h3 { margin: 0 0 .7rem; font-size: 1rem; }
+    .special-lesson .path-a { border-top: 3px solid var(--success); }
+    .special-lesson .path-b { border-top: 3px solid var(--info); }
+    .special-lesson .path .flow-node { background: var(--panel); }
+    .special-lesson .parts {
+      display: grid;
+      grid-template-columns: auto 1fr 1fr auto;
+      gap: .4rem;
+      align-items: stretch;
+      margin: .7rem 0;
+      font-family: "SF Mono", Consolas, monospace;
+      text-align: center;
+    }
+    .special-lesson .parts span {
+      padding: .55rem .35rem;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: var(--code-bg);
+    }
+    .special-lesson .parts .part-t { border-color: var(--accent); }
+    .special-lesson .parts .part-a { border-color: var(--info); }
+    .special-lesson .part-notes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .6rem;
+      color: var(--muted);
+      font-size: .85rem;
+    }
+    .special-lesson .comparison {
+      display: grid;
+      gap: .7rem;
+      align-items: center;
+    }
+    .special-lesson .comparison .equals {
+      color: var(--accent);
+      font-size: 1.5rem;
+      font-weight: 600;
+      text-align: center;
+    }
+    .special-lesson .generic-specific {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .8rem;
+    }
+    .special-lesson .generic-specific > div {
+      padding: .8rem;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--paper);
+    }
+    .special-lesson .generic-specific h3 { margin: 0 0 .45rem; font-size: 1rem; }
+    .special-lesson .generic-specific ul { margin: 0; padding-left: 1.1rem; }
+    .special-lesson .generic-specific li { margin: .25rem 0; }
+    .special-lesson .evidence-shot .evidence-frame { width: 100%; max-width: 100%; overflow-x: auto; }
+    .special-lesson .evidence-shot .evidence-frame picture { display: block; }
+    .special-lesson .evidence-shot .evidence-frame img { width: 100%; max-width: 100%; height: auto; display: block; }
+    .special-lesson .evidence-shot .evidence-focus { max-width: none; }
+    .special-lesson .evidence-shot .evidence-mark-note { margin-bottom: .25rem; }
+    .special-lesson .source-note { color: var(--muted); font-size: .86rem; }
+    .special-lesson .boundary-table td:first-child { white-space: nowrap; }
+    .special-lesson .compact-list { margin-top: .5rem; }
+    .special-lesson .debug-tree .flow-node { border-left-color: var(--accent); }
+    .special-lesson .debug-tree .flow-node.pass { border-left-color: var(--success); }
+    .special-lesson details { margin: 1rem 0; }
+    .special-lesson summary { cursor: pointer; color: var(--accent); }
+    @media (min-width: 700px) {
+      .special-lesson .two-paths { grid-template-columns: 1fr 1fr; }
+      .special-lesson .comparison { grid-template-columns: 1fr auto 1fr; }
+    }
+    @media (max-width: 680px) {
+      .special-lesson .generic-specific { grid-template-columns: 1fr; }
+      .special-lesson .parts { grid-template-columns: 1fr; }
+      .special-lesson .parts span::before { display: block; color: var(--muted); font: .72rem/1.2 sans-serif; }
+      .special-lesson .parts span:nth-child(1)::before { content: "version"; }
+      .special-lesson .parts span:nth-child(2)::before { content: "trace ID (T)"; }
+      .special-lesson .parts span:nth-child(3)::before { content: "frontend span (A)"; }
+      .special-lesson .parts span:nth-child(4)::before { content: "flags"; }
+      .special-lesson .evidence-shot .evidence-frame img { width: 100%; }
+      .special-lesson .boundary-table td:first-child { white-space: normal; }
+    }
+  </style>
 </head>
 <body class="special-lesson">
   <h1>Special Lesson｜從 Frontend Repo 到 Grafana</h1>
-  <p class="subtitle">工作導向插課 · 設計、審查與除錯 Faro 自動導入 Skill · 不改變主線進度</p>
+  <p class="subtitle">工作導向插課：設計、審查與除錯 Faro 自動導入 Skill</p>
 
-  <div class="box tip">
-    <strong>這次要做成什麼</strong><br>
-    你接到一個既有 Frontend repo，要寫一個給 Agent 使用的 Skill。Agent 要找出現有入口、HTTP 呼叫和 Faro 設定，補齊缺口，最後拿 Browser 與 Grafana 的實際資料證明結果。這堂課教你決定 Agent 該查什麼、改什麼、怎麼驗收；不要求你重建整套觀測平台。
+  <div class="box tip lesson-lead">
+    <strong>這堂課的交付物</strong>
+    <p>你要能審查一個 Agent Skill：它是否真的找到 Frontend 的執行路徑、補上最小 Faro 變更，並用 Browser 與 Grafana 的資料驗收。這堂課不要求你重建觀測平台，也不改變主線 Lesson 順序。</p>
   </div>
-  <p>你已接觸過 Browser runtime、Faro 初始化與 DevTools 的概念。本課只用到最小橋接：<strong>Browser 可以送兩種不同的 HTTP request</strong>；一種去業務 Backend，一種把 Faro 收集的資料送去 receiver。若 DevTools 面板仍陌生，先看 <a href="../reference/0005-devtools-workspaces-for-faro.html">DevTools 面板速查</a>，再回來做 Lab。</p>
-  <p><strong>案例界線：</strong>下文的前後端 trace 與 frontend error 都來自 <strong>Jeter stage demo</strong>。Foreman 截圖只用來教 DevTools 畫面位置；Foreman 的 click payload 是另一個 runtime example，不是 Jeter trace 的一段。</p>
+  <p>本課的 runtime example 都標成 <strong>Jeter stage demo</strong>。先看畫面，再用短解釋建立模型；完整 raw evidence 放在課後來源，不是主要操作路徑。</p>
 
-  <h2>1. Agent 先找修改點，再決定是否修改</h2>
-  <p>拿到陌生 repo，第一步是找出應用在哪裡啟動、HTTP 從哪裡送出、Faro 是否已存在。若先假設每個專案都用同一種 framework 或 HTTP client，就可能加了程式卻沒進入真正的執行路徑。</p>
-  <div class="table-wrap"><table><thead><tr><th>先找</th><th>要回答的問題</th><th>找不到時</th></tr></thead><tbody>
-    <tr><td>framework、lockfile、build script</td><td>應用如何啟動與驗證？</td><td>先查 repo 的既有慣例；不要憑範例選指令。</td></tr>
-    <tr><td>app entry point、Faro dependency／初始化</td><td>觀測程式是否已在 Browser 啟動？</td><td>才考慮最小導入；已有設定先檢查，避免重複初始化。</td></tr>
-    <tr><td>runtime config、backend base URL</td><td>當前部署實際打哪個 API？</td><td>向專案取得 environment-specific URL；不要硬編碼 Jeter URL。</td></tr>
-    <tr><td><code>fetch</code>、<code>XMLHttpRequest</code>、<code>axios</code>、custom client</td><td>真實 business request 由誰送出？</td><td>追 wrapper 與實際 Browser Network；不要只搜尋 <code>fetch</code>。</td></tr>
-  </tbody></table></div>
-  <p>Foreman 是 Angular，Jeter 是 React；兩者的入口與 runtime config 做法不同。<a href="../sources/evidence/foreman-integration.md">Foreman source evidence</a>、<a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter source evidence</a> 提供真實對照。這些是辨識方法的例子，不是所有 repo 必須照抄的檔案路徑。</p>
-
-  <h2>2. 先分開兩條網路路徑</h2>
-  <p>假設使用者按下 Jeter 的 Slow 按鈕。Browser 會向 backend 取資料；同時 Faro 會把觀測資料送到 <code>/alloy</code>。兩個 request 的目的地與用途都不同。</p>
-  <pre><code>Path A｜業務 API（傳遞關係）
-Browser 中的 HTTP client span
-  └─ sends GET /api/scenario/slow + traceparent → Backend API
-
-Path B｜觀測資料（交付記錄）
-Browser Faro
-  └─ sends POST /alloy → Alloy Faro receiver → Collector → Tempo / Loki</code></pre>
-  <p><code>backendUrls</code> 是讓 tracing instrumentation 判斷哪些 <strong>business API URL</strong> 可以帶 trace context 的設定概念；它不是 Alloy receiver URL。<code>traceparent</code> 只攜帶兩個 runtime 之間重建關係所需的 ID，不會把整個 frontend span 送到 backend。Frontend span 要在 Tempo 出現，仍需要 Path B 的 telemetry 交付。詳見 <a href="../sources/evidence/trace-context-propagation.md">trace context evidence</a> 與 <a href="../reference/0006-w3c-traceparent.html">traceparent 速查</a>。</p>
-
-  <h2>3. Jeter：從一個 request 判斷前後端是否真的串起來</h2>
-  <p>一個 span 是一次操作的記錄。<strong>trace ID</strong> 識別整次跨系統工作；<strong>span ID</strong> 識別其中某一次操作；<strong>parent span ID</strong> 指向上一層操作。Browser 與 Backend 不共享記憶體，所以 Browser 必須把上游 ID 放進 business HTTP request 的 header。</p>
-  <figure class="diagram evidence-shot">
-    <div class="evidence-frame"><img src="../assets/special-lesson-evidence/jeter-slow-scenario-annotated.png" alt="Jeter stage demo 的 Slow scenario，紅框標示真實操作位置；畫面中的 demo 人名已遮罩" loading="lazy"></div>
-    <figcaption><span class="evidence-mark-note">紅框是教學標示，底圖為真實 Jeter 頁面。</span>按 Slow 會觸發已部署的 demo business API。畫面顯示 HTTP 200；header 與 span ID 的證明在下方 Browser Network 與 Tempo 原始紀錄，不在這張頁面截圖。<a href="../assets/special-lesson-evidence/jeter-demo-page-raw.png">隱私遮罩後底圖</a></figcaption>
+  <h2>1. Agent 面對陌生 repo，先找真正的 runtime path</h2>
+  <figure class="visual-card" aria-label="Agent 檢查 Frontend repo 的概念流程">
+    <p class="visual-label">概念圖｜先找，再決定改什麼</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>Frontend repo</strong><small>Agent 先讀現有結構</small></div>
+      <div class="flow-arrow"><span>找「怎麼啟動」：framework、lockfile、build script</span></div>
+      <div class="flow-node"><strong>Entry point + Faro initialization</strong><small>確認 Browser 真的會執行哪一段</small></div>
+      <div class="flow-arrow"><span>找「資料從哪裡出去」：HTTP client、backend URL、runtime config</span></div>
+      <div class="flow-node"><strong>最小修改決策</strong><small>保留已存在的有效 instrumentation</small></div>
+    </div>
+    <figcaption>這是概念圖，不是某個專案的檔案樹。箭頭表示 Agent 的下一個檢查問題。</figcaption>
   </figure>
-  <p>2026-09-20 的 Browser Network 紀錄到真正的 <code>GET /jeter-faro-trace-demo-backend/api/scenario/slow</code>，HTTP 200，request header 為：</p>
-  <pre><code>traceparent: 00-6faa6779a2970a3f82ad77e9ab9f4eb7-483e269e249ac6b4-01
-                └──────────── trace ID ────────────┘ └─ caller span ID ─┘</code></pre>
-  <p>再用該 trace ID 查 Grafana 的 Tempo：frontend <code>SPAN_KIND_CLIENT</code> span ID 是 <code>483e269e249ac6b4</code>；backend <code>SPAN_KIND_SERVER</code> span ID 是 <code>bcaf1c3a1ff7cb07</code>，其 parent span ID 正好是 <code>483e269e249ac6b4</code>。兩者同屬 <code>6faa6779a2970a3f82ad77e9ab9f4eb7</code>。Tempo 原始格式以 base64 表示 span ID；這裡轉成 hex 才與 header 比對。</p>
-  <pre><code>同一個 trace ID：6faa6779a2970a3f82ad77e9ab9f4eb7
-Frontend client span A：483e269e249ac6b4
-    └─ sends traceparent(T, A) on business GET → Backend
-Backend server span B：bcaf1c3a1ff7cb07
-    └─ records parentSpanId = A</code></pre>
-  <p>這才證明<strong>這一筆 Jeter request</strong> 的 runtime join；<code>backendUrls</code>、Backend OTel 設定或 request HTTP 200，各自都不足以單獨證明 join。<a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">完整核查與限制</a>、<a href="../sources/evidence/raw/jeter-browser-network-2026-09-20.json">Browser Network 去敏紀錄</a>、<a href="../sources/evidence/raw/jeter-tempo-trace-2026-09-20.json">Tempo span 紀錄</a>。</p>
-
-  <h3>Lab 1｜在 Browser 找 business request 與 traceparent</h3>
-  <div class="box">
-    <p><strong>做什麼：</strong>在有授權的 Jeter stage demo 開啟 DevTools → Network，啟用錄製並清空舊列；以測試身分進入，按一次 Slow。用 <code>scenario/slow</code> 篩選，選 <strong>GET</strong> 那列，不選 <code>/alloy</code> POST 或 OPTIONS。</p>
-    <p><strong>看哪裡：</strong>Headers → General 核對 URL、method、status；再展開 Request Headers 找 <code>traceparent</code>。它的第二段是 trace ID，第三段是 caller span ID。</p>
-    <p><strong>正確時：</strong>本次請求有 header；把<strong>當次新 ID</strong> 記到私人筆記。若沒有，先檢查實際 API URL 是否匹配 propagation 設定、HTTP client 是否受 tracing instrumentation 覆蓋，或 Console 是否有 CORS 錯誤。HTTP 200 只證明 API 成功。</p>
-  </div>
-  <figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/lesson-6/13-devtools-network-list-ui.png" alt="Foreman 範例的真實 DevTools Network request list，顯示 Method 與 Status" loading="lazy"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="0.2" y="9.4" width="46" height="2.3"/></svg></div><figcaption><span class="evidence-mark-note">紅框是教學 overlay，底圖為真實 DevTools。</span><strong>Foreman DevTools 畫面位置示例。</strong>先在 request list 辨認 method、status，再點 request 進詳細資訊。這張不是 Jeter 的 Slow request，不能拿它證明上面的 Jeter header；Jeter 的確切 header 來自去敏 CDP Network 紀錄。</figcaption></figure>
-  <p>目前沒有保留 Jeter <code>traceparent</code> 的真實 DevTools UI 截圖，因此此處用既有 Foreman 真實 Network 畫面教面板位置，用 Jeter 原始 Network 紀錄教數值；沒有把文字摘要偽裝成 DevTools 截圖。<a href="../lessons/0006-browser-devtools-verification.html">Lesson 6 的 DevTools 圖解</a>有 Headers／Payload／Status 的進一步操作示例。</p>
-
-  <h3>Lab 2｜拿當次 trace ID 去 Tempo 驗證</h3>
-  <div class="box">
-    <p><strong>做什麼：</strong>到有權限的 <a href="https://pek8s-staging.garmin.com/grafana/explore">stage Grafana Explore</a>，選 Tempo datasource，把 Lab 1 的<strong>當次 trace ID</strong> 貼進 trace ID 查詢欄；將時間範圍包含剛才操作的時間。</p>
-    <p><strong>看哪裡：</strong>先確認查到的是同一個 trace ID，再展開 Service &amp; Operation。找 frontend 的 HTTP client span、backend 的 server span；在 span detail 或原始 trace 檢查 frontend span ID 與 backend parent span ID 是否相同。</p>
-    <p><strong>正確時：</strong>兩個 service 在同一條 trace，trace ID 相同，而且 backend parent 指向 frontend client span。若只有 backend，優先查 frontend telemetry export；若只有 frontend，查 header、backend context extraction 和 backend export。查不到任何資料時先核對 datasource、時間範圍與 ID。</p>
-  </div>
-  <figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/special-lesson-evidence/grafana-tempo-query-annotated.png" alt="真實 Grafana Explore Tempo 畫面，紅框標示 trace ID 查詢位置，帳號已遮罩" loading="lazy"></div><figcaption><span class="evidence-mark-note">紅框是教學 overlay；帳號區已遮罩。</span>Jeter 範例：選 Tempo，輸入從 Browser 取得的 trace ID。<a href="../assets/special-lesson-evidence/grafana-tempo-query-redacted.png">遮罩後底圖</a></figcaption></figure>
-  <figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/special-lesson-evidence/grafana-tempo-spans-annotated.png" alt="真實 Grafana Tempo trace 畫面，紅框標示 frontend 與 backend span tree，帳號已遮罩" loading="lazy"></div><figcaption><span class="evidence-mark-note">紅框是教學 overlay；帳號區已遮罩。</span>Jeter 範例：畫面可見 frontend 與 backend service 的 span tree，共 3 spans；精確 parent ID 比對另由 Tempo 原始紀錄證明。<a href="../assets/special-lesson-evidence/grafana-tempo-spans-redacted.png">遮罩後底圖</a></figcaption></figure>
-
-  <h2>4. Jeter：Frontend error 要一路追到 Grafana</h2>
-  <p>Browser Console 看得到錯誤，只證明 Browser 產生錯誤。Faro 必須捕捉它、送出 telemetry；receiver 接受後，資料還須進入儲存，Grafana 才查得到。2026-09-20 在 Jeter stage demo 產生一筆不改動業務資料的受控 uncaught Error，marker 為 <code>OTEL_FRONTEND_EVIDENCE_20260920_0415</code>。這是核查用標記，不是應用功能。</p>
-  <div class="table-wrap"><table><thead><tr><th>邊界</th><th>該次觀察</th><th>能證明到哪裡</th></tr></thead><tbody>
-    <tr><td>Browser error</td><td>Chrome <code>Runtime.exceptionThrown</code> 有 marker</td><td>Browser 確實發生錯誤。</td></tr>
-    <tr><td>Faro capture／送出</td><td><code>POST /alloy</code> 的 <code>exceptions[]</code> 含 marker；app 為 Jeter frontend</td><td>Faro 把該錯誤放進 outbound payload。</td></tr>
-    <tr><td>Receiver</td><td>同一 request ID <code>12564.15</code> 回 HTTP 202</td><td>receiver 接受 request；不代表 storage 成功。</td></tr>
-    <tr><td>Storage／Grafana</td><td>Loki query 回一筆相同 service 與 marker 的 exception log</td><td>該筆資料可由 Grafana 實際查詢。</td></tr>
+  <p>Agent 不應一拿到 repo 就貼入 Faro 初始化。先回答「應用從哪裡啟動」與「真正的 API request 從哪裡送出」，才能避免改到沒有被 Browser 執行的檔案。</p>
+  <div class="table-wrap"><table><thead><tr><th>先找的實物</th><th>它回答什麼</th><th>找不到怎麼辦</th></tr></thead><tbody>
+    <tr><td><code>package-lock.json</code>、<code>yarn.lock</code>、<code>pnpm-lock.yaml</code></td><td>package manager 與可重現的指令</td><td>讀 repo 既有 script，不要猜指令。</td></tr>
+    <tr><td>entry point、Faro dependency、初始化</td><td>Faro 是否已在 Browser 啟動</td><td>已有初始化先檢查，避免雙重初始化。</td></tr>
+    <tr><td>runtime config、backend base URL</td><td>部署後實際呼叫哪個 API</td><td>向專案取得環境 URL，不要硬編碼 Jeter URL。</td></tr>
+    <tr><td><code>fetch</code>、XHR、<code>axios</code>、custom wrapper</td><td>哪個程式送出 business request</td><td>追 wrapper，並用 Browser Network 確認。</td></tr>
   </tbody></table></div>
-  <p>部署設定顯示 <code>Alloy → Collector → Loki</code> 路徑；這次沒有取得<strong>該單筆錯誤</strong>在 Collector receive/export 的 metrics 或 logs。因此「經每個 Collector 處理節點」是根據設定與最終 Loki 紀錄的推論，不能寫成逐跳 runtime 實證。<a href="../sources/evidence/frontend-error-grafana-runtime-2026-09-20.md">error runtime evidence</a>、<a href="../sources/evidence/collector-pipeline.md">pipeline 設定 evidence</a>。</p>
+  <p class="source-note">Foreman 是 Angular、Jeter 是 React；它們只提供辨識方法的對照。參考：<a href="../sources/evidence/foreman-integration.md">Foreman source evidence</a>、<a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter source evidence</a>。</p>
 
-  <h3>Evidence walkthrough｜error capture 與 Faro POST</h3>
-  <p>既有受控錯誤是調查時在 demo page 觸發，沒有觀察到供 learner 安全重做的 error 按鈕；不要在正式應用任意注入 exception。此段請讀已保存的 <a href="../sources/evidence/raw/jeter-frontend-error-browser-2026-09-20.json">去敏 Browser 紀錄</a>：先找 Console exception marker，再找同 marker 的 <code>POST /alloy</code>、<code>exceptions[]</code> 和同 request ID 的 202。原始 payload 因可能含身分／session 欄位而未保存。</p>
-  <figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/lesson-6/15-devtools-click-payload-ui.png" alt="Foreman 真實 DevTools Payload 畫面，紅框標示 events 欄位，敏感資料未展開" loading="lazy"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="17.1" y="30.6" width="39" height="7.8"/></svg></div><figcaption><span class="evidence-mark-note">紅框是教學 overlay，底圖為真實 DevTools。</span><strong>Foreman 的面板位置示例。</strong>選 telemetry POST → Payload → 展開對應 signal。圖中是 Foreman <code>events[]</code> click，<strong>不是</strong> Jeter error；Jeter error 的欄位是 <code>exceptions[]</code>，由去敏 Network 紀錄證明。</figcaption></figure>
-  <figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/lesson-6/16-devtools-post-status-ui.png" alt="Foreman 真實 DevTools POST Headers 畫面，紅框標示 202，session header 已遮罩" loading="lazy"><svg class="evidence-focus" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="14.1" y="25.8" width="36.4" height="6.2"/></svg></div><figcaption><span class="evidence-mark-note">紅框是教學 overlay，底圖為真實 DevTools。</span><strong>Foreman 的 HTTP status 位置示例。</strong>202 只關閉 Browser → receiver 的 HTTP 邊界；Jeter 該次 202 由相同 request ID 的 CDP Network 紀錄證明。這兩筆 POST 不可視為同一筆。</figcaption></figure>
+  <h2>2. 先分清兩條網路路徑</h2>
+  <figure class="visual-card" aria-label="Business request 與 telemetry export 的兩條路徑">
+    <p class="visual-label">因果圖｜兩個 request，兩個目的</p>
+    <div class="two-paths">
+      <div class="path path-a">
+        <h3>Path A｜Business API</h3>
+        <div class="flow-stack">
+          <div class="flow-node"><strong>Browser</strong><small>Frontend HTTP client span</small></div>
+          <div class="flow-arrow"><span>sends business request + <code>traceparent</code> to</span></div>
+          <div class="flow-node"><strong>Backend API</strong><small>建立自己的 server span</small></div>
+        </div>
+      </div>
+      <div class="path path-b">
+        <h3>Path B｜Telemetry</h3>
+        <div class="flow-stack">
+          <div class="flow-node"><strong>Browser Faro</strong><small>span、error、event</small></div>
+          <div class="flow-arrow"><span>exports telemetry to</span></div>
+          <div class="flow-node"><strong>Alloy / Faro receiver</strong><small>接受 Browser 的 telemetry</small></div>
+          <div class="flow-arrow"><span>forwards to</span></div>
+          <div class="flow-node"><strong>Collector → Tempo / Loki</strong><small>儲存後才能查詢</small></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>箭頭已寫出語意：Path A sends a business request；Path B exports telemetry。這是概念圖，不是 UI 截圖。</figcaption>
+  </figure>
+  <p><code>backendUrls</code> 是 tracing instrumentation 用來匹配<strong>業務 API URL</strong> 的設定概念；它不是 Alloy receiver URL。Business request 也不是 telemetry export request。即使 header 傳出去了，Frontend span 還是要靠 Path B 送到 Tempo，Backend span 也要有自己的 export。</p>
+  <p class="source-note">參考：<a href="../sources/evidence/trace-context-propagation.md">trace context</a>、<a href="../sources/evidence/browser-to-alloy.md">Browser → Alloy</a>、<a href="../sources/evidence/collector-pipeline.md">Collector pipeline</a>。</p>
 
-  <h3>Lab 3｜在 Grafana 找那筆已驗證的 error</h3>
-  <div class="box">
-    <p><strong>做什麼：</strong>在 stage Grafana Explore 選 Loki。使用已驗證的 query；時間範圍涵蓋 2026-09-20 04:03 Asia/Taipei（UI 可能以 UTC 顯示，對應 2026-09-19 20:03 UTC）。</p>
-    <pre><code>{service_name="jeter-faro-trace-demo-frontend"} |= "OTEL_FRONTEND_EVIDENCE_20260920_0415"</code></pre>
-    <p><strong>看哪裡：</strong>result count 與 log row 的 marker、<code>kind=exception</code>、<code>level=error</code>、timestamp。這些值把 Grafana result 對回 Browser 的 error。</p>
-    <p><strong>正確時：</strong>核查當時查到 Total: 1。若現在查不到歷史紀錄，先檢查 retention、時間範圍、datasource、service label；歷史資料可能已到期。當前結果必須依當前查詢判斷。</p>
+  <h2>3. Jeter：用一筆 Slow request 驗收 distributed trace</h2>
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><img src="../assets/special-lesson-evidence/jeter-slow-scenario-redacted-annotated.png" alt="真實 Jeter stage 頁面的 Slow 操作，紅框標示按鈕，employee ID 已遮罩" loading="lazy"></div>
+    <figcaption><span class="evidence-mark-note">真實 Jeter stage page；紅框是教學 overlay，employee ID 是額外隱私遮罩。</span>這次 runtime evidence 從這個 Slow request 開始。按鈕本身只告訴我們要觸發哪個 demo API；trace 關係要在 DevTools 與 Tempo 看。</figcaption>
+  </figure>
+  <p>先記住操作，而不是先背 ID：按一次 Slow，接著在 Network 找同一個 business request。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-network-slow-focus-annotated.png"><img src="../assets/special-lesson-evidence/jeter-network-slow-annotated.png" alt="真實 Jeter DevTools Network 清單，紅框標示 slow business request" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Jeter DevTools Network；紅框只標示要點的 slow row。</span>這裡選 GET 的 <code>slow</code> row，不要把旁邊的 <code>/alloy</code> POST 當成 business request。<a href="../assets/special-lesson-evidence/jeter-network-slow-base.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+  <p>你現在看到的是 Path A 的 request。下一個觀察是它的 Request Headers，因為跨 Browser 與 Backend 的 relationship 會放在那裡。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-traceparent-focus-annotated.png"><img src="../assets/special-lesson-evidence/jeter-traceparent-header-annotated.png" alt="真實 Jeter DevTools Request Headers，紅框標示 traceparent header" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Jeter DevTools Request Headers；紅框只標示 <code>traceparent</code>。</span>完整 header 是本次 request 的 runtime observation，不是設定檔推論。<a href="../assets/special-lesson-evidence/jeter-traceparent-header-base.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+  <p>先不用背整串。只取兩個值：<strong>T</strong> 是整條 trace，<strong>A</strong> 是 Browser 這個 client span。</p>
+  <div class="visual-card">
+    <p class="visual-label">把 header 讀成關係</p>
+    <div class="parts" aria-label="traceparent 四段的簡化示意"><span>00</span><span class="part-t">T</span><span class="part-a">A</span><span>01</span></div>
+    <div class="part-notes"><span><strong>T</strong><br>整條工作從哪一個 trace 來。</span><span><strong>A</strong><br>這一個 Frontend span 的 ID。</span></div>
+    <p class="source-note">這是格式的教學簡化；真實值在上方 screenshot 與 evidence source。完整 W3C 格式參考 <a href="../reference/0006-w3c-traceparent.html">traceparent reference</a>。</p>
   </div>
-  <figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/special-lesson-evidence/grafana-loki-query-annotated.png" alt="真實 Grafana Explore Loki query 畫面，紅框標示 datasource 與查詢欄，帳號已遮罩" loading="lazy"></div><figcaption><span class="evidence-mark-note">紅框是教學 overlay；帳號區已遮罩。</span>選 Loki，輸入 Jeter service 與唯一 marker 的 query。<a href="../assets/special-lesson-evidence/grafana-loki-query-redacted.png">遮罩後底圖</a></figcaption></figure>
-  <figure class="diagram evidence-shot"><div class="evidence-frame"><img src="../assets/special-lesson-evidence/grafana-loki-result-annotated.png" alt="真實 Grafana Loki exception result，紅框標示匹配 row，使用者與 session 欄位已遮罩" loading="lazy"></div><figcaption><span class="evidence-mark-note">紅框是教學 overlay；user／session 欄位已遮罩。</span>看 Total: 1、timestamp、exception marker；這才是 downstream 查得到的證據。<a href="../assets/special-lesson-evidence/grafana-loki-result-redacted.png">遮罩後底圖</a></figcaption></figure>
-  <p>既有 Foreman dashboard 的 service query 與本次 Jeter service 不同；先前在限定 24 小時查詢 Foreman label 得到零筆，不代表 Jeter 沒資料，也不代表 dashboard 已更新。本課用上述 Jeter Loki query 驗證當次 error；沒有修改 dashboard。<a href="../sources/evidence/grafana-ui-runtime-2026-09-20.md">Grafana UI runtime evidence</a>。</p>
 
-  <h2>5. 把案例抽象成 Agent Skill 決策流程</h2>
-  <p>Agent 的通用工作是<strong>辨識、最小修改、逐層驗證</strong>。具體 URL、身份資料、業務事件欄位則由各專案決定。下面是設計 Skill 時可直接檢查的順序，不是要把 Jeter 或 Foreman 程式碼原封不動貼進所有 repo。</p>
-  <div class="table-wrap"><table><thead><tr><th>Agent 步驟</th><th>範圍</th><th>找不到／失敗時的決策</th></tr></thead><tbody>
-    <tr><td>1. 辨識 framework、package manager、build/test script</td><td>通用</td><td>先讀 repo 慣例；無法確定時請專案提供建置方式。</td></tr>
-    <tr><td>2. 找 app entry point、Faro dependency、現有初始化</td><td>通用</td><td>沒有才導入；已有則保留有效選項，避免雙重初始化。</td></tr>
-    <tr><td>3. 找 runtime config、HTTP client 與實際 backend base URL</td><td>通用方法；值依專案</td><td>檢查 fetch／XHR／axios／wrapper；URL 不明時不可猜。</td></tr>
-    <tr><td>4. 檢查 error capture、API tracing、propagation URL pattern</td><td>通用方法；pattern 依專案</td><td>分開檢查 Browser error、business request header、Faro outbound。</td></tr>
-    <tr><td>5. 保留業務 instrumentation，只補缺的程式</td><td>通用原則；欄位依專案</td><td>Foreman 的 <code>data-link-name</code>、<code>subsystem</code> 不可變成通用 requirement。</td></tr>
-    <tr><td>6. 依 repo scripts build/test；在 Browser 核對 payload、status</td><td>通用</td><td>build 成功不等於 runtime 成功；找第一個失敗邊界。</td></tr>
-    <tr><td>7. 查 receiver／Collector／storage／Grafana</td><td>通用；權限／datasource 依環境</td><td>202 只證明 receiver；用對應紀錄查下游。</td></tr>
-    <tr><td>8. Backend 已有 tracing 時查 same trace／parent</td><td>條件式通用</td><td>用實際 request 的 trace ID，不拿 config 當 join 證明。</td></tr>
+  <h3>Tempo：先查 T，再看兩端 span</h3>
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-tempo-query-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-tempo-query-annotated.png" alt="真實 Grafana Explore Tempo 查詢畫面，紅框標示 trace ID 欄位" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Explore / Tempo；帳號區不在裁切範圍，紅框是教學 overlay。</span>把 Browser 剛才取得的 T 貼進這個 trace ID 欄位。<a href="../assets/special-lesson-evidence/grafana-tempo-query-redacted.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+  <p>查詢欄的 T 是 <code>e0a53e…</code> 這一筆 runtime trace。圖中的省略只為了降低 working-memory 負擔；不要拿另一筆 trace 的 ID 來比。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-tempo-spans-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-tempo-spans-annotated.png" alt="真實 Grafana Tempo trace tree，紅框標示 Jeter frontend 與 backend spans" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Tempo trace result；紅框只標示 frontend/backend span tree。</span>同一個 T 下，Tempo 顯示 Jeter frontend 與 Jeter backend，共 3 spans。這證明兩端都進入同一條查詢結果；parent equality 在下一個 evidence diagram 比對。<a href="../assets/special-lesson-evidence/grafana-tempo-spans-redacted.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-frontend-span-id-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-frontend-span-id-annotated.png" alt="真實 Grafana Tempo frontend span detail，紅框標示 frontend SpanID" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Tempo span detail；紅框只標示 frontend SpanID。</span>這張 UI 把 A 顯示成 frontend 的 SpanID。Grafana 這個 detail panel 沒有顯示 backend parent 欄位，因此下一張是明確標示來源的 evidence comparison diagram。</figcaption>
+  </figure>
+  <figure class="visual-card">
+    <p class="visual-label">Evidence comparison diagram｜來自同一筆 Tempo runtime API projection，非 Grafana UI</p>
+    <div class="comparison">
+      <div class="flow-node"><strong>Frontend client span</strong><small>Span ID = A<br><code>10dc5dfab188fdc0</code></small></div>
+      <div class="equals">=</div>
+      <div class="flow-node"><strong>Backend server span</strong><small>Parent Span ID = A<br><code>10dc5dfab188fdc0</code></small></div>
+    </div>
+    <figcaption>數值來自已驗證的 Tempo runtime API evidence；這張整理圖不是 UI 截圖。兩邊都是 A，所以 Backend span 的 parent 就是 Frontend span。</figcaption>
+  </figure>
+  <p>因此這一筆 Jeter Slow request 的結論是：</p>
+  <div class="box tip"><strong>RUNTIME JOIN VERIFIED</strong><br>Browser 的 <code>traceparent</code> 帶出 T 與 A；Tempo 查到同一個 T；Backend server span 的 parent 是 A。這是這一筆 request 的證明，不是所有 endpoint 或所有 Frontend repo 的保證。</div>
+  <details>
+    <summary>補充：完整值與 evidence source</summary>
+    <p>本次 T 為 <code>e0a53e388efd225f43fb08e7fd68aa23</code>；Frontend A 為 <code>10dc5dfab188fdc0</code>；Backend server span 為 <code>ceb5e675fed3017a</code>，其 parent 為 A。去敏 projection 與限制見 <a href="../sources/evidence/special-lesson-visual-runtime-2026-09-20.md">visual runtime evidence</a>。Raw projection 保留在 <a href="../sources/evidence/raw/special-lesson-visual-runtime-2026-09-20.json">raw evidence</a>。</p>
+  </details>
+
+  <h3>Lab 1｜重做一次 Browser 檢查</h3>
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-traceparent-focus-annotated.png"><img src="../assets/special-lesson-evidence/jeter-traceparent-header-annotated.png" alt="Lab 1 參考畫面：Jeter DevTools traceparent header" loading="lazy"></picture></div>
+    <figcaption>先看圖：你要在 Request Headers 找到紅框的 <code>traceparent</code>，不是在 Console 猜 trace ID。</figcaption>
+  </figure>
+  <div class="box">
+    <p><strong>做什麼：</strong>在有授權的 Jeter stage demo 開啟 DevTools → Network，清空舊列，按一次 Slow，再選 GET 的 <code>scenario/slow</code>。</p>
+    <p><strong>看哪裡：</strong>Headers → Request Headers → <code>traceparent</code>。把當次 T 與 A 記到私人筆記，不要把 credential 或 cookie 存進 repo。</p>
+    <p><strong>判斷：</strong>有 header 才能繼續查關係；HTTP 200 只證明 API 回應成功。沒有 header 時，檢查實際 URL 是否匹配 propagation pattern、HTTP wrapper 是否被 instrumentation 覆蓋，以及 CORS 是否允許 header。</p>
+  </div>
+
+  <h3>Lab 2｜把當次 T 帶到 Tempo</h3>
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-tempo-query-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-tempo-query-annotated.png" alt="Lab 2 參考畫面：Grafana Tempo trace ID query" loading="lazy"></picture></div>
+    <figcaption>先看圖：把 Lab 1 的 T 貼在紅框 query 欄位，再看下一張 span tree。</figcaption>
+  </figure>
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-tempo-spans-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-tempo-spans-annotated.png" alt="Lab 2 參考畫面：Grafana Tempo frontend backend span tree" loading="lazy"></picture></div>
+    <figcaption>正確時應看見 frontend 與 backend 在同一個 trace result；再用 evidence comparison diagram 檢查 parent relationship。</figcaption>
+  </figure>
+  <div class="box">
+    <p><strong>做什麼：</strong>到有權限的 Grafana Explore，選 Tempo，貼上<strong>當次</strong> trace ID。</p>
+    <p><strong>判斷：</strong>同一 T 加上 Frontend client 與 Backend server 才是第一層證據；Backend parent = Frontend span 才完成 join。只有其中一端時，先查該端的 telemetry export 或 context extraction。</p>
+  </div>
+
+  <h2>4. Frontend error：從 Console 走到 Loki</h2>
+  <figure class="visual-card" aria-label="Frontend error 到 Grafana Loki 的概念流程">
+    <p class="visual-label">因果圖｜每一個箭頭都是要另外驗證的 boundary</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>Browser error</strong><small>Console 看到 uncaught error</small></div>
+      <div class="flow-arrow"><span>captured by</span></div>
+      <div class="flow-node"><strong>Faro</strong><small>放進 telemetry payload</small></div>
+      <div class="flow-arrow"><span>exports POST /alloy to</span></div>
+      <div class="flow-node"><strong>Receiver</strong><small>回 202 只代表接受</small></div>
+      <div class="flow-arrow"><span>forwards through configured route to</span></div>
+      <div class="flow-node"><strong>Loki</strong><small>Grafana query 能找到才算 storage visibility</small></div>
+    </div>
+    <figcaption>這是 error path 的因果圖，不是部署拓撲 screenshot。Collector 的每個跳點仍要以各自證據界定。</figcaption>
+  </figure>
+  <p>這次使用 Jeter stage 的受控錯誤 marker <code>OTEL_VISUAL_CHECK_20260920_B</code>。它是 unique test identifier，不是時間戳，也沒有改動業務資料。因為沒有觀察到安全的 error button，這一段是 <strong>Evidence Walkthrough</strong>，不是要求 learner 注入 exception 的 Lab。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-error-console-focus-annotated.png"><img src="../assets/special-lesson-evidence/jeter-error-console-annotated.png" alt="真實 Jeter DevTools Console，紅框標示受控 frontend error marker" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Jeter DevTools Console；紅框只標示本次 marker。</span>Browser 確實產生這個 error。上方其他 marker 是同一調查 session 的舊紀錄，教學焦點只在紅框這一列。<a href="../assets/special-lesson-evidence/jeter-error-console-base.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+  <p>第一個 boundary 已證明：Browser 有 error。接著看同一個 marker 是否進入 Faro 的 outbound payload。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-error-exceptions-focus-annotated.png"><img src="../assets/special-lesson-evidence/jeter-error-exceptions-annotated.png" alt="真實 Jeter DevTools Payload，紅框標示 exceptions 陣列中的同一 marker" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Jeter DevTools Network Payload；紅框是教學 overlay。</span>Console 的同一 marker 出現在 <code>exceptions[]</code>。這證明 Faro capture 了它並準備送出；<a href="../assets/special-lesson-evidence/jeter-error-exceptions-base.png">隱私檢查後底圖</a>。</figcaption>
+  </figure>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-error-receiver-202-focus-redacted-annotated.png"><img src="../assets/special-lesson-evidence/jeter-error-receiver-202-redacted-annotated.png" alt="真實 Jeter DevTools POST /alloy detail，紅框標示 HTTP 202，內部位址已遮罩" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Jeter DevTools request detail；紅框只標示 Status Code 202，內部位址是額外隱私遮罩。</span>這只證明 Browser → receiver 的 request 被接受，不直接證明 Loki 已有資料。<a href="../assets/special-lesson-evidence/jeter-error-receiver-202-redacted.png">隱私檢查後底圖</a>。</figcaption>
+  </figure>
+  <figure class="visual-card">
+    <p class="visual-label">Boundary diagram｜202 的證明範圍</p>
+    <div class="comparison">
+      <div class="flow-node"><strong>Browser</strong><small>POST /alloy → 202</small></div>
+      <div class="equals">verified</div>
+      <div class="flow-node"><strong>Receiver</strong><small>accepted request</small></div>
+    </div>
+    <div class="comparison" style="margin-top:.7rem">
+      <div class="flow-node"><strong>Receiver</strong><small>downstream processing</small></div>
+      <div class="equals">?</div>
+      <div class="flow-node"><strong>Loki / Grafana</strong><small>需另外 query</small></div>
+    </div>
+    <figcaption>這是 boundary teaching diagram；202 不會替下游 storage 作保證。</figcaption>
+  </figure>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-loki-query-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-loki-query-annotated.png" alt="真實 Grafana Explore Loki query，紅框標示 Jeter service 與 unique marker 查詢" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Explore / Loki；紅框是教學 overlay。</span>現在用 Jeter service + unique marker 查 Loki。<a href="../assets/special-lesson-evidence/grafana-loki-query-redacted.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+  <p>這裡不是用舊的 Foreman dashboard query。查詢條件必須與當前 runtime service 和 marker 相符。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-loki-result-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-loki-result-annotated.png" alt="真實 Grafana Loki result，紅框標示同一 frontend error marker，user 和 session 已裁掉" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Loki result；user/session 欄位已在裁切前移除，紅框只標示 marker。</span><code>Total: 1</code>，而且 exception row 含相同 marker、<code>kind=exception</code>、<code>level=error</code>。<a href="../assets/special-lesson-evidence/grafana-loki-result-redacted.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+  <p>現在才可以下完整結論：同一個 marker 從 Browser Console → Faro <code>exceptions[]</code> → receiver 202 → Grafana Loki result 被對上。Collector 的 record-specific receive/export metrics 沒有在本次 capture 取得，因此不能把每一個 Collector hop 寫成已逐跳觀察。</p>
+  <div class="table-wrap"><table class="boundary-table"><thead><tr><th>觀察</th><th>這次能證明</th><th>還不能證明</th></tr></thead><tbody>
+    <tr><td>Console marker</td><td>Browser 真的發生 error</td><td>Faro 或 storage 已收到</td></tr>
+    <tr><td><code>exceptions[]</code></td><td>Faro 把 error 放進 outbound payload</td><td>downstream storage 可查</td></tr>
+    <tr><td>HTTP 202</td><td>receiver 接受 request</td><td>Loki 一定有資料</td></tr>
+    <tr><td>Loki Total: 1</td><td>這筆 marker 在 Grafana 可查</td><td>所有 Collector hop 都有逐筆 metrics</td></tr>
   </tbody></table></div>
-  <p>有些事情可以由 Agent 從 repo 自動判斷，例如 lockfile、入口、現有依賴與 HTTP wrapper。實際部署 URL、允許加 header 的 CORS 設定、可用的測試 error path、Grafana 權限、業務欄位語意可能需要 project-specific input。若公司將來制定統一 KPI，那是額外的 company convention；不應偷渡進通用 Faro Skill。<a href="../sources/evidence/special-lesson-skill-design-findings-2026-09-20.md">18 步 evidence-backed checklist</a>。</p>
+  <details>
+    <summary>Evidence source 與限制</summary>
+    <p>完整去敏紀錄在 <a href="../sources/evidence/special-lesson-visual-runtime-2026-09-20.md">visual runtime evidence</a> 與 <a href="../sources/evidence/raw/special-lesson-visual-runtime-2026-09-20.json">raw projection</a>。既有 Alloy → Collector → Loki 路徑屬於 source/config evidence；本次只把 receiver acceptance 與 Loki visibility 分開驗證，沒有改 dashboard 或 production data。</p>
+  </details>
 
-  <h2>6. 驗收失敗時，找第一個沒有證據的邊界</h2>
-  <pre><code>Grafana 沒有 error
-Browser Console 有 error？
-  └─ Faro POST 的 exceptions[] 有同一 marker？
-       └─ receiver 接受？
-            └─ Collector 收到／送出？（這次沒有單筆逐跳證據）
-                 └─ Loki 有同一 marker？
-                      └─ Grafana datasource、時間、query 正確？</code></pre>
-  <pre><code>Frontend／Backend trace 沒接起來
-Browser 有 client span？
-  └─ business request 有 traceparent？URL pattern、HTTP client、CORS？
-       └─ Backend server span 有 extract context 與相同 trace ID？
-            └─ Backend parentSpanId = frontend span ID？
-                 └─ 兩邊 span 都 export 到 Tempo，Grafana 查對 trace？</code></pre>
-  <p>每走一步先寫下<strong>預期、實際觀察、證據位置</strong>。若只有設定就標「設定已驗證，runtime 未證明」；若 Browser POST 回 202，就只說 receiver 接受；若 Tempo 看到同 trace 且 parent ID 相同，才說這一筆 join 已證明。不要把某一環尚未調查寫成「已壞」。</p>
+  <h2>5. 把觀察抽象成 Agent Skill decision flow</h2>
+  <figure class="visual-card" aria-label="Agent Skill 從 repo 到 Grafana 的決策流程">
+    <p class="visual-label">決策圖｜先辨識，再最小修改，再逐層驗證</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>Receive frontend repo</strong></div>
+      <div class="flow-arrow"><span>detect framework、package manager、entry point</span></div>
+      <div class="flow-node"><strong>Find existing Faro + runtime config</strong></div>
+      <div class="flow-arrow"><span>find HTTP mechanism、backend base URL、propagation pattern</span></div>
+      <div class="flow-node"><strong>Choose the minimum code change</strong></div>
+      <div class="flow-arrow"><span>preserve business instrumentation；build / test</span></div>
+      <div class="flow-node"><strong>Verify Browser → receiver → storage → Grafana</strong></div>
+      <div class="flow-arrow"><span>if backend tracing exists, verify same T and parent = A</span></div>
+      <div class="flow-node"><strong>Accept, fix, or ask for project-specific input</strong></div>
+    </div>
+    <figcaption>概念圖；箭頭代表 Agent 的下一個 decision boundary，不是某個專案的自動化腳本。</figcaption>
+  </figure>
+  <div class="generic-specific">
+    <div><h3>GENERIC｜可重用的 Skill 工作</h3><ul><li>找 entry point 與 package manager</li><li>找 Faro dependency / initialization</li><li>找 fetch、XHR、axios、custom client</li><li>找 backend base URL 與 propagation pattern</li><li>檢查 error capture、API tracing、Faro export</li><li>build/test，做 Browser 與 Grafana runtime verify</li></ul></div>
+    <div><h3>PROJECT-SPECIFIC｜不能硬套的語意</h3><ul><li>Foreman 的 <code>data-link-name</code></li><li>Foreman 的 <code>subsystem</code></li><li>business KPI 與 click semantics</li><li>特定 user callback 或 domain event</li><li>部署 URL、CORS policy、可用的安全測試 path</li></ul></div>
+  </div>
+  <p>通用 Skill 應把左欄做成檢查流程；右欄要保留現有專案語意，或明確要求 project-specific input。不能因為 Foreman 有欄位，就把它變成所有 Frontend 的 Faro requirement。</p>
+  <div class="table-wrap"><table><thead><tr><th>Agent 必做的檢查</th><th>分類</th><th>找不到／失敗時</th></tr></thead><tbody>
+    <tr><td>1. Detect frontend framework</td><td>generic</td><td>讀 package scripts 與 source 結構；不確定就保留未知。</td></tr>
+    <tr><td>2. Detect package manager</td><td>generic</td><td>用 lockfile 決定安裝／驗證指令，不要猜。</td></tr>
+    <tr><td>3. Detect existing Faro dependency</td><td>generic</td><td>缺少才規劃導入；已有則檢查版本與用途。</td></tr>
+    <tr><td>4. Find application entry point</td><td>generic</td><td>追到 Browser 真正載入的 module。</td></tr>
+    <tr><td>5. Find Faro initialization</td><td>generic</td><td>已有初始化先保留，避免雙重初始化。</td></tr>
+    <tr><td>6. Find runtime environment / config source</td><td>generic method / project value</td><td>確認 deployment config；不要把 stage URL 寫死。</td></tr>
+    <tr><td>7. Detect HTTP mechanism</td><td>generic</td><td>檢查 fetch、XHR、axios 與 custom wrapper。</td></tr>
+    <tr><td>8. Detect backend base URLs</td><td>generic method / project value</td><td>URL 不明不可猜，需要 project input。</td></tr>
+    <tr><td>9. Determine trace propagation URL patterns</td><td>generic method / project value</td><td>用實際 Network request 確認 pattern 是否 match。</td></tr>
+    <tr><td>10. Check frontend error instrumentation</td><td>generic</td><td>分開確認 Console error 是否進 Faro payload。</td></tr>
+    <tr><td>11. Check API request tracing</td><td>generic</td><td>確認 business request 是否產生 client span。</td></tr>
+    <tr><td>12. Preserve existing business instrumentation</td><td>generic rule / project fields</td><td>保留 business logic，不移植 Foreman 欄位。</td></tr>
+    <tr><td>13. Apply minimal code changes</td><td>generic</td><td>只補已證明的缺口，避免重寫既有 client。</td></tr>
+    <tr><td>14. Build / test</td><td>generic</td><td>build 成功不等於 runtime 成功。</td></tr>
+    <tr><td>15. Verify browser telemetry</td><td>generic method / environment access</td><td>看 Console、Network、payload 與 status。</td></tr>
+    <tr><td>16. Verify collector delivery</td><td>generic method / environment access</td><td>若沒有 record-specific evidence，標為未證明。</td></tr>
+    <tr><td>17. Verify Grafana visibility</td><td>generic method / environment access</td><td>用正確 datasource、時間與 query 查 storage。</td></tr>
+    <tr><td>18. Verify frontend-backend correlation when tracing exists</td><td>conditional generic</td><td>用當次 T 檢查 Backend parent = Frontend span；沒有 Backend tracing 就標明未適用。</td></tr>
+  </tbody></table></div>
+  <p class="source-note">這個順序整理自 <a href="../sources/evidence/special-lesson-skill-design-findings-2026-09-20.md">skill-design findings</a>；它是設計與審查 checklist，不是現在要直接寫出的完整 Skill。</p>
 
-  <h2>Self-check｜先回答，再看回饋</h2>
+  <h2>6. Debug 時找第一個證據中斷</h2>
+  <figure class="visual-card debug-tree">
+    <p class="visual-label">Failure tree｜Grafana 沒有 error</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>Grafana 沒有 error</strong></div>
+      <div class="flow-arrow"><span>next verification boundary</span></div>
+      <div class="flow-node"><strong>Browser 有同一個 error marker 嗎？</strong></div>
+      <div class="flow-arrow"><span>如果有，找 Faro outbound payload</span></div>
+      <div class="flow-node"><strong><code>exceptions[]</code> 有同一 marker 嗎？</strong></div>
+      <div class="flow-arrow"><span>如果有，核對 receiver status</span></div>
+      <div class="flow-node"><strong>receiver accepted 嗎？</strong></div>
+      <div class="flow-arrow"><span>再查 storage 與 datasource/query</span></div>
+      <div class="flow-node pass"><strong>Loki / Grafana 找到同一 marker</strong></div>
+    </div>
+    <figcaption>每一個箭頭都是下一個要取得的證據，不是自動推論。</figcaption>
+  </figure>
+  <figure class="visual-card debug-tree">
+    <p class="visual-label">Failure tree｜Frontend / Backend trace 沒接起來</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>Browser 有 client span 嗎？</strong></div>
+      <div class="flow-arrow"><span>再看 business request</span></div>
+      <div class="flow-node"><strong>Request 有 <code>traceparent</code> 嗎？URL、HTTP client、CORS？</strong></div>
+      <div class="flow-arrow"><span>再看 Backend context extraction</span></div>
+      <div class="flow-node"><strong>Backend 有同一個 T 嗎？</strong></div>
+      <div class="flow-arrow"><span>再比 parent = A</span></div>
+      <div class="flow-node"><strong>Backend parent 是否等於 Frontend span A？</strong></div>
+      <div class="flow-arrow"><span>最後核對兩端 export 與 Tempo query</span></div>
+      <div class="flow-node pass"><strong>同一 T、正確 parent、兩端都可查</strong></div>
+    </div>
+    <figcaption>先找第一個沒有證據的節點；不要從「Grafana 沒資料」直接猜是哪一段壞了。</figcaption>
+  </figure>
+  <p>審查 Agent 結果時，記三欄：<strong>預期</strong>、<strong>實際觀察</strong>、<strong>證據位置</strong>。只有設定時寫「configuration verified」；有 Browser header 不等於 Tempo join；有 202 不等於 Loki visibility。</p>
+
+  <h2>Self-check</h2>
   <div class="quiz" data-quiz><div class="question">Q1. Browser business API request 有 <code>traceparent</code>，可以宣稱 Tempo 一定有完整 frontend + backend trace 嗎？</div><div class="choices">
-    <button class="choice" data-correct="false" data-feedback-incorrect="header 只證明 context 傳出；兩端 span 的 export 與 Tempo 查詢仍需驗證。">可以，header 已證明兩端存入 Tempo</button>
-    <button class="choice" data-correct="true" data-feedback-correct="對。還要查同 trace ID、兩端 span 與 parent relationship。">不行，還要查兩端 span 與 parent</button>
-    <button class="choice" data-correct="false" data-feedback-incorrect="API status 不保證 span export。">可以，API 回 200 就足夠證明</button>
+    <button class="choice" data-correct="false" data-feedback-incorrect="Header 只證明 context 傳出；兩端 span 的 export 與 Tempo 查詢仍需驗證。">可以，header 已證明兩端存入 Tempo</button>
+    <button class="choice" data-correct="true" data-feedback-correct="對。還要查同 T、兩端 span，以及 Backend parent 是否等於 Frontend span。">不行，還要查兩端 span 與 parent</button>
+    <button class="choice" data-correct="false" data-feedback-incorrect="API status 不保證 span export 或 storage visibility。">可以，API 回 200 就足夠證明</button>
   </div><div class="feedback" aria-live="polite"></div></div>
   <div class="quiz" data-quiz><div class="question">Q2. Faro POST 回 202，能直接宣稱 Grafana 查得到嗎？</div><div class="choices">
-    <button class="choice" data-correct="true" data-feedback-correct="對。202 只證明 receiver 接受；還要查 storage 與 Grafana。">不能，仍須查儲存與 Grafana 結果</button>
-    <button class="choice" data-correct="false" data-feedback-incorrect="receiver acceptance 與 downstream query 是不同證據。">可以，202 已代表 Grafana 收到資料</button>
-    <button class="choice" data-correct="false" data-feedback-incorrect="202 不是 Browser Console 的狀態。">不能，應先看 Browser Console 顏色</button>
+    <button class="choice" data-correct="true" data-feedback-correct="對。202 只證明 receiver 接受；還要查 storage 與 Grafana result。">不能，仍須查儲存與 Grafana 結果</button>
+    <button class="choice" data-correct="false" data-feedback-incorrect="Receiver acceptance 與 downstream query 是不同證據。">可以，202 已代表 Grafana 收到資料</button>
+    <button class="choice" data-correct="false" data-feedback-incorrect="Console 與 202 是不同 boundary。">不能，應先看 Browser Console 顏色</button>
   </div><div class="feedback" aria-live="polite"></div></div>
   <div class="quiz" data-quiz><div class="question">Q3. 通用 Frontend Faro Skill 應把 Foreman 的 <code>data-link-name</code> 寫成每個 repo 的必要欄位嗎？</div><div class="choices">
     <button class="choice" data-correct="false" data-feedback-incorrect="這是 Foreman 的業務語意，其他 repo 可能完全沒有。">應該，所有 Faro 專案都要這欄位</button>
@@ -150,28 +439,24 @@ Browser 有 client span？
   </div><div class="feedback" aria-live="polite"></div></div>
 
   <h2>Recap</h2>
-  <ul>
-    <li>Agent 先辨識 repo 的入口、現有 Faro、HTTP client 與 runtime URL，才決定最小修改。</li>
-    <li>Business API 的 <code>traceparent</code> 傳關係；Faro <code>/alloy</code> POST 送觀測紀錄，兩條路徑要各自驗證。</li>
-    <li>Jeter 的一筆 Slow request 已以同 trace ID 與 frontend span ID = backend parent ID 證明 runtime join。</li>
-    <li>Jeter 的一筆受控 error 已從 Browser exception、Faro payload、receiver 202 對到 Grafana Loki result；Collector 單筆逐跳仍無獨立紀錄。</li>
-    <li>Foreman 的 <code>data-link-name</code>／<code>subsystem</code> 是業務例子，不是通用 Faro requirement。</li>
-    <li>驗收時記下每層的實際 evidence 與證明界線；找出第一個未證明的邊界。</li>
+  <ul class="compact-list">
+    <li>Agent 先找 repo 的 entry point、Faro、HTTP client 與 runtime URL，再決定最小修改。</li>
+    <li>Business request 傳 <code>traceparent</code>；Faro 的 <code>/alloy</code> POST 送 telemetry，兩條路徑分開驗證。</li>
+    <li>Jeter Slow 的一筆 request 已以同一 T、Frontend span A、Backend parent = A 證明 runtime join。</li>
+    <li>Jeter 受控 error 已以 Console marker、<code>exceptions[]</code>、202 與 Loki result 完成對應；逐筆 Collector hop 仍保留為未觀察 boundary。</li>
+    <li>Foreman 的 <code>data-link-name</code> 與 <code>subsystem</code> 是 project-specific，不是通用 Faro requirement。</li>
   </ul>
-  <div class="box"><strong>主要來源與延伸</strong><br>
-    <a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">Jeter trace runtime</a> ·
-    <a href="../sources/evidence/frontend-error-grafana-runtime-2026-09-20.md">Jeter error runtime</a> ·
-    <a href="../sources/evidence/grafana-ui-runtime-2026-09-20.md">Grafana UI runtime</a> ·
+  <div class="box"><strong>主要來源</strong><br>
+    <a href="../sources/evidence/special-lesson-visual-runtime-2026-09-20.md">本次 visual runtime evidence</a> ·
     <a href="../sources/evidence/browser-to-alloy.md">Browser → Alloy</a> ·
     <a href="../sources/evidence/collector-pipeline.md">Collector pipeline</a> ·
-    <a href="../sources/evidence/grafana-current-state.md">Grafana 現況</a> ·
-    <a href="../sources/evidence/faro-automatic-telemetry-web-vitals-2026-09-18.md">Faro automatic telemetry（此課不展開 Web Vitals）</a>
+    <a href="../sources/evidence/grafana-current-state.md">Grafana current state</a> ·
+    <a href="../sources/evidence/special-lesson-skill-design-findings-2026-09-20.md">Skill design findings</a>
   </div>
-  <p>你可以把自己在 Lab 取得的 trace ID、看到的 span tree 或找不到的第一個邊界帶回來問我；我們再依當次證據檢查你的判斷。</p>
+  <p>完成這堂工作導向插課後，回到 Learning Map，繼續目前主線位置。</p>
   <nav class="lesson-nav" aria-label="課程導覽">
-    <a href="../learning-map/index.html">← Learning Map</a>
+    <a href="../learning-map/index.html">← 回到 Learning Map</a>
     <a href="../reference/0005-devtools-workspaces-for-faro.html">DevTools Reference</a>
-    <a href="0003-package-initialization-singleton-public-api.html">回到主線 Lesson 3 →</a>
   </nav>
 </body>
 </html>
