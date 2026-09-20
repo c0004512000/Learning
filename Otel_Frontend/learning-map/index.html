@@ -86,15 +86,15 @@
   <h3 id="milestone-3">Milestone 3｜Host integration 與 Browser DevTools 驗證</h3>
   <div class="box">
     <p><strong>Lesson 5｜Faro SDK Initialization and Browser-to-Alloy Transport</strong></p>
-    <p>目標：理解 endpoint、payload/meta 與 CORS 的因果關係，能判斷 browser 是否真的把 telemetry 送出去。</p>
-    <p>來源：文件 1、文件 2、Proposal；搭配已驗證的 deployed bundle 與 stage/prod <code>/alloy</code> CORS evidence。</p>
+    <p>目標：理解 endpoint、payload/meta、transport request 與 CORS 的因果關係；分清 business request、telemetry item 與 <code>/alloy</code> POST，知道一次 API request 可能被不同 instrumentation 觀察並產生不同 telemetry。</p>
+    <p>來源：文件 1、文件 2、Proposal；搭配已驗證的 deployed bundle、stage/prod <code>/alloy</code> CORS evidence，以及 Jeter 同一次 business GET 對應 performance / tracing telemetry 的 runtime evidence。</p>
     <p><a href="../lessons/0005-faro-browser-to-alloy-transport.html">開啟 Lesson 5 →</a></p>
   </div>
 
   <div class="box">
     <p><strong>Lesson 6｜Browser-Side Verification with DevTools</strong></p>
-    <p>目標：用 Elements / Console / Network 驗證 click target、context、Faro payload、headers、response 與 CORS，而不是只看畫面有沒有反應。</p>
-    <p>來源：<a href="../sources/materials/1.%20PI%20前端監控案例.html">文件 1</a>、<a href="../sources/materials/2.%20Grafana%20Faro%20&%20Alloy%20-%20前端可觀測性.html">文件 2</a>、<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">文件 3</a>；現行 click contract 與 Browser-to-Alloy runtime contract 分別以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a>、<a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a> 為準。</p>
+    <p>目標：用 Elements / Console / Network 驗證 click target、context、Faro payload、headers、response 與 CORS；看到多筆 <code>/alloy</code> 時先用 Method 與 Payload signal/event content 分類，而不是只靠列數、順序或 Status 猜 telemetry identity。</p>
+    <p>來源：<a href="../sources/materials/1.%20PI%20前端監控案例.html">文件 1</a>、<a href="../sources/materials/2.%20Grafana%20Faro%20&%20Alloy%20-%20前端可觀測性.html">文件 2</a>、<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">文件 3</a>；現行 click contract 與 Browser-to-Alloy runtime contract 分別以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a>、<a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a> 為準，multi-POST classification 另有 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Jeter runtime evidence</a>。</p>
     <p><a href="../lessons/0006-browser-devtools-verification.html">開啟 Lesson 6 →</a></p>
     <p class="cite">教材已建立；這表示可直接閱讀，不代表 learner progress 已完成 Lesson 6。</p>
   </div>
@@ -102,24 +102,25 @@
   <h3 id="milestone-4">Milestone 4｜Frontend ↔ Backend distributed trace</h3>
   <div class="box">
     <p><strong>Lesson 7｜Frontend-to-Backend Trace Context Propagation</strong></p>
-    <p>目標：從 Browser 與 backend 不共享 runtime memory 這個問題出發，理解 <code>trace-id</code> / span relationship、W3C <code>traceparent</code>、<code>backendUrls</code> 與 backend instrumentation 的責任；並分清 propagation 與 span telemetry export 是兩條不同 path。</p>
-    <p>來源：<a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">文件 6</a>；搭配 <a href="../sources/evidence/trace-context-propagation.md">trace-context propagation evidence</a>、<a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter tracing evidence</a> 與 W3C / Faro v2.9.0 implementation verification。</p>
+    <p>目標：從 Browser 與 backend 不共享 runtime memory 這個問題出發，理解 <code>trace-id</code> / span relationship、W3C <code>traceparent</code>、<code>backendUrls</code> 與 backend instrumentation 的責任；分清 propagation、span telemetry export，以及同一次 HTTP request 可能另外產生的 Browser resource-performance event。</p>
+    <p>來源：<a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">文件 6</a>；搭配 <a href="../sources/evidence/trace-context-propagation.md">trace-context propagation evidence</a>、<a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">Jeter runtime trace join</a>、<a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Browser resource-performance runtime evidence</a> 與 W3C / Faro implementation verification。</p>
     <p><a href="../lessons/0007-frontend-backend-trace-context-propagation.html">開啟 Lesson 7 →</a></p>
     <p><a href="../reference/0006-w3c-traceparent.html">Reference｜W3C traceparent 快速查表 →</a></p>
-    <p class="cite">Lesson 7 建立 propagation 模型；後續 Jeter 單筆 Browser header → backend parent → Tempo 的 runtime join 已由上方 Special Lesson 使用的新 evidence 證明。主線的 Lesson 8 仍保留原有位置與學習目標。</p>
+    <p class="cite">Jeter 已有一筆 Browser <code>traceparent</code> → frontend span → backend parent → Tempo 的 runtime join proof；Lesson 8 仍保留原位置，目標是讓 learner 能獨立重跑驗證，而不是因為 evidence 尚未存在。</p>
   </div>
 
   <div class="box">
     <p><strong>Lesson 8｜Verifying a Single Trace from Browser to Tempo</strong></p>
     <p>目標：用 browser headers、backend instrumentation 與 Tempo evidence 驗證 trace ID 是否真的串起來，並定位 propagation 中斷點。</p>
-    <p>來源：文件 6；搭配 Jeter frontend/backend/OTLP 與 Tempo datasource evidence。</p>
+    <p>來源：文件 6；搭配 Jeter frontend/backend/OTLP、Tempo datasource 與已保存的單筆 runtime join evidence。</p>
   </div>
 
   <h3 id="milestone-5">Milestone 5｜Alloy / OTel Collector / storage pipeline</h3>
   <div class="box">
     <p><strong>Lesson 9｜Faro Receiver to Alloy and OTel Collector</strong></p>
-    <p>目標：能畫出 telemetry 進 Alloy 後如何進入 OTel Collector receiver / processor / exporter，並說清楚每一層責任。</p>
-    <p>來源：文件 2、文件 5、文件 7，加上 stage/prod runtime configuration。</p>
+    <p>目標：能畫出不同 Faro telemetry 進 Alloy 後如何轉成 OTel signals 並進 Collector / storage；用已驗證的 Jeter case 對照 <code>faro.performance.resource → OTLP log → Loki</code> 與 tracing <code>resourceSpans → Tempo</code>。Debug 只學常用的 URL、status、duration、TTFB、response time、transfer size、cache 與 initiator type，不擴張成完整 Resource Timing 課程。</p>
+    <p>來源：文件 2、文件 5、文件 7，加上 stage/prod runtime configuration、<a href="../sources/evidence/collector-pipeline.md">Collector pipeline evidence</a> 與 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Jeter resource-performance pipeline evidence</a>。</p>
+    <p class="cite">Debug 邊界：Trace/Tempo 用來定位 distributed operation 慢在哪個 span；resource-performance event 提供 Browser-side HTTP experience。兩者互補，不建立固定「API 慢先查哪個」規則。</p>
   </div>
 
   <div class="box">
@@ -217,4 +218,3 @@ Faro object
   </nav>
 </body>
 </html>
-
