@@ -276,6 +276,43 @@ Tempo</code></pre>
     </table>
   </div>
 
+  <h3>同一次 API request 還可能有另一個 Browser 視角：<code>faro.performance.resource</code></h3>
+
+  <p>Tracing 不是 Faro 對 Browser HTTP request 唯一能產生的 telemetry。Jeter stage 的實際 observation 顯示，同一次 business request 同時產生了 tracing telemetry 與一筆 <code>faro.performance.resource</code> event。</p>
+
+  <pre><code>同一次 Browser API request
+        │
+        ├─ tracing instrumentation
+        │    └─ faro.tracing.fetch + resourceSpans
+        │         └─ trace / span
+        │              └─ Tempo
+        │
+        └─ Browser performance instrumentation
+             └─ faro.performance.resource
+                  └─ event
+                       └─ current stage pipeline → Loki</code></pre>
+
+  <p>這兩種 telemetry 回答的是不同問題：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Evidence</th><th>主要回答什麼</th><th>常見 Debug 用途</th></tr></thead>
+      <tbody>
+        <tr><td>Tempo trace / spans</td><td>這次 distributed operation 經過哪些 operations，以及時間花在哪裡。</td><td>找 frontend、backend、DB、downstream 哪個 span 真正耗時。</td></tr>
+        <tr><td><code>faro.performance.resource</code> in Loki</td><td>Browser 對這個 HTTP resource 實際觀察到什麼。</td><td>看 URL、status、總 duration、TTFB、response transfer、size、cache 等 Browser-side evidence。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="box tip">
+    <strong>不要把它寫成固定的「先查哪一個」</strong><br>
+    如果目標是定位「API 到底慢在哪個 operation」，而完整 trace 存在，Trace 是更直接的 root-cause evidence。<code>faro.performance.resource</code> 是互補的 Browser-side evidence；如果 matching trace 因 sampling、retention 或其他原因不可用，它仍可能保留 URL / status / duration / TTFB 等線索。
+  </div>
+
+  <p><code>faroResourceId</code>、<code>faroNavigationId</code> 是 Faro 對 resource/navigation 的識別資訊，<strong>不要把它們當成 <code>trace_id</code> 或 <code>span_id</code></strong>。要驗證 distributed trace，仍然回到 <code>traceparent</code>、trace ID、span ID 與 parent relationship。</p>
+
+  <p class="cite">這個 Browser performance event 的實際 Jeter payload、Loki storage path 與 Debug scope 見 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Faro performance resource runtime verification</a>。這裡只建立 tracing 與 Browser resource performance 的責任邊界，不展開完整 Resource Timing API。</p>
+
   <h2>7. Backend 收到 <code>traceparent</code> 後發生什麼？</h2>
 
   <p>先不綁死某個 framework，從 tracing system 的必要行為理解：</p>
@@ -294,11 +331,11 @@ Tempo</code></pre>
   ▼
 Backend handles request</code></pre>
 
-  <p>W3C processing model明確區分「收到 traceparent」與「沒收到 traceparent」兩種情況。收到合法 context 時，tracing system 才有資訊延續原本的 trace；沒有時，它只能從自己這邊建立新的 trace context。</p>
+  <p>W3C processing model 明確區分「收到 traceparent」與「沒收到 traceparent」兩種情況。收到合法 context 時，tracing system 才有資訊延續原本的 trace；沒有時，它只能從自己這邊建立新的 trace context。</p>
 
   <p class="cite">Specification basis: <a href="https://www.w3.org/TR/trace-context-1/#processing-model">W3C Trace Context §4 Processing Model</a>。</p>
 
-  <h3>Jeter backend 已知設定</h3>
+  <h3>Jeter backend 已知設定與 runtime proof</h3>
 
   <p>現有 evidence 已確認 Jeter backend：</p>
 
@@ -309,9 +346,22 @@ Backend handles request</code></pre>
     <li>CORS policy 對設定的 frontend origin 開放 method / headers。</li>
   </ul>
 
-  <p>這些 configuration 證明「它具備參與這條 tracing chain 的設定」。但目前還沒有一筆 runtime capture 能證明某個 concrete Browser <code>traceparent</code> 已被這個 backend span 實際接上。</p>
+  <p>此外，2026-09-20 已完成一筆 Jeter Slow scenario 的 runtime join verification：Browser business request 的 <code>traceparent</code> parent ID 與 Tempo 中 frontend client span ID 相同，backend server span 的 parent 也等於該 frontend span ID，而且 frontend / backend spans 共用同一個 trace ID。</p>
 
-  <p class="cite">Current-state evidence: <a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter host integration and tracing chain</a>。</p>
+  <pre><code>Browser business request
+traceparent = 00-T-A-01
+              │  │
+              │  └─ caller/frontend span A
+              └─ trace T
+
+Tempo trace T
+A  frontend client span
+└─ B  backend server span
+      parent = A</code></pre>
+
+  <p>這是<strong>一筆具體 Jeter Slow request</strong>的 runtime proof，不代表所有 Jeter endpoint、所有 Browser session 或其他 frontend 專案都已自動證明正確。</p>
+
+  <p class="cite">Configuration evidence: <a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter host integration and tracing chain</a>。單筆 runtime join proof: <a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">Jeter frontend → backend trace runtime verification</a>。</p>
 
   <h2>8. Cross-origin 時，CORS 會插在 propagation 前面</h2>
 
@@ -335,7 +385,7 @@ Browser CORS check
 
   <p><a href="../reference/0004-cors-preflight.html">Reference｜CORS / Preflight →</a></p>
 
-  <h2>9. 套回 Jeter：目前「已證明」與「尚未證明」</h2>
+  <h2>9. 套回 Jeter：configuration path 與單筆 runtime join 都已有 evidence</h2>
 
   <h3>已證明的 configuration path</h3>
 
@@ -357,23 +407,24 @@ Jeter backend
   ├─ ASP.NET Core OpenTelemetry tracing enabled
   └─ OTLP exporter configured</code></pre>
 
-  <h3>尚未證明的 runtime chain</h3>
+  <h3>已證明的一筆 runtime chain</h3>
 
   <pre><code>① Browser business request
-   Headers 裡真的出現某一個 traceparent
+   Headers 有 concrete traceparent T / A
           │
           ▼
-② Backend server span
-   真的使用該 incoming context
+② Tempo frontend client span
+   traceId = T
+   spanId  = A
           │
           ▼
-③ Tempo
-   frontend span + backend span
-   真的以同一 traceId、正確 parent relationship 出現</code></pre>
+③ Tempo backend server span
+   traceId = T
+   parent  = A</code></pre>
 
   <div class="box">
     <strong>Lesson 7 到這裡就停</strong><br>
-    這堂課的 tangible win 是能解釋 propagation mechanism 與 responsibility boundary。真正抓一筆 request，把 Browser header、backend span、Tempo trace 三層對起來，是 Lesson 8 的 runtime-verification 任務。
+    這堂課的 tangible win 是能解釋 propagation mechanism 與 responsibility boundary。Lesson 8 仍保留「自己驗證一筆 Browser header → backend parent → Tempo trace」的 runtime-verification 能力；不是因為 runtime evidence 尚未存在，而是因為看過一筆既有 evidence 不等於 learner 已能獨立重跑這套驗證。
   </div>
 
   <h2>10. Troubleshooting：先找哪一個 boundary 壞掉</h2>
@@ -387,6 +438,8 @@ Jeter backend
         <tr><td>Request 有 <code>traceparent</code>，backend trace ID 卻不同</td><td>backend extraction / instrumentation</td><td>incoming header + backend span context</td></tr>
         <tr><td>Backend trace ID 對了，但 Tempo 缺 frontend span</td><td>frontend telemetry export</td><td>Faro trace export / receiver / Collector evidence</td></tr>
         <tr><td>Frontend span 可見，但 backend span 不見</td><td>backend export / Collector</td><td>backend OTLP exporter + Collector receiver/exporter evidence</td></tr>
+        <tr><td>使用者回報 API 很慢，而且有完整 trace</td><td>先用 spans 定位 operation/service latency；需要 Browser 視角時再補 resource performance</td><td>Tempo span durations + Loki <code>faro.performance.resource</code></td></tr>
+        <tr><td>使用者回報 API 很慢，但 matching trace 查不到</td><td>先確認 tracing / sampling / retention evidence；Browser performance event 仍可能提供線索</td><td>Loki URL/status/duration/TTFB + tracing availability evidence</td></tr>
       </tbody>
     </table>
   </div>
@@ -449,16 +502,18 @@ Jeter backend
     <li><strong>Faro 預設使用 W3C Trace Context propagator</strong>，並把 URL propagation 設定交給 Fetch/XHR tracing instrumentation。</li>
     <li><strong>你們 package 的 <code>backendUrls</code> 是 backend/business API pattern</strong>，不是 Alloy Faro receiver URL。</li>
     <li><strong>Business propagation 與 telemetry export 是兩條 path</strong>：<code>traceparent</code> 傳 context；Faro/OTLP 傳 span telemetry。</li>
+    <li><strong>同一次 HTTP request 還可能產生 Browser resource-performance event</strong>；它不是 span，Current stage evidence 顯示它以 log record 進 Loki，提供 Browser-side HTTP experience。</li>
+    <li><strong>Trace 與 resource performance 是互補 evidence</strong>：Trace 用來定位 distributed operation 慢在哪裡；resource event 用來看 Browser 觀察到的 URL/status/duration/TTFB/transfer 等資訊。</li>
     <li><strong>Cross-origin propagation 還受 CORS 控制</strong>；backend 需要允許實際要送的 tracing header。</li>
-    <li><strong>設定存在不等於 runtime join 已證明</strong>：Jeter 目前有 configuration evidence，但 concrete header → backend parent → Tempo chain 留給 Lesson 8。</li>
+    <li><strong>Jeter 已有一筆 runtime join proof</strong>：Browser <code>traceparent</code> parent ID = frontend client span ID = backend server span parent ID，且同一 trace ID；Lesson 8 仍負責把這項能力變成 learner 可獨立重跑的驗證流程。</li>
   </ul>
 
   <div class="box">
     <strong>Primary source 與 evidence</strong><br>
-    本課以 <a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">前後端 Trace 串接範例</a> 為 primary source，搭配 <a href="../sources/evidence/trace-context-propagation.md">trace-context propagation evidence</a>、<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking contract</a>、<a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter tracing evidence</a>，並用 W3C Trace Context 與 Faro Web SDK v2.9.0 source 補足標準與 implementation semantics。
+    本課以 <a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">前後端 Trace 串接範例</a> 為 primary source，搭配 <a href="../sources/evidence/trace-context-propagation.md">trace-context propagation evidence</a>、<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking contract</a>、<a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter tracing evidence</a>、<a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">Jeter runtime trace join</a>，並用 W3C Trace Context 與 Faro Web SDK v2.9.0 source 補足標準與 implementation semantics。Browser resource-performance 與 tracing 的責任邊界則以 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">2026-09-21 performance resource runtime evidence</a> 為準。
   </div>
 
-  <p>任何一段如果看起來像「ID 突然變了」或「為什麼 header 有了還不算成功」，直接把那一段貼回來問；這堂課的重點就是把 propagation 與 export 的責任分乾淨。</p>
+  <p>任何一段如果看起來像「ID 突然變了」或「為什麼 header 有了還不算成功」，直接把那一段貼回來問；這堂課的重點就是把 propagation、trace export 與其他 Browser telemetry 的責任分乾淨。</p>
 
   <nav class="lesson-nav" aria-label="課程導覽">
     <a href="0006-browser-devtools-verification.html">← Lesson 6</a>

@@ -14,7 +14,7 @@
 
   <div class="box tip">
     <strong>這堂課的目標</strong><br>
-    看到 Faro 的 network request 時，你要能回答四件事：它為什麼送到這個 URL、Transport 在這裡負責什麼、telemetry 本身的 <code>payload</code> 和背景 <code>meta</code> 有什麼不同，以及 Browser 為什麼可能在真正的 POST 前先處理 CORS。這堂課只走到 Alloy 的接收入口，不展開 Alloy 收到後的 pipeline。
+    看到 Faro 的 network request 時，你要能回答五件事：它為什麼送到這個 URL、Transport 在這裡負責什麼、telemetry 本身的 <code>payload</code> 和背景 <code>meta</code> 有什麼不同、為什麼一次 business request 可能對應多筆 <code>/alloy</code> telemetry POST，以及 Browser 為什麼可能在真正的 POST 前先處理 CORS。這堂課只走到 Alloy 的接收入口，不展開 Alloy 收到後的 pipeline。
   </div>
 
   <p><a href="0004-user-device-environment-context.html">Lesson 4</a> 最後停在這裡：</p>
@@ -185,12 +185,41 @@ Faro Transport
 
   <p>因此 network request 是<strong>傳輸單位</strong>，telemetry event 是<strong>資料單位</strong>，兩者不要畫上等號。</p>
 
+  <h3>一次 business request，也不等於一個 <code>/alloy</code> POST</h3>
+
+  <p>Jeter stage 在 2026-09-21 的實際 Browser observation 提供了一個更具體的例子。使用者只觸發一次：</p>
+
+  <pre><code>GET /jeter-faro-trace-demo-backend/api/scenario/employee/1001</code></pre>
+
+  <p>但 DevTools 看到兩筆不同的 <code>POST /alloy</code>。打開 Payload 後，內容是：</p>
+
+  <pre><code>同一次 business GET /employee/1001
+        │
+        │ 被不同 instrumentation 觀察
+        │
+        ├─ POST /alloy A
+        │    events[]
+        │    └─ faro.performance.resource
+        │
+        └─ POST /alloy B
+             events[]
+             └─ faro.tracing.fetch
+
+             traces
+             └─ resourceSpans</code></pre>
+
+  <p>所以這次 evidence 能證明的不是「Faro 把同一包資料重送兩次」，而是：</p>
+
+  <blockquote>一次 business request 可以產生不同種類的 Faro telemetry，而那些 telemetry 可以出現在不同的 <code>/alloy</code> transport request。</blockquote>
+
+  <p><code>faro.performance.resource</code> 是 Browser resource-performance event；另一包的 <code>resourceSpans</code> 才是 tracing span signal。這堂課先只建立「資料單位和 transport request 不一一對應」；它們進 Alloy 後如何分流到 Loki / Tempo，留到後續 Collector/storage Lesson。</p>
+
   <div class="box tip">
-    <strong>這個分界對 DevTools 很重要</strong><br>
-    之後在 Network 看到一個 <code>/alloy</code> request 時，不要只問「這是不是剛才那一下 click？」；還要打開 request body，確認裡面包含哪些 signal，以及當下附了哪些 meta。
+    <strong>看到多筆 /alloy，不要先叫 duplication</strong><br>
+    先看 <strong>Method</strong>，再看每一筆 <strong>Payload</strong>。只有 payload evidence 顯示它們真的是同一份資料，才有資格往重複送出的方向查。Lesson 6 會把這套判讀變成 DevTools 操作。
   </div>
 
-  <p class="cite">Request body 類型同樣來自上游 current <a href="https://github.com/grafana/faro-web-sdk/blob/main/packages/core/src/transports/types.ts">Transport types</a>。這裡只建立資料結構，不宣稱目前公司頁面的某一次 click 已經以特定 batch 形式被 runtime 捕捉。</p>
+  <p class="cite">這次 Jeter runtime evidence 見 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Faro performance resource runtime verification</a>。上游 Transport body / batching 結構仍以 <a href="https://github.com/grafana/faro-web-sdk/blob/main/packages/core/src/transports/types.ts">Faro transport types</a> 為 source basis。Runtime evidence 只證明本次兩個 payload 不同，不宣稱所有 business request 都固定會拆成兩個 POST，也不從截圖猜測某一條內部 flush 規則。</p>
 
   <h2>5. Session ID 為什麼同時可能出現在 body 和 request header？</h2>
 
@@ -346,13 +375,17 @@ backendUrls
 
   <h2>10. 把目前整段資料流畫完整</h2>
 
-  <pre><code>Browser click
+  <pre><code>Browser action / API activity
    │
-   ▼
-ClickInstrumentation
+   ├─ ClickInstrumentation 等 instrumentation
+   │    └─ creates Faro telemetry
    │
-   │ api.pushEvent(...)
-   ▼
+   ├─ Browser performance instrumentation
+   │    └─ may create faro.performance.resource
+   │
+   └─ tracing instrumentation
+        └─ may create tracing event / spans
+
 Faro telemetry
    │
    ├─ payload ──────────────→ 「發生什麼」
@@ -368,7 +401,7 @@ Faro telemetry
 
 Faro Transport
    │
-   │ Browser fetch / HTTP
+   │ one or more Browser HTTP requests
    ▼
 https://.../alloy
    │
@@ -376,7 +409,7 @@ https://.../alloy
 
 [ Lesson 5 到這裡停止 ]
 
-Alloy receiver 收到後如何處理
+Alloy receiver 收到不同 telemetry 後如何處理
    ↓
 後續 Lesson 再展開</code></pre>
 
@@ -395,6 +428,7 @@ Lesson 5：telemetry 怎麼跨 Browser network boundary 離開頁面</code></pre
       <tbody>
         <tr><td>click event 根本沒產生</td><td>ClickInstrumentation / DOM data</td><td>資料還沒到 Transport。</td></tr>
         <tr><td>資料準備送到錯的 host</td><td><code>initFaro({ environment })</code> + resolver</td><td>environment 決定 receiver URL。</td></tr>
+        <tr><td>只操作一次卻看到多筆 <code>/alloy</code></td><td>先比 Method，再展開各筆 Payload</td><td>一個 business action/request 可以產生不同 telemetry；request 數量本身不能證明 duplication。</td></tr>
         <tr><td>Browser Console 出現 CORS 錯誤</td><td>頁面 origin、目標 origin、preflight response</td><td>這是 Browser network boundary 的存取規則。</td></tr>
         <tr><td>以為 <code>backendUrls</code> 可以改 receiver</td><td>停止查 <code>backendUrls</code></td><td>它屬於 tracing header propagation，不是 Faro telemetry destination。</td></tr>
         <tr><td><code>/alloy</code> request 有送，但後端仍查不到資料</td><td>先看 <code>/alloy</code> 的 HTTP response；如果這一段成功，再查 Alloy 收到後往哪裡送</td><td>Browser 成功送到 <code>/alloy</code>，不代表 Alloy 後面的處理也一定成功。</td></tr>
@@ -404,7 +438,7 @@ Lesson 5：telemetry 怎麼跨 Browser network boundary 離開頁面</code></pre
 
   <div class="box">
     <strong>Primary source 與 evidence</strong><br>
-    本課的原始概念來源是 <a href="../sources/materials/2.%20Grafana%20Faro%20%26%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy - 前端可觀測性</a>；公司目前 environment mapping、stage/prod <code>/alloy</code> 與 CORS runtime evidence 以 <a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a> 為準；package 責任邊界以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a> 為準。Faro payload/meta/transport 結構則對照 upstream current source。
+    本課的原始概念來源是 <a href="../sources/materials/2.%20Grafana%20Faro%20%26%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy - 前端可觀測性</a>；公司目前 environment mapping、stage/prod <code>/alloy</code> 與 CORS runtime evidence 以 <a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a> 為準；package 責任邊界以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a> 為準；一次 Jeter business request 對應不同 performance/tracing telemetry POST 的 observation 以 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">2026-09-21 resource-performance runtime evidence</a> 為準。Faro payload/meta/transport 結構則對照 upstream current source。
   </div>
 
   <h2>Self-check</h2>
@@ -470,17 +504,18 @@ Lesson 5：telemetry 怎麼跨 Browser network boundary 離開頁面</code></pre
     <li><strong>Instrumentation</strong> 解決「要產生什麼 telemetry」；<strong>Transport</strong> 解決「已產生的 telemetry 怎麼送出去」。</li>
     <li><strong>Environment</strong> 在現行 package 中會解析成 Faro receiver URL；<code>tw-stage</code> 與 <code>tw-prod</code> 目前分別對應各自的 <code>/alloy</code> endpoint。</li>
     <li><strong>Payload</strong> 描述 telemetry 本身；<strong>Meta</strong> 描述 telemetry 發生時的背景。</li>
-    <li><strong>HTTP request 不等於單一 event</strong>；Transport 可以把 signal 組成 request body 再傳送。</li>
+    <li><strong>business request、telemetry item、transport POST 不一一對應</strong>；Jeter runtime 已觀察到同一次 API request 產生 performance event 與 tracing telemetry，分別出現在不同 <code>/alloy</code> POST。</li>
+    <li><strong>多筆 <code>/alloy</code> 不能只靠數量判 duplication</strong>；先比較 Method，再以 Payload 內容分類。</li>
     <li><strong>Session identity</strong> 可以同時存在 meta 與 HTTP transport header；先分清資料層與 transport 層。</li>
     <li><strong>CORS</strong> 是 Browser 對 cross-origin network access 執行的規則；某些 request 會先以 <code>OPTIONS</code> 做 preflight。</li>
-    <li><strong>目前 runtime evidence</strong> 證實 stage/prod <code>/alloy</code> 的 OPTIONS contract，但沒有證實一筆真實 telemetry POST 已成功寫入。</li>
+    <li><strong>目前 runtime evidence</strong> 證實 stage/prod <code>/alloy</code> 的 OPTIONS contract；另一組 Jeter runtime evidence 則實際捕捉到 telemetry POST，但這兩組 evidence 的目的與時間不同，不應混成同一次 capture。</li>
     <li><strong><code>backendUrls</code></strong> 是 tracing header propagation 的設定，不是 Faro telemetry receiver URL。</li>
-    <li><strong>Lesson 5 邊界</strong>：到 Browser → <code>/alloy</code> receiver entry 為止；Alloy 收到後的內部 pipeline 留到後續 Lesson。</li>
+    <li><strong>Lesson 5 邊界</strong>：到 Browser → <code>/alloy</code> receiver entry 為止；Alloy 收到後的 signal conversion / storage pipeline 留到後續 Lesson。</li>
   </ul>
 
   <div class="box ask">
     <strong>完成這堂後，下一個真正需要的能力</strong><br>
-    不是再背 Transport 名詞，而是打開 Browser DevTools，從 Network 證明：request URL、method、headers、body、response 與 CORS 到底實際長什麼樣。Course Map 將這件事放在下一堂 Browser-side verification。
+    不是再背 Transport 名詞，而是打開 Browser DevTools，從 Network 證明：request URL、method、headers、body、response 與 CORS 到底實際長什麼樣；看到多筆 <code>/alloy</code> 時，還要能用 Payload 判斷它們是不是不同 telemetry。Course Map 將這件事放在下一堂 Browser-side verification。
   </div>
 
   <p><a href="0004-user-device-environment-context.html">← Lesson 4</a> · <a href="../learning-map/index.html">Learning Map →</a></p>
