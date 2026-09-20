@@ -202,7 +202,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 - `parent-id` 代表 caller 的 current operation；backend 建立自己的新 span ID，並把 caller ID 記成 parent while retaining the trace ID。
 - package `backendUrls` → Faro `propagateTraceHeaderCorsUrls`；它描述 backend/business API target，不是 Alloy Faro receiver URL。
 - Business request 上的 propagation 與 Faro/OTLP span telemetry export 是兩條不同 path。
-- Jeter configuration path 已驗證；concrete Browser header → backend parent → Tempo join 尚未有 runtime proof，留給 Lesson 8。
+- Jeter configuration path 已驗證；2026-09-20 的單筆 Browser header → backend parent → Tempo join 已有 runtime proof，見 `sources/evidence/frontend-backend-trace-runtime-2026-09-20.md`。Lesson 8 的主線位置與目標不變。
 
 **Dependency:** Lessons 5–6。
 
@@ -333,3 +333,4 @@ Primary corpus:
 8. `SRE - 前端監控 - Proposal.html`
 
 外部官方文件、repo/code、Confluence 與 runtime evidence 只在 prerequisite、verification、ambiguity resolution 或理解 primary corpus 必要時補充；不取代 primary corpus。可重用的核查結果集中於 `sources/evidence/`，引用指標集中於 `sources/linked/`。
+

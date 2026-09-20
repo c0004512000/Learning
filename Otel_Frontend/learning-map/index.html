@@ -16,6 +16,12 @@
     Lesson 3 已建立兩條重要因果關係：<code>faro</code> 與 module-level <code>faroInstance</code> 是兩個 reference、指向同一個 Faro object；Browser listener registration 保存 <code>handleClick</code> callback reference，真正 click dispatch 時才呼叫 <code>handleClick(event)</code>。目前仍保留在 Lesson 3，因為「理解已修正」不等於已用 retrieval / practice 證明 mastered；Lesson 0 / Lesson 1 的 prerequisite debt 也仍保留。
   </div>
 
+  <div class="box">
+    <strong>Special Lesson｜從 Frontend Repo 到 Grafana：設計 Faro 自動導入 Skill</strong><br>
+    工作需求插課：用 Jeter 的真實 trace 與 frontend error 證據，練習規劃 Agent 的 repo 探查、最小修改與 Browser → Grafana 驗收。獨立於下方主線編號；完成後回到目前的 Lesson 3。<br>
+    <a href="../lessons/special-frontend-faro-skill.html">開啟 Special Lesson →</a>
+  </div>
+
   <h2>Mission</h2>
   <p>接手並維運既有 Faro 前後端可觀測性方案：從瀏覽器事件一路追到 Faro telemetry、Alloy／OTel Collector、Tempo／Loki／OpenSearch，並能用程式碼、Browser DevTools 與 runtime evidence 判斷資料怎麼流、哪裡壞掉，以及如何安全修改、導入與優化。</p>
 
@@ -100,7 +106,7 @@
     <p>來源：<a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">文件 6</a>；搭配 <a href="../sources/evidence/trace-context-propagation.md">trace-context propagation evidence</a>、<a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter tracing evidence</a> 與 W3C / Faro v2.9.0 implementation verification。</p>
     <p><a href="../lessons/0007-frontend-backend-trace-context-propagation.html">開啟 Lesson 7 →</a></p>
     <p><a href="../reference/0006-w3c-traceparent.html">Reference｜W3C traceparent 快速查表 →</a></p>
-    <p class="cite">教材已建立；Jeter concrete Browser header → backend parent → Tempo 同 trace 的 runtime proof 仍留在 Lesson 8，不因 Lesson 7 artifact 完成就宣稱 join 已證實。</p>
+    <p class="cite">Lesson 7 建立 propagation 模型；後續 Jeter 單筆 Browser header → backend parent → Tempo 的 runtime join 已由上方 Special Lesson 使用的新 evidence 證明。主線的 Lesson 8 仍保留原有位置與學習目標。</p>
   </div>
 
   <div class="box">
@@ -211,3 +217,4 @@ Faro object
   </nav>
 </body>
 </html>
+
