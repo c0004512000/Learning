@@ -15,7 +15,7 @@
 
   <div class="box tip">
     <strong>這堂課的目標</strong><br>
-    不是叫你「照著 DevTools 點幾個按鈕」。你要能看懂每一層畫面到底在證明什麼：live DOM 有沒有 tracking attribute、document 上有沒有 click listener、那個 listener 是否真的執行、哪一筆 Network request 才是 telemetry POST，以及 preflight / POST 分別該看 Headers、Payload 還是 Response。
+    不是叫你「照著 DevTools 點幾個按鈕」。你要能看懂每一層畫面到底在證明什麼：live DOM 有沒有 tracking attribute、document 上有沒有 click listener、那個 listener 是否真的執行、哪一筆 Network request 才是 telemetry POST、看到多筆 <code>/alloy</code> 時它們是不是同一種 telemetry，以及 preflight / POST 分別該看 Headers、Payload 還是 Response。
   </div>
 
   <p><a href="0005-faro-browser-to-alloy-transport.html">Lesson 5</a> 已經建立預期資料流：</p>
@@ -51,6 +51,7 @@ POST /alloy</code></pre>
 ③ Network
    Browser 有沒有送 /alloy？
    哪一筆是 preflight？哪一筆才是 telemetry POST？
+   如果有多筆 POST，它們內容一樣嗎？
 
 ④ Payload / Response
    POST 裡有沒有剛才那個 click？
@@ -207,6 +208,11 @@ pushEvent                         main.js:123009</code></pre>
     </table>
   </div>
 
+  <div class="box ask">
+    <strong>兩筆 <code>alloy</code> 不代表其中一筆一定是 preflight</strong><br>
+    Preflight 的第一個判斷條件是 <code>Method: OPTIONS</code>。2026-09-21 的 Jeter stage observation 中，頁面與 <code>/alloy</code> 是 same-origin，兩筆 <code>alloy</code> 都是 <code>POST</code>；它們是兩筆 telemetry transport request，不是 OPTIONS + POST。先看 Method，才不會只靠「有兩列」猜角色。
+  </div>
+
   <p>所以不要看到每一列都從 Headers、Payload、Preview、Response 全部翻一次。不同 request 有不同問題。</p>
 
   <h3>Network list 的欄位先只讀這些</h3>
@@ -236,6 +242,7 @@ pushEvent                         main.js:123009</code></pre>
         <tr><td>這是 preflight 嗎？</td><td>OPTIONS</td><td>Method + Type + Status</td></tr>
         <tr><td>CORS 是否允許？</td><td>OPTIONS + Console</td><td>Request / Response Headers</td></tr>
         <tr><td>這是 telemetry 嗎？</td><td>POST</td><td>General → Payload → Response</td></tr>
+        <tr><td>多筆 POST 是不是同一種資料？</td><td>逐筆 POST</td><td>Payload 的 top-level signals、<code>events[].name</code>、<code>traces</code></td></tr>
         <tr><td>哪一筆是 click？</td><td>POST</td><td>Payload 的 <code>events[]</code></td></tr>
         <tr><td>receiver 是否接受？</td><td>matching POST</td><td>Status / Response</td></tr>
         <tr><td>Faro callback 是否執行？</td><td>Event Listener Breakpoint</td><td>call frames；不是 Network</td></tr>
@@ -333,9 +340,52 @@ HTTP response
   <p class="cite">本次 runtime evidence：<a href="../sources/evidence/foreman-browser-debug-lab.md">Foreman Assistant Browser DevTools lab evidence</a>。</p>
 
   <div class="table-wrap"><table><thead><tr><th>Payload 路徑</th><th>讀它是為了什麼</th></tr></thead><tbody><tr><td><code>events[].name / attributes</code></td><td>找 click 與相同 link_name；不能固定只查 index 0。</td></tr><tr><td><code>meta.app.name / environment</code></td><td>是哪個 app、宣告哪個環境；此次 foreman-assistant／tw-prod。</td></tr><tr><td><code>meta.page</code></td><td>event 所在頁面，URL 分享前檢查敏感 query。</td></tr><tr><td><code>meta.device</code></td><td>device context，不是個人身分。</td></tr><tr><td><code>meta.sdk</code></td><td>SDK 版本；此次 faro-web 2.9.0。</td></tr></tbody></table></div>
-  <h3>為什麼你看到好幾筆 202 POST？</h3>
 
-  <p>不要先假設每一筆都是同一個 click。Faro 可以送不同 telemetry，Transport 也可能 batch。Lesson 6 的判斷方式永遠是<strong>看 Payload 內容做 correlation</strong>，不是看到四筆 POST 就猜「click 被送四次」。</p>
+  <h3>為什麼你看到好幾筆 202 POST？先分「business request」和「telemetry request」</h3>
+
+  <p>不要先假設每一筆都是同一個 click，也不要用「我只操作一次」推導「Faro 就只能 POST 一次」。先把兩種 HTTP request 分開：</p>
+
+  <pre><code>Business request
+  GET /api/.../employee/1001
+
+Telemetry transport request
+  POST /alloy
+  POST /alloy
+  ...</code></pre>
+
+  <p>2026-09-21 的 Jeter stage observation 就是一個真實例子：Browser 只發出一次員工 API GET，但兩筆 <code>POST /alloy</code> 的 Payload 不同。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Jeter POST</th><th>Payload 主要內容</th><th>你目前應該怎麼分類</th></tr></thead>
+      <tbody>
+        <tr><td>A</td><td><code>events[].name = faro.performance.resource</code></td><td>Browser resource-performance event。</td></tr>
+        <tr><td>B</td><td><code>events[].name = faro.tracing.fetch</code> + <code>traces.resourceSpans</code></td><td>Tracing event + span telemetry。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <pre><code>同一次 GET /employee/1001
+        │
+        ├─ Browser performance instrumentation
+        │    └─ faro.performance.resource
+        │
+        └─ tracing instrumentation
+             └─ faro.tracing.fetch + resourceSpans</code></pre>
+
+  <p>這兩筆 payload 已經足以排除「兩個 POST 是完全相同資料」這個說法。至於 Faro 內部為什麼恰好在那兩個時間點分成兩次 transport send，這組 screenshot 沒有直接證明內部 flush 規則；不要把合理猜測寫成 runtime fact。</p>
+
+  <div class="box tip">
+    <strong>多筆 <code>/alloy</code> 的四步判讀</strong>
+    <ol>
+      <li>先確認 business API 在 Network 裡到底發了幾次，不要拿 <code>/alloy</code> 數量代替 business request 數量。</li>
+      <li>看 Method：<code>OPTIONS</code> 才是 preflight 候選；<code>POST</code> 是 telemetry transport。</li>
+      <li>逐筆打開 Payload，比較 top-level <code>events</code> / <code>traces</code>，再看 <code>events[].name</code>。</li>
+      <li>只有內容真的重複，才繼續查雙重初始化、重複 instrumentation 或 transport retry 等 duplication 路徑。</li>
+    </ol>
+  </div>
+
+  <p class="cite">Jeter 的 two-POST runtime evidence 與 downstream classification 保存於 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Faro performance resource runtime verification</a>。</p>
 
   <h2>8. POST 的 Response 要不要看？要，但它回答的是另一個問題</h2>
 
@@ -345,7 +395,7 @@ HTTP response
   → URL / Method / Status 對不對？
 
 Payload
-  → 裡面是不是我剛才要驗證的 click？
+  → 裡面是不是我剛才要驗證的 click / telemetry？
 
 Response Headers / Response
   → receiver 對這筆 request 回什麼？</code></pre>
@@ -357,7 +407,7 @@ Response Headers / Response
 
   <pre><code>Browser
   │ POST /alloy
-  │ Payload contains matching click
+  │ Payload contains matching telemetry
   ▼
 receiver
   │ returns 202
@@ -446,6 +496,7 @@ Browser → receiver boundary 有成功 evidence</code></pre>
     <li>先看每一列的 <strong>Method + Type + Status</strong>：<code>preflight</code> 還是 <code>fetch</code>。</li>
     <li>preflight → 看 Headers 的 CORS request / response headers。</li>
     <li>fetch POST → 先看 General 的 URL / Method / Status，再看 Payload。</li>
+    <li>如果有多筆 POST，不用 request 順序判斷是否重複；逐筆比較 <code>events[].name</code> 與是否有 <code>traces</code>。</li>
   </ol>
 
   <h3>重跑步驟 6｜找出真正對應這次 click 的 POST</h3>
@@ -497,6 +548,13 @@ Matching POST:
   是否等於 DOM 的 data-link-name = ?
   meta.app.name / environment = ?
 
+Multiple POST classification (if present):
+  POST count = ?
+  each POST method = ?
+  each POST events[].name = ?
+  each POST contains traces = yes / no
+  duplicate payload proven = yes / no / not checked
+
 Boundary conclusion:
   first broken boundary = ? / none observed through receiver
   Unknown / not proven = ?</code></pre>
@@ -512,6 +570,7 @@ Boundary conclusion:
         <tr><td><code>getEventListeners()</code> 有 click registration</td><td>document 目前有 click listener。</td><td>該 listener 就是 Faro。</td></tr>
         <tr><td>Event Listener Breakpoint + call stack</td><td>事件發生時實際執行路徑。</td><td>除非 stack/source 能辨識到 Faro，否則仍不能硬說是 Faro。</td></tr>
         <tr><td>OPTIONS 204 + CORS headers</td><td>該次 preflight 得到 permission response。</td><td>telemetry POST 成功。</td></tr>
+        <tr><td>兩筆 POST 的 Payload signal / event name 不同</td><td>這兩筆至少不是同一份 payload；可以分別判讀其 telemetry 類型。</td><td>不能只由此推導 Faro 內部確切 flush 原因。</td></tr>
         <tr><td>POST Payload 有相同 <code>link_name</code></td><td>這筆 POST 可跟剛才 tracked click 關聯。</td><td>downstream storage 成功。</td></tr>
         <tr><td>Matching POST 202</td><td>Browser → receiver 有 accepted evidence。</td><td>Collector / OpenSearch 已成功。</td></tr>
       </tbody>
@@ -523,6 +582,7 @@ Boundary conclusion:
         <tr><td>DOM 沒有 attribute</td><td>host markup / render boundary</td><td>Elements + component source</td></tr>
         <tr><td>DOM 有值，尚未捕捉到 Faro pause</td><td>先查停點設定／ignore list；execution 尚未證明</td><td>registration + call frames</td></tr>
         <tr><td>Faro callback 執行，沒有 POST</td><td>先排除 paused／filter／batch／節流，再查 transport／Browser policy</td><td>Console + Network</td></tr>
+        <tr><td>只操作一次，卻有多筆 POST</td><td>先不要判 duplication；先分類 telemetry</td><td>Method + Payload signal/event names</td></tr>
         <tr><td>OPTIONS 失敗</td><td>可能是連線／receiver／CORS；失敗列本身不足以定因</td><td>OPTIONS headers + Console error</td></tr>
         <tr><td>POST 非 2xx</td><td>receiver HTTP boundary</td><td>status / response / receiver logs</td></tr>
         <tr><td>matching POST 202，storage 查不到</td><td>該筆已跨 HTTP boundary；接著定位下游，不排除其他 Browser 問題</td><td>Alloy → Collector → storage evidence</td></tr>
@@ -530,7 +590,7 @@ Boundary conclusion:
     </table></div>
   <div class="box">
     <strong>Primary source 與 evidence</strong><br>
-    本課沿用 <a href="../sources/materials/1.%20PI%20前端監控案例.html">PI 前端監控案例</a>、<a href="../sources/materials/2.%20Grafana%20Faro%20%26%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy - 前端可觀測性</a>、<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction</a>。現行 package contract 以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a> 為準；Foreman source 以 <a href="../sources/evidence/foreman-integration.md">foreman-integration evidence</a> 為準；本次實際 DevTools observation 以 <a href="../sources/evidence/foreman-browser-debug-lab.md">2026-09-16 browser lab evidence</a> 為準。
+    本課沿用 <a href="../sources/materials/1.%20PI%20前端監控案例.html">PI 前端監控案例</a>、<a href="../sources/materials/2.%20Grafana%20Faro%20%26%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy - 前端可觀測性</a>、<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction</a>。現行 package contract 以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a> 為準；Foreman source 以 <a href="../sources/evidence/foreman-integration.md">foreman-integration evidence</a> 為準；Foreman DevTools observation 以 <a href="../sources/evidence/foreman-browser-debug-lab.md">2026-09-16 browser lab evidence</a> 為準；Jeter 多筆 <code>/alloy</code> 的 performance/tracing payload classification 以 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">2026-09-21 runtime evidence</a> 為準。
   </div>
 
   <h2>Self-check</h2>
@@ -588,11 +648,12 @@ Boundary conclusion:
     <li><strong>Event Listener Breakpoint 用來取得 execution evidence</strong>；停在 Zone.js 時再沿 Call Stack / Step into 找真正 callback。</li>
     <li><strong>event breakpoint 與 line breakpoint 不同</strong>：前者按事件停，後者按 source 位置停；進 Network 前移除停點並 Resume。</li>
     <li><strong>Network 先看 Method + Type + Status</strong>；Name、Initiator、Size、Time、Waterfall 不取代 payload identity。</li>
-    <li><strong>preflight 與 POST 是兩個不同問題</strong>：preflight 主要看 CORS Headers；POST 才看 click Payload。</li>
-    <li><strong>多筆 POST 不靠順序猜</strong>；用 DOM 的 <code>data-link-name</code> 與 Payload 的 <code>link_name</code> 做 correlation。</li>
+    <li><strong>preflight 與 POST 是兩個不同問題</strong>：<code>OPTIONS</code> 才是 preflight 候選；同一頁面出現兩筆 <code>POST /alloy</code> 不代表其中一筆是 preflight。</li>
+    <li><strong>多筆 POST 不靠數量或順序猜</strong>；先比較 Payload 的 signal/event。Jeter 已驗證同一次 business GET 可對應 <code>faro.performance.resource</code> 與 tracing telemetry 兩種不同 payload。</li>
+    <li><strong>找 click 仍要做內容 correlation</strong>；用 DOM 的 <code>data-link-name</code> 與 Payload 的 <code>link_name</code> 對上。</li>
     <li><strong>Response body 與 status 分開判讀</strong>：204 preflight 不可用 body、202 POST 空 body，都不能單憑空白判失敗。</li>
     <li><strong>202 Accepted 只證明 Browser → receiver</strong>；不能直接跳到 Collector / storage。</li>
-    <li><strong>本次 runtime 額外證明</strong>：Stage Foreman page 實際以 <code>tw-prod</code> Faro environment 送到 prod receiver；是否符合 intended policy 另行驗證。</li>
+    <li><strong>本次 Foreman runtime 額外證明</strong>：Stage Foreman page 實際以 <code>tw-prod</code> Faro environment 送到 prod receiver；是否符合 intended policy 另行驗證。</li>
   </ul>
 
   <p>如果 Event Listener Breakpoint 下一步停住，把 <strong>Sources 畫面 + Call Stack</strong> 截圖丟回來，就可以接著判讀那一層是不是 Faro callback。</p>
