@@ -20,57 +20,54 @@
 
   <figure class="diagram">
     <figcaption><strong>從 application 到真正寫出 trace header 的完整責任鏈</strong></figcaption>
-    <pre><code>Application
-  │
-  │ calls initFaro({ backendUrls: [...] })
-  ▼
-┌──────────────────────────────────────────────────────────────┐
-│ Internal package                                            │
-│ @sre2/faro-click-tracking                                  │
-│                                                              │
-│ backendUrls                                                  │
-│   │ maps to                                                  │
-│   ▼                                                          │
-│ TracingInstrumentation({                                     │
-│   instrumentationOptions: {                                  │
-│     propagateTraceHeaderCorsUrls: backendUrls                │
-│   }                                                          │
-│ })                                                           │
-│                                                              │
-│ Responsibility: company-facing API + configuration mapping   │
-│ Does NOT implement traceparent serialization                 │
-└──────────────────────────────────────────────────────────────┘
-  │ configures
-  ▼
-┌──────────────────────────────────────────────────────────────┐
-│ Grafana Faro Web Tracing                                    │
-│                                                              │
-│ TracingInstrumentation.initialize()                          │
-│   │                                                          │
-│   ├─ creates/registers WebTracerProvider                     │
-│   ├─ registers W3CTraceContextPropagator                     │
-│   └─ registers default Fetch / XHR instrumentation           │
-│          │                                                   │
-│          └─ receives propagateTraceHeaderCorsUrls            │
-│                                                              │
-│ Responsibility: orchestration / wiring                       │
-└──────────────────────────────────────────────────────────────┘
-  │ registers / uses
-  ▼
-┌──────────────────────────────────────────────────────────────┐
-│ OpenTelemetry                                                │
-│                                                              │
-│ W3CTraceContextPropagator                                    │
-│   └─ serializes SpanContext → traceparent                    │
-│                                                              │
-│ FetchInstrumentation                                         │
-│   └─ instruments outgoing fetch requests                     │
-│                                                              │
-│ WebTracerProvider / propagation API                          │
-│   └─ provides tracing context used by instrumentation        │
-│                                                              │
-│ Responsibility: core tracing + propagation primitives        │
-└──────────────────────────────────────────────────────────────┘</code></pre>
+
+    <div class="box">
+      <strong>Application</strong><br>
+      <code>initFaro({ backendUrls: [...] })</code>
+    </div>
+
+    <p><strong>↓ calls / configures</strong></p>
+
+    <div class="box">
+      <strong>Layer 1 · Internal package</strong><br>
+      <code>@sre2/faro-click-tracking</code>
+      <pre><code>backendUrls
+  ↓ maps to
+TracingInstrumentation({
+  instrumentationOptions: {
+    propagateTraceHeaderCorsUrls: backendUrls
+  }
+})</code></pre>
+      <p><strong>Owner：</strong>company-facing API + configuration mapping。</p>
+      <p><strong>不是它做的：</strong>不負責 <code>traceparent</code> serialization。</p>
+    </div>
+
+    <p><strong>↓ configures</strong></p>
+
+    <div class="box">
+      <strong>Layer 2 · Grafana Faro Web Tracing</strong>
+      <pre><code>TracingInstrumentation.initialize()
+  ├─ creates/registers WebTracerProvider
+  ├─ registers W3CTraceContextPropagator
+  └─ registers default Fetch / XHR instrumentation
+       └─ receives propagateTraceHeaderCorsUrls</code></pre>
+      <p><strong>Owner：</strong>tracing runtime orchestration / wiring。</p>
+    </div>
+
+    <p><strong>↓ registers / uses</strong></p>
+
+    <div class="box">
+      <strong>Layer 3 · OpenTelemetry</strong>
+      <pre><code>W3CTraceContextPropagator
+  └─ serializes SpanContext → traceparent
+
+FetchInstrumentation
+  └─ instruments outgoing fetch requests
+
+WebTracerProvider / propagation API
+  └─ provides tracing context used by instrumentation</code></pre>
+      <p><strong>Owner：</strong>core tracing + propagation primitives。</p>
+    </div>
   </figure>
 
   <div class="box ask">
