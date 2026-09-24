@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 8｜Verifying a Single Trace from Browser to Tempo</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/evidence-annotations.css">
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js" defer></script>
+  <style>
+    .lesson8 .evidence-shot { margin: 1.4rem 0; }
+    .lesson8 .evidence-scroll { overflow-x: auto; border-radius: 8px; }
+    .lesson8 .evidence-shot figcaption { margin-top: .65rem; }
+    .lesson8 .id-grid { display: grid; gap: .7rem; margin: 1rem 0; }
+    .lesson8 .id-card { padding: .8rem; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); }
+    .lesson8 .id-card strong { display: block; margin-bottom: .35rem; }
+    .lesson8 .proof-step { border-left: 4px solid var(--info); }
+    .lesson8 .proof-final { border-left-color: var(--success); }
+    .lesson8 .mono-break { overflow-wrap: anywhere; word-break: break-word; }
+    @media (min-width: 760px) {
+      .lesson8 .id-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 680px) {
+      .lesson8 .evidence-shot .evidence-frame { width: 100%; }
+    }
+  </style>
+</head>
+<body class="lesson8">
+  <h1>Verifying a Single Trace from Browser to Tempo</h1>
+  <p class="subtitle">Milestone 4 · 不再只理解 propagation，而是親手證明「這一筆 request」真的接成同一條 distributed trace</p>
+
+  <div class="box tip">
+    <strong>這堂課的 tangible win</strong><br>
+    給你一筆 Browser business request，你要能從 <code>traceparent</code> 取出 trace ID 與 frontend span ID，拿 trace ID 去 Tempo 找到同一條 trace，再確認 backend server span 的 parent 正好就是那個 frontend span ID。
+  </div>
+
+  <p><a href="0007-frontend-backend-trace-context-propagation.html">Lesson 7</a> 已經回答「為什麼跨 Browser / backend runtime 需要 <code>traceparent</code>」。Lesson 8 不再重教格式；這次只問一件 SRE 真正會遇到的問題：</p>
+
+  <blockquote>你怎麼用 runtime evidence 證明前後端不是「各自都有 trace」，而是真的同一條 trace？</blockquote>
+
+  <h2>1. 先定義成功：你到底要證明什麼？</h2>
+
+  <p>先把 Lesson 7 的模型縮成三個符號：</p>
+
+  <pre><code>T = 這一整條 distributed trace 的 trace ID
+A = Browser / frontend HTTP client span ID
+B = Backend HTTP server span ID</code></pre>
+
+  <p>如果前後端真的 join 成功，runtime relationship 應該是：</p>
+
+  <figure class="diagram">
+    <figcaption><strong>Expected state｜三段 evidence 必須能對成同一組 T / A</strong></figcaption>
+    <pre><code>Browser business request
+  │
+  │ carries caller context
+  │ traceparent = 00-T-A-...
+  ▼
+Backend receives request
+  │
+  │ creates its own server span
+  ▼
+Backend span B
+  traceId      = T
+  parentSpanId = A
+
+Frontend span A ── exports telemetry ──> Tempo
+Backend span B  ── exports telemetry ──> Tempo
+                                      │
+                                      │ displays relationship
+                                      ▼
+                                  Trace T
+                                  A frontend
+                                  └─ B backend</code></pre>
+  </figure>
+
+  <div class="box ask">
+    <strong>驗證不是「看到某個畫面就算成功」</strong><br>
+    真正關鍵的是 identity equality：Browser header 裡的 <code>T</code> 要等於 Tempo trace ID；Browser header 裡的 <code>A</code> 要等於 frontend client span ID，也要等於 backend server span 的 parent ID。
+  </div>
+
+  <h2>2. 四個常見觀察，各自只能證明到哪裡？</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>你看到的 evidence</th><th>它能證明</th><th>它不能單獨證明</th></tr></thead>
+      <tbody>
+        <tr><td>API 回 <code>200 OK</code></td><td>這筆 business request 功能上成功。</td><td>前後端 trace relationship 正確。</td></tr>
+        <tr><td>Request 有 <code>traceparent</code></td><td>Browser 對這筆 request 注入了 caller context。</td><td>Backend 一定有 extraction，也不能證明 span 已進 Tempo。</td></tr>
+        <tr><td>Tempo 看得到 frontend span</td><td>Frontend span 至少已被儲存並可查詢。</td><td>Backend 一定接在它下面。</td></tr>
+        <tr><td>Tempo 畫出 frontend → backend tree</td><td>UI 顯示兩個 service 的 parent/child hierarchy。</td><td>若要做嚴格驗收，仍應核對 exact trace/span/parent IDs。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>所以 Lesson 8 的 workflow 不是「去 Grafana 看起來像有資料」，而是：</p>
+
+  <pre><code>① 固定一筆 Browser request
+      ↓ extract T / A
+② 用 T 查 exact Tempo trace
+      ↓ find frontend span A
+③ 找 backend server span B
+      ↓ verify B.parent = A
+④ 三段 identity 全部對上
+      ↓
+   才能宣稱這一筆 runtime join verified</code></pre>
+
+  <h2>3. 實際案例：Jeter stage 的 Slow request</h2>
+
+  <p>以下不是教材假資料。這是 2026-09-20 在 <code>tw-stage</code> 對 Jeter Faro Trace Demo 保留下來的一筆 runtime evidence。先從同一個操作開始。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-scroll">
+      <div class="evidence-frame">
+        <img src="../assets/special-lesson-evidence/jeter-slow-scenario-redacted-annotated.png" alt="真實 Jeter stage 頁面，紅框標示 Slow scenario 按鈕，敏感內容已遮罩" loading="lazy">
+      </div>
+    </div>
+    <figcaption><span class="evidence-mark-note">真實 UI；紅框是教學 overlay。</span>這個動作只負責產生我們要追的 business request。按鈕本身不是 trace evidence。</figcaption>
+  </figure>
+
+  <h3>Step 1｜在 Network 固定「這一筆」business request</h3>
+
+  <p>在 Chrome Network 找到 Slow scenario 對應的 request：</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-scroll">
+      <div class="evidence-frame">
+        <picture>
+          <source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-network-slow-focus-annotated.png">
+          <img src="../assets/special-lesson-evidence/jeter-network-slow-annotated.png" alt="Jeter DevTools Network，紅框標示 Slow business request" loading="lazy">
+        </picture>
+      </div>
+    </div>
+    <figcaption><span class="evidence-mark-note">真實 DevTools；紅框是教學 overlay。</span>先鎖定 business GET，而不是旁邊的 Faro <code>/alloy</code> telemetry POST。這樣後面查到的 header 才屬於同一筆 request。</figcaption>
+  </figure>
+
+  <p>這次實際 request 是：</p>
+
+  <pre><code>GET https://pek8s-staging.garmin.com/
+    jeter-faro-trace-demo-backend/api/scenario/slow
+
+HTTP 200</code></pre>
+
+  <p><code>200</code> 先只記成「business request 成功」。不要把它升級成「tracing 成功」。</p>
+
+  <h3>Step 2｜讀 Request Headers 的 <code>traceparent</code></h3>
+
+  <figure class="evidence-shot">
+    <div class="evidence-scroll">
+      <div class="evidence-frame">
+        <picture>
+          <source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-traceparent-focus-annotated.png">
+          <img src="../assets/special-lesson-evidence/jeter-traceparent-header-annotated.png" alt="Jeter DevTools Request Headers，紅框標示 traceparent" loading="lazy">
+        </picture>
+      </div>
+    </div>
+    <figcaption><span class="evidence-mark-note">真實 DevTools；紅框是教學 overlay。</span>這一步要抄的是 exact ID，不是只確認「有 traceparent 三個字」。</figcaption>
+  </figure>
+
+  <p>這筆 request 的實際值：</p>
+
+  <pre><code class="mono-break">traceparent:
+00-6faa6779a2970a3f82ad77e9ab9f4eb7-483e269e249ac6b4-01</code></pre>
+
+  <div class="id-grid">
+    <div class="id-card proof-step">
+      <strong>T｜trace ID</strong>
+      <code class="mono-break">6faa6779a2970a3f82ad77e9ab9f4eb7</code>
+    </div>
+    <div class="id-card proof-step">
+      <strong>A｜caller / frontend span ID</strong>
+      <code class="mono-break">483e269e249ac6b4</code>
+    </div>
+  </div>
+
+  <p>到這裡，能下的結論只有：</p>
+
+  <div class="box">
+    <strong>Browser propagation evidence 成立</strong><br>
+    這筆 business request 實際帶出了 trace ID <code>T</code> 與 caller operation ID <code>A</code>。但我們還不知道 backend 有沒有使用它，也還不知道兩邊 span 是否真的進了 Tempo。
+  </div>
+
+  <p><code>01</code> 的 sampled bit 在這筆 context 中是設置的；但它仍不是「一定成功寫入 Tempo」的保證。Sampling decision、telemetry export、Collector / storage、retention 是不同 boundary。</p>
+
+  <h2>4. Step 3｜拿 Browser 的 T 去 Tempo 查 exact trace</h2>
+
+  <p>不要先用 service name、時間範圍、關鍵字猜是哪條 trace。你現在已經從 Browser 拿到最強的 correlation key：<strong>exact trace ID T</strong>。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-scroll">
+      <div class="evidence-frame">
+        <picture>
+          <source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-tempo-query-focus-annotated.png">
+          <img src="../assets/special-lesson-evidence/grafana-tempo-query-annotated.png" alt="Grafana Explore Tempo，紅框標示以 exact trace ID 查詢" loading="lazy">
+        </picture>
+      </div>
+    </div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Explore；紅框是教學 overlay。</span>在 Tempo datasource 查 <code>T = 6faa6779a2970a3f82ad77e9ab9f4eb7</code>，把 Browser evidence 與 trace backend 接到同一筆 identity。</figcaption>
+  </figure>
+
+  <p>查到 trace 之後，還不能停。下一個問題是：這個 trace 裡的 frontend span 真的是剛才 header 裡的 <code>A</code> 嗎？Backend 又真的把 <code>A</code> 當 parent 嗎？</p>
+
+  <h2>5. Step 4｜核對 frontend A 與 backend parent</h2>
+
+  <p>這筆 Tempo runtime record 的 exact IDs 是：</p>
+
+  <div class="id-grid">
+    <div class="id-card proof-final">
+      <strong>Frontend HTTP client span</strong>
+      <div>trace ID = <code class="mono-break">6faa6779a2970a3f82ad77e9ab9f4eb7</code></div>
+      <div>span ID = <code>483e269e249ac6b4</code></div>
+    </div>
+    <div class="id-card proof-final">
+      <strong>Backend HTTP server span</strong>
+      <div>trace ID = <code class="mono-break">6faa6779a2970a3f82ad77e9ab9f4eb7</code></div>
+      <div>span ID = <code>bcaf1c3a1ff7cb07</code></div>
+      <div>parent = <code>483e269e249ac6b4</code></div>
+    </div>
+  </div>
+
+  <p>現在把 Browser 與 Tempo 疊在一起看：</p>
+
+  <pre><code>Browser traceparent
+trace ID  = 6faa6779a2970a3f82ad77e9ab9f4eb7 ───────────────┐
+parent ID = 483e269e249ac6b4 ───────────────────────────┐ │
+                                                       │ │
+Tempo                                                  │ │
+frontend client span                                   │ │
+  trace ID = 6faa6779a2970a3f82ad77e9ab9f4eb7  &lt;──────┘ │
+  span ID  = 483e269e249ac6b4                   &lt;────────┘
+       │
+       │ is parent of
+       ▼
+backend server span
+  trace ID = 6faa6779a2970a3f82ad77e9ab9f4eb7
+  span ID  = bcaf1c3a1ff7cb07
+  parent   = 483e269e249ac6b4</code></pre>
+
+  <p>這才是 decisive equality：</p>
+
+  <pre><code>Browser.trace-id     == Tempo.frontend.trace-id == Tempo.backend.trace-id
+Browser.parent-id    == Tempo.frontend.span-id
+Tempo.backend.parent == Tempo.frontend.span-id</code></pre>
+
+  <figure class="evidence-shot">
+    <div class="evidence-scroll">
+      <div class="evidence-frame">
+        <picture>
+          <source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-tempo-spans-focus-annotated.png">
+          <img src="../assets/special-lesson-evidence/grafana-tempo-spans-annotated.png" alt="Grafana Tempo Service and Operation tree，紅框標示 frontend service 上層與 backend child spans" loading="lazy">
+        </picture>
+      </div>
+    </div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Explore；紅框是教學 overlay。</span>UI tree 提供直覺的 hierarchy evidence：frontend service 在上，backend server operation 接在下面。Exact ID equality 則由同一筆 Tempo runtime record 驗證。</figcaption>
+  </figure>
+
+  <div class="box tip">
+    <strong>這一筆可以正式下結論</strong><br>
+    Jeter Slow scenario 的 Browser header → frontend client span → backend server parent relationship 已對上，因此這一筆 request 的 frontend/backend runtime join verified。這個結論只涵蓋這筆被驗證的 request，不自動擴張到所有 endpoint、所有 session 或其他 frontend 專案。
+  </div>
+
+  <h2>6. SRE Debug：哪一段 equality 先斷，就往哪個 boundary 查</h2>
+
+  <p>實務上最有用的不是背操作順序，而是知道每個觀察把 fault domain 縮到哪裡。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Observed state</th><th>目前能判斷</th><th>下一個 boundary</th></tr></thead>
+      <tbody>
+        <tr><td>API 200，但 request 沒 <code>traceparent</code></td><td>Business 功能正常；Browser propagation 沒有被證明。</td><td>Frontend tracing、<code>backendUrls</code> matching、Fetch/XHR instrumentation、CORS。</td></tr>
+        <tr><td>Header 有 <code>T/A</code>，backend trace 卻是另一個 T</td><td>Browser injection 成功，但 backend 沒延續同一 trace。</td><td>Backend context extraction / server instrumentation。</td></tr>
+        <tr><td>Header 的 T 正確，Tempo 有 backend，但缺 frontend A</td><td>Propagation 可能已成功；frontend span visibility 不完整。</td><td>Frontend sampling、export、Faro receiver、Collector、Tempo retention/query。</td></tr>
+        <tr><td>Tempo 有 frontend A，但完全沒有 backend span</td><td>Frontend export 成功；backend span visibility 不完整。</td><td>Backend instrumentation、sampling、OTLP export、Collector / Tempo。</td></tr>
+        <tr><td>同一 T 裡兩邊都有 span，但 backend parent ≠ A</td><td>不能宣稱 expected parent/child join 成立。</td><td>核對實際 request、nested spans、extraction / parent selection。</td></tr>
+        <tr><td>用 T 在 Tempo 完全查不到</td><td>只能說「目前沒有 query visibility」。</td><td>Sampling、export、ingest、retention、query window；不要直接判定 propagation 失敗。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <blockquote>Expected state → observed identity → first broken boundary。</blockquote>
+
+  <h3>為什麼「Tempo 查不到」不能直接等於 propagation 壞了？</h3>
+
+  <p><code>traceparent</code> 是 business request 上的 propagation evidence；Tempo 是 span telemetry 的 storage/query evidence。中間還隔著 sampling、export、receiver / Collector、storage 與 retention。只要其中任何一段讓 span 沒有留下來，Tempo 都可能查不到。</p>
+
+  <p>因此 Debug 時：</p>
+
+  <pre><code>Header T/A 不存在
+  → 先查 propagation
+
+Header T/A 存在，但 Tempo 不完整
+  → 先把 propagation 與 telemetry visibility 分開
+  → 再查 sampling / export / ingest / retention</code></pre>
+
+  <p>這也是為什麼 Browser 的 <code>faro.performance.resource</code> 有時仍有價值：matching trace 因 sampling 或 retention 不可用時，它可能還保留 Browser-side URL、status、duration、TTFB 等線索。但它不是替代 span relationship 的 trace proof。</p>
+
+  <h2>7. 你自己的驗收 checklist</h2>
+
+  <p>之後協助其他 frontend 導入時，不需要背 Jeter 的 ID；照這個 checklist 重跑新的 request：</p>
+
+  <ol>
+    <li><strong>產生一筆可辨識的 business request</strong>，記下 endpoint 與時間。</li>
+    <li><strong>在 Browser Network 鎖定同一筆 request</strong>，不要拿 <code>/alloy</code> telemetry POST 混在一起。</li>
+    <li><strong>抄下 <code>traceparent</code> 的 T / A</strong>；沒有 header 就先停在 propagation boundary。</li>
+    <li><strong>用 exact T 查 Tempo</strong>，避免只靠時間或 service name 猜。</li>
+    <li><strong>確認 frontend client span 的 span ID = A</strong>。</li>
+    <li><strong>確認 backend server span trace ID = T，parent = A</strong>。</li>
+    <li><strong>記錄 scope</strong>：你證明的是哪個 environment、哪個 request、哪個時間點，不把單筆 evidence 擴張成全系統保證。</li>
+  </ol>
+
+  <div class="box ask">
+    <strong>驗收句型</strong><br>
+    「在 <em>environment / time / endpoint</em> 的這一筆 request，Browser <code>traceparent</code> 的 trace ID 與 parent ID，分別對上 Tempo 的 shared trace ID 與 frontend client span ID；backend server span 的 parent 也等於該 frontend span ID。因此這一筆 frontend → backend trace join 已驗證。」
+  </div>
+
+  <h2>Self-check</h2>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q1. 哪一組 evidence 最足以證明「這一筆」frontend → backend join 成功？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="200 只證明 business request 成功。">API 200，且 Grafana 有 backend span</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="有 header 只證明 Browser injection。">Header 有 T/A，且 Tempo 有 frontend span</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。T 與 A 的 equality 同時跨過 Browser、frontend span 與 backend parent。">T 共用，且 backend parent 等於 A</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="同時間出現不代表兩筆資料有 identity relationship。">時間接近，且兩個 service 都有資料</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q2. Browser header 是 <code>00-T-A-01</code>。查 Tempo 時第一個最強 correlation key 是什麼？</div>
+    <div class="choices">
+      <button class="choice" data-correct="true" data-feedback-correct="對。Exact trace ID T 直接把 Browser request 對到同一條 Tempo trace。">直接用 exact trace ID T 查詢</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="時間範圍只能縮小候選，identity 比它更強。">先用 request 時間範圍慢慢找</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Service name 會匹配很多 traces。">先用 frontend service name 篩選</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="HTTP status 不是 trace identity。">先用 HTTP status code 篩選</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q3. Header 的 T/A 已存在，backend 也延續 T，但 Tempo 缺 frontend A。下一個 fault domain 最合理是哪裡？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="Backend 已延續 T，CORS 不是第一個缺口。">先查 backend CORS permission</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Header 已存在，URL matching 不是目前最直接的缺口。">先查 backendUrls URL matching</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Business body 不決定 frontend span 是否可見。">先查 business response body</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。Propagation 已有 evidence；現在要查 frontend span 的 telemetry visibility path。">查 frontend sampling / export / ingest</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q4. 用 exact T 在 Tempo 查不到資料，哪個結論最精確？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="Tempo 不可見不等於 Browser 一定沒送 header。">一定是 traceparent 沒有被注入</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。先描述 query visibility，再檢查 sampling、export、ingest、retention。">目前沒有足夠的 Tempo query visibility</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Backend business success 與 trace storage 是不同 claim。">一定是 backend API request 失敗</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Sampling 只是可能 boundary 之一，不能直接確定。">一定是 sampler 把這條 trace 丟掉</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <h2>Recap</h2>
+
+  <ul>
+    <li><strong>Lesson 8 驗證的是單筆 runtime join</strong>，不是「設定看起來正確」。</li>
+    <li><strong>Browser <code>traceparent</code> 提供 T / A</strong>：T 是 exact trace identity，A 是 caller/frontend operation identity。</li>
+    <li><strong>Tempo 要用 exact T 查</strong>，再核對 frontend span ID 是否等於 A。</li>
+    <li><strong>Backend server span 必須保留同一個 T，且 parent = A</strong>，這才建立預期 parent/child relationship。</li>
+    <li><strong>HTTP 200、有 header、有單邊 span 都只是部分 evidence</strong>，不能單獨升級成 end-to-end join 成功。</li>
+    <li><strong>Tempo 查不到不等於 propagation 失敗</strong>；sampling、export、ingest、storage、retention 都會影響 query visibility。</li>
+    <li><strong>Runtime proof 有 scope</strong>：一筆 request 的成功不能自動代表所有 endpoint 或所有應用都成功。</li>
+  </ul>
+
+  <div class="box">
+    <strong>Primary source 與 runtime evidence</strong><br>
+    Primary source：<a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">前後端 Trace 串接範例</a>。核心 evidence：<a href="../sources/evidence/trace-context-propagation.md">trace-context propagation</a>、<a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter integration / tracing configuration</a>、<a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">single-request runtime join</a>、<a href="../sources/evidence/grafana-ui-runtime-2026-09-20.md">Grafana Explore UI runtime evidence</a>。
+  </div>
+
+  <p>如果你要把這堂課真的做完，下一步不是再看一次答案，而是拿一筆新的 request，自己告訴我 <code>T</code>、<code>A</code>、backend span ID，以及你在哪一個畫面證明 <code>backend.parent = A</code>。我可以直接用你的 evidence 做 feedback。</p>
+
+  <nav class="lesson-nav" aria-label="課程導覽">
+    <a href="0007-frontend-backend-trace-context-propagation.html">← Lesson 7</a>
+    <a href="../reference/0006-w3c-traceparent.html">Traceparent Reference</a>
+    <a href="../learning-map/index.html">Learning Map →</a>
+  </nav>
+</body>
+</html>
