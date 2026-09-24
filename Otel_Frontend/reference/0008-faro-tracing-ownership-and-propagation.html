@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reference｜Faro tracing ownership 與 propagation 邊界</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+  <h1>Faro tracing ownership 與 propagation 邊界</h1>
+  <p class="subtitle">Internal package、Grafana Faro、OpenTelemetry 到底各自做哪一段，以及 <code>traceparent</code> 實際怎麼進入 request</p>
+
+  <div class="box tip">
+    <strong>一句話版本</strong><br>
+    <code>@sre2/faro-click-tracking</code> 沒有自己實作 W3C propagation。它負責把 host 的 <code>backendUrls</code> 設定交給 Faro；Faro 負責把 tracing 元件接起來；真正提供 <code>W3CTraceContextPropagator</code>、Fetch instrumentation 等底層能力的是 OpenTelemetry。
+  </div>
+
+  <h2>1. 先看完整三層 ownership</h2>
+
+  <figure class="diagram">
+    <figcaption><strong>從 application 到真正寫出 trace header 的完整責任鏈</strong></figcaption>
+    <pre><code>Application
+  │
+  │ calls initFaro({ backendUrls: [...] })
+  ▼
+┌──────────────────────────────────────────────────────────────┐
+│ Internal package                                            │
+│ @sre2/faro-click-tracking                                  │
+│                                                              │
+│ backendUrls                                                  │
+│   │ maps to                                                  │
+│   ▼                                                          │
+│ TracingInstrumentation({                                     │
+│   instrumentationOptions: {                                  │
+│     propagateTraceHeaderCorsUrls: backendUrls                │
+│   }                                                          │
+│ })                                                           │
+│                                                              │
+│ Responsibility: company-facing API + configuration mapping   │
+│ Does NOT implement traceparent serialization                 │
+└──────────────────────────────────────────────────────────────┘
+  │ configures
+  ▼
+┌──────────────────────────────────────────────────────────────┐
+│ Grafana Faro Web Tracing                                    │
+│                                                              │
+│ TracingInstrumentation.initialize()                          │
+│   │                                                          │
+│   ├─ creates/registers WebTracerProvider                     │
+│   ├─ registers W3CTraceContextPropagator                     │
+│   └─ registers default Fetch / XHR instrumentation           │
+│          │                                                   │
+│          └─ receives propagateTraceHeaderCorsUrls            │
+│                                                              │
+│ Responsibility: orchestration / wiring                       │
+└──────────────────────────────────────────────────────────────┘
+  │ registers / uses
+  ▼
+┌──────────────────────────────────────────────────────────────┐
+│ OpenTelemetry                                                │
+│                                                              │
+│ W3CTraceContextPropagator                                    │
+│   └─ serializes SpanContext → traceparent                    │
+│                                                              │
+│ FetchInstrumentation                                         │
+│   └─ instruments outgoing fetch requests                     │
+│                                                              │
+│ WebTracerProvider / propagation API                          │
+│   └─ provides tracing context used by instrumentation        │
+│                                                              │
+│ Responsibility: core tracing + propagation primitives        │
+└──────────────────────────────────────────────────────────────┘</code></pre>
+  </figure>
+
+  <div class="box ask">
+    <strong>最重要的 boundary</strong><br>
+    Internal package 是「幫你配置」；Faro 是「把元件接起來」；OpenTelemetry 是「提供真正的 tracing / propagation primitives」。不要把三層都叫成「Faro SDK 自己做的」。
+  </div>
+
+  <h2>2. 設定階段：這時候還沒有任何 request</h2>
+
+  <p>先把 runtime request 拿掉，只看初始化。</p>
+
+  <pre><code>host application
+  │
+  │ initFaro({ backendUrls })
+  ▼
+internal package
+  │
+  │ backendUrls
+  │        maps to
+  ▼
+propagateTraceHeaderCorsUrls
+  │
+  │ passed into
+  ▼
+Faro TracingInstrumentation
+  │
+  ├─ register W3CTraceContextPropagator
+  └─ register Fetch / XHR instrumentation</code></pre>
+
+  <p>到這一步只是把 tracing runtime 準備好。<strong>還沒有產生 <code>traceparent</code></strong>，因為真正的 business request 還沒發生。</p>
+
+  <h2>3. Request 發生時：<code>traceparent</code> 到底怎麼被放進 header？</h2>
+
+  <figure class="diagram">
+    <figcaption><strong>一筆 Browser business request 的 runtime sequence</strong></figcaption>
+    <pre><code>① Application code
+   fetch("https://api.example.com/orders")
+        │
+        │ browser call is instrumented by
+        ▼
+② Fetch / XHR instrumentation
+   creates or manages Browser HTTP client span A
+
+   traceId = T
+   spanId  = A
+        │
+        │ checks whether target URL is eligible for
+        │ cross-origin trace-header propagation
+        ▼
+③ propagateTraceHeaderCorsUrls / backendUrls match
+        │
+        │ eligible
+        ▼
+④ OpenTelemetry propagation uses
+   W3CTraceContextPropagator
+        │
+        │ inject(current SpanContext, request headers)
+        ▼
+⑤ Outgoing HTTP request now contains
+
+   traceparent: 00-T-A-01
+                    │ │
+                    │ └─ caller/current span ID = A
+                    └─── same distributed trace ID = T
+        │
+        │ Browser sends HTTP request
+        ▼
+⑥ Backend receives request
+        │
+        │ backend tracing extracts incoming trace context
+        ▼
+⑦ Backend creates its own server span B
+
+   traceId      = T
+   spanId       = B
+   parentSpanId = A</code></pre>
+  </figure>
+
+  <p>所以「傳遞」不是把 Browser span object 傳去 backend。真正跨網路的只有序列化後的 header value；backend 再從 header 還原 parent context。</p>
+
+  <h2>4. 到底是誰「寫」<code>traceparent</code>？</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>元件</th><th>是不是實際負責內容？</th><th>責任</th></tr></thead>
+      <tbody>
+        <tr><td><code>@sre2/faro-click-tracking</code></td><td>不是</td><td>提供 <code>backendUrls</code>，把設定映射到 Faro tracing options。</td></tr>
+        <tr><td><code>TracingInstrumentation</code>（Faro）</td><td>不是自己手刻 header</td><td>註冊 provider、propagator、HTTP instrumentations，完成 wiring。</td></tr>
+        <tr><td>Fetch / XHR instrumentation</td><td>觸發 propagation</td><td>攔截 outbound request、建立/管理 HTTP span，並在符合設定時讓 propagation 對 request carrier 注入 context。</td></tr>
+        <tr><td><code>W3CTraceContextPropagator</code>（OpenTelemetry）</td><td><strong>是，負責 W3C 格式序列化</strong></td><td>把目前 <code>SpanContext</code> 轉成 <code>traceparent</code> 等 propagation fields，寫入 carrier。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>因此最精確的說法是：</p>
+
+  <blockquote>Faro 把 OpenTelemetry 的 HTTP instrumentation 與 W3C propagator 接起來；HTTP instrumentation 在 outbound request 時使用 propagation 機制，而 W3C propagator 負責把目前 SpanContext 序列化成標準 header。</blockquote>
+
+  <h2>5. <code>backendUrls</code> 到底控制什麼？</h2>
+
+  <pre><code>backendUrls
+   │
+   │ internal package maps to
+   ▼
+propagateTraceHeaderCorsUrls
+   │
+   │ controls
+   ▼
+哪些 cross-origin business request
+允許被加入 trace context headers</code></pre>
+
+  <p>它<strong>不是</strong>：</p>
+
+  <ul>
+    <li>不是 trace ID generator。</li>
+    <li>不是 <code>traceparent</code> serializer。</li>
+    <li>不是 Alloy / Faro receiver URL。</li>
+    <li>不是 backend extraction 設定。</li>
+  </ul>
+
+  <p>它的責任很單純：告訴 browser HTTP instrumentation，哪些 target URL 可以參與 cross-origin trace-header propagation。</p>
+
+  <h2>6. 為什麼一定要把 propagation 與 telemetry export 畫成兩條線？</h2>
+
+  <pre><code>Path A — Business request / context propagation
+
+Browser client span A
+   │
+   │ HTTP request header: traceparent = 00-T-A-...
+   ▼
+Backend API
+   │
+   └─ creates backend span B in trace T, parent = A
+
+
+Path B — Telemetry export
+
+Browser span A
+   │
+   └─ Faro transport → receiver / Alloy / Collector → Tempo
+
+Backend span B
+   │
+   └─ OTLP → Collector → Tempo</code></pre>
+
+  <p><strong>Path A</strong> 決定 frontend 與 backend 是否知道彼此的 parent relationship。<strong>Path B</strong> 決定那些 spans 最後有沒有被觀測系統收到。</p>
+
+  <p>所以 request 裡看到 <code>traceparent</code>，不等於 Tempo 一定會看到完整 trace；反過來，兩邊都有 spans，也不代表它們一定被串成同一條 trace。</p>
+
+  <h2>7. 一張表記住 ownership</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>問題</th><th>主要 owner</th></tr></thead>
+      <tbody>
+        <tr><td>Application 要怎麼宣告哪些 backend 要 propagation？</td><td>Internal package 的 <code>backendUrls</code> API</td></tr>
+        <tr><td>誰把 internal option 接到 tracing runtime？</td><td>Internal package → Faro <code>TracingInstrumentation</code></td></tr>
+        <tr><td>誰建立/register tracing provider 與 instrumentation？</td><td>Grafana Faro Web Tracing</td></tr>
+        <tr><td>誰提供 W3C <code>traceparent</code> serialization？</td><td>OpenTelemetry <code>W3CTraceContextPropagator</code></td></tr>
+        <tr><td>誰觀察 outbound Fetch request？</td><td>OpenTelemetry <code>FetchInstrumentation</code>（由 Faro 註冊）</td></tr>
+        <tr><td>誰決定 backend 是否真的加入同一條 trace？</td><td>Backend tracing instrumentation / propagator extraction</td></tr>
+        <tr><td>誰把 span telemetry 送到 Tempo？</td><td>Frontend / backend 各自的 exporter / transport pipeline</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>8. Source evidence</h2>
+
+  <p>這個 ownership 不是從 package 名稱猜出來的，而是直接從 source chain 切分：</p>
+
+  <ul>
+    <li><a href="../sources/evidence/faro-click-tracking.md">Internal package evidence</a>：<code>backendUrls</code> 只被映射到 <code>propagateTraceHeaderCorsUrls</code>。</li>
+    <li><a href="https://github.com/grafana/faro-web-sdk/blob/v2.9.0/packages/web-tracing/src/instrumentation.ts">Grafana Faro v2.9.0 <code>TracingInstrumentation</code></a>：建立 <code>WebTracerProvider</code>、register <code>W3CTraceContextPropagator</code>、把 propagation URL options 傳入 default instrumentations。</li>
+    <li><a href="https://github.com/grafana/faro-web-sdk/blob/v2.9.0/packages/web-tracing/src/getDefaultOTELInstrumentations.ts">Grafana Faro default instrumentations</a>：建立 <code>FetchInstrumentation</code> 與 Faro XHR instrumentation。</li>
+    <li><a href="https://github.com/grafana/faro-web-sdk/blob/v2.9.0/packages/web-tracing/package.json">Grafana Faro v2.9.0 dependencies</a>：直接依賴 OpenTelemetry API、core、web tracer provider、Fetch/XHR instrumentation packages。</li>
+    <li><a href="../sources/evidence/trace-context-propagation.md">Lesson 7 propagation evidence</a>：整理前後端 context propagation 與 telemetry export 的 evidence boundary。</li>
+  </ul>
+
+  <div class="box">
+    <strong>看到問題時怎麼定位</strong><br>
+    如果 <code>traceparent</code> 根本沒出現在 business request：先查 frontend instrumentation / URL matching / propagation。若 header 已存在但 backend trace ID 不同：查 backend extraction。若 relationship 正確但 Tempo 缺 span：再查 export pipeline。
+  </div>
+
+  <p><a href="0006-w3c-traceparent.html">← W3C traceparent 快速查表</a> · <a href="../lessons/0007-frontend-backend-trace-context-propagation.html">回到 Lesson 7</a> · <a href="../learning-map/index.html">Learning Map →</a></p>
+</body>
+</html>
