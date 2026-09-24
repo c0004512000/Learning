@@ -81,7 +81,7 @@ POST /alloy B
     它先接住外部送進來的資料，再把資料交給內部對應的 signal pipeline。它不是最終 storage，也不是「只是開一個 port」。
   </div>
 
-  <p>現行 stage / prod runtime 都由 Alloy 接 Faro；Alloy 再用 OTLP gRPC 把資料送到 <code class="mono-break">opentelemetry-collector.open-telemetry.svc.cluster.local:4317</code>。Collector 本身不需要再開第二個 Faro receiver。</p>
+  <p>現行 stage / prod runtime 都由 Alloy 接 Faro；Alloy 再用 OTLP gRPC 把資料送到 <code class="mono-break">opentelemetry-collector.open-telemetry.svc.cluster.local:4317</code>。Collector 本身不需要再開第二個 Faro receiver。</p>
 
   <p class="cite">Configuration basis：<a href="../sources/materials/5.%20Deploy%20Alloy%20Server%20-%20Production.html">Deploy Alloy Server - Production</a>；current runtime verification：<a href="../sources/evidence/browser-to-alloy.md">Browser Faro endpoint and Alloy receiver</a>、<a href="../sources/evidence/collector-pipeline.md">Alloy → OTel Collector pipeline</a>。</p>
 
