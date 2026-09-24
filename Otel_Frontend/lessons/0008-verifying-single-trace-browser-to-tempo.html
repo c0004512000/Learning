@@ -318,10 +318,10 @@ Header T/A 存在，但 Tempo 不完整
   <div class="quiz" data-quiz>
     <div class="question">Q1. 哪一組 evidence 最足以證明「這一筆」frontend → backend join 成功？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="200 只證明 business request 成功。">API 200，且 Grafana 有 backend span</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="有 header 只證明 Browser injection。">Header 有 T/A，且 Tempo 有 frontend span</button>
-      <button class="choice" data-correct="true" data-feedback-correct="對。T 與 A 的 equality 同時跨過 Browser、frontend span 與 backend parent。">T 共用，且 backend parent 等於 A</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="同時間出現不代表兩筆資料有 identity relationship。">時間接近，且兩個 service 都有資料</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="200 只證明 business request 成功。">HTTP 200，且 Tempo 看見 backend span</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="有 header 只證明 Browser injection。">Header 有 T/A，且 Tempo 看見 frontend span</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。T 與 A 的 equality 同時跨過 Browser、frontend span 與 backend parent。">Trace ID 同 T，且 backend parent = A</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="同時間出現不代表兩筆資料有 identity relationship。">時間很接近，且兩個 service 都有 span</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
@@ -329,10 +329,10 @@ Header T/A 存在，但 Tempo 不完整
   <div class="quiz" data-quiz>
     <div class="question">Q2. Browser header 是 <code>00-T-A-01</code>。查 Tempo 時第一個最強 correlation key 是什麼？</div>
     <div class="choices">
-      <button class="choice" data-correct="true" data-feedback-correct="對。Exact trace ID T 直接把 Browser request 對到同一條 Tempo trace。">直接用 exact trace ID T 查詢</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="時間範圍只能縮小候選，identity 比它更強。">先用 request 時間範圍慢慢找</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Service name 會匹配很多 traces。">先用 frontend service name 篩選</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="HTTP status 不是 trace identity。">先用 HTTP status code 篩選</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。Exact trace ID T 直接把 Browser request 對到同一條 Tempo trace。">使用 exact trace ID T 查詢</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="時間範圍只能縮小候選，identity 比它更強。">使用 request 發生時間查詢</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Service name 會匹配很多 traces。">使用 frontend service name 查詢</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="HTTP status 不是 trace identity。">使用 HTTP status code 查詢</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
@@ -340,10 +340,10 @@ Header T/A 存在，但 Tempo 不完整
   <div class="quiz" data-quiz>
     <div class="question">Q3. Header 的 T/A 已存在，backend 也延續 T，但 Tempo 缺 frontend A。下一個 fault domain 最合理是哪裡？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="Backend 已延續 T，CORS 不是第一個缺口。">先查 backend CORS permission</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Header 已存在，URL matching 不是目前最直接的缺口。">先查 backendUrls URL matching</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Business body 不決定 frontend span 是否可見。">先查 business response body</button>
-      <button class="choice" data-correct="true" data-feedback-correct="對。Propagation 已有 evidence；現在要查 frontend span 的 telemetry visibility path。">查 frontend sampling / export / ingest</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Backend 已延續 T，CORS 不是第一個缺口。">檢查 backend CORS 與 header permission</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Header 已存在，URL matching 不是目前最直接的缺口。">檢查 backendUrls 與 URL matching</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Business body 不決定 frontend span 是否可見。">檢查 business response 與 HTTP body</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。Propagation 已有 evidence；現在要查 frontend span 的 telemetry visibility path。">檢查 frontend sampling / export / ingest</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
@@ -351,10 +351,10 @@ Header T/A 存在，但 Tempo 不完整
   <div class="quiz" data-quiz>
     <div class="question">Q4. 用 exact T 在 Tempo 查不到資料，哪個結論最精確？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="Tempo 不可見不等於 Browser 一定沒送 header。">一定是 traceparent 沒有被注入</button>
-      <button class="choice" data-correct="true" data-feedback-correct="對。先描述 query visibility，再檢查 sampling、export、ingest、retention。">目前沒有足夠的 Tempo query visibility</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Backend business success 與 trace storage 是不同 claim。">一定是 backend API request 失敗</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Sampling 只是可能 boundary 之一，不能直接確定。">一定是 sampler 把這條 trace 丟掉</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Tempo 不可見不等於 Browser 一定沒送 header。">目前只能確認 Browser 沒有 propagation</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。先描述 query visibility，再檢查 sampling、export、ingest、retention。">目前只能確認 Tempo 沒有 query visibility</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Backend business success 與 trace storage 是不同 claim。">目前只能確認 backend API request 失敗</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Sampling 只是可能 boundary 之一，不能直接確定。">目前只能確認 sampler 丟掉這條 trace</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
