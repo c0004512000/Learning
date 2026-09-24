@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 9｜Faro Receiver to Alloy and OTel Collector</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/evidence-annotations.css">
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js" defer></script>
+  <style>
+    .lesson9 .pipeline { display: grid; gap: .55rem; margin: 1.2rem 0; }
+    .lesson9 .pipeline-node { padding: .8rem .9rem; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); }
+    .lesson9 .pipeline-node strong { display: block; margin-bottom: .2rem; }
+    .lesson9 .pipeline-arrow { color: var(--muted); text-align: center; font-family: "SF Mono", Consolas, "Cascadia Code", Menlo, monospace; }
+    .lesson9 .signal-log { border-left: 4px solid var(--info); }
+    .lesson9 .signal-trace { border-left: 4px solid var(--success); }
+    .lesson9 .boundary { border-left: 4px solid var(--accent); }
+    .lesson9 .evidence-shot { margin: 1.4rem 0; }
+    .lesson9 .evidence-scroll { overflow-x: auto; border-radius: 8px; }
+    .lesson9 .evidence-shot figcaption { margin-top: .65rem; }
+    .lesson9 .mono-break { overflow-wrap: anywhere; word-break: break-word; }
+    @media (max-width: 680px) {
+      .lesson9 .evidence-shot .evidence-frame { width: 100%; }
+    }
+  </style>
+</head>
+<body class="lesson9">
+  <h1>Faro Receiver to Alloy and OTel Collector</h1>
+  <p class="subtitle">Milestone 5 · 同一個 <code>/alloy</code> 入口，為什麼有些資料最後在 Loki，有些卻進 Tempo？</p>
+
+  <div class="box tip">
+    <strong>這堂課的 tangible win</strong><br>
+    給你一筆 Faro telemetry，你要能先判斷它屬於哪種 signal，再沿著 <strong>Alloy receiver → OTel signal → Collector pipeline → storage</strong> 畫出它真正走的路，而不是看到 <code>/alloy</code> 就把所有資料當成同一種東西。
+  </div>
+
+  <p><a href="0005-faro-browser-to-alloy-transport.html">Lesson 5</a> 已經建立一個重要前提：一筆 business request 可以被不同 instrumentation 觀察，產生不同 Faro telemetry，也可能形成多筆 <code>POST /alloy</code>。Lesson 9 從這個邊界往後追。</p>
+
+  <blockquote>Browser 把資料送到同一個 Alloy endpoint，不代表 downstream 會走同一條 pipeline，也不代表最後會進同一個 storage。</blockquote>
+
+  <h2>1. 先從真實案例開始：一筆 API request，兩種 telemetry</h2>
+
+  <p>Jeter stage 的 runtime evidence 已經驗證：一次 <code>GET /api/scenario/employee/1001</code> 產生了至少兩種不同 telemetry。</p>
+
+  <pre><code>POST /alloy A
+  events[]
+  └─ name = faro.performance.resource
+
+POST /alloy B
+  events[]
+  └─ name = faro.tracing.fetch
+
+  traces
+  └─ resourceSpans = [...]</code></pre>
+
+  <p>這裡最容易犯的錯，是把「兩筆 <code>/alloy</code> POST」理解成「同一份資料送了兩次」。真正要先看的不是 HTTP request 數量，而是 payload 裡裝的是什麼。</p>
+
+  <div class="box ask">
+    <strong>先做 classification，再談 pipeline</strong><br>
+    <code>faro.performance.resource</code> 在 Browser payload 裡是 Faro <strong>event</strong>；tracing payload 裡的 <code>resourceSpans</code> 才是 span / trace signal。兩者可以描述同一筆 business HTTP request，但不是同一種 telemetry object。
+  </div>
+
+  <p class="cite">Runtime basis：<a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Jeter faro.performance.resource runtime verification</a>。Primary material 也把 Faro instrumentation 收集的 events / logs / exceptions / measurements / meta 與 tracing capability 分開描述：<a href="../sources/materials/2.%20Grafana%20Faro%20&%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy - 前端可觀測性</a>。</p>
+
+  <h2>2. Alloy receiver 到底做什麼？</h2>
+
+  <p>Browser 送的是 Faro payload。現行架構不是讓 Browser 直接講 OTLP 給 Collector，而是先把 Faro HTTP payload 交給 Alloy 的 Faro receiver。</p>
+
+  <div class="pipeline" aria-label="Browser 到 Alloy receiver">
+    <div class="pipeline-node"><strong>Browser</strong><code>POST /alloy</code><br>送 Faro payload。</div>
+    <div class="pipeline-arrow">↓ HTTP request routed to</div>
+    <div class="pipeline-node boundary"><strong>Alloy <code>otelcol.receiver.faro "frontend"</code></strong>目前 listen port 為 <code>12347</code>；接收 Faro payload，並把可輸出的資料交給 OTel logs / traces 路徑。</div>
+    <div class="pipeline-arrow">↓ emits OTel signals to</div>
+    <div class="pipeline-node"><strong>Alloy batch processor</strong>目前 logs 與 traces 都先經 batch，再交給 Alloy 的 OTLP exporter。</div>
+  </div>
+
+  <p>所以這裡的 <strong>receiver</strong> 可以先用最具體的方式理解：</p>
+
+  <div class="box">
+    <strong>Receiver = 系統的資料入口與 protocol / data-model boundary。</strong><br>
+    它先接住外部送進來的資料，再把資料交給內部對應的 signal pipeline。它不是最終 storage，也不是「只是開一個 port」。
+  </div>
+
+  <p>現行 stage / prod runtime 都由 Alloy 接 Faro；Alloy 再用 OTLP gRPC 把資料送到 <code class="mono-break">opentelemetry-collector.open-telemetry.svc.cluster.local:4317</code>。Collector 本身不需要再開第二個 Faro receiver。</p>
+
+  <p class="cite">Configuration basis：<a href="../sources/materials/5.%20Deploy%20Alloy%20Server%20-%20Production.html">Deploy Alloy Server - Production</a>；current runtime verification：<a href="../sources/evidence/browser-to-alloy.md">Browser Faro endpoint and Alloy receiver</a>、<a href="../sources/evidence/collector-pipeline.md">Alloy → OTel Collector pipeline</a>。</p>
+
+  <h2>3. 為什麼同一個 receiver 之後會分岔？</h2>
+
+  <p>因為 OTel Collector pipeline 不是按照「這些資料是不是來自同一個網站」分流，而是按照 <strong>signal type</strong> 分流。</p>
+
+  <div class="pipeline">
+    <div class="pipeline-node boundary"><strong>Alloy Faro receiver</strong>同一個 Faro ingress。</div>
+    <div class="pipeline-arrow">↓ classification / translation</div>
+    <div class="pipeline-node signal-log"><strong>Logs signal</strong>例如目前驗證到的 <code>faro.performance.resource</code> event 會成為 OTLP log record。</div>
+    <div class="pipeline-arrow">↓ OTLP gRPC</div>
+    <div class="pipeline-node signal-log"><strong>Collector <code>logs</code> pipeline</strong>目前 stage 由 OTLP receiver 接收，經處理後送 Loki gateway。</div>
+    <div class="pipeline-arrow">↓ stored / queried in</div>
+    <div class="pipeline-node signal-log"><strong>Loki</strong>Grafana Explore 可查到 matching event record。</div>
+  </div>
+
+  <div class="pipeline">
+    <div class="pipeline-node boundary"><strong>Alloy Faro receiver</strong>同一個 Faro ingress。</div>
+    <div class="pipeline-arrow">↓ classification / translation</div>
+    <div class="pipeline-node signal-trace"><strong>Traces signal</strong><code>resourceSpans</code> 是 span / trace data。</div>
+    <div class="pipeline-arrow">↓ OTLP gRPC</div>
+    <div class="pipeline-node signal-trace"><strong>Collector <code>traces</code> pipeline</strong>目前 stage 會經 attribute / resource / filter / batch 等 processor，再 export 到 Tempo distributor。</div>
+    <div class="pipeline-arrow">↓ stored / queried in</div>
+    <div class="pipeline-node signal-trace"><strong>Tempo</strong>用 trace / span relationship 查 distributed operation。</div>
+  </div>
+
+  <p>因此，<strong>Alloy endpoint 相同</strong>只代表它們從同一個 Faro ingress 進來；後續走哪條路，要看 receiver 轉成哪一種 OTel signal。</p>
+
+  <h2>4. Receiver、Processor、Exporter：不要背名詞，先看責任</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>元件</th><th>你可以問的問題</th><th>Lesson 9 的實例</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Receiver</strong></td><td>「資料從哪個 protocol / endpoint 進來？」</td><td>Alloy Faro receiver 接 Browser Faro；Collector OTLP receiver 接 Alloy 的 OTLP。</td></tr>
+        <tr><td><strong>Processor</strong></td><td>「資料進來後，有沒有被 batch、filter、transform 或補 attributes？」</td><td>Alloy 目前先 batch；Collector 的 trace pipeline 還有 attribute / resource / filter / batch。</td></tr>
+        <tr><td><strong>Exporter</strong></td><td>「處理完後，下一站要送去哪？」</td><td>Alloy OTLP exporter 送 Collector；Collector logs 送 Loki，traces 送 Tempo。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>這三個角色可以串成一個最小 mental model：</p>
+
+  <pre><code>receiver
+  接進來
+     ↓
+processor
+  中途處理
+     ↓
+exporter
+  送出去</code></pre>
+
+  <p>但不要把這個圖誤解成「每條 pipeline 永遠只有一個 processor」。Processor 可以有多個，也可能因 signal / environment 不同而不同。</p>
+
+  <h2>5. 實際證明：performance event 最後真的進 Loki</h2>
+
+  <p>Jeter 的這筆 runtime evidence 不是只看 config 猜路徑；同一個 <code>faro.performance.resource</code> event 已經在 Grafana Loki 查到 matching record。</p>
+
+  <pre><code>{service_name="jeter-faro-trace-demo-frontend"}
+  |= "faro.performance.resource"
+  |= "/api/scenario/employee/1001"</code></pre>
+
+  <figure class="evidence-shot">
+    <div class="evidence-scroll">
+      <div class="evidence-frame">
+        <img src="../assets/special-lesson-evidence/grafana-loki-query-focus-annotated.png" alt="Grafana Explore Loki query，紅框標示 Jeter resource performance 查詢" loading="lazy">
+      </div>
+    </div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Explore；紅框是教學 overlay。</span>這一步把查詢限定在 Jeter frontend、<code>faro.performance.resource</code> 與同一個 employee API path。它證明我們在 Loki 端主動尋找這個 Browser event，不是在 Tempo 查 span。</figcaption>
+  </figure>
+
+  <figure class="evidence-shot">
+    <div class="evidence-scroll">
+      <div class="evidence-frame">
+        <img src="../assets/special-lesson-evidence/grafana-loki-result-focus-annotated.png" alt="Grafana Loki matching record，紅框標示 faro.performance.resource 欄位" loading="lazy">
+      </div>
+    </div>
+    <figcaption><span class="evidence-mark-note">真實 Loki result；紅框是教學 overlay。</span>Matching record 顯示 <code>kind=event</code>、<code>event_name=faro.performance.resource</code> 與該 API URL。這是 storage visibility evidence；它不代表每一筆 Faro event 都一定能成功走完整條 pipeline。</figcaption>
+  </figure>
+
+  <h2>6. SRE 需要看哪些 resource-performance 欄位？</h2>
+
+  <p>Lesson 9 不把你拉去學完整 Resource Timing API。只保留目前 Mission 會實際用來 debug 的欄位。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>欄位</th><th>Operational question</th></tr></thead>
+      <tbody>
+        <tr><td><code>event_data_name</code></td><td>這筆 record 是哪一個 URL / resource？</td></tr>
+        <tr><td><code>event_data_responseStatus</code></td><td>Browser 看到什麼 HTTP status？</td></tr>
+        <tr><td><code>event_data_duration</code></td><td>Browser 觀察到的整體 resource duration 大約多少？</td></tr>
+        <tr><td><code>event_data_ttfb</code></td><td>多久後第一個 response byte 可用？</td></tr>
+        <tr><td><code>event_data_responseTime</code></td><td>response 接收階段花了多少時間？</td></tr>
+        <tr><td><code>event_data_transferSize</code></td><td>Browser 回報的 transfer data 大小是多少？</td></tr>
+        <tr><td><code>event_data_cacheHitStatus</code></td><td>Faro 把這次 resource 分類成 cache hit 還是 full load？</td></tr>
+        <tr><td><code>event_data_initiatorType</code></td><td>是什麼 Browser initiator 產生這個 resource，例如 <code>fetch</code>？</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="box ask">
+    <strong>不要建立假的「API 慢固定查詢順序」</strong><br>
+    Tempo trace 用來定位 distributed operation 的 latency 在 frontend / backend / DB / downstream 哪個 span；Loki 裡的 <code>faro.performance.resource</code> 則提供 Browser-side HTTP experience。兩者是互補 evidence。當完整 trace 存在時，trace timing 對 root-cause localization 通常更直接；當 trace 因 sampling、retention 或其他 visibility gap 不存在時，resource event 仍可能提供 Browser evidence。
+  </div>
+
+  <p class="cite">Field / debugging boundary：<a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">runtime verification</a>。DNS / TCP / TLS 等 lower-level sub-timings 只有當 incident 已縮小到 connection setup fault domain 時才需要深入。</p>
+
+  <h2>7. Debugging：哪一段斷了？</h2>
+
+  <p>把 operational troubleshooting 變成 evidence boundary，而不是看到「Grafana 沒資料」就一次檢查全部。</p>
+
+  <div class="box">
+    <strong>Expected state</strong><br>
+    Browser 有 <code>faro.performance.resource</code> → <code>POST /alloy</code> → Alloy logs output → Collector logs pipeline → Loki matching record。
+  </div>
+
+  <div class="box ask">
+    <strong>Observed symptom</strong><br>
+    DevTools 已看到含 <code>faro.performance.resource</code> 的 <code>POST /alloy</code>，但 Loki 查不到 matching record；同時間 tracing span 卻能在 Tempo 查到。
+  </div>
+
+  <p>這時最重要的推論不是「Faro 壞了」，而是：</p>
+
+  <pre><code>Browser event exists
+  → event construction 至少有 evidence
+
+trace visible in Tempo
+  → trace path 至少有 downstream visibility
+
+resource event missing in Loki
+  → 優先縮小 logs path
+     Alloy logs output
+        ↓
+     OTLP delivery to Collector
+        ↓
+     Collector logs pipeline
+        ↓
+     Loki export / ingest / query visibility</code></pre>
+
+  <p>也就是說，<strong>traces pipeline 成功不能證明 logs pipeline 成功</strong>。同一個 Faro receiver 之後，它們已經是不同 signal path。</p>
+
+  <p class="cite">Current topology / limit：<a href="../sources/evidence/collector-pipeline.md">collector-pipeline evidence</a>。目前 evidence 驗證 configuration 與一筆 Loki runtime record，但沒有宣稱所有 Collector queue / retry / acceptance state 都已被量測。</p>
+
+  <h2>Self-check</h2>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q1. Browser 的兩筆 <code>/alloy</code> POST 都描述同一個 business API。哪個判斷最精確？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="HTTP request 數量不能直接代表 telemetry duplication。">兩筆 POST 就代表同一 telemetry 重送</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。先看 payload 的 event / traces signal，再決定 downstream path。">兩筆 POST 可能承載不同 telemetry signals</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Business API 次數與 telemetry POST 次數不是同一個 unit。">兩筆 POST 就代表 business API 呼叫兩次</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="同一 endpoint 並不保證 downstream storage 相同。">兩筆 POST 最後必定進同一 storage</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q2. 現行 stage 中，<code>faro.performance.resource</code> 最符合哪條已驗證路徑？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="resource event 不是因為 URL 相同就變成 trace span。">Faro event → trace signal → Tempo storage</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="目前沒有把這個 Jeter event 驗證成 Prometheus metric。">Faro event → metric signal → Prometheus storage</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。這條 Browser event → OTLP log → Loki 路徑有 runtime matching record。">Faro event → logs signal → Loki storage</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="OpenSearch route 對 Jeter 目前有 Foreman service filter boundary。">Faro event → logs signal → OpenSearch storage</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q3. 哪個描述最接近 receiver / processor / exporter 的責任順序？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="Exporter 不是入口。">exporter 接進來 → processor 處理 → receiver 送出去</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。先接收，再中途處理，最後送往下一站。">receiver 接進來 → processor 處理 → exporter 送出去</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Processor 不負責當 protocol ingress。">processor 接進來 → receiver 處理 → exporter 送出去</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Receiver 不負責當 final exporter。">receiver 接進來 → exporter 處理 → processor 送出去</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q4. Trace 在 Tempo 可見，但 matching resource event 在 Loki 不可見，最精確的下一步是？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="Trace path 可見不能證明 logs path 也可見。">因為 Tempo 成功所以整條 Faro pipeline 成功</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Backend trace 成功不會直接證明 Browser resource event 不存在。">直接判定 Browser instrumentation 完全沒有執行</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="沒有 evidence 可以直接把問題定位到 Loki 本身。">直接判定 Loki storage 一定發生資料遺失</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。從已知 Browser event evidence 往 Alloy logs / Collector logs / Loki visibility 縮小。">沿 logs signal path 找第一個 evidence 斷點</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
+  <h2>Recap</h2>
+
+  <ul>
+    <li>同一個 <code>/alloy</code> ingress 可以承載不同 Faro telemetry；先看 payload signal，不要先數 request。</li>
+    <li>Alloy Faro receiver 是 Browser Faro payload 與 OTel signal pipeline 之間的入口 boundary。</li>
+    <li>現行 Alloy 會把 logs / traces 經 batch 後，用 OTLP gRPC 送到 cluster-internal OTel Collector <code>:4317</code>。</li>
+    <li><code>faro.performance.resource</code> 在目前 Jeter stage 已驗證為 OTLP log record，最後可在 Loki 查到。</li>
+    <li>Tracing 的 <code>resourceSpans</code> 走 traces pipeline，最後進 Tempo；它與 resource-performance event 是不同 signal。</li>
+    <li>Receiver 接進來、Processor 中途處理、Exporter 送出去；debug 要沿實際 signal path 找第一個 evidence gap。</li>
+    <li>Tempo 用來定位 distributed operation latency；resource-performance event 補 Browser-side HTTP evidence，兩者互補。</li>
+  </ul>
+
+  <div class="box tip">
+    <strong>Primary source / evidence round trip</strong><br>
+    Alloy/Faro 基礎：<a href="../sources/materials/2.%20Grafana%20Faro%20&%20Alloy%20-%20前端可觀測性.html">文件 2</a>；Alloy production config：<a href="../sources/materials/5.%20Deploy%20Alloy%20Server%20-%20Production.html">文件 5</a>。Current topology 以 <a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy</a>、<a href="../sources/evidence/collector-pipeline.md">collector-pipeline</a> 與 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Jeter runtime evidence</a> 為準。
+  </div>
+
+  <p>完成這堂課的 retrieval 不是背元件名稱，而是拿一筆新的 Faro payload，先說它屬於 logs 還是 traces，再自己畫出它從 Alloy 到 Collector 到 storage 的路徑。我可以直接依你的圖指出第一個責任邊界錯在哪裡。</p>
+
+  <nav class="lesson-nav" aria-label="課程導覽">
+    <a href="0008-verifying-single-trace-browser-to-tempo.html">← Lesson 8</a>
+    <a href="../learning-map/index.html">Learning Map →</a>
+  </nav>
+</body>
+</html>

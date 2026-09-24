@@ -28,7 +28,7 @@
   <div class="box">
     <strong>Course Map 怎麼看</strong><br>
     8 份 primary source 已完成 corpus audit，因此主課程路徑可以先完整規劃。這不代表後面所有 Lessons 都已寫好；未來 Lesson 只會在真正走到時才依你的理解程度產生完整教材。Lesson 0 是實際學習過程暴露出的必要 prerequisite，不代表課程擴張成完整 Frontend 基礎課。<br><br>
-    <strong>教材狀態與學習進度是兩件事：</strong>目前 Lesson 0–8 的教材都已建立，但你的 learner progress 仍維持在 Lesson 3，直到有足夠 retrieval / practice evidence 才往前移。
+    <strong>教材狀態與學習進度是兩件事：</strong>目前 Lesson 0–9 的教材都已建立，但你的 learner progress 仍維持在 Lesson 3，直到有足夠 retrieval / practice evidence 才往前移。
   </div>
 
   <div class="box">
@@ -121,8 +121,10 @@
   <div class="box">
     <p><strong>Lesson 9｜Faro Receiver to Alloy and OTel Collector</strong></p>
     <p>目標：能畫出不同 Faro telemetry 進 Alloy 後如何轉成 OTel signals 並進 Collector / storage；用已驗證的 Jeter case 對照 <code>faro.performance.resource → OTLP log → Loki</code> 與 tracing <code>resourceSpans → Tempo</code>。Debug 只學常用的 URL、status、duration、TTFB、response time、transfer size、cache 與 initiator type，不擴張成完整 Resource Timing 課程。</p>
-    <p>來源：文件 2、文件 5、文件 7，加上 stage/prod runtime configuration、<a href="../sources/evidence/collector-pipeline.md">Collector pipeline evidence</a> 與 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Jeter resource-performance pipeline evidence</a>。</p>
+    <p>來源：文件 2、文件 5、文件 7，加上 stage/prod runtime configuration、<a href="../sources/evidence/collector-pipeline.md">Collector pipeline evidence</a> 與 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Jeter resource-performance pipeline evidence</a>。文件 7 在這堂只提供 downstream / OpenSearch 邊界；欄位 transformation、mapping 與 indexing 留到 Lesson 10。</p>
     <p class="cite">Debug 邊界：Trace/Tempo 用來定位 distributed operation 慢在哪個 span；resource-performance event 提供 Browser-side HTTP experience。兩者互補，不建立固定「API 慢先查哪個」規則。</p>
+    <p><a href="../lessons/0009-faro-receiver-alloy-otel-collector.html">開啟 Lesson 9 →</a></p>
+    <p class="cite">教材已建立；這不代表 learner progress 已完成 Lesson 9。</p>
   </div>
 
   <div class="box">
