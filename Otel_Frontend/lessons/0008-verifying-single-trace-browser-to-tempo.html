@@ -107,7 +107,7 @@ Backend span B  ── exports telemetry ──> Tempo
 
   <h2>3. 實際案例：Jeter stage 的 Slow request</h2>
 
-  <p>以下不是教材假資料。這是 2026-09-20 在 <code>tw-stage</code> 對 Jeter Faro Trace Demo 保留下來的一筆 runtime evidence。先從同一個操作開始。</p>
+  <p>以下不是教材假資料。這是 2026-09-20 在 <code>tw-stage</code> 對 Jeter Faro Trace Demo 保留下來的一筆 visual runtime evidence。下面的 DevTools、Grafana screenshots 與 exact IDs 都來自<strong>同一筆 Slow request</strong>。</p>
 
   <figure class="evidence-shot">
     <div class="evidence-scroll">
@@ -160,16 +160,16 @@ HTTP 200</code></pre>
   <p>這筆 request 的實際值：</p>
 
   <pre><code class="mono-break">traceparent:
-00-6faa6779a2970a3f82ad77e9ab9f4eb7-483e269e249ac6b4-01</code></pre>
+00-e0a53e388efd225f43fb08e7fd68aa23-10dc5dfab188fdc0-01</code></pre>
 
   <div class="id-grid">
     <div class="id-card proof-step">
       <strong>T｜trace ID</strong>
-      <code class="mono-break">6faa6779a2970a3f82ad77e9ab9f4eb7</code>
+      <code class="mono-break">e0a53e388efd225f43fb08e7fd68aa23</code>
     </div>
     <div class="id-card proof-step">
       <strong>A｜caller / frontend span ID</strong>
-      <code class="mono-break">483e269e249ac6b4</code>
+      <code class="mono-break">10dc5dfab188fdc0</code>
     </div>
   </div>
 
@@ -195,7 +195,7 @@ HTTP 200</code></pre>
         </picture>
       </div>
     </div>
-    <figcaption><span class="evidence-mark-note">真實 Grafana Explore；紅框是教學 overlay。</span>在 Tempo datasource 查 <code>T = 6faa6779a2970a3f82ad77e9ab9f4eb7</code>，把 Browser evidence 與 trace backend 接到同一筆 identity。</figcaption>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Explore；紅框是教學 overlay。</span>在 Tempo datasource 查 <code>T = e0a53e388efd225f43fb08e7fd68aa23</code>，把 Browser evidence 與 trace backend 接到同一筆 identity。</figcaption>
   </figure>
 
   <p>查到 trace 之後，還不能停。下一個問題是：這個 trace 裡的 frontend span 真的是剛才 header 裡的 <code>A</code> 嗎？Backend 又真的把 <code>A</code> 當 parent 嗎？</p>
@@ -207,34 +207,49 @@ HTTP 200</code></pre>
   <div class="id-grid">
     <div class="id-card proof-final">
       <strong>Frontend HTTP client span</strong>
-      <div>trace ID = <code class="mono-break">6faa6779a2970a3f82ad77e9ab9f4eb7</code></div>
-      <div>span ID = <code>483e269e249ac6b4</code></div>
+      <div>trace ID = <code class="mono-break">e0a53e388efd225f43fb08e7fd68aa23</code></div>
+      <div>span ID = <code>10dc5dfab188fdc0</code></div>
     </div>
     <div class="id-card proof-final">
       <strong>Backend HTTP server span</strong>
-      <div>trace ID = <code class="mono-break">6faa6779a2970a3f82ad77e9ab9f4eb7</code></div>
-      <div>span ID = <code>bcaf1c3a1ff7cb07</code></div>
-      <div>parent = <code>483e269e249ac6b4</code></div>
+      <div>trace ID = <code class="mono-break">e0a53e388efd225f43fb08e7fd68aa23</code></div>
+      <div>span ID = <code>ceb5e675fed3017a</code></div>
+      <div>parent = <code>10dc5dfab188fdc0</code></div>
     </div>
   </div>
 
-  <p>現在把 Browser 與 Tempo 疊在一起看：</p>
+  <figure class="evidence-shot">
+    <div class="evidence-scroll">
+      <div class="evidence-frame">
+        <picture>
+          <source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-frontend-span-id-focus-annotated.png">
+          <img src="../assets/special-lesson-evidence/grafana-frontend-span-id-annotated.png" alt="Grafana Tempo frontend span detail，紅框標示 frontend SpanID" loading="lazy">
+        </picture>
+      </div>
+    </div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Tempo span detail；紅框是教學 overlay。</span>這張 UI 直接顯示 frontend span ID = <code>A</code>。Grafana 這個 detail view 沒有同時顯示 backend parent，因此 backend parent equality 由同一筆 authenticated Tempo runtime API projection 驗證。</figcaption>
+  </figure>
 
-  <pre><code>Browser traceparent
-trace ID  = 6faa6779a2970a3f82ad77e9ab9f4eb7 ───────────────┐
-parent ID = 483e269e249ac6b4 ───────────────────────────┐ │
+  <p>把 Browser 與 Tempo 疊在一起看：</p>
+
+  <figure class="diagram">
+    <figcaption><strong>Evidence comparison｜數值來自同一筆 Browser + Tempo runtime evidence；這不是 Grafana UI 截圖</strong></figcaption>
+    <pre><code>Browser traceparent
+trace ID  = e0a53e388efd225f43fb08e7fd68aa23 ───────────────┐
+parent ID = 10dc5dfab188fdc0 ───────────────────────────┐ │
                                                        │ │
 Tempo                                                  │ │
 frontend client span                                   │ │
-  trace ID = 6faa6779a2970a3f82ad77e9ab9f4eb7  &lt;──────┘ │
-  span ID  = 483e269e249ac6b4                   &lt;────────┘
+  trace ID = e0a53e388efd225f43fb08e7fd68aa23  &lt;──────┘ │
+  span ID  = 10dc5dfab188fdc0                   &lt;────────┘
        │
        │ is parent of
        ▼
 backend server span
-  trace ID = 6faa6779a2970a3f82ad77e9ab9f4eb7
-  span ID  = bcaf1c3a1ff7cb07
-  parent   = 483e269e249ac6b4</code></pre>
+  trace ID = e0a53e388efd225f43fb08e7fd68aa23
+  span ID  = ceb5e675fed3017a
+  parent   = 10dc5dfab188fdc0</code></pre>
+  </figure>
 
   <p>這才是 decisive equality：</p>
 
@@ -251,7 +266,7 @@ Tempo.backend.parent == Tempo.frontend.span-id</code></pre>
         </picture>
       </div>
     </div>
-    <figcaption><span class="evidence-mark-note">真實 Grafana Explore；紅框是教學 overlay。</span>UI tree 提供直覺的 hierarchy evidence：frontend service 在上，backend server operation 接在下面。Exact ID equality 則由同一筆 Tempo runtime record 驗證。</figcaption>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Explore；紅框是教學 overlay。</span>UI tree 提供直覺的 hierarchy evidence：frontend service 在上，backend server operation 接在下面。Exact parent ID equality 則由同一筆 Tempo runtime API evidence 驗證。</figcaption>
   </figure>
 
   <div class="box tip">
@@ -318,10 +333,10 @@ Header T/A 存在，但 Tempo 不完整
   <div class="quiz" data-quiz>
     <div class="question">Q1. 哪一組 evidence 最足以證明「這一筆」frontend → backend join 成功？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="200 只證明 business request 成功。">HTTP 200，且 Tempo 看見 backend span</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="有 header 只證明 Browser injection。">Header 有 T/A，且 Tempo 看見 frontend span</button>
-      <button class="choice" data-correct="true" data-feedback-correct="對。T 與 A 的 equality 同時跨過 Browser、frontend span 與 backend parent。">Trace ID 同 T，且 backend parent = A</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="同時間出現不代表兩筆資料有 identity relationship。">時間很接近，且兩個 service 都有 span</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="200 只證明 business request 成功。">HTTP 200 + backend span 可見</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="有 header 只證明 Browser injection。">Header T/A + frontend span 可見</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。T 與 A 的 equality 同時跨過 Browser、frontend span 與 backend parent。">Trace T + backend parent=A 成立</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="同時間出現不代表兩筆資料有 identity relationship。">時間 接近 + service span 可見</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
@@ -329,10 +344,10 @@ Header T/A 存在，但 Tempo 不完整
   <div class="quiz" data-quiz>
     <div class="question">Q2. Browser header 是 <code>00-T-A-01</code>。查 Tempo 時第一個最強 correlation key 是什麼？</div>
     <div class="choices">
-      <button class="choice" data-correct="true" data-feedback-correct="對。Exact trace ID T 直接把 Browser request 對到同一條 Tempo trace。">使用 exact trace ID T 查詢</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="時間範圍只能縮小候選，identity 比它更強。">使用 request 發生時間查詢</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Service name 會匹配很多 traces。">使用 frontend service name 查詢</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="HTTP status 不是 trace identity。">使用 HTTP status code 查詢</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。Exact trace ID T 直接把 Browser request 對到同一條 Tempo trace。">用 exact trace ID T 查</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="時間範圍只能縮小候選，identity 比它更強。">用 request time range 去查</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Service name 會匹配很多 traces。">用 frontend service name 去查</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="HTTP status 不是 trace identity。">用 HTTP status code 去查</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
@@ -340,10 +355,10 @@ Header T/A 存在，但 Tempo 不完整
   <div class="quiz" data-quiz>
     <div class="question">Q3. Header 的 T/A 已存在，backend 也延續 T，但 Tempo 缺 frontend A。下一個 fault domain 最合理是哪裡？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="Backend 已延續 T，CORS 不是第一個缺口。">檢查 backend CORS 與 header permission</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Header 已存在，URL matching 不是目前最直接的缺口。">檢查 backendUrls 與 URL matching</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Business body 不決定 frontend span 是否可見。">檢查 business response 與 HTTP body</button>
-      <button class="choice" data-correct="true" data-feedback-correct="對。Propagation 已有 evidence；現在要查 frontend span 的 telemetry visibility path。">檢查 frontend sampling / export / ingest</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Backend 已延續 T，CORS 不是第一個缺口。">查 backend CORS header permission path</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Header 已存在，URL matching 不是目前最直接的缺口。">查 backendUrls URL matching config path</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Business body 不決定 frontend span 是否可見。">查 business response HTTP body path</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。Propagation 已有 evidence；現在要查 frontend span 的 telemetry visibility path。">查 frontend sampling export ingest path</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
@@ -351,10 +366,10 @@ Header T/A 存在，但 Tempo 不完整
   <div class="quiz" data-quiz>
     <div class="question">Q4. 用 exact T 在 Tempo 查不到資料，哪個結論最精確？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="Tempo 不可見不等於 Browser 一定沒送 header。">目前只能確認 Browser 沒有 propagation</button>
-      <button class="choice" data-correct="true" data-feedback-correct="對。先描述 query visibility，再檢查 sampling、export、ingest、retention。">目前只能確認 Tempo 沒有 query visibility</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Backend business success 與 trace storage 是不同 claim。">目前只能確認 backend API request 失敗</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Sampling 只是可能 boundary 之一，不能直接確定。">目前只能確認 sampler 丟掉這條 trace</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Tempo 不可見不等於 Browser 一定沒送 header。">只 確認 Browser propagation 沒有 evidence</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。先描述 query visibility，再檢查 sampling、export、ingest、retention。">只 確認 Tempo query 沒有 visibility</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Backend business success 與 trace storage 是不同 claim。">只 確認 backend request 發生 failure</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Sampling 只是可能 boundary 之一，不能直接確定。">只 確認 sampler decision 發生 drop</button>
     </div>
     <div class="feedback" aria-live="polite"></div>
   </div>
@@ -373,10 +388,10 @@ Header T/A 存在，但 Tempo 不完整
 
   <div class="box">
     <strong>Primary source 與 runtime evidence</strong><br>
-    Primary source：<a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">前後端 Trace 串接範例</a>。核心 evidence：<a href="../sources/evidence/trace-context-propagation.md">trace-context propagation</a>、<a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter integration / tracing configuration</a>、<a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">single-request runtime join</a>、<a href="../sources/evidence/grafana-ui-runtime-2026-09-20.md">Grafana Explore UI runtime evidence</a>。
+    Primary source：<a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">前後端 Trace 串接範例</a>。核心 evidence：<a href="../sources/evidence/trace-context-propagation.md">trace-context propagation</a>、<a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter integration / tracing configuration</a>、<a href="../sources/evidence/special-lesson-visual-runtime-2026-09-20.md">single-request visual runtime join</a>。
   </div>
 
-  <p>如果你要把這堂課真的做完，下一步不是再看一次答案，而是拿一筆新的 request，自己告訴我 <code>T</code>、<code>A</code>、backend span ID，以及你在哪一個畫面證明 <code>backend.parent = A</code>。我可以直接用你的 evidence 做 feedback。</p>
+  <p>如果你要把這堂課真的做完，下一步不是再看一次答案，而是拿一筆新的 request，自己告訴我 <code>T</code>、<code>A</code>、backend span ID，以及你在哪一個 evidence surface 證明 <code>backend.parent = A</code>。我可以直接用你的 evidence 做 feedback。</p>
 
   <nav class="lesson-nav" aria-label="課程導覽">
     <a href="0007-frontend-backend-trace-context-propagation.html">← Lesson 7</a>
