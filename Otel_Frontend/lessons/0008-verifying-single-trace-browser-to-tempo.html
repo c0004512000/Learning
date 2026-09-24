@@ -233,22 +233,40 @@ HTTP 200</code></pre>
   <p>把 Browser 與 Tempo 疊在一起看：</p>
 
   <figure class="diagram">
-    <figcaption><strong>Evidence comparison｜數值來自同一筆 Browser + Tempo runtime evidence；這不是 Grafana UI 截圖</strong></figcaption>
-    <pre><code>Browser traceparent
-trace ID  = e0a53e388efd225f43fb08e7fd68aa23 ───────────────┐
-parent ID = 10dc5dfab188fdc0 ───────────────────────────┐ │
-                                                       │ │
-Tempo                                                  │ │
-frontend client span                                   │ │
-  trace ID = e0a53e388efd225f43fb08e7fd68aa23  &lt;──────┘ │
-  span ID  = 10dc5dfab188fdc0                   &lt;────────┘
-       │
-       │ is parent of
-       ▼
-backend server span
-  trace ID = e0a53e388efd225f43fb08e7fd68aa23
-  span ID  = ceb5e675fed3017a
-  parent   = 10dc5dfab188fdc0</code></pre>
+    <figcaption><strong>Evidence comparison｜同一筆 Browser + Tempo runtime evidence</strong></figcaption>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>要核對的 identity</th>
+            <th>Browser</th>
+            <th>Tempo frontend</th>
+            <th>Tempo backend</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>T｜同一條 trace</strong></td>
+            <td><code class="mono-break">trace ID = e0a53e388efd225f43fb08e7fd68aa23</code></td>
+            <td><code class="mono-break">trace ID = e0a53e388efd225f43fb08e7fd68aa23</code></td>
+            <td><code class="mono-break">trace ID = e0a53e388efd225f43fb08e7fd68aa23</code></td>
+          </tr>
+          <tr>
+            <td><strong>A｜caller / parent identity</strong></td>
+            <td><code>parent ID = 10dc5dfab188fdc0</code></td>
+            <td><code>span ID = 10dc5dfab188fdc0</code></td>
+            <td><code>parent = 10dc5dfab188fdc0</code></td>
+          </tr>
+          <tr>
+            <td><strong>B｜backend 自己的 operation</strong></td>
+            <td>—</td>
+            <td>—</td>
+            <td><code>span ID = ceb5e675fed3017a</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <figcaption class="diagram-caption-note">T 這一列三邊必須相等；A 這一列則證明 Browser caller → frontend client span → backend parent 是同一個 operation identity。Backend 自己另外建立 span B。</figcaption>
   </figure>
 
   <p>這才是 decisive equality：</p>
