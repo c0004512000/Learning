@@ -132,13 +132,14 @@ matching backend/business API request</code></pre>
 
   <div class="box">
     <strong>Evidence boundary</strong><br>
-    目前 Jeter evidence 已證明相關 configuration 存在，但尚未保存一筆 concrete Browser header + backend parent + Tempo trace 的完整 runtime chain。因此不要把「設定看起來正確」寫成「runtime 已成功 join」。
+    2026-09-20 已保存一筆 Jeter Slow scenario 的 concrete runtime chain：Browser business request 的 <code>traceparent</code> parent ID = frontend client span ID = backend server span parent ID，而且 frontend / backend spans 共用同一個 trace ID。這只證明該筆 request；不代表所有 Jeter endpoint、所有 session 或其他 frontend 專案都已驗證。
   </div>
 
   <h2>Primary references</h2>
   <ul>
     <li><a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">前後端 Trace 串接範例</a></li>
     <li><a href="../sources/evidence/trace-context-propagation.md">Trace-context propagation evidence</a></li>
+    <li><a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">Jeter frontend → backend runtime join evidence</a></li>
     <li><a href="https://www.w3.org/TR/trace-context-1/">W3C Trace Context Recommendation</a></li>
   </ul>
 
