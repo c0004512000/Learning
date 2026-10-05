@@ -38,6 +38,11 @@
 
   <p class="cite">Normative source: <a href="https://www.w3.org/TR/trace-context-1/#traceparent-header">W3C Trace Context §3.2</a>。</p>
 
+  <div class="box tip">
+    <strong><code>01</code> 的 sampled bit ≠ 已儲存</strong><br>
+    <code>trace-flags=01</code> 只表示這個 propagated context 的 sampled bit 被設置。它不是 receiver acknowledgement，也不是 Tempo persistence receipt。要證明 storage，仍需用 trace ID 做獨立查詢。2026-10-05 的 IDP Portal runtime evidence 已用這兩種 claim 分開驗證。
+  </div>
+
   <h2>2. 最容易看錯的地方：<code>parent-id</code> 不是 backend 的 span ID</h2>
 
   <figure class="diagram">
@@ -140,6 +145,7 @@ matching backend/business API request</code></pre>
     <li><a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">前後端 Trace 串接範例</a></li>
     <li><a href="../sources/evidence/trace-context-propagation.md">Trace-context propagation evidence</a></li>
     <li><a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">Jeter frontend → backend runtime join evidence</a></li>
+  <li><a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal Browser → Alloy → Tempo runtime evidence</a></li>
     <li><a href="https://www.w3.org/TR/trace-context-1/">W3C Trace Context Recommendation</a></li>
   </ul>
 
