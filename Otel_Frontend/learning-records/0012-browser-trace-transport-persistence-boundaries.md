@@ -65,6 +65,7 @@ Tempo query returns 0
 
 ## Artifact implications
 
+- Durable evidence: [`sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`](../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md).
 - Add the IDP Portal runtime case as durable evidence, not as a Keychain-specific main-path Lesson.
 - Refine Lessons 5–9 with only the reusable boundaries above.
 - Keep the W3C `traceparent` reference explicit that sampled flag is not persistence.
