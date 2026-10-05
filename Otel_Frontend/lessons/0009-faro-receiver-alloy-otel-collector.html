@@ -62,6 +62,11 @@ POST /alloy B
 
   <p class="cite">Runtime basis：<a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Jeter faro.performance.resource runtime verification</a>。Primary material 也把 Faro instrumentation 收集的 events / logs / exceptions / measurements / meta 與 tracing capability 分開描述：<a href="../sources/materials/2.%20Grafana%20Faro%20&%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy - 前端可觀測性</a>。</p>
 
+  <div class="box tip">
+    <strong>IDP Portal：同一個 receiver batch 不等於單一 signal</strong><br>
+    2026-10-05 的一個 <code>/alloy</code> batch 只有 <code>events + measurements</code>、沒有 traces；另一個 batch 同時有 <code>traces + events</code>，並一次包含四條不同 XHR traces。Receiver 收到的是 Faro batch，後面才依 signal/data shape 進不同 pipeline；不要先從 Network row 數量反推 signal 數量。
+  </div>
+
   <h2>2. Alloy receiver 到底做什麼？</h2>
 
   <p>Browser 送的是 Faro payload。現行架構不是讓 Browser 直接講 OTLP 給 Collector，而是先把 Faro HTTP payload 交給 Alloy 的 Faro receiver。</p>
@@ -225,6 +230,10 @@ resource event missing in Loki
   <p>也就是說，<strong>traces pipeline 成功不能證明 logs pipeline 成功</strong>。同一個 Faro receiver 之後，它們已經是不同 signal path。</p>
 
   <p class="cite">Current topology / limit：<a href="../sources/evidence/collector-pipeline.md">collector-pipeline evidence</a>。目前 evidence 驗證 configuration 與一筆 Loki runtime record，但沒有宣稱所有 Collector queue / retry / acceptance state 都已被量測。</p>
+
+  <p>IDP Portal 也提供另一個重要 boundary：<code>POST /alloy → 202</code> 只代表 receiver HTTP acceptance；trace 是否真的進 Tempo、event/log 是否真的進 Loki，需要各自的 storage query evidence。這使 receiver acceptance 與 signal-specific persistence 成為兩個獨立檢查點。</p>
+
+  <p class="cite">IDP Portal batch / persistence evidence：<a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal Faro / Keychain runtime verification</a>。</p>
 
   <h2>Self-check</h2>
 
