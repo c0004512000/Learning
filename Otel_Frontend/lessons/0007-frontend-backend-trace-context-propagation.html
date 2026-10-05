@@ -125,6 +125,11 @@ A  Browser HTTP client span
 
   <p class="cite">W3C 定義見 <a href="https://www.w3.org/TR/trace-context-1/#traceparent-header">Trace Context §3.2</a>；本課重用的查表版在 <a href="../reference/0006-w3c-traceparent.html">Reference｜W3C traceparent 快速查表</a>。</p>
 
+  <div class="box ask">
+    <strong><code>01</code> 只告訴你 sampled context，不是 Tempo receipt</strong><br>
+    IDP Portal 的實際 header 也是 <code>...-01</code>，但「這條 trace 已持久化」是另外用 exact trace ID 查 Tempo 才成立。Sampling decision、span export、receiver acceptance、Collector processing 與 storage visibility 是不同 boundary。
+  </div>
+
   <h2>4. 最容易誤會：<code>parent-id</code> 不是 backend 要沿用的 span ID</h2>
 
   <p>假設 Browser 這次 outbound HTTP span 是：</p>
@@ -367,6 +372,12 @@ A  frontend client span
   <p>這是<strong>一筆具體 Jeter Slow request</strong>的 runtime proof，不代表所有 Jeter endpoint、所有 Browser session 或其他 frontend 專案都已自動證明正確。</p>
 
   <p class="cite">Configuration evidence: <a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter host integration and tracing chain</a>。單筆 runtime join proof: <a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">Jeter frontend → backend trace runtime verification</a>。</p>
+
+  <h3>同一個 propagation model 也在 IDP Portal 被獨立驗證</h3>
+
+  <p>2026-10-05 的 IDP Portal read-only request 觀察到：Browser <code>traceparent</code> 的 parent ID = frontend CLIENT span ID = backend SERVER <code>parentSpanId</code>，而 Browser / Alloy / Tempo 共用同一個 trace ID。這提供第二個 application 的 runtime proof，說明這個 parent relationship 不是 Jeter demo 特例。</p>
+
+  <p class="cite">IDP Portal proof：<a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal Faro / Keychain runtime verification</a>。</p>
 
   <h2>8. Cross-origin 時，CORS 會插在 propagation 前面</h2>
 
