@@ -249,6 +249,33 @@ pushEvent                         main.js:123009</code></pre>
       </tbody>
     </table>
   </div>
+  <h3>追 trace 時，Network 的起手式和追 click payload 不一樣</h3>
+
+  <p>如果你的問題是「這筆 business request 最後有沒有在 Tempo 形成同一條前後端 trace」，不要先 filter <code>alloy</code>。先固定真正的 business request，再看它的 Request Headers。</p>
+
+  <pre><code>1. Preserve log + 清空 Network
+2. 只做一次安全操作
+3. 找真正的 business request
+4. Request Headers → traceparent
+5. 取 trace ID → Tempo exact lookup
+6. 只有要驗證 SDK delivery 時，再找 Alloy payload</code></pre>
+
+  <p>IDP Portal 2026-10-05 的 read-only request 提供了 exact example：</p>
+
+  <pre><code>traceparent
+00-96c10f7c2345a2c749a78833f964b8e4-51bd7d311cc1fd4d-01
+
+Alloy tracing span
+traceId = 96c10f7c2345a2c749a78833f964b8e4
+spanId  = 51bd7d311cc1fd4d
+
+Tempo backend SERVER
+parentSpanId = 51bd7d311cc1fd4d</code></pre>
+
+  <p>這裡是用同一組 exact IDs 做 correlation，不是因為兩筆 request 看起來時間很近。相反地，如果當下沒有保留原 business request 的 <code>traceparent</code>，後續只能用時間、URL、method、service 等條件找候選 trace；那種 evidence 強度較弱，不能改寫成「已直接從 Network header 驗證」。</p>
+
+  <p class="cite">Exact IDP Portal correlation 與 capture limitation：<a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal Faro / Keychain runtime verification</a>。</p>
+
   <h2>6. Preflight：只回答「Browser 被允許送 POST 嗎？」</h2>
 
   <p>先點 <code>Type = preflight</code> 的那一列。本課擷取圖例顯示：</p>
