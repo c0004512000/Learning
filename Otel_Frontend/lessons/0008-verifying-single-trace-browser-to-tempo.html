@@ -182,6 +182,30 @@ HTTP 200</code></pre>
 
   <p><code>01</code> 的 sampled bit 在這筆 context 中是設置的；但它仍不是「一定成功寫入 Tempo」的保證。Sampling decision、telemetry export、Collector / storage、retention 是不同 boundary。</p>
 
+  <h3>如果當下沒有保存 <code>traceparent</code>，怎麼辦？</h3>
+
+  <p>Exact T/A correlation 仍然是最強證據；但實務上可能漏掉當下的 header。IDP Portal 的 Keychain creation 就發生過這件事：creation trace 可以靠 action time、URL、method、status、Tempo span tree 與 Loki tracing event 找到，但原 outgoing <code>traceparent</code> 沒有保存。</p>
+
+  <p>這時可以先搜尋候選 trace：</p>
+
+  <pre><code>service + method + URL + bounded time window
+→ candidate trace
+→ 再核對 status / span tree / related evidence</code></pre>
+
+  <p>但報告語氣必須跟 evidence strength 一致：</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Evidence</th><th>可以說</th><th>不能說</th></tr></thead>
+      <tbody>
+        <tr><td>Browser <code>traceparent</code> + Tempo exact IDs</td><td>這一筆 request 的 Browser → backend parent join 已直接驗證。</td><td>不能只因 join 成功就推論所有 requests 都成功。</td></tr>
+        <tr><td>時間 + URL + method + service + stored trace</td><td>找到高度吻合的候選 trace，並可描述其存儲內容。</td><td>不能冒稱原 Browser outgoing <code>traceparent</code> 已被直接觀察。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="cite">IDP Portal creation / read-only evidence-strength contrast：<a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal Faro / Keychain runtime verification</a>。</p>
+
   <h2>4. Step 3｜拿 Browser 的 T 去 Tempo 查 exact trace</h2>
 
   <p>不要先用 service name、時間範圍、關鍵字猜是哪條 trace。你現在已經從 Browser 拿到最強的 correlation key：<strong>exact trace ID T</strong>。</p>
@@ -274,6 +298,11 @@ HTTP 200</code></pre>
   <pre><code>Browser.trace-id     == Tempo.frontend.trace-id == Tempo.backend.trace-id
 Browser.parent-id    == Tempo.frontend.span-id
 Tempo.backend.parent == Tempo.frontend.span-id</code></pre>
+
+  <div class="box tip">
+    <strong>Tempo API 的 ID 表示法可能和 Browser 不一樣</strong><br>
+    IDP Portal 的 direct Tempo API evidence 中，trace/span IDs 可能以 base64 bytes 表示；Browser <code>traceparent</code> 使用 hex。比對時要把兩者轉成同一 bytes/hex 表示後再比較。不要因為 API JSON 裡搜尋不到 hex 字面字串，就直接說 trace 不存在。
+  </div>
 
   <figure class="evidence-shot">
     <div class="evidence-scroll">

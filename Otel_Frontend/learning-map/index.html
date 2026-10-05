@@ -87,14 +87,14 @@
   <div class="box">
     <p><strong>Lesson 5｜Faro SDK Initialization and Browser-to-Alloy Transport</strong></p>
     <p>目標：理解 endpoint、payload/meta、transport request 與 CORS 的因果關係；分清 business request、telemetry item 與 <code>/alloy</code> POST，知道一次 API request 可能被不同 instrumentation 觀察並產生不同 telemetry。</p>
-    <p>來源：文件 1、文件 2、Proposal；搭配已驗證的 deployed bundle、stage/prod <code>/alloy</code> CORS evidence，以及 Jeter 同一次 business GET 對應 performance / tracing telemetry 的 runtime evidence。</p>
+    <p>來源：文件 1、文件 2、Proposal；搭配已驗證的 deployed bundle、stage/prod <code>/alloy</code> CORS evidence、Jeter 同一次 business GET 對應 performance / tracing telemetry 的 runtime evidence，以及 <a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal mixed batch / buffering / transport-ignore evidence</a>。</p>
     <p><a href="../lessons/0005-faro-browser-to-alloy-transport.html">開啟 Lesson 5 →</a></p>
   </div>
 
   <div class="box">
     <p><strong>Lesson 6｜Browser-Side Verification with DevTools</strong></p>
     <p>目標：用 Elements / Console / Network 驗證 click target、context、Faro payload、headers、response 與 CORS；看到多筆 <code>/alloy</code> 時先用 Method 與 Payload signal/event content 分類，而不是只靠列數、順序或 Status 猜 telemetry identity。</p>
-    <p>來源：<a href="../sources/materials/1.%20PI%20前端監控案例.html">文件 1</a>、<a href="../sources/materials/2.%20Grafana%20Faro%20&%20Alloy%20-%20前端可觀測性.html">文件 2</a>、<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">文件 3</a>；現行 click contract 與 Browser-to-Alloy runtime contract 分別以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a>、<a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a> 為準，multi-POST classification 另有 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Jeter runtime evidence</a>。</p>
+    <p>來源：<a href="../sources/materials/1.%20PI%20前端監控案例.html">文件 1</a>、<a href="../sources/materials/2.%20Grafana%20Faro%20&%20Alloy%20-%20前端可觀測性.html">文件 2</a>、<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">文件 3</a>；現行 click contract 與 Browser-to-Alloy runtime contract 分別以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a>、<a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a> 為準，multi-POST classification 另有 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Jeter runtime evidence</a>；trace workflow 與 exact Browser → Alloy → Tempo correlation 另有 <a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal runtime evidence</a>。</p>
     <p><a href="../lessons/0006-browser-devtools-verification.html">開啟 Lesson 6 →</a></p>
     <p class="cite">教材已建立；這表示可直接閱讀，不代表 learner progress 已完成 Lesson 6。</p>
   </div>
@@ -103,7 +103,7 @@
   <div class="box">
     <p><strong>Lesson 7｜Frontend-to-Backend Trace Context Propagation</strong></p>
     <p>目標：從 Browser 與 backend 不共享 runtime memory 這個問題出發，理解 <code>trace-id</code> / span relationship、W3C <code>traceparent</code>、<code>backendUrls</code> 與 backend instrumentation 的責任；分清 propagation、span telemetry export，以及同一次 HTTP request 可能另外產生的 Browser resource-performance event。</p>
-    <p>來源：<a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">文件 6</a>；搭配 <a href="../sources/evidence/trace-context-propagation.md">trace-context propagation evidence</a>、<a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">Jeter runtime trace join</a>、<a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Browser resource-performance runtime evidence</a> 與 W3C / Faro implementation verification。</p>
+    <p>來源：<a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">文件 6</a>；搭配 <a href="../sources/evidence/trace-context-propagation.md">trace-context propagation evidence</a>、<a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">Jeter runtime trace join</a>、<a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Browser resource-performance runtime evidence</a>、<a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal parent-id / sampled-flag runtime evidence</a> 與 W3C / Faro implementation verification。</p>
     <p><a href="../lessons/0007-frontend-backend-trace-context-propagation.html">開啟 Lesson 7 →</a></p>
     <p><a href="../reference/0006-w3c-traceparent.html">Reference｜W3C traceparent 快速查表 →</a></p>
     <p class="cite">Jeter 已有一筆 Browser <code>traceparent</code> → frontend span → backend parent → Tempo 的 runtime join proof；Lesson 8 仍保留原位置，目標是讓 learner 能獨立重跑驗證，而不是因為 evidence 尚未存在。</p>
@@ -112,7 +112,7 @@
   <div class="box">
     <p><strong>Lesson 8｜Verifying a Single Trace from Browser to Tempo</strong></p>
     <p>目標：用 Browser request header 的 exact trace/span identity，對照 Tempo frontend span 與 backend parent relationship，驗證這一筆 request 是否真的 join 成同一條 distributed trace，並用第一個斷掉的 evidence boundary 縮小 fault domain。</p>
-    <p>來源：<a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">文件 6</a>；搭配 <a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter integration evidence</a>、<a href="../sources/evidence/trace-context-propagation.md">trace-context propagation evidence</a>、<a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">single-request runtime join evidence</a> 與 <a href="../sources/evidence/grafana-ui-runtime-2026-09-20.md">Grafana Explore UI evidence</a>。</p>
+    <p>來源：<a href="../sources/materials/6.%20前後端%20Trace%20串接範例.html">文件 6</a>；搭配 <a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter integration evidence</a>、<a href="../sources/evidence/trace-context-propagation.md">trace-context propagation evidence</a>、<a href="../sources/evidence/frontend-backend-trace-runtime-2026-09-20.md">single-request runtime join evidence</a> 與 <a href="../sources/evidence/grafana-ui-runtime-2026-09-20.md">Grafana Explore UI evidence</a>，並用 <a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal evidence</a> 補 exact correlation / weaker fallback 與 Tempo ID representation boundary。</p>
     <p><a href="../lessons/0008-verifying-single-trace-browser-to-tempo.html">開啟 Lesson 8 →</a></p>
     <p class="cite">教材已建立；這不代表 learner progress 已完成 Lesson 8。</p>
   </div>
@@ -121,7 +121,7 @@
   <div class="box">
     <p><strong>Lesson 9｜Faro Receiver to Alloy and OTel Collector</strong></p>
     <p>目標：能畫出不同 Faro telemetry 進 Alloy 後如何轉成 OTel signals 並進 Collector / storage；用已驗證的 Jeter case 對照 <code>faro.performance.resource → OTLP log → Loki</code> 與 tracing <code>resourceSpans → Tempo</code>。Debug 只學常用的 URL、status、duration、TTFB、response time、transfer size、cache 與 initiator type，不擴張成完整 Resource Timing 課程。</p>
-    <p>來源：文件 2、文件 5、文件 7，加上 stage/prod runtime configuration、<a href="../sources/evidence/collector-pipeline.md">Collector pipeline evidence</a> 與 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Jeter resource-performance pipeline evidence</a>。文件 7 在這堂只提供 downstream / OpenSearch 邊界；欄位 transformation、mapping 與 indexing 留到 Lesson 10。</p>
+    <p>來源：文件 2、文件 5、文件 7，加上 stage/prod runtime configuration、<a href="../sources/evidence/collector-pipeline.md">Collector pipeline evidence</a> 與 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Jeter resource-performance pipeline evidence</a>，以及 <a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal mixed-batch / 202-vs-persistence evidence</a>。文件 7 在這堂只提供 downstream / OpenSearch 邊界；欄位 transformation、mapping 與 indexing 留到 Lesson 10。</p>
     <p class="cite">Debug 邊界：Trace/Tempo 用來定位 distributed operation 慢在哪個 span；resource-performance event 提供 Browser-side HTTP experience。兩者互補，不建立固定「API 慢先查哪個」規則。</p>
     <p><a href="../lessons/0009-faro-receiver-alloy-otel-collector.html">開啟 Lesson 9 →</a></p>
     <p class="cite">教材已建立；這不代表 learner progress 已完成 Lesson 9。</p>
@@ -142,8 +142,8 @@
 
   <div class="box">
     <p><strong>Lesson 12｜Production Troubleshooting: From Symptoms to Fault Domain</strong></p>
-    <p>目標：遇到「沒有 click telemetry」「request 有送但 backend 沒資料」「trace 斷掉」「OpenSearch 查不到」時，能沿 browser → Faro → Alloy → Collector → storage 用證據逐層縮小問題。</p>
-    <p>來源：整個 in-scope corpus 中與導入、部署、trace、OpenSearch 有關的內容，以及 corpus audit 已核對的 runtime evidence。</p>
+    <p>目標：遇到「沒有 click telemetry」「request 有送但 backend 沒資料」「trace 斷掉」「OpenSearch 查不到」「telemetry 已存在但 Dashboard / query 查不到」時，能沿 browser → Faro → Alloy → Collector → storage → query surface 用證據逐層縮小問題。</p>
+    <p>來源：整個 in-scope corpus 中與導入、部署、trace、OpenSearch 有關的內容，以及 corpus audit 已核對的 runtime evidence；<a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal evidence</a> 提供 service-name case mismatch、Loki metadata filter 與 namespace-filter caveat 的具體案例。</p>
   </div>
 
   <h2>目前實際走出的 prerequisite branches</h2>

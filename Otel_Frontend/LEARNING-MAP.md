@@ -150,6 +150,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 - Grafana Alloy Faro receiver documentation
 - `sources/evidence/browser-to-alloy.md`
 - `sources/evidence/faro-performance-resource-runtime-2026-09-21.md`（Jeter：同一 business GET 對應不同 performance/tracing telemetry POST）
+- `sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`（IDP Portal：mixed Faro batches、兩層 batching、transport self-tracing exclusion、202 ≠ persistence）
 
 **Dependency:** Lessons 2–4；Lesson 0 只提供 Browser networking / security responsibility bridge。
 
@@ -169,6 +170,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 - `sources/evidence/browser-to-alloy.md`
 - `sources/evidence/foreman-browser-debug-lab.md`（2026-09-16 Playwright + CDP runtime lab；教材建立不代表 learner mastered）
 - `sources/evidence/faro-performance-resource-runtime-2026-09-21.md`（Jeter multi-POST payload classification）
+- `sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`（business request → traceparent → Alloy span → Tempo exact correlation；creation capture limitation）
 
 **必要 bridge / Reference:**
 - `reference/0005-devtools-workspaces-for-faro.html`：Elements / Console / Sources / Network 的內容差異與 claim → panel 選擇；不擴張為完整 DevTools 課程。
@@ -193,6 +195,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 - `sources/evidence/trace-context-propagation.md`
 - `sources/evidence/frontend-backend-trace-runtime-2026-09-20.md`
 - `sources/evidence/faro-performance-resource-runtime-2026-09-21.md`
+- `sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`（第二個 application 的 exact parent-id / span relationship proof；`01` sampled flag ≠ persistence）
 - W3C Trace Context Recommendation
 - Grafana Faro Web SDK v2.9.0 tracing implementation
 
@@ -227,6 +230,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 - `sources/evidence/grafana-current-state.md`
 - `sources/evidence/trace-context-propagation.md`
 - `sources/evidence/frontend-backend-trace-runtime-2026-09-20.md`
+- `sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`（exact correlation 與 weaker time/URL/service fallback 的 evidence-strength boundary；Tempo API base64 ↔ hex comparison）
 
 **Dependency:** Lesson 7。
 
@@ -248,6 +252,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 - `sources/evidence/browser-to-alloy.md`
 - `sources/evidence/collector-pipeline.md`
 - `sources/evidence/faro-performance-resource-runtime-2026-09-21.md`（Browser event → Alloy Faro receiver → OTLP logs → Collector → Loki；Grafana Explore matching record）
+- `sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`（同一 receiver batch 可混 signals / 0 traces / 多 traces；HTTP acceptance 與 storage visibility 分離）
 
 **Scope boundary:**
 - Debug 常用 resource fields 聚焦 URL / status / duration / TTFB / response time / transfer size / cache classification / initiator type。
@@ -289,7 +294,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 **Dependency:** Lessons 9–10。
 
 #### Lesson 12 — Production Troubleshooting: From Symptoms to Fault Domain
-**Objective:** 面對「沒有 click telemetry」「有 request 但 backend 沒資料」「trace 斷掉」「OpenSearch 查不到」「環境寫錯 cluster」等症狀，能沿 browser → Faro → Alloy → Collector → Tempo/Loki/OpenSearch 逐層用證據縮小問題。
+**Objective:** 面對「沒有 click telemetry」「有 request 但 backend 沒資料」「trace 斷掉」「OpenSearch 查不到」「環境寫錯 cluster」「telemetry 已存在但 Dashboard / query 查不到」等症狀，能沿 browser → Faro → Alloy → Collector → Tempo/Loki/OpenSearch → query surface 逐層用證據縮小問題。
 
 **Primary sources:**
 - 8 份 primary HTML 中與實際導入、部署、trace、OpenSearch 相關內容
@@ -299,6 +304,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 - OpenSearch index
 - Kubernetes runtime
 - deployed bundles / repository implementation
+- `sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`（`IDP-Portal` vs `idp-portal`、Loki selector vs pipeline metadata filter、namespace filter caveat）
 
 **Dependency:** Lessons 0–11；這是 Mission 的整合能力檢查。
 

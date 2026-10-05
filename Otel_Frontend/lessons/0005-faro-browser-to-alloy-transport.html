@@ -221,6 +221,47 @@ Faro Transport
 
   <p class="cite">這次 Jeter runtime evidence 見 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Faro performance resource runtime verification</a>。上游 Transport body / batching 結構仍以 <a href="https://github.com/grafana/faro-web-sdk/blob/main/packages/core/src/transports/types.ts">Faro transport types</a> 為 source basis。Runtime evidence 只證明本次兩個 payload 不同，不宣稱所有 business request 都固定會拆成兩個 POST，也不從截圖猜測某一條內部 flush 規則。</p>
 
+  <h3>IDP Portal 再補一個更完整的 batch 例子</h3>
+
+  <p>2026-10-05 的 IDP Portal read-only reload 同時捕捉到四筆 business XHR 與兩筆 <code>POST /alloy</code>：</p>
+
+  <pre><code>Batch A
+  meta + events + measurements
+  4 個 faro.performance.resource
+  0 個 trace spans
+
+Batch B
+  meta + traces + events
+  4 個 faro.tracing.xml-http-request
+  4 個不同 trace IDs</code></pre>
+
+  <p>這個案例把「batch 是 transport unit」再往前推一步：<strong>一個 batch 可以混不同 signal，也可以完全沒有 traces；一個 batch 也可以一次裝多條不同 trace。</strong>所以不要用「第 N 個 business request 對第 N 個 Alloy request」來猜 correlation。</p>
+
+  <div class="box tip">
+    <strong>追 distributed trace 的最快路徑</strong><br>
+    先從真正的 business request 讀 <code>traceparent</code>，直接拿 trace ID 去 Tempo。只有要驗證「Browser SDK 實際送出了什麼」或排查 receiver delivery 時，才回頭翻 <code>/alloy</code> payload。
+  </div>
+
+  <h3>Buffer、HTTP delivery、storage 是三個不同時間點</h3>
+
+  <pre><code>span.end()
+  → OTel BatchSpanProcessor queue
+  → FaroTraceExporter / api.pushTraces()
+  → Faro signal batching
+  → Transport 組 HTTP body
+  → POST /alloy
+  → downstream storage</code></pre>
+
+  <p>所以「span 已進 queue」不能改寫成「已經看到 Network POST」，而 <code>POST /alloy → 202</code> 也不能改寫成「Tempo/Loki 已持久化」。IDP Portal deployed bundle 另外確認 OTel span batching 與 Faro signal batching 是兩層不同 buffer；timer / item limit 是 flush 條件，不是固定 Network cadence。</p>
+
+  <h3>為什麼正常情況不會一直追蹤自己的 <code>/alloy</code>？</h3>
+
+  <p>IDP Portal 使用的 Faro Web SDK v2.12.1 會把 Transport 自己的 receiver URL 放進 HTTP tracing ignore URLs，再交給 Fetch/XHR instrumentation。這使正常 frontend tracing 不會把自己的 <code>POST /alloy</code> delivery 再做成一個待 export 的 HTTP span。</p>
+
+  <p>因此看到多筆 <code>/alloy</code> 本身不是 self-tracing loop 的證據。真正要看的，是 payload 裡是否反覆出現 URL=<code>/alloy</code> 的 tracing spans，並在沒有新的業務活動時持續產生後續 batch。</p>
+
+  <p class="cite">IDP Portal runtime / deployed bundle evidence：<a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal Faro / Keychain runtime verification</a>。</p>
+
   <h2>5. Session ID 為什麼同時可能出現在 body 和 request header？</h2>
 
   <p>Session 是用來把同一段 Browser 使用期間的 telemetry 關聯起來的背景資訊之一。</p>
