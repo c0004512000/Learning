@@ -225,6 +225,7 @@ Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 �
 
 **Runtime evidence:**
 - Jeter frontend / ASP.NET Core backend / OTLP configuration
+- `sources/evidence/faro-app-name-otel-service-name-2026-10-12.md`（Faro tracing source chain：`app.name` → OTel Resource `service.name`；Resource identity 不等於 `traceparent` 或 Dashboard Job）
 - Grafana Tempo datasource
 - `sources/evidence/jeter-integration-and-tracing.md`
 - `sources/evidence/grafana-current-state.md`
