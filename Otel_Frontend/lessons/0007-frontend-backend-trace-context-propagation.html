@@ -224,6 +224,8 @@ TracingInstrumentation
     <a href="../reference/0008-faro-tracing-ownership-and-propagation.html">Reference｜Internal package / Faro / OpenTelemetry ownership 與完整 propagation flow →</a>
   </div>
 
+  <p>還有一個 tracing 初始化時設定、卻<strong>不會經由 <code>traceparent</code> 傳到 backend</strong>的資訊：<code>app.name → OTel Resource service.name</code>。這用來標記 frontend service，而不是辨識 request 的 trace ID 或 parent ID。完整程式鏈與三層 ownership 見 <a href="../reference/0008-faro-tracing-ownership-and-propagation.html#app-name-service-name">Reference｜app.name 如何成為 service.name →</a>。</p>
+
   <p class="cite">Internal contract：<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a>。Faro v2.9.0 source verification：<a href="../sources/linked/external/trace-context-and-faro-web-tracing.md">trace-context and Faro web-tracing source pointers</a>。</p>
 
   <div class="box ask">
