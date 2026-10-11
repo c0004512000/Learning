@@ -321,6 +321,36 @@ Tempo.backend.parent == Tempo.frontend.span-id</code></pre>
     Jeter Slow scenario 的 Browser header → frontend client span → backend server parent relationship 已對上，因此這一筆 request 的 frontend/backend runtime join verified。這個結論只涵蓋這筆被驗證的 request，不自動擴張到所有 endpoint、所有 session 或其他 frontend 專案。
   </div>
 
+
+  <h3 id="verify-service-identity">延伸核對｜Frontend 的 <code>service.name</code> 是誰設定的？</h3>
+
+  <p>上面用 <code>T</code>、<code>A</code> 驗證的是<strong>trace identity 與 parent relationship</strong>。若要確認這筆 frontend span 屬於哪個應用，則要另外看 Tempo 中<strong>frontend span 對應的 OpenTelemetry Resource</strong>。Resource 是一組描述遙測資料來源的共同屬性；<code>service.name</code> 是其中一個欄位，不在 Browser <code>traceparent</code> 裡。</p>
+
+  <figure class="diagram">
+    <figcaption><strong>從 Browser 初始化值追到 Tempo Resource</strong></figcaption>
+    <pre><code>initFaro({ app: { name: "idp-portal" }, ... })
+       │ passes config
+       ▼
+Faro TracingInstrumentation.initialize()
+  attributes["service.name"] = "idp-portal"
+       │ builds OTel Resource
+       ▼
+WebTracerProvider({ resource })
+       │ frontend span export
+       ▼
+Tempo frontend Resource
+  service.name = "idp-portal"</code></pre>
+  </figure>
+
+  <p>真正的指定發生在 Grafana Faro 的 tracing 初始化；程式先讀取 <code>this.config.app.name</code>，再將它指定到 <code>ATTR_SERVICE_NAME</code>，接著建立給 <code>WebTracerProvider</code> 使用的 Resource。預設保留大小寫與標點；低階 <code>resourceAttributes</code> 若明確覆寫則另當別論。<a href="../reference/0008-faro-tracing-ownership-and-propagation.html#app-name-service-name">Reference｜逐行程式、覆寫順序與概念比較 →</a></p>
+
+  <div class="box ask">
+    <strong>Debug scenario｜Tempo 有 exact trace，Dashboard 卻顯示空結果</strong><br>
+    已驗證的 IDP Portal case 是 <code>app.name="idp-portal"</code>，Dashboard Job 選的是 <code>IDP-Portal</code>。先確認 Tempo <strong>frontend Resource</strong> 的 <code>service.name</code>，再比對 Dashboard 使用的 Job/filter 字串。Job 由獨立流程維護，不會因 Faro app name 而自動建立／同步。這種 case mismatch 不等於前後端的 <code>traceparent</code> join 失敗。
+  </div>
+
+  <p class="cite">Source chain：<a href="../sources/evidence/faro-app-name-otel-service-name-2026-10-12.md">Faro source evidence</a>；runtime case：<a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal query identity</a>。這裡未新增任何聲稱已拍攝的 Tempo UI 畫面。</p>
+
   <h2>6. SRE Debug：哪一段 equality 先斷，就往哪個 boundary 查</h2>
 
   <p>實務上最有用的不是背操作順序，而是知道每個觀察把 fault domain 縮到哪裡。</p>
@@ -367,6 +397,7 @@ Header T/A 存在，但 Tempo 不完整
     <li><strong>用 exact T 查 Tempo</strong>，避免只靠時間或 service name 猜。</li>
     <li><strong>確認 frontend client span 的 span ID = A</strong>。</li>
     <li><strong>確認 backend server span trace ID = T，parent = A</strong>。</li>
+    <li><strong>需要查服務名稱時</strong>，另核對 Tempo frontend Resource 的 <code>service.name</code> 與 Dashboard Job/filter；這不是 T/A join 的必要 equality。</li>
     <li><strong>記錄 scope</strong>：你證明的是哪個 environment、哪個 request、哪個時間點，不把單筆 evidence 擴張成全系統保證。</li>
   </ol>
 
@@ -421,6 +452,18 @@ Header T/A 存在，但 Tempo 不完整
     <div class="feedback" aria-live="polite"></div>
   </div>
 
+
+  <div class="quiz" data-quiz>
+    <div class="question">Q5. Tempo 用 exact T 查到 frontend span，但 Dashboard 的 <code>Job=IDP-Portal</code> 查不到；已知 <code>app.name=idp-portal</code>。首先該核對哪裡？</div>
+    <div class="choices">
+      <button class="choice" data-correct="false" data-feedback-incorrect="traceparent 不包含 service name，修改 header version 不會修正 Dashboard 名稱篩選。">先核對 traceparent 的版本是否一致</button>
+      <button class="choice" data-correct="true" data-feedback-correct="對。以 Tempo frontend Resource 的 service.name 核對 Dashboard Job/filter；名稱不同可能只是查詢漏資料。">先核對 Job 與 service.name 是否一致</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Backend 本應建立新 span ID；這不是服務名稱篩選的問題。">先核對 backend 的 span ID 是否一致</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="多筆 collector POST 不說明為何 Dashboard filter 的服務名稱不同。">先核對 collector 的 POST 數是否一致</button>
+    </div>
+    <div class="feedback" aria-live="polite"></div>
+  </div>
+
   <h2>Recap</h2>
 
   <ul>
@@ -430,6 +473,7 @@ Header T/A 存在，但 Tempo 不完整
     <li><strong>Backend server span 必須保留同一個 T，且 parent = A</strong>，這才建立預期 parent/child relationship。</li>
     <li><strong>HTTP 200、有 header、有單邊 span 都只是部分 evidence</strong>，不能單獨升級成 end-to-end join 成功。</li>
     <li><strong>Tempo 查不到不等於 propagation 失敗</strong>；sampling、export、ingest、storage、retention 都會影響 query visibility。</li>
+    <li><strong><code>service.name</code> 是 frontend OTel Resource identity</strong>，不在 <code>traceparent</code>；Dashboard Job 是獨立篩選設定，大小寫或標點不一致可能使查詢漏資料。</li>
     <li><strong>Runtime proof 有 scope</strong>：一筆 request 的成功不能自動代表所有 endpoint 或所有應用都成功。</li>
   </ul>
 
@@ -443,6 +487,7 @@ Header T/A 存在，但 Tempo 不完整
   <nav class="lesson-nav" aria-label="課程導覽">
     <a href="0007-frontend-backend-trace-context-propagation.html">← Lesson 7</a>
     <a href="../reference/0006-w3c-traceparent.html">Traceparent Reference</a>
+    <a href="../reference/0008-faro-tracing-ownership-and-propagation.html#app-name-service-name">Service name Reference</a>
     <a href="../learning-map/index.html">Learning Map →</a>
   </nav>
 </body>

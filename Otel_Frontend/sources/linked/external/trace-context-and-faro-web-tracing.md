@@ -39,3 +39,11 @@ Verified teaching facts:
 ## Relationship to internal package evidence
 
 The internal `@sre2/faro-click-tracking` evidence records that its public `backendUrls` option is passed to Faro `TracingInstrumentation` as `propagateTraceHeaderCorsUrls`. This means `backendUrls` describes business/backend API URL targets eligible for trace-context propagation; it is not the Faro/Alloy telemetry receiver URL.
+
+## Faro tracing Resource identity (source checked 2026-10-12)
+
+- [v2.8.2 source](https://github.com/grafana/faro-web-sdk/blob/v2.8.2/packages/web-tracing/src/instrumentation.ts)
+- [v2.9.0 source](https://github.com/grafana/faro-web-sdk/blob/v2.9.0/packages/web-tracing/src/instrumentation.ts)
+- [Bounded evidence](../../evidence/faro-app-name-otel-service-name-2026-10-12.md)
+
+Both versions conditionally assign `this.config.app.name` to `attributes[ATTR_SERVICE_NAME]`, then merge `options.resourceAttributes` and pass the resulting Resource into `WebTracerProvider`. This Resource assignment is separate from W3C header propagation.
