@@ -1,0 +1,51 @@
+{
+  "events": [
+    {
+      "kind": "request",
+      "method": "GET",
+      "request_id": "12564.11",
+      "url": "https://pek8s-staging.garmin.com/jeter-faro-trace-demo-backend/api/scenario/slow",
+      "timestamp": 1789848030.631107,
+      "traceparent": "00-6faa6779a2970a3f82ad77e9ab9f4eb7-483e269e249ac6b4-01"
+    },
+    {
+      "status": 200,
+      "request_id": "12564.11",
+      "kind": "response",
+      "url": "https://pek8s-staging.garmin.com/jeter-faro-trace-demo-backend/api/scenario/slow"
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "request_id": "12564.12",
+      "url": "https://pek8s-staging.garmin.com/alloy",
+      "timestamp": 1789848032.962618,
+      "traceparent": null
+    },
+    {
+      "status": 202,
+      "request_id": "12564.12",
+      "kind": "response",
+      "url": "https://pek8s-staging.garmin.com/alloy"
+    },
+    {
+      "kind": "request",
+      "method": "POST",
+      "request_id": "12564.13",
+      "url": "https://pek8s-staging.garmin.com/alloy",
+      "timestamp": 1789848034.219327,
+      "traceparent": null
+    },
+    {
+      "status": 202,
+      "request_id": "12564.13",
+      "kind": "response",
+      "url": "https://pek8s-staging.garmin.com/alloy"
+    }
+  ],
+  "privacy": "Only endpoint, request ID, method, traceparent, timestamp, status retained. No cookies, authorization or payload.",
+  "verified_at": "2026-09-19T20:00:45.5856450Z",
+  "action": "mock login then Slow scenario button",
+  "application": "Jeter Faro Trace Demo",
+  "environment": "tw-stage"
+}

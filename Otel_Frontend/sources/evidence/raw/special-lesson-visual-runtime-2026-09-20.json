@@ -1,0 +1,76 @@
+{
+  "verified_at": "2026-09-20T22:14:27+08:00",
+  "environment": "tw-stage",
+  "application": "Jeter Faro Trace Demo",
+  "privacy": "Projection only. No cookies, authorization, account identity, user_id, session_id, or full telemetry payload retained.",
+  "trace_runtime": {
+    "action": "Authenticated browser session opened the deployed Jeter page and clicked the existing Slow scenario once.",
+    "business_request": {
+      "method": "GET",
+      "path": "/jeter-faro-trace-demo-backend/api/scenario/slow",
+      "status": 200,
+      "traceparent": "00-e0a53e388efd225f43fb08e7fd68aa23-10dc5dfab188fdc0-01",
+      "trace_id": "e0a53e388efd225f43fb08e7fd68aa23",
+      "frontend_span_id": "10dc5dfab188fdc0"
+    },
+    "tempo": {
+      "datasource": "temp123",
+      "trace_id": "e0a53e388efd225f43fb08e7fd68aa23",
+      "spans": [
+        {
+          "service": "jeter-faro-trace-demo-frontend",
+          "kind": "client",
+          "span_id": "10dc5dfab188fdc0",
+          "parent_span_id": null
+        },
+        {
+          "service": "jeter-faro-trace-demo-backend",
+          "kind": "server",
+          "span_id": "ceb5e675fed3017a",
+          "parent_span_id": "10dc5dfab188fdc0"
+        },
+        {
+          "service": "jeter-faro-trace-demo-backend",
+          "kind": "client",
+          "span_id": "c2d6ab735804b499",
+          "parent_span_id": "ceb5e675fed3017a"
+        }
+      ],
+      "result": "Frontend client span and backend server span share the trace ID; backend parent span ID equals frontend span ID."
+    },
+    "screenshots": [
+      "assets/special-lesson-evidence/jeter-slow-scenario-redacted-annotated.png",
+      "assets/special-lesson-evidence/jeter-network-slow-annotated.png",
+      "assets/special-lesson-evidence/jeter-traceparent-header-annotated.png",
+      "assets/special-lesson-evidence/grafana-tempo-query-annotated.png",
+      "assets/special-lesson-evidence/grafana-tempo-spans-annotated.png",
+      "assets/special-lesson-evidence/grafana-frontend-span-id-annotated.png"
+    ],
+    "limitations": "Grafana UI showed the frontend span ID but not a backend parent-span field in the opened detail. The parent equality is therefore represented as an evidence comparison diagram based on the authenticated Tempo runtime API projection, not as a fabricated UI screenshot."
+  },
+  "error_runtime": {
+    "action": "Scheduled one controlled uncaught stage-demo Error; it changed no business data and used a unique marker.",
+    "marker": "OTEL_VISUAL_CHECK_20260920_B",
+    "browser": {
+      "console": "Chrome Console showed an Uncaught Error with the exact marker.",
+      "telemetry_request": "POST /alloy",
+      "payload_observation": "The same marker appeared in the Faro exceptions[] payload.",
+      "status": 202
+    },
+    "grafana": {
+      "datasource": "loki123",
+      "query": "{service_name=\"jeter-faro-trace-demo-frontend\"} |= \"OTEL_VISUAL_CHECK_20260920_B\"",
+      "result_count": 1,
+      "result_observation": "The matching exception row contains the same marker, kind=exception, and level=error."
+    },
+    "screenshots": [
+      "assets/special-lesson-evidence/jeter-error-console-annotated.png",
+      "assets/special-lesson-evidence/jeter-error-exceptions-annotated.png",
+      "assets/special-lesson-evidence/jeter-error-receiver-202-redacted-annotated.png",
+      "assets/special-lesson-evidence/grafana-loki-query-annotated.png",
+      "assets/special-lesson-evidence/grafana-loki-result-annotated.png"
+    ],
+    "limitations": "HTTP 202 proves receiver acceptance only. The exact record-specific Collector receive/export hop was not separately observed; the downstream Loki result is independently verified. The Loki screenshot is cropped before user/session fields and the raw log is not retained."
+  }
+}
+

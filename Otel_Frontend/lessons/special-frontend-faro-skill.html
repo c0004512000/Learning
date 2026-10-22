@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Special Lesson｜從 Frontend Repo 到 Grafana：設計 Faro 自動導入 Skill</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/evidence-annotations.css">
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js" defer></script>
+  <style>
+    /* Small diagrams explain concepts; every runtime UI in this lesson is a real PNG. */
+    .special-lesson .lesson-lead { border-left: 4px solid var(--success); }
+    .special-lesson .visual-card {
+      margin: 1.6rem 0 1.1rem;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    .special-lesson .visual-card figcaption,
+    .special-lesson .evidence-shot figcaption { margin-top: .8rem; }
+    .special-lesson .visual-label {
+      margin: 0 0 .7rem;
+      color: var(--muted);
+      font-size: .8rem;
+      font-weight: 600;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .special-lesson .flow-stack { display: grid; gap: .45rem; }
+    .special-lesson .flow-node {
+      padding: .65rem .75rem;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--info);
+      border-radius: 6px;
+      background: var(--paper);
+    }
+    .special-lesson .flow-node strong { display: block; }
+    .special-lesson .flow-node small { color: var(--muted); }
+    .special-lesson .flow-arrow {
+      display: grid;
+      justify-items: center;
+      color: var(--muted);
+      font-size: .82rem;
+      line-height: 1.2;
+    }
+    .special-lesson .flow-arrow::after { content: "↓"; font-size: 1.25rem; line-height: 1; }
+    .special-lesson .flow-arrow span { max-width: 17rem; text-align: center; }
+    .special-lesson .two-paths { display: grid; gap: 1rem; }
+    .special-lesson .path {
+      padding: .8rem;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--paper);
+    }
+    .special-lesson .path h3 { margin: 0 0 .7rem; font-size: 1rem; }
+    .special-lesson .path-a { border-top: 3px solid var(--success); }
+    .special-lesson .path-b { border-top: 3px solid var(--info); }
+    .special-lesson .path .flow-node { background: var(--panel); }
+    .special-lesson .parts {
+      display: grid;
+      grid-template-columns: auto 1fr 1fr auto;
+      gap: .4rem;
+      align-items: stretch;
+      margin: .7rem 0;
+      font-family: "SF Mono", Consolas, monospace;
+      text-align: center;
+    }
+    .special-lesson .parts span {
+      padding: .55rem .35rem;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: var(--code-bg);
+    }
+    .special-lesson .parts .part-t { border-color: var(--accent); }
+    .special-lesson .parts .part-a { border-color: var(--info); }
+    .special-lesson .part-notes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .6rem;
+      color: var(--muted);
+      font-size: .85rem;
+    }
+    .special-lesson .comparison {
+      display: grid;
+      gap: .7rem;
+      align-items: center;
+    }
+    .special-lesson .comparison .equals {
+      color: var(--accent);
+      font-size: 1.5rem;
+      font-weight: 600;
+      text-align: center;
+    }
+    .special-lesson .generic-specific {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .8rem;
+    }
+    .special-lesson .generic-specific > div {
+      padding: .8rem;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--paper);
+    }
+    .special-lesson .generic-specific h3 { margin: 0 0 .45rem; font-size: 1rem; }
+    .special-lesson .generic-specific ul { margin: 0; padding-left: 1.1rem; }
+    .special-lesson .generic-specific li { margin: .25rem 0; }
+    .special-lesson .evidence-shot .evidence-frame { width: 100%; max-width: 100%; overflow-x: auto; }
+    .special-lesson .evidence-shot .evidence-frame picture { display: block; }
+    .special-lesson .evidence-shot .evidence-frame img { width: 100%; max-width: 100%; height: auto; display: block; }
+    .special-lesson .evidence-shot .evidence-focus { max-width: none; }
+    .special-lesson .evidence-shot .evidence-mark-note { margin-bottom: .25rem; }
+    .special-lesson .source-note { color: var(--muted); font-size: .86rem; }
+    .special-lesson .boundary-table td:first-child { white-space: nowrap; }
+    .special-lesson .compact-list { margin-top: .5rem; }
+    .special-lesson .debug-tree .flow-node { border-left-color: var(--accent); }
+    .special-lesson .debug-tree .flow-node.pass { border-left-color: var(--success); }
+    .special-lesson details { margin: 1rem 0; }
+    .special-lesson summary { cursor: pointer; color: var(--accent); }
+    @media (min-width: 700px) {
+      .special-lesson .two-paths { grid-template-columns: 1fr 1fr; }
+      .special-lesson .comparison { grid-template-columns: 1fr auto 1fr; }
+    }
+    @media (max-width: 680px) {
+      .special-lesson .generic-specific { grid-template-columns: 1fr; }
+      .special-lesson .parts { grid-template-columns: 1fr; }
+      .special-lesson .parts span::before { display: block; color: var(--muted); font: .72rem/1.2 sans-serif; }
+      .special-lesson .parts span:nth-child(1)::before { content: "version"; }
+      .special-lesson .parts span:nth-child(2)::before { content: "trace ID (T)"; }
+      .special-lesson .parts span:nth-child(3)::before { content: "frontend span (A)"; }
+      .special-lesson .parts span:nth-child(4)::before { content: "flags"; }
+      .special-lesson .evidence-shot .evidence-frame img { width: 100%; }
+      .special-lesson .boundary-table td:first-child { white-space: normal; }
+    }
+  </style>
+</head>
+<body class="special-lesson">
+  <h1>Special Lesson｜從 Frontend Repo 到 Grafana</h1>
+  <p class="subtitle">工作導向插課：設計、審查與除錯 Faro 自動導入 Skill</p>
+
+  <div class="box tip lesson-lead">
+    <strong>這堂課的交付物</strong>
+    <p>你要能審查一個 Agent Skill：它是否真的找到 Frontend 的執行路徑、補上最小 Faro 變更，並用 Browser 與 Grafana 的資料驗收。這堂課不要求你重建觀測平台，也不改變主線 Lesson 順序。</p>
+  </div>
+  <p>本課的 runtime example 都標成 <strong>Jeter stage demo</strong>。先看畫面，再用短解釋建立模型；完整 raw evidence 放在課後來源，不是主要操作路徑。</p>
+
+  <h2>1. Agent 面對陌生 repo，先找真正的 runtime path</h2>
+  <figure class="visual-card" aria-label="Agent 檢查 Frontend repo 的概念流程">
+    <p class="visual-label">概念圖｜先找，再決定改什麼</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>Frontend repo</strong><small>Agent 先讀現有結構</small></div>
+      <div class="flow-arrow"><span>找「怎麼啟動」：framework、lockfile、build script</span></div>
+      <div class="flow-node"><strong>Entry point + Faro initialization</strong><small>確認 Browser 真的會執行哪一段</small></div>
+      <div class="flow-arrow"><span>找「資料從哪裡出去」：HTTP client、backend URL、runtime config</span></div>
+      <div class="flow-node"><strong>最小修改決策</strong><small>保留已存在的有效 instrumentation</small></div>
+    </div>
+    <figcaption>這是概念圖，不是某個專案的檔案樹。箭頭表示 Agent 的下一個檢查問題。</figcaption>
+  </figure>
+  <p>Agent 不應一拿到 repo 就貼入 Faro 初始化。先回答「應用從哪裡啟動」與「真正的 API request 從哪裡送出」，才能避免改到沒有被 Browser 執行的檔案。</p>
+  <div class="table-wrap"><table><thead><tr><th>先找的實物</th><th>它回答什麼</th><th>找不到怎麼辦</th></tr></thead><tbody>
+    <tr><td><code>package-lock.json</code>、<code>yarn.lock</code>、<code>pnpm-lock.yaml</code></td><td>package manager 與可重現的指令</td><td>讀 repo 既有 script，不要猜指令。</td></tr>
+    <tr><td>entry point、Faro dependency、初始化</td><td>Faro 是否已在 Browser 啟動</td><td>已有初始化先檢查，避免雙重初始化。</td></tr>
+    <tr><td>runtime config、backend base URL</td><td>部署後實際呼叫哪個 API</td><td>向專案取得環境 URL，不要硬編碼 Jeter URL。</td></tr>
+    <tr><td><code>fetch</code>、XHR、<code>axios</code>、custom wrapper</td><td>哪個程式送出 business request</td><td>追 wrapper，並用 Browser Network 確認。</td></tr>
+  </tbody></table></div>
+  <p class="source-note">Foreman 是 Angular、Jeter 是 React；它們只提供辨識方法的對照。參考：<a href="../sources/evidence/foreman-integration.md">Foreman source evidence</a>、<a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter source evidence</a>。</p>
+
+  <h2>2. 先分清兩條網路路徑</h2>
+  <figure class="visual-card" aria-label="Business request 與 telemetry export 的兩條路徑">
+    <p class="visual-label">因果圖｜兩個 request，兩個目的</p>
+    <div class="two-paths">
+      <div class="path path-a">
+        <h3>Path A｜Business API</h3>
+        <div class="flow-stack">
+          <div class="flow-node"><strong>Browser</strong><small>Frontend HTTP client span</small></div>
+          <div class="flow-arrow"><span>sends business request + <code>traceparent</code> to</span></div>
+          <div class="flow-node"><strong>Backend API</strong><small>建立自己的 server span</small></div>
+        </div>
+      </div>
+      <div class="path path-b">
+        <h3>Path B｜Telemetry</h3>
+        <div class="flow-stack">
+          <div class="flow-node"><strong>Browser Faro</strong><small>span、error、event</small></div>
+          <div class="flow-arrow"><span>exports telemetry to</span></div>
+          <div class="flow-node"><strong>Alloy / Faro receiver</strong><small>接受 Browser 的 telemetry</small></div>
+          <div class="flow-arrow"><span>forwards to</span></div>
+          <div class="flow-node"><strong>Collector → Tempo / Loki</strong><small>儲存後才能查詢</small></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>箭頭已寫出語意：Path A sends a business request；Path B exports telemetry。這是概念圖，不是 UI 截圖。</figcaption>
+  </figure>
+  <p><code>backendUrls</code> 是 tracing instrumentation 用來匹配<strong>業務 API URL</strong> 的設定概念；它不是 Alloy receiver URL。Business request 也不是 telemetry export request。即使 header 傳出去了，Frontend span 還是要靠 Path B 送到 Tempo，Backend span 也要有自己的 export。</p>
+  <p class="source-note">參考：<a href="../sources/evidence/trace-context-propagation.md">trace context</a>、<a href="../sources/evidence/browser-to-alloy.md">Browser → Alloy</a>、<a href="../sources/evidence/collector-pipeline.md">Collector pipeline</a>。</p>
+
+  <h2>3. Jeter：用一筆 Slow request 驗收 distributed trace</h2>
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><img src="../assets/special-lesson-evidence/jeter-slow-scenario-redacted-annotated.png" alt="真實 Jeter stage 頁面的 Slow 操作，紅框標示按鈕，employee ID 已遮罩" loading="lazy"></div>
+    <figcaption><span class="evidence-mark-note">真實 Jeter stage page；紅框是教學 overlay，employee ID 是額外隱私遮罩。</span>這次 runtime evidence 從這個 Slow request 開始。按鈕本身只告訴我們要觸發哪個 demo API；trace 關係要在 DevTools 與 Tempo 看。</figcaption>
+  </figure>
+  <p>先記住操作，而不是先背 ID：按一次 Slow，接著在 Network 找同一個 business request。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-network-slow-focus-annotated.png"><img src="../assets/special-lesson-evidence/jeter-network-slow-annotated.png" alt="真實 Jeter DevTools Network 清單，紅框標示 slow business request" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Jeter DevTools Network；紅框只標示要點的 slow row。</span>這裡選 GET 的 <code>slow</code> row，不要把旁邊的 <code>/alloy</code> POST 當成 business request。<a href="../assets/special-lesson-evidence/jeter-network-slow-base.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+  <p>你現在看到的是 Path A 的 request。下一個觀察是它的 Request Headers，因為跨 Browser 與 Backend 的 relationship 會放在那裡。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-traceparent-focus-annotated.png"><img src="../assets/special-lesson-evidence/jeter-traceparent-header-annotated.png" alt="真實 Jeter DevTools Request Headers，紅框標示 traceparent header" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Jeter DevTools Request Headers；紅框只標示 <code>traceparent</code>。</span>完整 header 是本次 request 的 runtime observation，不是設定檔推論。<a href="../assets/special-lesson-evidence/jeter-traceparent-header-base.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+  <p>先不用背整串。只取兩個值：<strong>T</strong> 是整條 trace，<strong>A</strong> 是 Browser 這個 client span。</p>
+  <div class="visual-card">
+    <p class="visual-label">把 header 讀成關係</p>
+    <div class="parts" aria-label="traceparent 四段的簡化示意"><span>00</span><span class="part-t">T</span><span class="part-a">A</span><span>01</span></div>
+    <div class="part-notes"><span><strong>T</strong><br>整條工作從哪一個 trace 來。</span><span><strong>A</strong><br>這一個 Frontend span 的 ID。</span></div>
+    <p class="source-note">這是格式的教學簡化；真實值在上方 screenshot 與 evidence source。完整 W3C 格式參考 <a href="../reference/0006-w3c-traceparent.html">traceparent reference</a>。</p>
+  </div>
+
+  <h3>Tempo：先查 T，再看兩端 span</h3>
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-tempo-query-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-tempo-query-annotated.png" alt="真實 Grafana Explore Tempo 查詢畫面，紅框標示 trace ID 欄位" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Explore / Tempo；帳號區不在裁切範圍，紅框是教學 overlay。</span>把 Browser 剛才取得的 T 貼進這個 trace ID 欄位。<a href="../assets/special-lesson-evidence/grafana-tempo-query-redacted.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+  <p>查詢欄的 T 是 <code>e0a53e…</code> 這一筆 runtime trace。圖中的省略只為了降低 working-memory 負擔；不要拿另一筆 trace 的 ID 來比。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-tempo-spans-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-tempo-spans-annotated.png" alt="真實 Grafana Tempo trace tree，紅框標示 Jeter frontend 與 backend spans" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Tempo trace result；紅框只標示 frontend/backend span tree。</span>同一個 T 下，Tempo 顯示 Jeter frontend 與 Jeter backend，共 3 spans。這證明兩端都進入同一條查詢結果；parent equality 在下一個 evidence diagram 比對。<a href="../assets/special-lesson-evidence/grafana-tempo-spans-redacted.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-frontend-span-id-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-frontend-span-id-annotated.png" alt="真實 Grafana Tempo frontend span detail，紅框標示 frontend SpanID" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Tempo span detail；紅框只標示 frontend SpanID。</span>這張 UI 把 A 顯示成 frontend 的 SpanID。Grafana 這個 detail panel 沒有顯示 backend parent 欄位，因此下一張是明確標示來源的 evidence comparison diagram。</figcaption>
+  </figure>
+  <figure class="visual-card">
+    <p class="visual-label">Evidence comparison diagram｜來自同一筆 Tempo runtime API projection，非 Grafana UI</p>
+    <div class="comparison">
+      <div class="flow-node"><strong>Frontend client span</strong><small>Span ID = A<br><code>10dc5dfab188fdc0</code></small></div>
+      <div class="equals">=</div>
+      <div class="flow-node"><strong>Backend server span</strong><small>Parent Span ID = A<br><code>10dc5dfab188fdc0</code></small></div>
+    </div>
+    <figcaption>數值來自已驗證的 Tempo runtime API evidence；這張整理圖不是 UI 截圖。兩邊都是 A，所以 Backend span 的 parent 就是 Frontend span。</figcaption>
+  </figure>
+  <p>因此這一筆 Jeter Slow request 的結論是：</p>
+  <div class="box tip"><strong>RUNTIME JOIN VERIFIED</strong><br>Browser 的 <code>traceparent</code> 帶出 T 與 A；Tempo 查到同一個 T；Backend server span 的 parent 是 A。這是這一筆 request 的證明，不是所有 endpoint 或所有 Frontend repo 的保證。</div>
+  <details>
+    <summary>補充：完整值與 evidence source</summary>
+    <p>本次 T 為 <code>e0a53e388efd225f43fb08e7fd68aa23</code>；Frontend A 為 <code>10dc5dfab188fdc0</code>；Backend server span 為 <code>ceb5e675fed3017a</code>，其 parent 為 A。去敏 projection 與限制見 <a href="../sources/evidence/special-lesson-visual-runtime-2026-09-20.md">visual runtime evidence</a>。Raw projection 保留在 <a href="../sources/evidence/raw/special-lesson-visual-runtime-2026-09-20.json">raw evidence</a>。</p>
+  </details>
+
+  <h3>Lab 1｜重做一次 Browser 檢查</h3>
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-traceparent-focus-annotated.png"><img src="../assets/special-lesson-evidence/jeter-traceparent-header-annotated.png" alt="Lab 1 參考畫面：Jeter DevTools traceparent header" loading="lazy"></picture></div>
+    <figcaption>先看圖：你要在 Request Headers 找到紅框的 <code>traceparent</code>，不是在 Console 猜 trace ID。</figcaption>
+  </figure>
+  <div class="box">
+    <p><strong>做什麼：</strong>在有授權的 Jeter stage demo 開啟 DevTools → Network，清空舊列，按一次 Slow，再選 GET 的 <code>scenario/slow</code>。</p>
+    <p><strong>看哪裡：</strong>Headers → Request Headers → <code>traceparent</code>。把當次 T 與 A 記到私人筆記，不要把 credential 或 cookie 存進 repo。</p>
+    <p><strong>判斷：</strong>有 header 才能繼續查關係；HTTP 200 只證明 API 回應成功。沒有 header 時，檢查實際 URL 是否匹配 propagation pattern、HTTP wrapper 是否被 instrumentation 覆蓋，以及 CORS 是否允許 header。</p>
+  </div>
+
+  <h3>Lab 2｜把當次 T 帶到 Tempo</h3>
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-tempo-query-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-tempo-query-annotated.png" alt="Lab 2 參考畫面：Grafana Tempo trace ID query" loading="lazy"></picture></div>
+    <figcaption>先看圖：把 Lab 1 的 T 貼在紅框 query 欄位，再看下一張 span tree。</figcaption>
+  </figure>
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-tempo-spans-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-tempo-spans-annotated.png" alt="Lab 2 參考畫面：Grafana Tempo frontend backend span tree" loading="lazy"></picture></div>
+    <figcaption>正確時應看見 frontend 與 backend 在同一個 trace result；再用 evidence comparison diagram 檢查 parent relationship。</figcaption>
+  </figure>
+  <div class="box">
+    <p><strong>做什麼：</strong>到有權限的 Grafana Explore，選 Tempo，貼上<strong>當次</strong> trace ID。</p>
+    <p><strong>判斷：</strong>同一 T 加上 Frontend client 與 Backend server 才是第一層證據；Backend parent = Frontend span 才完成 join。只有其中一端時，先查該端的 telemetry export 或 context extraction。</p>
+  </div>
+
+  <h2>4. Baseline console / error observability：先知道 Faro 預設收什麼</h2>
+  <figure class="visual-card" aria-label="Faro Web SDK baseline console 與 error capability map">
+    <p class="visual-label">Capability map｜Faro Web SDK v2.9.0</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>Basic <code>initializeFaro()</code></strong><small>先建立 Browser telemetry baseline</small></div>
+      <div class="flow-arrow"><span>automatically captures</span></div>
+      <div class="flow-node"><strong>Uncaught errors</strong><small>走 error / exception signal</small></div>
+      <div class="flow-node"><strong><code>console.info</code> / <code>console.warn</code> / <code>console.error</code></strong><small>預設 console capture；<code>console.error</code> 預設轉成 error signal</small></div>
+      <div class="flow-node"><strong>Web Vitals</strong><small>也是 basic Web SDK baseline，但不是本課重點</small></div>
+    </div>
+    <figcaption>這是 SDK capability map，不是 Jeter runtime screenshot。v2.9.0 預設不收 <code>console.log</code>、<code>console.debug</code>、<code>console.trace</code>；若你的 Skill 要「所有 console levels」，必須另外調整 console instrumentation。</figcaption>
+  </figure>
+  <p>所以未來 Skill 裡的「Browser console log baseline」不能寫成模糊的「Faro 會把所有 <code>console.*</code> 都收走」。目前版本預設收 <strong>info / warn / error</strong>；其中 <code>console.error()</code> 預設走 Faro error path。若公司 baseline 想連 <code>console.log()</code>、debug、trace 都收，就要把這件事當成<strong>明確的額外設定</strong>，而不是 SDK default。</p>
+  <div class="table-wrap"><table><thead><tr><th>Browser signal</th><th>v2.9.0 baseline</th><th>Skill 要知道的邊界</th></tr></thead><tbody>
+    <tr><td>uncaught exception</td><td>自動 capture</td><td>屬於 Errors instrumentation；不是 console log。</td></tr>
+    <tr><td><code>console.info()</code></td><td>預設 capture</td><td>送成 log signal。</td></tr>
+    <tr><td><code>console.warn()</code></td><td>預設 capture</td><td>送成 log signal。</td></tr>
+    <tr><td><code>console.error()</code></td><td>預設 capture</td><td>預設轉成 error signal；可配置成 log。</td></tr>
+    <tr><td><code>console.log()</code> / debug / trace</td><td>預設不 capture</td><td>若需求要收，Skill 必須顯式調整 console instrumentation。</td></tr>
+    <tr><td>fetch / XHR API request</td><td>不是 basic Web SDK tracing baseline</td><td>要加入 <code>@grafana/faro-web-tracing</code> 的 <code>TracingInstrumentation</code>；Section 5 再把它放進 Skill baseline。</td></tr>
+  </tbody></table></div>
+  <p class="source-note">版本化依據：<a href="../sources/evidence/faro-baseline-capabilities-2026-09-20.md">Faro baseline capability evidence</a>。這裡描述 SDK capability；目標 repo 是否真的有啟用，仍要由 Agent 檢查 source 與 runtime。</p>
+
+  <h3>Runtime example｜一筆 uncaught error 從 Browser 走到 Loki</h3>
+  <figure class="visual-card" aria-label="Frontend uncaught error 到 Grafana Loki 的概念流程">
+    <p class="visual-label">因果圖｜這只是 baseline 裡的一條 error path</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>Browser uncaught error</strong><small>Jeter Console 看到受控 error</small></div>
+      <div class="flow-arrow"><span>captured by Faro errors instrumentation</span></div>
+      <div class="flow-node"><strong>Faro exception telemetry</strong><small>出現在 outbound <code>exceptions[]</code></small></div>
+      <div class="flow-arrow"><span>POST /alloy to</span></div>
+      <div class="flow-node"><strong>Alloy / Faro receiver</strong><small>HTTP 202 只證明 request accepted</small></div>
+      <div class="flow-arrow"><span>configured route continues through Collector</span></div>
+      <div class="flow-node"><strong>Collector</strong><small>本次沒有 record-specific receive/export observation</small></div>
+      <div class="flow-arrow"><span>stored as logs / exceptions in</span></div>
+      <div class="flow-node"><strong>Loki → Grafana</strong><small>用同一 marker 查到才證明 storage visibility</small></div>
+    </div>
+    <figcaption>Collector 被畫進架構，但沒有把未觀察到的單筆 hop 說成 runtime proof。下面的 screenshots 驗證 Browser、receiver 與 Loki 這幾個實際觀察點。</figcaption>
+  </figure>
+  <p>這次使用 Jeter stage 的受控錯誤 marker <code>OTEL_VISUAL_CHECK_20260920_B</code>。它是 unique test identifier，不是時間戳，也沒有改動業務資料。因為沒有觀察到安全的 error button，這一段是 <strong>Evidence Walkthrough</strong>，不是要求 learner 注入 exception 的 Lab。這筆 evidence 證明的是 <strong>uncaught error path</strong>；它不是整個 console capability map 的替代品。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-error-console-focus-annotated.png"><img src="../assets/special-lesson-evidence/jeter-error-console-annotated.png" alt="真實 Jeter DevTools Console，紅框標示受控 frontend error marker" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Jeter DevTools Console；紅框只標示本次 marker。</span>Browser 確實產生這個 error。上方其他 marker 是同一調查 session 的舊紀錄，教學焦點只在紅框這一列。<a href="../assets/special-lesson-evidence/jeter-error-console-base.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+  <p>第一個 boundary 已證明：Browser 有 error。接著看同一個 marker 是否進入 Faro 的 outbound payload。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-error-exceptions-focus-annotated.png"><img src="../assets/special-lesson-evidence/jeter-error-exceptions-annotated.png" alt="真實 Jeter DevTools Payload，紅框標示 exceptions 陣列中的同一 marker" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Jeter DevTools Network Payload；紅框是教學 overlay。</span>Console 的同一 marker 出現在 <code>exceptions[]</code>。這證明 Faro capture 了它並準備送出；<a href="../assets/special-lesson-evidence/jeter-error-exceptions-base.png">隱私檢查後底圖</a>。</figcaption>
+  </figure>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/jeter-error-receiver-202-focus-redacted-annotated.png"><img src="../assets/special-lesson-evidence/jeter-error-receiver-202-redacted-annotated.png" alt="真實 Jeter DevTools POST /alloy detail，紅框標示 HTTP 202，內部位址已遮罩" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Jeter DevTools request detail；紅框只標示 Status Code 202，內部位址是額外隱私遮罩。</span>這只證明 Browser → receiver 的 request 被接受，不直接證明 Loki 已有資料。<a href="../assets/special-lesson-evidence/jeter-error-receiver-202-redacted.png">隱私檢查後底圖</a>。</figcaption>
+  </figure>
+  <figure class="visual-card">
+    <p class="visual-label">Boundary diagram｜202 的證明範圍</p>
+    <div class="comparison">
+      <div class="flow-node"><strong>Browser</strong><small>POST /alloy → 202</small></div>
+      <div class="equals">verified</div>
+      <div class="flow-node"><strong>Receiver</strong><small>accepted request</small></div>
+    </div>
+    <div class="comparison" style="margin-top:.7rem">
+      <div class="flow-node"><strong>Receiver</strong><small>downstream processing</small></div>
+      <div class="equals">?</div>
+      <div class="flow-node"><strong>Loki / Grafana</strong><small>需另外 query</small></div>
+    </div>
+    <figcaption>這是 boundary teaching diagram；202 不會替下游 storage 作保證。</figcaption>
+  </figure>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-loki-query-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-loki-query-annotated.png" alt="真實 Grafana Explore Loki query，紅框標示 Jeter service 與 unique marker 查詢" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Explore / Loki；紅框是教學 overlay。</span>現在用 Jeter service + unique marker 查 Loki。<a href="../assets/special-lesson-evidence/grafana-loki-query-redacted.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+  <p>這裡不是用舊的 Foreman dashboard query。查詢條件必須與當前 runtime service 和 marker 相符。</p>
+
+  <figure class="evidence-shot">
+    <div class="evidence-frame"><picture><source media="(max-width:680px)" srcset="../assets/special-lesson-evidence/grafana-loki-result-focus-annotated.png"><img src="../assets/special-lesson-evidence/grafana-loki-result-annotated.png" alt="真實 Grafana Loki result，紅框標示同一 frontend error marker，user 和 session 已裁掉" loading="lazy"></picture></div>
+    <figcaption><span class="evidence-mark-note">真實 Grafana Loki result；user/session 欄位已在裁切前移除，紅框只標示 marker。</span><code>Total: 1</code>，而且 exception row 含相同 marker、<code>kind=exception</code>、<code>level=error</code>。<a href="../assets/special-lesson-evidence/grafana-loki-result-redacted.png">隱私檢查後底圖</a></figcaption>
+  </figure>
+  <p>現在才可以下這筆 runtime evidence 的完整結論：同一個 marker 從 Browser uncaught error → Faro <code>exceptions[]</code> → receiver 202 → Grafana Loki result 被對上。這證明一條 error path；它不等於「所有 console levels 都已在這次 capture 逐一測過」。Collector 的 record-specific receive/export metrics 也沒有在本次 capture 取得，因此不能把每一個 Collector hop 寫成已逐跳觀察。</p>
+  <div class="table-wrap"><table class="boundary-table"><thead><tr><th>觀察</th><th>這次能證明</th><th>還不能證明</th></tr></thead><tbody>
+    <tr><td>Console marker</td><td>Browser 真的發生這筆 uncaught error</td><td>其他 console levels 的 runtime capture</td></tr>
+    <tr><td><code>exceptions[]</code></td><td>Faro 把這筆 error 放進 outbound payload</td><td>downstream storage 可查</td></tr>
+    <tr><td>HTTP 202</td><td>receiver 接受 request</td><td>Loki 一定有資料</td></tr>
+    <tr><td>Loki Total: 1</td><td>這筆 marker 在 Grafana 可查</td><td>所有 Collector hop 都有逐筆 metrics</td></tr>
+  </tbody></table></div>
+  <details>
+    <summary>Evidence source 與限制</summary>
+    <p>SDK baseline capability 見 <a href="../sources/evidence/faro-baseline-capabilities-2026-09-20.md">Faro baseline capability evidence</a>；這筆 Jeter runtime 的完整去敏紀錄在 <a href="../sources/evidence/special-lesson-visual-runtime-2026-09-20.md">visual runtime evidence</a> 與 <a href="../sources/evidence/raw/special-lesson-visual-runtime-2026-09-20.json">raw projection</a>。既有 Alloy → Collector → Loki 路徑屬於 source/config evidence；本次只把 receiver acceptance 與 Loki visibility 分開驗證，沒有改 dashboard 或 production data。</p>
+  </details>
+
+  <h2>5. Agent Skill 的 baseline-first decision flow</h2>
+  <figure class="visual-card" aria-label="Frontend Faro Skill 的 baseline 與 extension 兩層決策流程">
+    <p class="visual-label">Mental model｜先建立最低觀測能力，再談客製化</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>Receive frontend repo</strong><small>先辨識 framework、package manager、entry point、現有 Faro</small></div>
+      <div class="flow-arrow"><span>audit existing capabilities</span></div>
+      <div class="flow-node"><strong>Baseline target</strong><small>Web SDK + console/error + API tracing + telemetry transport + Grafana visibility</small></div>
+      <div class="flow-arrow"><span>only fill the missing capability</span></div>
+      <div class="flow-node"><strong>Build / test / runtime verify</strong><small>證明 baseline 真的工作，不只 source 看起來有設定</small></div>
+      <div class="flow-arrow"><span>user 還有 baseline 無法回答的 business question？</span></div>
+      <div class="flow-node"><strong>Extension layer（optional）</strong><small>先定義需要的額外資料，再選 configuration / Faro API / custom instrumentation</small></div>
+      <div class="flow-arrow"><span>verify the customized signal</span></div>
+      <div class="flow-node"><strong>Done</strong><small>baseline 與 project-specific extension 分開維護</small></div>
+    </div>
+    <figcaption>未來 Skill 的第一個問題不是「我要改哪些檔案」，而是「這個 repo 距離我們要求的 baseline capability 還缺哪一塊？」</figcaption>
+  </figure>
+
+  <p><strong>Baseline 是你要為 Skill 定義的最低能力，不等於所有 Faro SDK default。</strong>例如 basic Web SDK 已經會收 uncaught errors 與預設 console levels，但 API request tracing 要再加入 <code>@grafana/faro-web-tracing</code> 的 <code>TracingInstrumentation</code>。它的 default OTel setup 才會 instrument <code>fetch</code> / XHR。換句話說，未來 Skill 應該檢查「能力有沒有存在」，而不是只檢查「package 有沒有安裝」。</p>
+
+  <figure class="visual-card" aria-label="Frontend Faro baseline capability target">
+    <p class="visual-label">Baseline target｜第一版 Skill 最少要能建立／確認</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>1. Faro Web SDK initialized</strong><small>在真正會執行的 application entry path；receiver / environment 指向正確部署環境</small></div>
+      <div class="flow-arrow"><span>provides browser-level signals</span></div>
+      <div class="flow-node"><strong>2. Console + error baseline</strong><small>至少理解 default info / warn / error + uncaught errors；需要全 levels 時才擴充設定</small></div>
+      <div class="flow-arrow"><span>add API observability baseline</span></div>
+      <div class="flow-node"><strong>3. <code>TracingInstrumentation</code></strong><small>讓 fetch / XHR 產生 frontend HTTP tracing data</small></div>
+      <div class="flow-arrow"><span>when cross-origin distributed tracing is needed</span></div>
+      <div class="flow-node"><strong>4. Propagation target + CORS</strong><small><code>backendUrls</code> / <code>propagateTraceHeaderCorsUrls</code> 決定 trace context 要送到哪些 backend；它不是 request-capture list</small></div>
+      <div class="flow-arrow"><span>export and prove</span></div>
+      <div class="flow-node"><strong>5. Receiver → storage → Grafana</strong><small>console/error 查 Loki；trace 查 Tempo；每一層按 evidence boundary 驗收</small></div>
+    </div>
+    <figcaption>這張圖回答「Agent 到底要建立哪些最低能力」。Section 3/4 的 runtime screenshots 則回答「完成後怎麼證明」。</figcaption>
+  </figure>
+
+  <div class="table-wrap"><table><thead><tr><th>Baseline capability</th><th>Agent 要查什麼</th><th>缺少時才做什麼</th></tr></thead><tbody>
+    <tr><td>Web SDK / transport</td><td>dependency、初始化位置、app metadata、receiver/environment</td><td>在真正 entry path 做最小初始化；不要建立第二個 instance。</td></tr>
+    <tr><td>Console / error</td><td>目前 console instrumentation 與 levels；Errors instrumentation</td><td>保留 SDK default；只有需求明確要求更多 levels 時才調整。</td></tr>
+    <tr><td>API request tracing</td><td>是否有 <code>@grafana/faro-web-tracing</code> / <code>TracingInstrumentation</code>；實際 request 是 fetch、XHR 或 wrapper</td><td>補 tracing capability，並以 Browser Network / Tempo 驗證。</td></tr>
+    <tr><td>Cross-origin propagation</td><td>實際 backend URL、propagation pattern、CORS</td><td>只對需要串 distributed trace 的 backend 設定 pattern；實際 origin/header policy 是 project-specific value。</td></tr>
+    <tr><td>Grafana visibility</td><td>正確 datasource、service/app identity、query 與 time range</td><td>查第一個沒有 evidence 的 boundary，不從 Grafana 空白直接猜 code 壞了。</td></tr>
+  </tbody></table></div>
+
+  <div class="box tip">
+    <strong><code>backendUrls</code> 再確認一次</strong><br>
+    <code>TracingInstrumentation</code> 會對 fetch / XHR 做 HTTP tracing；<code>backendUrls</code>（對應 <code>propagateTraceHeaderCorsUrls</code>）處理的是「哪些 backend URL 要帶 W3C trace context」。因此：<strong>API request instrumentation ≠ propagation URL allow-list</strong>。
+  </div>
+
+  <h3>Baseline 不夠時，才進 Extension layer</h3>
+  <figure class="visual-card" aria-label="從 business question 推導 custom instrumentation 的流程">
+    <p class="visual-label">Design flow｜不要先選技術，再硬找需求</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>User 的 business question</strong><small>Baseline telemetry 回答不了什麼？</small></div>
+      <div class="flow-arrow"><span>derive required additional context</span></div>
+      <div class="flow-node"><strong>需要新增哪些 data？</strong><small>DOM context、application state、user/device metadata、domain event…</small></div>
+      <div class="flow-arrow"><span>choose the smallest Faro extension point</span></div>
+      <div class="flow-node"><strong>Configuration / Faro API / custom instrumentation</strong><small>能用既有 option 就不要先寫 listener；真的缺 browser behavior 才做 custom instrumentation</small></div>
+      <div class="flow-arrow"><span>runtime verify</span></div>
+      <div class="flow-node"><strong>Grafana 能回答原 business question</strong><small>這才是 customization 的完成條件</small></div>
+    </div>
+    <figcaption>這是通用設計模型；不是要把 Foreman 的 implementation 複製到所有 repo。</figcaption>
+  </figure>
+
+  <div class="generic-specific">
+    <div><h3>GENERIC｜Skill 可以自動化</h3><ul><li>找 entry point、package manager、Faro dependency</li><li>audit baseline console/error capability</li><li>audit fetch/XHR API tracing capability</li><li>辨識 backend URL 與是否需要 cross-origin propagation</li><li>檢查 CORS 是否允許所需 propagation</li><li>build/test + Browser / Grafana runtime verify</li></ul></div>
+    <div><h3>PROJECT-SPECIFIC｜值或語意不能猜</h3><ul><li>實際 receiver / environment / backend URL</li><li>實際允許的 CORS origins / headers</li><li>Foreman 的 <code>data-link-name</code> / <code>subsystem</code></li><li>business KPI、click semantics、domain event</li><li>特定 user callback 與安全測試 path</li></ul></div>
+  </div>
+  <p>通用 Skill 應自動處理「怎麼找、怎麼判斷、怎麼驗證」；project-specific 的 URL 值與 business semantics 則來自 repo/runtime 或 user requirement，不能從 Foreman 推廣。</p>
+
+  <details>
+    <summary>Reference｜把原本 18-step checklist 收進來</summary>
+    <div class="table-wrap"><table><thead><tr><th>Stage</th><th>Agent 工作</th><th>核心判斷</th></tr></thead><tbody>
+      <tr><td>Inspect</td><td>framework、package manager、entry point、Faro、runtime config、HTTP mechanism</td><td>先理解現況，不要預設檔案路徑或 framework。</td></tr>
+      <tr><td>Baseline audit</td><td>console/error、TracingInstrumentation、backend URLs、receiver/environment</td><td>區分 SDK default、額外 tracing capability、project-specific values。</td></tr>
+      <tr><td>Modify</td><td>只補缺少的 capability，保留既有 business instrumentation</td><td>避免雙重初始化或重寫現有 HTTP client。</td></tr>
+      <tr><td>Verify</td><td>build/test → Browser → receiver → storage → Grafana；有 backend tracing 再驗證 same trace / parent</td><td>設定存在不等於 runtime 成功。</td></tr>
+      <tr><td>Extend</td><td>baseline 無法回答 business question 時才設計 custom instrumentation</td><td>先推導需要的 data，再選 extension mechanism。</td></tr>
+    </tbody></table></div>
+  </details>
+
+  <div class="box">
+    <strong>TODO（刻意不在這堂課展開）</strong><br>
+    未來可把 Foreman Assistant 補成完整 custom-instrumentation case study：<code>business question → required data → Click Listener / ClickInstrumentation / attributes / callbacks → Grafana answer</code>。這不是撰寫第一版 Faro Skill 前的 blocker，所以目前只留下後續入口。
+  </div>
+  <p class="source-note">Capability boundary：<a href="../sources/evidence/faro-baseline-capabilities-2026-09-20.md">Faro baseline capability map</a>。既有 Agent 檢查項目的 evidence basis 仍在 <a href="../sources/evidence/special-lesson-skill-design-findings-2026-09-20.md">skill-design findings</a>。</p>
+
+  <h2>6. Debug 時找第一個證據中斷</h2>
+  <figure class="visual-card debug-tree">
+    <p class="visual-label">Failure tree｜Grafana 沒有 error</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>Grafana 沒有 error</strong></div>
+      <div class="flow-arrow"><span>next verification boundary</span></div>
+      <div class="flow-node"><strong>Browser 有同一個 error marker 嗎？</strong></div>
+      <div class="flow-arrow"><span>如果有，找 Faro outbound payload</span></div>
+      <div class="flow-node"><strong><code>exceptions[]</code> 有同一 marker 嗎？</strong></div>
+      <div class="flow-arrow"><span>如果有，核對 receiver status</span></div>
+      <div class="flow-node"><strong>receiver accepted 嗎？</strong></div>
+      <div class="flow-arrow"><span>再查 storage 與 datasource/query</span></div>
+      <div class="flow-node pass"><strong>Loki / Grafana 找到同一 marker</strong></div>
+    </div>
+    <figcaption>每一個箭頭都是下一個要取得的證據，不是自動推論。</figcaption>
+  </figure>
+  <figure class="visual-card debug-tree">
+    <p class="visual-label">Failure tree｜Frontend / Backend trace 沒接起來</p>
+    <div class="flow-stack">
+      <div class="flow-node"><strong>Browser 有 client span 嗎？</strong></div>
+      <div class="flow-arrow"><span>再看 business request</span></div>
+      <div class="flow-node"><strong>Request 有 <code>traceparent</code> 嗎？URL、HTTP client、CORS？</strong></div>
+      <div class="flow-arrow"><span>再看 Backend context extraction</span></div>
+      <div class="flow-node"><strong>Backend 有同一個 T 嗎？</strong></div>
+      <div class="flow-arrow"><span>再比 parent = A</span></div>
+      <div class="flow-node"><strong>Backend parent 是否等於 Frontend span A？</strong></div>
+      <div class="flow-arrow"><span>最後核對兩端 export 與 Tempo query</span></div>
+      <div class="flow-node pass"><strong>同一 T、正確 parent、兩端都可查</strong></div>
+    </div>
+    <figcaption>先找第一個沒有證據的節點；不要從「Grafana 沒資料」直接猜是哪一段壞了。</figcaption>
+  </figure>
+  <p>審查 Agent 結果時，記三欄：<strong>預期</strong>、<strong>實際觀察</strong>、<strong>證據位置</strong>。只有設定時寫「configuration verified」；有 Browser header 不等於 Tempo join；有 202 不等於 Loki visibility。</p>
+
+  <h2>Self-check</h2>
+  <div class="quiz" data-quiz><div class="question">Q1. Browser business API request 有 <code>traceparent</code>，可以宣稱 Tempo 一定有完整 frontend + backend trace 嗎？</div><div class="choices">
+    <button class="choice" data-correct="false" data-feedback-incorrect="Header 只證明 context 傳出；兩端 span 的 export 與 Tempo 查詢仍需驗證。">可以，header 已證明兩端存入 Tempo</button>
+    <button class="choice" data-correct="true" data-feedback-correct="對。還要查同 T、兩端 span，以及 Backend parent 是否等於 Frontend span。">不行，還要查兩端 span 與 parent</button>
+    <button class="choice" data-correct="false" data-feedback-incorrect="API status 不保證 span export 或 storage visibility。">可以，API 回 200 就足夠證明</button>
+  </div><div class="feedback" aria-live="polite"></div></div>
+  <div class="quiz" data-quiz><div class="question">Q2. Faro POST 回 202，能直接宣稱 Grafana 查得到嗎？</div><div class="choices">
+    <button class="choice" data-correct="true" data-feedback-correct="對。202 只證明 receiver 接受；還要查 storage 與 Grafana result。">不能，仍須查儲存與 Grafana 結果</button>
+    <button class="choice" data-correct="false" data-feedback-incorrect="Receiver acceptance 與 downstream query 是不同證據。">可以，202 已代表 Grafana 收到資料</button>
+    <button class="choice" data-correct="false" data-feedback-incorrect="Console 與 202 是不同 boundary。">不能，應先看 Browser Console 顏色</button>
+  </div><div class="feedback" aria-live="polite"></div></div>
+  <div class="quiz" data-quiz><div class="question">Q3. 通用 Frontend Faro Skill 應把 Foreman 的 <code>data-link-name</code> 寫成每個 repo 的必要欄位嗎？</div><div class="choices">
+    <button class="choice" data-correct="false" data-feedback-incorrect="這是 Foreman 的業務語意，其他 repo 可能完全沒有。">應該，所有 Faro 專案都要這欄位</button>
+    <button class="choice" data-correct="false" data-feedback-incorrect="不能因 Foreman 有此欄位就要求 Jeter 使用。">應該，Jeter trace 也依賴這欄位</button>
+    <button class="choice" data-correct="true" data-feedback-correct="對。通用 Skill 要保留現有業務 instrumentation，不能硬編碼 Foreman 語意。">不應，業務欄位須由專案定義</button>
+  </div><div class="feedback" aria-live="polite"></div></div>
+
+  <h2>Recap</h2>
+  <ul class="compact-list">
+    <li>Agent 先找 repo 的 entry point、Faro、HTTP client 與 runtime URL，再決定最小修改。</li>
+    <li>Business request 傳 <code>traceparent</code>；Faro 的 <code>/alloy</code> POST 送 telemetry，兩條路徑分開驗證。</li>
+    <li>Jeter Slow 的一筆 request 已以同一 T、Frontend span A、Backend parent = A 證明 runtime join。</li>
+    <li>Jeter 受控 error 已以 Console marker、<code>exceptions[]</code>、202 與 Loki result 完成對應；逐筆 Collector hop 仍保留為未觀察 boundary。</li>
+    <li>Foreman 的 <code>data-link-name</code> 與 <code>subsystem</code> 是 project-specific，不是通用 Faro requirement。</li>
+  </ul>
+  <div class="box"><strong>主要來源</strong><br>
+    <a href="../sources/evidence/special-lesson-visual-runtime-2026-09-20.md">本次 visual runtime evidence</a> ·
+    <a href="../sources/evidence/browser-to-alloy.md">Browser → Alloy</a> ·
+    <a href="../sources/evidence/collector-pipeline.md">Collector pipeline</a> ·
+    <a href="../sources/evidence/grafana-current-state.md">Grafana current state</a> ·
+    <a href="../sources/evidence/special-lesson-skill-design-findings-2026-09-20.md">Skill design findings</a>
+  </div>
+  <p>完成這堂工作導向插課後，回到 Learning Map，繼續目前主線位置。</p>
+  <nav class="lesson-nav" aria-label="課程導覽">
+    <a href="../learning-map/index.html">← 回到 Learning Map</a>
+    <a href="../reference/0005-devtools-workspaces-for-faro.html">DevTools Reference</a>
+  </nav>
+</body>
+</html>
