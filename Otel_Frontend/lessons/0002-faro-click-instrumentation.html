@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lesson 2｜How ClickInstrumentation Handles Browser Clicks</title>
-  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/course-layout.css">
   <script src="../assets/theme.js"></script>
   <script src="../assets/quiz.js" defer></script>
 </head>
-<body>
+<body class="learning-page">
   <h1>How ClickInstrumentation Handles Browser Clicks</h1>
   <p class="subtitle">Milestone 1 · 從 Browser Event 到有應用語意的 click telemetry</p>
   <div class="box tip"><strong>本課目標</strong><br>給你一個被點擊的 DOM element，能沿著 listener、attribute extraction 與 payload，說明這次 click 是否會形成 Faro event。</div>
@@ -41,7 +41,7 @@ p-button（有 data-link-name）
   <pre><code>target.closest('[data-link-name]')
       ?.getAttribute('data-link-name')</code></pre>
   <p>整句是 JavaScript，但兩個字串的用途不同：<code>closest()</code> 接受 CSS selector，<code>[data-link-name]</code> 表示「具有這個 attribute」；<code>getAttribute()</code> 接受 attribute 名稱，因此不加中括號。<code>?.</code> 表示前一步沒找到 element 時，不再呼叫後面的讀取。</p>
-  <p>這是在找被標記的 element，不是在尋找 listener；listener 早已註冊在 document。</p>
+  <p>這是在找被標記的 element，不是在尋找 listener；listener 早已註冊在 document。已查核實作會先忽略非 Element 的 target，不對它做這段查找。</p>
 
   <h2 id="semantic-bridge">3. 同一個值，經過三個不同層次</h2>
   <p>Foreman 在導入 Faro 前就有 <code>subsystem</code> 功能識別值，例如 <code>DailySchedule</code>。原本的應用也會把它交給自己的 <code>insertForemanWebLog(topic, system.subsystem)</code>；這是應用函式，不是 Browser API。</p>
@@ -62,6 +62,7 @@ Telemetry payload
 
   <h2 id="coverage">4. 設定決定讀哪些欄位，標記決定涵蓋哪些入口</h2>
   <pre><code>trackAttributes: ['data-link-name']</code></pre>
+  <p>這個版本要求設定名稱以 <code>data-</code> 開頭，且轉成 payload key 後不能重複；不合法設定會在初始化 Faro 前被拒絕。這是套件契約，不是 Browser 對所有 attributes 的限制。</p>
   <p><code>trackAttributes</code> 是要擷取的欄位清單，不是 listener 清單。若設定多個 attribute，套件會從同一個 target 分別執行各自的 <code>closest()</code> 查找；不同欄位可以來自不同 ancestor。</p>
   <p>在已查核的 Foreman template inventory 中，48 個 <code>p-button</code> declaration 只有 6 個自身帶有 <code>data-link-name</code>：一個 Main subsystem tile template，以及五個 Toolbar 功能。Main template 會經迴圈產生多個實際入口，所以「6 個 declaration」不等於「畫面只有 6 顆按鈕」。</p>
   <pre><code>UserGuide.UserGuide
@@ -89,6 +90,7 @@ link_name</code></pre>
        │ 檢查同 target 的重複 click
        ├─ 約 300 ms 內重複 → throttle
        └─ 通過 → api.pushEvent('click', payload)</code></pre>
+  <p>空 payload 不會佔用 throttle timestamp；有資料也不代表最後一定形成一個 POST，Faro 後續仍有自己的處理流程。</p>
   <p>如果事件在抵達 document 前被阻止冒泡，這個 listener 也收不到它。反過來，即使 listener 收到了 Browser click，也不代表一定會送出 Faro event。</p>
   <p><strong>Browser Event 與 Faro telemetry event 是不同物件。</strong>前者供 Browser 分派 callback；後者是套件依設定建立的觀測資料。<code>pushEvent()</code> 也不等於當場完成一個 HTTP POST；傳送機制留到 <a href="0005-faro-browser-to-alloy-transport.html">Lesson 5</a>。</p>
 

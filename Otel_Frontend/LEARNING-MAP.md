@@ -6,355 +6,116 @@
 
 ## Planning basis
 
-本課程依 `Learning-from-docs` 的 source model 規劃：8 份 `sources/materials/` 原始 HTML 已完成 corpus audit，並由 `sources/evidence/` 保存可重用的 verified findings；主路徑依概念依賴與 Mission 排序，而不是照檔名順序授課。未來 Lesson 的位置先規劃，但完整 Lesson HTML 仍只在實際學到該步時逐步產生。
+原始 8 份 HTML 已完成 corpus audit；教學依概念依賴與 Mission 排序，不依檔名或對話先後排序。2026-10-22 追加的兩份主／支線對話補強既有 Lessons 5–8，不改變 Mission，不建立重複課程。來源保存在 materials／linked／evidence；Reference 是生成的可重用教學，不是原始證據。
 
-Learner interaction 顯示 Browser runtime / DOM / Web API 是理解 Lesson 1 的實質 prerequisite，因此新增一個短的 Lesson 0。這不是把 Mission 擴張成完整 Frontend 課程；Lesson 0 只處理 Faro 主線必需的 host/runtime responsibility boundary。
+- [HTML Learning Map](learning-map/index.html)：目前位置、全部里程碑、課程入口與 Reference 往返。
+- [新增材料來源與範圍](sources/materials/2026-10-22-faro-conversation-materials.md)。
+- [知識點逐項覆蓋與來源核查](sources/evidence/faro-conversation-verification-2026-10-22.md)。
 
 ## Progress
 
-- **目前位置：Milestone 2 / Lesson 3**
-- **教材狀態：Lesson 0–9 的 durable lesson HTML 已建立；artifact 已建立不代表 learner 已完成或 mastered**
-- **主線狀態：Lesson 3 從 Lesson 2 的 click handler 往上追，確認宿主應用如何透過 `initFaro()` 啟動 ClickInstrumentation，以及 package 為什麼保存同一個 Faro object**
-- **Prerequisite debt：Lesson 0 / Lesson 1 的 Browser runtime 與 Event mental model 已重構，但仍需要 retrieval evidence 才能視為 mastered**
-- **Lesson 2 mastery：教材已建立，但仍不能只因教材已讀或已產生就視為 mastered；需要 retrieval / practice evidence**
-- **完成判準：不能只因教材已讀或教材已修正就算完成；需要 retrieval / practice evidence**
+- **目前主線：Milestone 2／Lesson 3。** 沿 Lesson 2 已知的 click handler 往上追宿主如何呼叫 initFaro、建立並保存同一個 Faro object。
+- **教材：Lesson 0–9 已建立；Lesson 10–12 已規劃，未建立完整 HTML。** 預先規劃不是預先授課；不得以補齊地圖為由一次生成所有未來課程。
+- **Mastery：教材產出、修正、閱讀或歷史實務對話不等於 mastered。** Lesson 0／1 的 runtime與 Event 模型、Lesson 2 與後續課程仍須 retrieval／practice evidence。
+- **本次更新不推進學習位置，也不清除先備概念欠缺的驗證。** Main path 與實務補充路線分開顯示。
 
 ## Complete main course path
 
-### Milestone 0 — Required Browser runtime foundation
+### Milestone 0 — 必要的 Browser runtime 基礎
 
-#### Lesson 0 — Browser Runtime Foundation
-**Objective:** 建立 Faro 所需的最小 Browser host mental model：分清楚 source files、Browser runtime、JavaScript core language、Web APIs、live DOM 與 network capability；能解釋為什麼 JavaScript 需要透過 Browser 提供的 API 操作目前頁面。
+**Lesson 0 — Browser Runtime Foundation**  
+[教材](lessons/0000-browser-runtime-foundation.html)。目標：先分清 source files、Browser host、JavaScript core、Web APIs、live DOM 與 network capability，再解釋 JavaScript 為何透過 Browser API 操作頁面。前置：無；為 Lesson 1 的必要橋接。只處理 Faro 所需的 host responsibility，不展開完整 Browser internals；fetch 的 CORS 留至 Lesson 5。
 
-**Durable lesson:**
-- `lessons/0000-browser-runtime-foundation.html`
+來源：原始材料缺少的 prerequisite，以 MDN JavaScript technologies／language overview、WHATWG Document、querySelector 官方規格補足；[Reference 0003](reference/0003-browser-runtime-web-apis.html)。
 
-**Primary / prerequisite sources:**
-- Mission-relevant source documents對 Browser runtime 細節沒有完整教學，因此使用 MDN JavaScript technologies overview / language overview、WHATWG HTML Document、MDN `Document.querySelector()` 補 prerequisite。
+### Milestone 1 — Browser event → Faro instrumentation
 
-**Dependency:** Lesson 1 的必要前置；不是獨立 Frontend curriculum。
+**Lesson 1 — How a Browser Click Reaches JavaScript**  
+[教材](lessons/0001-browser-click-foundation.html)。前置：Lesson 0。目標：listener registration → target determination → Event object → event path／phase → callback invocation。Event 是獨立 object；target 是最初命中位置，currentTarget 是當前 listener 位置，dispatch 不是尋找 target。GC 的回收也不是把 Event 從 element 上移除。
 
-**Scope boundary:**
-- 只建立 `source → Browser host → runtime DOM / Web APIs → JavaScript reference`。
-- `fetch()` 只教 responsibility boundary；CORS / preflight 延後到 Lesson 5 Browser-to-Alloy transport。
+來源：原始材料 3、WHATWG DOM/EventTarget、[DOM／Event Reference](reference/0001-dom-document-event-dispatch.html)、[Callback Reference](reference/0002-callback-function.html)。
 
-### Milestone 1 — Browser event → Faro instrumentation boundary
+**Lesson 2 — How ClickInstrumentation Handles Browser Clicks**  
+[教材](lessons/0002-faro-click-instrumentation.html)。前置：Lessons 0–1。目標：從 document 的非 capture listener 收到 click，沿 event.target 按各 trackAttributes 獨立 closest 查找、形成 payload，理解空資料／throttle／事件未到達的邊界。區分 Browser Event 與 Faro event；理解 application subsystem → DOM data-link-name → payload link_name 的語意橋接與選擇性 coverage。
 
-#### Lesson 1 — How a Browser Click Reaches JavaScript
-**Objective:** 在 Lesson 0 的 Browser runtime 前提上，聚焦 listener registration、target determination、Event object、event path、dispatch、Capture / Target / Bubble、`target` / `currentTarget` 與 callback invocation；能解釋一次 click 為什麼最後會進入 JavaScript callback。
+來源：原始材料 3、4、[package evidence](sources/evidence/faro-click-tracking.md)、[Foreman source history](sources/evidence/data-link-name-investigation-2026-09-17.md)、[template inventory](sources/evidence/data-link-name-clickable-inventory-2026-09-17.md)。延伸：[Reference 0009](reference/0009-data-link-name-device-adoption.html)，不把 template declaration 數當成 runtime node 數。
 
-**Durable lesson:**
-- `lessons/0001-browser-click-foundation.html`
+### Milestone 2 — 讀懂內部 SDK 的初始化與 context
 
-**Primary source:**
-- `3. Faro-Click-Tracking Introduction (for developer).html`
+**Lesson 3 — How initFaro Starts Faro Click Tracking**  
+[教材](lessons/0003-package-initialization-singleton-public-api.html)。前置：Lesson 2。目標：宿主 initFaro → ensureNotInitialized → 內部 Grafana initializeFaro → Faro object／instrumentation 初始化 → 保存 reference。Duplicate guard 在第二個 object／功能建立前拒絕重複初始化；singleton 只作可選術語，不是考點。User／Device 延至 Lesson 4，Tracing 延至後續課程。
 
-**Supplementary prerequisite references:**
-- WHATWG DOM / EventTarget
-- `reference/0001-dom-document-event-dispatch.html`
-- `reference/0002-callback-function.html`
-- `reference/0003-browser-runtime-web-apis.html`
+來源：原始材料 3、4、[package evidence](sources/evidence/faro-click-tracking.md)、[Foreman integration](sources/evidence/foreman-integration.md)。
 
-**Dependency:** Lesson 0；整個 Faro click tracking 主線的必要前置。
+**Lesson 4 — User, Device, and Environment Context**  
+[教材](lessons/0004-user-device-environment-context.html)。前置：Lesson 3。目標：判斷宿主與套件的資料 ownership、同步時機與寫入位置。先解釋 callback、visibilitychange／storage、maxTouchPoints／pointerdown，再使用正式名稱。User／device 為按需求啟用，不把歷史範例變成所有應用的要求。最後區分計數 signal、device context 與 KPI 分母；入口事件分布不是所有 users／sessions／操作的分布。
 
-**Established model:**
-- `addEventListener()` 先建立 listener registration。
-- user input 發生後，Browser 先判定 target，再建立 Event object。
-- Event object 是獨立 object；`event.target` reference 到 target DOM object，不是 Event 暫時掛到 target 上。
-- dispatch 不是尋找 target；dispatch 依 event path / phase / listener registrations 決定 callback invocation。
-- target 已知仍需要 dispatch，因為 listeners 可以位於 target ancestors。
-- `event.target` 保留最初 target；`currentTarget` / `eventPhase` 反映 dispatch 當下狀態。
-- Event 若沒有被 JavaScript 持續引用，之後可由 GC 回收；這不是把 Event 從 target 上移除。
-
-#### Lesson 2 — How ClickInstrumentation Handles Browser Clicks
-**Objective:** 從原生 click listener 往下追，理解 ClickInstrumentation 的註冊、事件篩選、欄位擷取與 telemetry 建立責任邊界。
-
-**Durable lesson:**
-- `lessons/0002-faro-click-instrumentation.html`
-
-**Primary sources:**
-- `3. Faro-Click-Tracking Introduction (for developer).html`
-- `4. Faro-Click-Tracking 的歷史.html`
-
-**Durable evidence:**
-- `sources/evidence/faro-click-tracking.md`
-
-**Dependency:** Lessons 0–1。
-
-**Established model:**
-- `document` 上的 non-capture click listener 如何接到 Browser Event。
-- `trackAttributes` 是 payload extraction schema，不是 listener 清單。
-- 每個 `data-*` 從 `event.target` 透過 `closest()` 獨立往 ancestor 查找。
-- 空 payload、同 target 300ms throttle 與 `api.pushEvent('click', payload)` 的責任邊界。
-- Browser Event 與 Faro telemetry event 必須分成兩個不同物件／生命週期理解。
-
-### Milestone 2 — 讀懂並安全修改 `@sre2/faro-click-tracking`
-
-#### Lesson 3 — How `initFaro()` Starts Faro Click Tracking
-**Objective:** 從宿主應用實際呼叫 `initFaro()` 開始，追到 Grafana `initializeFaro()`、ClickInstrumentation 初始化與 `document` listener 註冊；理解 package 為什麼保存已建立的 Faro object，以及為什麼重複初始化會在新 object 建立前被拒絕。
-
-**Durable lesson:**
-- `lessons/0003-package-initialization-singleton-public-api.html`
-
-**Primary sources:**
-- `3. Faro-Click-Tracking Introduction (for developer).html`
-- `4. Faro-Click-Tracking 的歷史.html`
-- `sources/evidence/faro-click-tracking.md`
-- `sources/evidence/foreman-integration.md`
-
-**Dependency:** Lesson 2。
-
-**Current focus:**
-- 宿主應用呼叫公司 package 的 `initFaro()`；package 內部再呼叫 Grafana 的 `initializeFaro()`。
-- `ClickInstrumentation` 是 Lesson 2 已知概念；Lesson 3 只補它在初始化流程中何時被啟動與何時註冊 `document` listener。
-- `ensureNotInitialized()` 在新的 `initializeFaro()` 前檢查，因此第二次初始化會在第二個 Faro object 與另一組功能建立以前失敗。
-- `initializeFaro()` 回傳實際建立的 Faro JavaScript object；這個實際 object 就是本課需要理解的 instance。
-- package 保存 `faroInstance` reference，讓後續 package functions 能取得同一個 Faro object。
-- `singleton` 只保留為 optional terminology，不是 Lesson 3 的學習目標或 retrieval 考點。
-- User / Device / Environment 的資料來源與 lifecycle 延後到 Lesson 4；Tracing 延後到後續 tracing Lessons，不在 Lesson 3 預先展開。
-
-#### Lesson 4 — User, Device, and Environment Context
-**Objective:** 理解 user callback、device 判定、environment context 的來源、生命週期與寫入位置，能判斷應由宿主應用還是共用套件提供資料。
-
-**Durable lesson:**
-- `lessons/0004-user-device-environment-context.html`
-
-**Primary sources:**
-- `1. PI 前端監控案例.html`
-- `3. Faro-Click-Tracking Introduction (for developer).html`
-- `4. Faro-Click-Tracking 的歷史.html`
-
-**Durable evidence:**
-- `sources/evidence/faro-click-tracking.md`
-- `sources/evidence/foreman-integration.md`
-- `sources/evidence/jeter-integration-and-tracing.md`
-
-**Dependency:** Lesson 3。
+來源：原始材料 1、3、4、package／Foreman／[Jeter integration](sources/evidence/jeter-integration-and-tracing.md)。[Reference 0009](reference/0009-data-link-name-device-adoption.html)與 Lesson 2／4 皆有往返入口。
 
 ### Milestone 3 — Host integration 與 Browser DevTools 驗證
 
-#### Lesson 5 — Faro SDK Initialization and Browser-to-Alloy Transport
-**Objective:** 理解 Faro SDK 初始化、receiver endpoint、payload/meta、transport request 與 CORS 的因果關係；能解釋為什麼一次 business request 可能產生不同 Faro telemetry 並以多筆 `/alloy` POST 傳送，而不能只靠 request 數量判斷 duplication。
+**Lesson 5 — Faro Browser-to-Alloy Transport**  
+[教材](lessons/0005-faro-browser-to-alloy-transport.html)。前置：Lessons 2–4，Lesson 0 的 Browser networking responsibility。目標：分清 instrumentation、TransportItem、payload/meta、transport body、batch 與 HTTP request；receiver URL 不等於 backendUrls。理解同次操作可產生不同 signal／多筆 POST，queue、HTTP acceptance 與 storage queryability 是不同時間點。以 origin 與 request 條件說明 CORS／preflight；不展開 downstream pipeline。
 
-**Durable lesson:**
-- `lessons/0005-faro-browser-to-alloy-transport.html`
+來源：原始材料 1、2、Proposal、[browser-to-alloy](sources/evidence/browser-to-alloy.md)、[09/21 resource runtime](sources/evidence/faro-performance-resource-runtime-2026-09-21.md)、[10/05 IDP runtime](sources/evidence/idp-portal-keychain-runtime-2026-10-05.md)、[本次對話核查](sources/evidence/faro-conversation-verification-2026-10-22.md)。
 
-**Primary sources:**
-- `1. PI 前端監控案例.html`
-- `2. Grafana Faro & Alloy - 前端可觀測性.html`
-- `SRE - 前端監控 - Proposal.html`
+補充：[Reference 0004 CORS](reference/0004-cors-preflight.html)、[Reference 0011 兩層 queue](reference/0011-faro-batching-and-queues.html)。後者處理 v2.12.1 固定 timer、單位、meta 分組與 flush 限制，讀完回 Lesson 5，不強制先背毫秒數才繼續主線。
 
-**Runtime / authoritative evidence:**
-- deployed JavaScript bundles
-- stage / production `/alloy` CORS preflight
-- Grafana Alloy Faro receiver documentation
-- `sources/evidence/browser-to-alloy.md`
-- `sources/evidence/faro-performance-resource-runtime-2026-09-21.md`（Jeter：同一 business GET 對應不同 performance/tracing telemetry POST）
-- `sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`（IDP Portal：mixed Faro batches、兩層 batching、transport self-tracing exclusion、202 ≠ persistence）
+**Lesson 6 — Browser-Side Verification with DevTools**  
+[教材](lessons/0006-browser-devtools-verification.html)。前置：Lesson 5。目標：依要證明的事選擇 Elements／Console／Sources／Network，核對 click target、callback、context、payload、headers、response；先按 Method 與 payload 分類，不靠列數、順序或 status 猜資料身分。
 
-**Dependency:** Lessons 2–4；Lesson 0 只提供 Browser networking / security responsibility bridge。
-
-#### Lesson 6 — Browser-Side Verification with DevTools
-**Objective:** 能用 Elements / Console / Network 驗證 click target、callback/context、Faro payload、request headers、response 與 CORS；看到多筆 `/alloy` 時，先用 Method 與 Payload signal/event content 分類，而不是只看列數、順序或 Status 猜 telemetry identity。
-
-**Durable lesson:**
-- `lessons/0006-browser-devtools-verification.html`
-
-**Primary sources:**
-- `1. PI 前端監控案例.html`
-- `2. Grafana Faro & Alloy - 前端可觀測性.html`
-- `3. Faro-Click-Tracking Introduction (for developer).html`
-
-**Durable evidence:**
-- `sources/evidence/faro-click-tracking.md`
-- `sources/evidence/browser-to-alloy.md`
-- `sources/evidence/foreman-browser-debug-lab.md`（2026-09-16 Playwright + CDP runtime lab；教材建立不代表 learner mastered）
-- `sources/evidence/faro-performance-resource-runtime-2026-09-21.md`（Jeter multi-POST payload classification）
-- `sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`（business request → traceparent → Alloy span → Tempo exact correlation；creation capture limitation）
-
-**必要 bridge / Reference:**
-- `reference/0005-devtools-workspaces-for-faro.html`：Elements / Console / Sources / Network 的內容差異與 claim → panel 選擇；不擴張為完整 DevTools 課程。
-
-**Dependency:** Lesson 5。
+來源：原始材料 1、2、3、[Foreman Browser lab](sources/evidence/foreman-browser-debug-lab.md)、[09/16 lab](sources/evidence/foreman-browser-lab-2026-09-16.md)、09/21 resource runtime、10/05 IDP runtime。補充：[Reference 0005](reference/0005-devtools-workspaces-for-faro.html)。既有真實截圖重用；沒有新 UI access 時不製作模擬截圖。
 
 ### Milestone 4 — Frontend ↔ Backend distributed trace
 
-#### Lesson 7 — Frontend-to-Backend Trace Context Propagation
-**Objective:** 從 Browser / backend 不共享 runtime memory 的必要性出發，理解 trace ID / span relationship 與 W3C propagation；能解釋 `traceparent` 如何跨 business HTTP request 傳遞 caller context、backend 如何建立自己的 span 並延續同一 trace，以及 propagation、trace telemetry export 與其他 Browser telemetry 為什麼必須分開看。
+**Lesson 7 — Frontend-to-Backend Trace Context Propagation**  
+[教材](lessons/0007-frontend-backend-trace-context-propagation.html)。前置：Lessons 5–6。目標：從 Browser／backend 不共享 runtime memory 推導 trace context 必須跨 HTTP 傳遞。Trace ID 是整條 trace，span ID 是各 operation；traceparent 的 parent-id 承載上游目前 spanId，下游建立新的 span。Business propagation 與 Faro telemetry export 分成兩條路；resource-performance event 與 tracing span 互補但不相同。
 
-**Durable lesson:**
-- `lessons/0007-frontend-backend-trace-context-propagation.html`
+來源：原始材料 6、2、[propagation evidence](sources/evidence/trace-context-propagation.md)、[09/20 runtime join](sources/evidence/frontend-backend-trace-runtime-2026-09-20.md)、Jeter／IDP evidence、W3C、Faro v2.9.0 source。補充：[Reference 0006](reference/0006-w3c-traceparent.html)、[Reference 0008](reference/0008-faro-tracing-ownership-and-propagation.html)。保留 PR #37 的 app.name → Resource service.name 橋接，但不讓 Resource ownership 取代 propagation 主題。
 
-**Primary source:**
-- `6. 前後端 Trace 串接範例.html`
+**Lesson 8 — Verifying a Single Trace from Browser to Tempo**  
+[教材](lessons/0008-verifying-single-trace-browser-to-tempo.html)。前置：Lesson 7。目標：固定一筆安全、可辨認的 request，將 Browser header T/A、Frontend span 與 Backend parent chain 對齊；有中介 span 時核對完整 chain。區分 UI 可見 SpanID、raw parentSpanId 與 API 編碼。以來源／runtime／scope／kind／parent 證明跨前後端，不以色彩或 CLIENT／SERVER 單獨分類。找不到結果時，分查 runtime、propagation、export/storage 與 query filters。
 
-**Supporting source / evidence:**
-- `2. Grafana Faro & Alloy - 前端可觀測性.html`
-- `sources/evidence/faro-click-tracking.md`
-- `sources/evidence/jeter-integration-and-tracing.md`
-- `sources/evidence/trace-context-propagation.md`
-- `sources/evidence/frontend-backend-trace-runtime-2026-09-20.md`
-- `sources/evidence/faro-performance-resource-runtime-2026-09-21.md`
-- `sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`（第二個 application 的 exact parent-id / span relationship proof；`01` sampled flag ≠ persistence）
-- W3C Trace Context Recommendation
-- Grafana Faro Web SDK v2.9.0 tracing implementation
+來源：原始材料 6、Jeter frontend/backend config、[09/20 join](sources/evidence/frontend-backend-trace-runtime-2026-09-20.md)、[既有 raw trace](sources/evidence/raw/jeter-tempo-trace-2026-09-20.json)、[10/05 IDP](sources/evidence/idp-portal-keychain-runtime-2026-10-05.md)、[app.name source chain](sources/evidence/faro-app-name-otel-service-name-2026-10-12.md)、本次對話核查。補充：[Reference 0010](reference/0010-trace-evidence-and-runtime-boundaries.html)，含 IDP 對話摘錄、CORS 片段與 backend CLIENT 反例；返回 Lesson 8 的 runtime 邊界。
 
-**Durable reference:**
-- `reference/0006-w3c-traceparent.html`
+### Milestone 5 — Alloy／OTel Collector／storage pipeline
 
-**Established model:**
-- Browser 與 backend 是不同 runtime；span object / parent relationship 不會自己跨 HTTP boundary。
-- `trace-id` 識別整條 distributed trace；每個 operation 有自己的 span ID。
-- `traceparent` version 00 是 `version-trace-id-parent-id-trace-flags`。
-- `parent-id` 代表 caller 的 current operation；backend 建立自己的新 span ID，並把 caller ID 記成 parent while retaining the trace ID。
-- package `backendUrls` → Faro `propagateTraceHeaderCorsUrls`；它描述 backend/business API target，不是 Alloy Faro receiver URL。
-- Business request 上的 propagation 與 Faro/OTLP span telemetry export 是兩條不同 path。
-- 同一次 Browser HTTP request 還可能產生 `faro.performance.resource` event；它不是 span。Current stage evidence 顯示它進 Loki，提供 Browser-side HTTP experience；Trace/Tempo 則用來定位 distributed operation 的 span latency。兩者是互補 evidence，不建立固定「API 慢先查哪個」規則。
-- Jeter configuration path 已驗證；2026-09-20 的單筆 Browser header → frontend span → backend parent → Tempo join 已有 runtime proof，見 `sources/evidence/frontend-backend-trace-runtime-2026-09-20.md`。Lesson 8 的主線位置與 learner-verification 目標不變。
+**Lesson 9 — Faro Receiver to Alloy and OTel Collector**  
+[教材](lessons/0009-faro-receiver-alloy-otel-collector.html)。前置：Lessons 5、7。目標：追不同 Faro signals 經 receiver／processor／exporter 到 storage；faro.performance.resource 經 OTLP log 進 Loki，tracing resourceSpans 走 Tempo。常用 resource 欄位聚焦 URL／status／duration／TTFB／response time／transfer size／cache／initiator；DNS／TCP／TLS 子時間只在 incident 需要時深入。接收不等於持久化。
 
-**Dependency:** Lessons 5–6。
+來源：原始材料 2、5、7、[collector pipeline](sources/evidence/collector-pipeline.md)、browser-to-alloy、09/21 resource runtime、10/05 IDP runtime。新版 Lesson 5／8 不取代本課的 downstream 解說。
 
-#### Lesson 8 — Verifying a Single Trace from Browser to Tempo
-**Objective:** 能用 browser headers、backend instrumentation 與 Tempo trace evidence 驗證前後端是否真的共享 trace ID，並定位 propagation 中斷點。
+**Lesson 10 — Faro Logs to OpenSearch: Transformation, Mapping, and Indexing**  
+已規劃、尚未建立完整教材。前置：Lesson 9。目標：追 Faro payload → OTel log → transform/filter → document/index，定位欄位出現、消失、改名與 indexing。
 
-**Durable lesson:**
-- `lessons/0008-verifying-single-trace-browser-to-tempo.html`
+來源：原始材料 7、[OpenSearch field lifecycle](sources/evidence/opensearch-field-lifecycle.md)、Faro translator、版本化 filter／transform、內部 Application for DE service／OpenSearch Connection。
 
-**Primary source:**
-- `6. 前後端 Trace 串接範例.html`
+### Milestone 6 — Production deployment 與 troubleshooting
 
-**Runtime evidence:**
-- Jeter frontend / ASP.NET Core backend / OTLP configuration
-- `sources/evidence/faro-app-name-otel-service-name-2026-10-12.md`（Faro tracing source chain：`app.name` → OTel Resource `service.name`；Resource identity 不等於 `traceparent` 或 Dashboard Job）
-- Grafana Tempo datasource
-- `sources/evidence/jeter-integration-and-tracing.md`
-- `sources/evidence/grafana-current-state.md`
-- `sources/evidence/trace-context-propagation.md`
-- `sources/evidence/frontend-backend-trace-runtime-2026-09-20.md`
-- `sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`（exact correlation 與 weaker time/URL/service fallback 的 evidence-strength boundary；Tempo API base64 ↔ hex comparison）
+**Lesson 11 — Production Alloy and Collector Deployment**  
+已規劃、尚未建立完整教材。前置：Lessons 9–10。目標：辨識 stage/prod endpoint、版本、namespace、credential boundary 與 rollout 風險。
 
-**Dependency:** Lesson 7。
+來源：原始材料 5、7、Proposal、collector／OpenSearch evidence、內部升級 Otel Stack；實際部署改版時重新查證版本，不把歷史紀錄當成目前狀態。
 
-### Milestone 5 — Alloy / OTel Collector / storage pipeline
+**Lesson 12 — Production Troubleshooting: From Symptoms to Fault Domain**  
+已規劃、尚未建立完整教材。前置：Lessons 0–11；作為整合能力驗收。目標：沿 Browser → Faro → Alloy → Collector → storage → query surface 找第一個不符合預期的邊界；涵蓋沒有 click、trace 斷鏈、寫錯 cluster、資料已存在卻被 Dashboard／selector／namespace 篩掉等情境。
 
-#### Lesson 9 — Faro Receiver to Alloy and OTel Collector
-**Objective:** 能畫出不同 Faro telemetry 進 Alloy 後如何被轉成 OTel signals，再進 Collector receiver / processor / exporter 與對應 storage；用已驗證的 Jeter runtime case 理解 `faro.performance.resource` 如何作為 event 轉成 OTLP log record 進 Loki，而 tracing `resourceSpans` 走 trace pipeline 進 Tempo。只學會 SRE Debug 常用的 Browser resource fields，不擴張成完整 Resource Timing 課程。
+來源：8 份原始 HTML 的實務部分、[Grafana evidence](sources/evidence/grafana-current-state.md)、部署／儲存 evidence、10/05 IDP query identity、此次 runtime／query 邊界核查。
 
-**Durable lesson:**
-- `lessons/0009-faro-receiver-alloy-otel-collector.html`
+## Adaptive branches 與回主線
 
-**Primary sources:**
-- `2. Grafana Faro & Alloy - 前端可觀測性.html`
-- `5. Deploy Alloy Server - Production.html`
-- `7. OTel export to OpenSearch.html`
-
-**Runtime evidence:**
-- stage / production Alloy and Collector runtime configuration
-- `sources/evidence/browser-to-alloy.md`
-- `sources/evidence/collector-pipeline.md`
-- `sources/evidence/faro-performance-resource-runtime-2026-09-21.md`（Browser event → Alloy Faro receiver → OTLP logs → Collector → Loki；Grafana Explore matching record）
-- `sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`（同一 receiver batch 可混 signals / 0 traces / 多 traces；HTTP acceptance 與 storage visibility 分離）
-
-**Scope boundary:**
-- Debug 常用 resource fields 聚焦 URL / status / duration / TTFB / response time / transfer size / cache classification / initiator type。
-- DNS / TCP / TLS 等 lower-level sub-timings 只有在具體 incident 進入 connection/network setup fault domain 時才深入，不作為本課必背內容。
-- Trace/Tempo 用於定位 distributed operation 的 latency root cause；resource-performance event 提供 Browser-side HTTP experience，兩者互補。
-
-**Dependency:** Lessons 5、7。
-
-#### Lesson 10 — Faro Logs to OpenSearch: Transformation, Mapping, and Indexing
-**Objective:** 理解 Faro payload → OTel log → transform/filter → OpenSearch document/index 的資料形狀變化，能追欄位為何出現、消失或改名。
-
-**Primary source:**
-- `7. OTel export to OpenSearch.html`
-
-**Supporting evidence:**
-- OTel Faro translator
-- filter / transform processor version-specific behavior
-- `Application for DE service` / `OpenSearch Connection`
-- `sources/evidence/opensearch-field-lifecycle.md`
-
-**Dependency:** Lesson 9。
-
-### Milestone 6 — Production deployment & troubleshooting
-
-#### Lesson 11 — Production Alloy and Collector Deployment
-**Objective:** 能讀 production 部署設定，辨識 stage/prod endpoint、Collector version、namespace、credential boundary 與 rollout 風險。
-
-**Primary sources:**
-- `5. Deploy Alloy Server - Production.html`
-- `7. OTel export to OpenSearch.html`
-- `SRE - 前端監控 - Proposal.html`
-
-**Runtime evidence:**
-- stage/prod Helm、ConfigMap、Kubernetes runtime
-- `升級 Otel Stack`
-- `sources/evidence/collector-pipeline.md`
-- `sources/evidence/opensearch-field-lifecycle.md`
-
-**Dependency:** Lessons 9–10。
-
-#### Lesson 12 — Production Troubleshooting: From Symptoms to Fault Domain
-**Objective:** 面對「沒有 click telemetry」「有 request 但 backend 沒資料」「trace 斷掉」「OpenSearch 查不到」「環境寫錯 cluster」「telemetry 已存在但 Dashboard / query 查不到」等症狀，能沿 browser → Faro → Alloy → Collector → Tempo/Loki/OpenSearch → query surface 逐層用證據縮小問題。
-
-**Primary sources:**
-- 8 份 primary HTML 中與實際導入、部署、trace、OpenSearch 相關內容
-
-**Runtime evidence:**
-- Grafana dashboard / datasource
-- OpenSearch index
-- Kubernetes runtime
-- deployed bundles / repository implementation
-- `sources/evidence/idp-portal-keychain-runtime-2026-10-05.md`（`IDP-Portal` vs `idp-portal`、Loki selector vs pipeline metadata filter、namespace filter caveat）
-
-**Dependency:** Lessons 0–11；這是 Mission 的整合能力檢查。
-
-## Current adaptive prerequisite branches
-
-### Browser runtime / JavaScript host environment
-
-Lesson 1 實際暴露後，已升格成短 prerequisite Lesson 0，而不是繼續把所有問題塞進 Lesson 1。
-
-- Lesson: `lessons/0000-browser-runtime-foundation.html`
-- Reference: `reference/0003-browser-runtime-web-apis.html`
-- 要解決的問題：source vs runtime、Browser host environment、JavaScript core vs Web APIs、DOM ownership、`document.querySelector()`、live DOM mutation、network capability responsibility。
-- Scope boundary：不展開完整 Browser internals；CORS 留在 Lesson 5。
-- 狀態：artifact 已建立；尚未以 retrieval 證明 mastered。
-
-### DOM / `document` / Event dispatch
-
-這是 Lesson 1 的 event-specific prerequisite / reference branch。
-
-- Reference: `reference/0001-dom-document-event-dispatch.html`
-- 要解決的問題：EventTarget、target/path、capture/target/bubble、listener invocation、event delegation / propagation controls。
-- 狀態：Lesson 1 已重新聚焦 event lifecycle，reference 保留作較完整查表；尚未以 retrieval 證明 mastered。Lesson 2 直接重用這套模型理解 `document.addEventListener('click', ...)`。
-
-### Callback
-
-這也是 Lesson 1 實際暴露的 blocker。
-
-- Reference: `reference/0002-callback-function.html`
-- 要解決的問題：`handleClick` vs `handleClick()`、function value、callback control direction。
-- 狀態：reference 已建立；尚未以 retrieval 證明 mastered。Lesson 2 直接套用到 `this.handleClick` 被 Browser call back 的控制方向。
+- Browser runtime 已升格為短 Lesson 0；DOM／Event、Callback 的 References 供 Lessons 1–2 最小補課，不擴張為完整前端課程。
+- PR #24 的語意／Device Adoption 以 Reference 0009 連接 Lessons 2／4；尚待產品定義 KPI 分母與實際聚合證據。
+- PR #37 的 app.name／service.name 實作集中於 Reference 0008，Lessons 7／8 重用，不新增重複初始化 lifecycle。
+- 本次 queue 支線集中於 Reference 0011，返回 Lesson 5；Trace evidence 支線集中於 Reference 0010，返回 Lesson 8。Sources 中的行政性匯出往返不轉為教材。
+- [Reference 0007 Automatic telemetry／Web Vitals](reference/0007-faro-automatic-telemetry-and-web-vitals.html)保留查表用途，不因欄位存在就擴張目前導入範圍。
 
 ## Resume point
 
-目前主線位於 **Lesson 3 — How `initFaro()` Starts Faro Click Tracking**：
+**Lesson 3：宿主 → initFaro → duplicate guard → initializeFaro → Faro object／ClickInstrumentation → 保存 reference。**
 
-`宿主應用 → initFaro() → ensureNotInitialized() → Grafana initializeFaro(...) → 建立 Faro object → ClickInstrumentation 註冊 document listener → registerFaroInstance(faro)`
-
-Lesson 0 / Lesson 1 / Lesson 2 的 prerequisite 與 retrieval debt 仍保留，不因開始 Lesson 3 就自動標記 mastered。
+Lesson 0／1／2 的 retrieval debt 不因新教材、PR 合併或實務分支而消失。Mission 完成需所有 in-scope Lessons 與必要理解／練習被證明，而非所有來源都逐頁變成 Lesson。
 
 ## Source boundary
 
-Primary corpus:
-1. `1. PI 前端監控案例.html`
-2. `2. Grafana Faro & Alloy - 前端可觀測性.html`
-3. `3. Faro-Click-Tracking Introduction (for developer).html`
-4. `4. Faro-Click-Tracking 的歷史.html`
-5. `5. Deploy Alloy Server - Production.html`
-6. `6. 前後端 Trace 串接範例.html`
-7. `7. OTel export to OpenSearch.html`
-8. `SRE - 前端監控 - Proposal.html`
-
-外部官方文件、repo/code、Confluence 與 runtime evidence 只在 prerequisite、verification、ambiguity resolution 或理解 primary corpus 必要時補充；不取代 primary corpus。可重用的核查結果集中於 `sources/evidence/`，引用指標集中於 `sources/linked/`。
+原始 8 份材料依序為 PI 前端監控案例、Grafana Faro & Alloy、Faro-Click-Tracking Introduction、Faro-Click-Tracking 的歷史、Deploy Alloy Server - Production、前後端 Trace 串接範例、OTel export to OpenSearch、SRE - 前端監控 - Proposal。新增兩份指定對話是補充 primary material；標準、source code 與現行核查各自保留 provenance。完整來源索引見 [RESOURCES.md](RESOURCES.md)。

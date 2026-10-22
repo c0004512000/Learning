@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference｜Faro 的兩層 Queue 與 Batch</title>
+<link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/course-layout.css"><script src="../assets/theme.js"></script><script src="../assets/quiz.js" defer></script></head>
+<body class="learning-page">
+<h1>Faro 的兩層 Queue 與 Batch</h1>
+<p class="subtitle">Lesson 5 的延伸 · 從「待送資料」推導傳送時機，而不是背一個毫秒數</p>
+<nav class="lesson-nav" aria-label="返回主線"><a href="../lessons/0005-faro-browser-to-alloy-transport.html#batch">← 回 Lesson 5：Batch</a><a href="../learning-map/index.html">Learning Map</a></nav>
+<div class="box tip"><strong>要能做出的判斷</strong><br>一次操作後出現數筆 /alloy、或某個 batch 只有一筆資料時，能先看它包含的內容與資料產生時間，不先判定 batching 失效或重複傳送。</div>
+<p>使用者操作一次，並不表示 SDK 只產生一筆資料。HTTP span、tracing event 與 resource-performance event 可能在不同時間完成。先把「資料」與「裝資料的 HTTP request」分開，才看得懂 queue。</p>
+<p class="cite">起點：<a href="../sources/materials/2026-10-22-faro-conversation-materials.md">主／支線對話來源紀錄</a>。以下版本細節另以 <a href="../sources/evidence/faro-conversation-verification-2026-10-22.md">Faro v2.12.1 source 核查</a>為依據；不代表所有 SDK 版本或內部封裝都採相同設定。</p>
+
+<h2 id="units">1. Queue 收的是資料，不是使用者操作</h2>
+<p><strong>Queue</strong> 是記憶體裡暫存、等待處理的資料；<strong>flush</strong> 是把當時累積的資料交給下一階段。交出去不代表接收端已持久化。</p>
+<pre><code>點一次 Add Credential
+  ├─ HTTP instrumentation 完成一個 span
+  ├─ 可能產生 tracing event
+  └─ 可能產生 resource-performance event
+
+Faro queue 內的一個單位：TransportItem
+  ├─ type：哪種資料
+  ├─ payload：資料本身
+  └─ meta：產生時的背景</code></pre>
+<p>一個 trace TransportItem 可以已經包含多個 spans。因此 <strong>50 個 TransportItems ≠ 50 個 spans ≠ 50 次操作</strong>。Browser Network 的 POST 數量又是另一個單位。</p>
+
+<h2 id="two-queues">2. Trace 先經過 span queue，再進入 Faro queue</h2>
+<pre><code>Business HTTP request 執行中
+  │ HTTP instrumentation 結束 span
+  ▼
+OTel BatchSpanProcessor
+  │ 收集 ended spans，再交給 exporter
+  ▼
+FaroTraceExporter → api.pushTraces()
+  │ 建立 trace TransportItem
+  ▼
+Faro signalBuffer
+  │ 與其他種類的 TransportItems 一起排隊
+  ▼
+依 meta 分組 → FetchTransport → POST /alloy
+  │ 接收與下游處理
+  ▼
+Tempo / Loki 等查詢端</code></pre>
+<p>v2.12.1 的預設 tracing 初始化使用 <code>BatchSpanProcessor</code>：<code>scheduledDelayMillis = 1000</code>、<code>maxExportBatchSize = 30</code>。這裡計數的是 spans；若配置了替代 spanProcessor，就不能直接套用這組預設值。</p>
+<p>接著才是 Faro 的批次處理：<code>sendTimeout = 250 ms</code>、<code>itemLimit = 50</code>。這裡計數的是 TransportItems。不要把 OTel 的 30 與 Faro 的 50 當成同一個 queue 的兩個限制。</p>
+<p class="cite">版本化原始碼：<a href="https://github.com/grafana/faro-web-sdk/blob/v2.12.1/packages/web-tracing/src/instrumentation.ts">TracingInstrumentation</a>、<a href="https://github.com/grafana/faro-web-sdk/blob/v2.12.1/packages/core/src/transports/batchExecutor.ts">BatchExecutor</a>。</p>
+
+<h2 id="timer">3. 250 ms 是固定 timer tick，不是每筆資料重新倒數</h2>
+<p>在 batching 已啟動、未暫停，且 event loop 能如期執行的簡化例子中：</p>
+<pre><code>Timer：  0 ───── 250 ───── 500 ───── 750 ms
+                        ↑       ↑
+                   410 加入    500 flush
+                    item       等待約 90 ms</code></pre>
+<p>這個實作使用 <code>setInterval</code>。一筆資料在 251 ms 加入，接近等 249 ms；410 ms 加入，接近等 90 ms。新資料進來不會把該 timer 重新設定為「再等 250 ms」。空 queue 到達 tick 時不會因此送出空 POST。</p>
+<p><strong>這不是 250 ms 的送達保證。</strong>Browser 排程延遲、背景分頁節流、前一層 span processing、網路、接收端與查詢可見性，都可能增加時間。1000 + 250 也不是端到端延遲上限。</p>
+
+<h2 id="flush">4. 不必等到 50 筆才送</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>v2.12.1 的觸發點</th><th>可以推導什麼</th></tr></thead>
+<tbody>
+<tr><td>固定 timer tick</td><td>有一筆也可以 flush；空 queue 則不送。</td></tr>
+<tr><td>加入 item 後達到 itemLimit</td><td>可以在下一個 tick 前就 flush。</td></tr>
+<tr><td>visibilitychange 變成 hidden</td><td>嘗試 flush Faro 當時已有的 queue。</td></tr>
+</tbody></table></div>
+<p>Hidden 時的 flush 不等於「關閉 Browser 前所有資料必達」。它不保證事件一定發生，也不能憑空補出尚未結束或仍在前一層的 span。核查到的 <code>flush()</code> 是 BatchExecutor 私有方法；這不能直接改寫成應用可呼叫的公開 SDK API。</p>
+
+<h2 id="groups">5. 一次 flush 也可能對應多個 POST</h2>
+<p>BatchExecutor 以 <code>JSON.stringify(item.meta)</code> 的結果分組。背景資料不同的 items 可以落在不同組，再各自交給 transport：</p>
+<pre><code>同一次 flush 的 snapshot
+  ├─ meta A：event 1、event 2 → transport body A
+  └─ meta B：trace item 1   → transport body B</code></pre>
+<p>因此「一個 flush」、「一個 POST」、「一條 trace」都不是一對一。低流量時單筆 batch 正常；高流量時同一 body 也可能含多個 signal 類別、多個 trace IDs。</p>
+<p>在 Network 判讀時，先辨認 Method，再看 <code>events</code>、<code>logs</code>、<code>exceptions</code>、<code>measurements</code> 與 <code>traces</code>。計算 span 數要走訪所有 <code>resourceSpans → scopeSpans → spans</code>，不能只看第一個 resource 或把 <code>resourceSpans.length</code> 當成 span 數。</p>
+<p>單筆 payload 只能告訴你實際送出的內容，不能單靠截圖證明是哪個內部觸發點造成這次 flush。反過來，兩筆 /alloy 內容不同，也不能稱為同一包資料重送。</p>
+<p><a href="0010-trace-evidence-and-runtime-boundaries.html#payload">Payload 與 Trace 關聯判讀 →</a></p>
+
+<h2>Self-check</h2>
+<div class="quiz" data-quiz><div class="question">固定 tick 在 250、500、750 ms；410 ms 加入一個 item，沒有其他觸發與排程延遲。預期在哪個 tick flush？</div><div class="choices">
+<button class="choice" data-correct="false" data-feedback-incorrect="250 ms 已經過去，這筆 item 當時還不存在。">250 ms</button>
+<button class="choice" data-correct="true" data-feedback-correct="沿用固定 timer，下一個 tick 是 500 ms，約等待 90 ms。">500 ms</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="660 ms 是誤把每筆資料當成新倒數的結果。">660 ms</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="沒有理由跳過 500 ms 的 tick。">750 ms</button>
+</div><div class="feedback" aria-live="polite"></div></div>
+<div class="quiz" data-quiz><div class="question">一個 trace TransportItem 內有 20 個 spans；Faro 的 50-item 限制會把它算成多少個 item？</div><div class="choices">
+<button class="choice" data-correct="false" data-feedback-incorrect="Spans 與 TransportItems 是不同的單位。">20 個 item</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="30 是預設每次 span export 的上限，不是這裡的數量。">30 個 item</button>
+<button class="choice" data-correct="true" data-feedback-correct="既然已包成一個 trace TransportItem，這層計數就是一個。">01 個 item</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="50 是限制，不是每批固定數量。">50 個 item</button>
+</div><div class="feedback" aria-live="polite"></div></div>
+<div class="quiz" data-quiz><div class="question">看到一個 /alloy body 只有一個 event，單靠這個觀察能說什麼？</div><div class="choices">
+<button class="choice" data-correct="true" data-feedback-correct="Batching 不保證每個 body 都有多筆；但無法只靠 body 判定內部觸發原因。">單筆 batch 仍然合理</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="單筆內容不足以證明 batching 被關閉。">批次機制已被關閉</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="Event body 沒有證明任何 trace 被抽樣丟棄。">所有 traces 都被丟棄</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="POST body 不能單獨證明 Tempo 中存在 span。">資料已在 Tempo 可查</button>
+</div><div class="feedback" aria-live="polite"></div></div>
+<h2>Recap</h2>
+<ul><li>先分清操作、span、TransportItem、batch body 與 POST。</li><li>Ended spans 經 OTel 處理，再成為 Faro queue 的 trace item；不是一個 queue。</li><li>250 ms 是此版本的固定 tick，50 是 item 門檻；單筆也能形成 batch。</li><li>同次 flush 依 meta 分組，可以形成多個 transport bodies。</li><li>排隊、交給 transport、HTTP 接收與可查詢是不同證據；任何預設 timer 都不是送達 SLA。</li></ul>
+<p>練習時可提供一個簡化的「資料何時加入」時間線，請教學 agent 一起推導；不需要對真實 Credential 重複建立資料。</p>
+<nav class="lesson-nav" aria-label="返回主線"><a href="../lessons/0005-faro-browser-to-alloy-transport.html#batch">← 回 Lesson 5</a><a href="../lessons/0008-verifying-single-trace-browser-to-tempo.html">回 Lesson 8 驗證單筆 Trace →</a></nav>
+</body></html>

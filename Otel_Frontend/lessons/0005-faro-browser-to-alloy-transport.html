@@ -1,565 +1,150 @@
 <!doctype html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lesson 5｜Faro Browser-to-Alloy Transport</title>
-  <link rel="stylesheet" href="../assets/style.css">
-  <script src="../assets/theme.js"></script>
-  <script src="../assets/quiz.js" defer></script>
-</head>
-<body>
-  <h1>Faro Browser-to-Alloy Transport</h1>
-  <p class="subtitle">Milestone 3 · 從 environment 選出 receiver URL，到 Browser 準備把 telemetry 送進 /alloy</p>
+<html lang="zh-Hant" data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 5｜Faro Browser-to-Alloy Transport</title>
+<link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/course-layout.css"><script src="../assets/theme.js"></script><script src="../assets/quiz.js" defer></script></head>
+<body class="learning-page">
+<h1>Faro Browser-to-Alloy Transport</h1>
+<p class="subtitle">Milestone 3 · 從一筆 telemetry 產生，到 Browser 將它送至 receiver</p>
+<div class="box tip"><strong>本課目標</strong><br>看到 /alloy request，能說明目的地從哪裡來、body 裝了什麼、為什麼操作與 POST 不一對一，以及 HTTP 接收結果能證明到哪裡。</div>
+<p><a href="0004-user-device-environment-context.html">Lesson 4</a> 已建立資料來源：click payload 來自 DOM extraction，user/device 是背景，environment 在初始化提供。現在先用一筆 click 追「資料如何離開 Browser」。</p>
 
-  <div class="box tip">
-    <strong>這堂課的目標</strong><br>
-    看到 Faro 的 network request 時，你要能回答五件事：它為什麼送到這個 URL、Transport 在這裡負責什麼、telemetry 本身的 <code>payload</code> 和背景 <code>meta</code> 有什麼不同、為什麼一次 business request 可能對應多筆 <code>/alloy</code> telemetry POST，以及 Browser 為什麼可能在真正的 POST 前先處理 CORS。這堂課只走到 Alloy 的接收入口，不展開 Alloy 收到後的 pipeline。
-  </div>
-
-  <p><a href="0004-user-device-environment-context.html">Lesson 4</a> 最後停在這裡：</p>
-
-  <pre><code>宿主應用 initFaro(...)
-  │
-  ├─ getUser()              → Faro user state
-  ├─ device detection       → Faro device meta
-  └─ environment: tw-stage  → 選擇 Faro receiver URL</code></pre>
-
-  <p>其中 <code>environment</code> 已經不是單純的標籤。現行 package 會用它選出 receiver URL：</p>
-
-  <pre><code>tw-stage
-   │ resolve
-   ▼
-https://pek8s-staging.garmin.com/alloy</code></pre>
-
-  <p class="cite">現行對照來自 <a href="../sources/evidence/browser-to-alloy.md">Browser Faro endpoint and Alloy receiver evidence</a> 與 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking implementation evidence</a>。Lesson 4 已建立 environment → URL 的因果關係；這堂課從「URL 已選出」繼續往下追。</p>
-
-  <p>但到這裡還缺了一段：</p>
-
-  <blockquote>Faro 已經有 telemetry，也知道接收 URL。那資料到底怎麼離開 Browser？</blockquote>
-
-  <h2>1. 先把角色分開：Instrumentation 產生資料，Transport 負責送資料</h2>
-
-  <p>先回到 Lesson 2 的 click：</p>
-
-  <pre><code>Browser click
-   │
-   ▼
+<h2 id="transport">1. 產生資料與送出資料，是兩個責任</h2>
+<pre><code>Browser click
+  │ document listener 呼叫 handler
+  ▼
 ClickInstrumentation
-   │ extracts the tracked data
-   ▼
-api.pushEvent(...)</code></pre>
-
-  <p>這條線解決的是：</p>
-
-  <blockquote>「要產生什麼 telemetry？」</blockquote>
-
-  <p>但 <code>pushEvent()</code> 本身不是我們現在要追的最後網路邊界。Faro 裡還有另一個角色：<strong>Transport</strong>。</p>
-
-  <pre><code>Instrumentation / Faro API
-   │ creates telemetry
-   ▼
-Faro internal data
-   │
-   ▼
+  │ 讀取標記並建立資料
+  ▼
+api.pushEvent('click', { link_name: 'DailySchedule' })
+  │ 交給 Faro 的處理與傳送流程
+  ▼
 Transport
-   │ sends data out
-   ▼
-remote receiver URL</code></pre>
-
-  <p>可以先把 Transport 理解成：</p>
-
-  <blockquote>Faro 裡專門負責「把已經產生的 telemetry 送出去」的元件。</blockquote>
-
-  <p>Faro Web SDK 的預設 Web transport 使用 Browser 的 <code>fetch()</code> 能力送資料，所以常看到名稱 <strong>FetchTransport</strong>。</p>
-
-  <p class="cite">原始教材也把 Transport 定義成負責提交 Faro 已收集資料的元件，並列出 FetchTransport／ConsoleTransport：<a href="../sources/materials/2.%20Grafana%20Faro%20%26%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy - 前端可觀測性</a>。上游 Faro source 的 Transport architecture 也明確把 Transport 定義為 data processors 的最後一站：<a href="https://github.com/grafana/faro-web-sdk/blob/main/docs/sources/developer/architecture/components/transports.md">Grafana Faro Web SDK · Transports</a>。</p>
-
-  <div class="box ask">
-    <strong>這裡不要把 fetch() 想成 JavaScript 語言本身</strong><br>
-    <code>fetch()</code> 是 Browser 提供給 JavaScript 的 Web API。這個 runtime 邊界已在 <a href="0000-browser-runtime-foundation.html">Lesson 0｜Browser Runtime Foundation</a> 建立過；這裡只沿用，不重新展開。
-  </div>
-
-  <h2>2. 完整第一條線：environment → receiver URL → Transport</h2>
-
-  <p>把 Lesson 4 和剛才的 Transport 接起來：</p>
-
-  <pre><code>宿主應用
-  │
-  │ initFaro({ environment: "tw-stage" })
+  │ 使用 Browser network API
   ▼
-@sre2/faro-click-tracking
-  │
-  │ resolve environment
+receiver URL</code></pre>
+<p><strong>Transport</strong> 是負責把已產生的 telemetry 交給外部接收端的元件。Faro 的 Web transport 使用 Browser 的 <code>fetch()</code>，所以名稱是 <code>FetchTransport</code>。Fetch 是 Browser 提供的 Web API，不是 JavaScript 核心語言自己擁有的網路能力。</p>
+<p>因此 <code>pushEvent()</code> 表示把資料交進流程，不能直接當成「Network 已出現 POST」或「儲存端已收到」。</p>
+<p class="cite">主教材：<a href="../sources/materials/2.%20Grafana%20Faro%20%26%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy</a>；前置：<a href="0000-browser-runtime-foundation.html">Browser runtime</a>。</p>
+
+<h2 id="destination">2. 目的地與 business API 的傳播設定不同</h2>
+<p>在既有套件證據中，宿主傳入 <code>environment</code>，套件用它解析 receiver URL；不是由 Browser 猜 Kubernetes namespace。</p>
+<pre><code>initFaro({ environment: 'tw-stage', ... })
+  │ 套件依已知 mapping 解析
   ▼
-https://pek8s-staging.garmin.com/alloy
-  │
-  │ becomes Faro receiver destination
+Faro receiver URL
+  │ 設定 transport destination
   ▼
-Faro Transport
-  │
-  │ Browser HTTP request
-  ▼
-/alloy</code></pre>
+POST /alloy</code></pre>
+<details><summary>2026-09-12 的歷史 mapping</summary>
+<div class="table-wrap"><table><thead><tr><th>當時的 environment</th><th>Receiver URL</th></tr></thead><tbody>
+<tr><td>tw-stage</td><td>https://pek8s-staging.garmin.com/alloy</td></tr>
+<tr><td>tw-prod</td><td>https://shixpa-peproxy00.garmin.com/alloy</td></tr>
+</tbody></table></div>
+<p>這是已保存版本的對照，不是要求目前所有專案照抄字串或繞過內部 SDK。實際導入仍要依正在使用的 SDK contract 與部署設定核對。</p></details>
+<pre><code>environment → receiver destination → telemetry 送到哪裡
+backendUrls → business request 的 tracing propagation 設定</code></pre>
+<p><code>backendUrls</code> 不是 /alloy 的接收網址，也不是建立第二個 business request。Propagation 是把追蹤 context 放進原有 request；完整關係留到 <a href="0007-frontend-backend-trace-context-propagation.html">Lesson 7</a>。</p>
+<p class="cite"><a href="../sources/evidence/browser-to-alloy.md">Receiver mapping / CORS evidence</a>、<a href="../sources/evidence/faro-click-tracking.md">Internal SDK evidence</a>。</p>
 
-  <p>這就是為什麼 environment 給錯，不只是「Grafana 上看起來標籤錯了」。更前面的問題是：<strong>package 可能直接選錯資料要送去的 receiver。</strong></p>
-
-  <p>目前 package 的 verified mapping 包含：</p>
-
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>environment</th><th>receiver URL</th></tr></thead>
-      <tbody>
-        <tr><td><code>tw-stage</code></td><td><code>https://pek8s-staging.garmin.com/alloy</code></td></tr>
-        <tr><td><code>tw-prod</code></td><td><code>https://shixpa-peproxy00.garmin.com/alloy</code></td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <p class="cite">以上是 2026-09-12 verified implementation/runtime evidence；見 <a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a>。host 傳的是 environment，不是任意 receiver URL。</p>
-
-  <h2>3. Payload 和 Meta：一個回答「發生什麼」，一個回答「發生時的背景」</h2>
-
-  <p>Lesson 4 一直強調 user、device、environment 不等於 click 自訂欄位。現在可以看到 Faro 本身也有這個分界。</p>
-
-  <p>上游 Faro 的 <code>TransportItem</code> 型別，把一筆要交給 Transport 的資料拆成：</p>
-
-  <pre><code>TransportItem
-  ├─ type
-  ├─ payload
-  └─ meta</code></pre>
-
-  <p>先不要管實際 TypeScript 型別名稱，只看責任：</p>
-
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>部分</th><th>回答的問題</th><th>這堂課的例子</th></tr></thead>
-      <tbody>
-        <tr><td><code>payload</code></td><td>這筆 telemetry 本身發生了什麼？</td><td>Click event 的 event data、log 內容、measurement、exception 等。</td></tr>
-        <tr><td><code>meta</code></td><td>這筆 telemetry 發生時，是在什麼背景？</td><td>app、user、session、device、browser 等。</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <p>所以沿用前面的 click，可以先建立這個<strong>概念模型</strong>：</p>
-
-  <pre><code>telemetry item
-  │
-  ├─ payload
-  │    └─ 「使用者剛剛做了哪個被追蹤的操作」
-  │
-  └─ meta
-       ├─ app / environment
-       ├─ user
-       ├─ session
-       └─ device</code></pre>
-
-  <p>這裡最重要的不是背欄位，而是 debug 時不要走錯路：</p>
-
-  <ul>
-    <li><code>link_name</code> 不對 → 回頭查 ClickInstrumentation / DOM data。</li>
-    <li>user 不對 → 查 Lesson 4 的 <code>getUser()</code> / user sync。</li>
-    <li>device 不對 → 查 device detection。</li>
-    <li>environment 不對 → 查宿主應用傳入值與 package resolver。</li>
-  </ul>
-
-  <p class="cite">上游 Faro current source：<a href="https://github.com/grafana/faro-web-sdk/blob/main/packages/core/src/transports/types.ts"><code>packages/core/src/transports/types.ts</code></a> 的 <code>TransportItem</code> 明確具有 <code>type</code>、<code>payload</code>、<code>meta</code>；<a href="https://github.com/grafana/faro-web-sdk/blob/main/packages/core/src/metas/types.ts"><code>packages/core/src/metas/types.ts</code></a> 的 <code>Meta</code> 包含 app、user、session、page、browser、device 等類別。</p>
-
-  <h2>4. 真正送 HTTP 時，不一定是一筆 item 就一個 request</h2>
-
-  <p>如果把前面的模型直接想成：</p>
-
-  <pre><code>1 click = 1 HTTP request</code></pre>
-
-  <p>會太早下結論。</p>
-
-  <p>Faro 的 Transport 可以批次處理資料。上游 current <code>TransportBody</code> 會把不同 signal 類型分組，例如：</p>
-
-  <pre><code>HTTP request body
+<h2 id="payload">3. 單筆資料的 payload，與 HTTP body 分開看</h2>
+<pre><code>Faro 內部的一個 TransportItem
+  ├─ type    ：這是哪種資料
+  ├─ payload ：這筆資料發生了什麼
+  └─ meta    ：發生時的 app／page／session 等背景</code></pre>
+<p>例如 <code>payload.link_name</code> 說明入口語意；<code>meta.device.type</code> 描述當時的分類。前者不對，回查 DOM extraction；後者不對，回查 device detector，而不是改 tracking attribute。</p>
+<p>到了 Network 的 <strong>Payload</strong> 分頁，看到的則是整個 HTTP request body，不是單一 TransportItem 的 payload：</p>
+<pre><code>POST /alloy body
   ├─ meta
   ├─ events[]
   ├─ logs[]
   ├─ exceptions[]
   ├─ measurements[]
-  └─ traces   (如果有)</code></pre>
+  └─ traces（有匯出的 spans 時）</code></pre>
+<p>不同類別可以同時存在，也可能只出現其中一種。<strong>Span</strong> 可以先理解為記錄一次操作起訖的資料；spans 如何組成分散式 trace，後續再展開。</p>
+<p><code>events[].trace</code> 若存在，是 event 關聯的 trace/span ID；頂層 <code>traces</code> 才裝完整 span 資料。兩者要核對實際 ID，不能只靠 key 名稱判定同一筆。詳見 <a href="../reference/0010-trace-evidence-and-runtime-boundaries.html#payload">Payload 判讀表</a>。</p>
+<p>歷史 FetchTransport 另會把 session identity 放在 <code>X-Faro-Session-Id</code> request header，body 裡則有 <code>meta.session.id</code>。同一個 identity 出現在傳輸契約與背景欄位，不是兩個不同 session。</p>
+<p class="cite"><a href="https://github.com/grafana/faro-web-sdk/blob/v2.12.1/packages/core/src/transports/types.ts">Faro transport types</a>、<a href="../sources/evidence/browser-to-alloy.md">既有 session-header evidence</a>。</p>
 
-  <p>因此 network request 是<strong>傳輸單位</strong>，telemetry event 是<strong>資料單位</strong>，兩者不要畫上等號。</p>
+<h2 id="batch">4. 操作數量、資料數量與 POST 數量不相等</h2>
+<p>一次 business HTTP request 可以被不同 instrumentation 觀察，各自產生 tracing 與 resource-performance 資料。SDK 可以先把資料暫存，再一起送出；這就是此處的 <strong>batching</strong>。</p>
+<pre><code>一次 business GET
+  ├─ resource-performance event → 可能落入 batch A
+  └─ tracing event + span      → 可能落入 batch B</code></pre>
+<p>2026-09-21 的 Jeter 案例確實看見兩種不同內容的 /alloy POST；它證明兩個 payload 不同，不代表每次操作永遠拆成兩包，也不代表 SDK 重送了同一包資料。</p>
+<p>2026-10-05 的 IDP Portal 唯讀 reload 則捕捉到四筆 business XHR，以及：</p>
+<pre><code>Batch A：meta + events + measurements
+  4 個 resource-performance events；0 個 trace spans
 
-  <h3>一次 business request，也不等於一個 <code>/alloy</code> POST</h3>
+Batch B：meta + traces + events
+  4 個 tracing events；包含 4 個不同 trace IDs</code></pre>
+<p>所以一個 batch 可以混 signal、完全沒有 traces，或同時容納不同 trace。不要把「第 N 個業務 request」配給「第 N 個 /alloy」。</p>
+<p class="cite"><a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Jeter evidence</a>、<a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal evidence</a>。</p>
 
-  <p>Jeter stage 在 2026-09-21 的實際 Browser observation 提供了一個更具體的例子。使用者只觸發一次：</p>
-
-  <pre><code>GET /jeter-faro-trace-demo-backend/api/scenario/employee/1001</code></pre>
-
-  <p>但 DevTools 看到兩筆不同的 <code>POST /alloy</code>。打開 Payload 後，內容是：</p>
-
-  <pre><code>同一次 business GET /employee/1001
-        │
-        │ 被不同 instrumentation 觀察
-        │
-        ├─ POST /alloy A
-        │    events[]
-        │    └─ faro.performance.resource
-        │
-        └─ POST /alloy B
-             events[]
-             └─ faro.tracing.fetch
-
-             traces
-             └─ resourceSpans</code></pre>
-
-  <p>所以這次 evidence 能證明的不是「Faro 把同一包資料重送兩次」，而是：</p>
-
-  <blockquote>一次 business request 可以產生不同種類的 Faro telemetry，而那些 telemetry 可以出現在不同的 <code>/alloy</code> transport request。</blockquote>
-
-  <p><code>faro.performance.resource</code> 是 Browser resource-performance event；另一包的 <code>resourceSpans</code> 才是 tracing span signal。這堂課先只建立「資料單位和 transport request 不一一對應」；它們進 Alloy 後如何分流到 Loki / Tempo，留到後續 Collector/storage Lesson。</p>
-
-  <div class="box tip">
-    <strong>看到多筆 /alloy，不要先叫 duplication</strong><br>
-    先看 <strong>Method</strong>，再看每一筆 <strong>Payload</strong>。只有 payload evidence 顯示它們真的是同一份資料，才有資格往重複送出的方向查。Lesson 6 會把這套判讀變成 DevTools 操作。
-  </div>
-
-  <p class="cite">這次 Jeter runtime evidence 見 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">Faro performance resource runtime verification</a>。上游 Transport body / batching 結構仍以 <a href="https://github.com/grafana/faro-web-sdk/blob/main/packages/core/src/transports/types.ts">Faro transport types</a> 為 source basis。Runtime evidence 只證明本次兩個 payload 不同，不宣稱所有 business request 都固定會拆成兩個 POST，也不從截圖猜測某一條內部 flush 規則。</p>
-
-  <h3>IDP Portal 再補一個更完整的 batch 例子</h3>
-
-  <p>2026-10-05 的 IDP Portal read-only reload 同時捕捉到四筆 business XHR 與兩筆 <code>POST /alloy</code>：</p>
-
-  <pre><code>Batch A
-  meta + events + measurements
-  4 個 faro.performance.resource
-  0 個 trace spans
-
-Batch B
-  meta + traces + events
-  4 個 faro.tracing.xml-http-request
-  4 個不同 trace IDs</code></pre>
-
-  <p>這個案例把「batch 是 transport unit」再往前推一步：<strong>一個 batch 可以混不同 signal，也可以完全沒有 traces；一個 batch 也可以一次裝多條不同 trace。</strong>所以不要用「第 N 個 business request 對第 N 個 Alloy request」來猜 correlation。</p>
-
-  <div class="box tip">
-    <strong>追 distributed trace 的最快路徑</strong><br>
-    先從真正的 business request 讀 <code>traceparent</code>，直接拿 trace ID 去 Tempo。只有要驗證「Browser SDK 實際送出了什麼」或排查 receiver delivery 時，才回頭翻 <code>/alloy</code> payload。
-  </div>
-
-  <h3>Buffer、HTTP delivery、storage 是三個不同時間點</h3>
-
-  <pre><code>span.end()
-  → OTel BatchSpanProcessor queue
-  → FaroTraceExporter / api.pushTraces()
-  → Faro signal batching
-  → Transport 組 HTTP body
-  → POST /alloy
-  → downstream storage</code></pre>
-
-  <p>所以「span 已進 queue」不能改寫成「已經看到 Network POST」，而 <code>POST /alloy → 202</code> 也不能改寫成「Tempo/Loki 已持久化」。IDP Portal deployed bundle 另外確認 OTel span batching 與 Faro signal batching 是兩層不同 buffer；timer / item limit 是 flush 條件，不是固定 Network cadence。</p>
-
-  <h3>為什麼正常情況不會一直追蹤自己的 <code>/alloy</code>？</h3>
-
-  <p>IDP Portal 使用的 Faro Web SDK v2.12.1 會把 Transport 自己的 receiver URL 放進 HTTP tracing ignore URLs，再交給 Fetch/XHR instrumentation。這使正常 frontend tracing 不會把自己的 <code>POST /alloy</code> delivery 再做成一個待 export 的 HTTP span。</p>
-
-  <p>因此看到多筆 <code>/alloy</code> 本身不是 self-tracing loop 的證據。真正要看的，是 payload 裡是否反覆出現 URL=<code>/alloy</code> 的 tracing spans，並在沒有新的業務活動時持續產生後續 batch。</p>
-
-  <p class="cite">IDP Portal runtime / deployed bundle evidence：<a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal Faro / Keychain runtime verification</a>。</p>
-
-  <h2>5. Session ID 為什麼同時可能出現在 body 和 request header？</h2>
-
-  <p>Session 是用來把同一段 Browser 使用期間的 telemetry 關聯起來的背景資訊之一。</p>
-
-  <p>Faro current default Fetch transport 還會在 HTTP request 放：</p>
-
-  <pre><code>X-Faro-Session-Id: ...</code></pre>
-
-  <p>這不是另一個獨立 session；它是在 HTTP 層把這次 request 對應的 Faro session identity 帶給 receiver。</p>
-
-  <pre><code>Faro session
-   │
-   ├─ meta.session.id        → request body 裡的背景資料
-   │
-   └─ X-Faro-Session-Id      → HTTP request header</code></pre>
-
-  <p>所以看到「同一個資訊在不同層出現」時，不要立刻理解成 duplication bug。先問：</p>
-
-  <blockquote>這個值現在是在描述 telemetry body，還是在描述 HTTP transport contract？</blockquote>
-
-  <p class="cite">上游 Faro current transport docs 與 tests 都驗證 default Fetch transport 使用 <code>X-Faro-Session-Id</code>，並使它對應 payload 的 session identity：<a href="https://github.com/grafana/faro-web-sdk/blob/main/docs/sources/developer/architecture/components/transports.md">Transports</a>。公司 stage/prod receiver 的 2026-09-12 OPTIONS verification 也確認目前 endpoint 允許這個 header；見 <a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a>。</p>
-
-  <h2>6. Browser 為什麼需要 CORS？先從「頁面和 receiver 是不是同一個 origin」開始</h2>
-
-  <p>現在 Browser 準備執行：</p>
-
-  <pre><code>page JavaScript
-   │
-   │ fetch(...)
-   ▼
-https://.../alloy</code></pre>
-
-  <p>Browser 不會因為 JavaScript 想送就無條件允許所有跨網站 request。</p>
-
-  <p>它先看頁面本身的 <strong>origin</strong> 和目標 URL 的 origin。</p>
-
-  <p>這裡把 origin 只理解成三個部分就夠：</p>
-
-  <pre><code>scheme + host + port
-
-https://app.example.com:443
-│       │               │
-scheme  host            port</code></pre>
-
-  <p>只要其中需要比較的部分不同，就可能形成 cross-origin request。</p>
-
-  <p>例如：</p>
-
-  <pre><code>頁面：    https://app.example.com
-receiver: https://collector.example.com/alloy
-
-host 不同
-→ cross-origin</code></pre>
-
-  <p><strong>CORS (Cross-Origin Resource Sharing)</strong> 可以先理解成 Browser 執行的一套規則：目標 server 必須用 response header 表明「哪些 origin / method / request headers 可以跨 origin 使用我」。</p>
-
-  <div class="box tip">
-    <strong>想再深入 CORS / Preflight？</strong><br>
-    Lesson 5 主線只保留理解 Browser → <code>/alloy</code> 所需的最小模型。Request options 如何變成 preflight、Alloy receiver 的 CORS 設定、各個 <code>Access-Control-*</code> response header 怎麼讀，以及 FastAPI <code>CORSMiddleware</code> 的對照，整理在 <a href="../reference/0004-cors-preflight.html">Reference｜CORS 與 Preflight</a>。
-  </div>
-
-  <h2>7. Preflight：Browser 可能先問「我可不可以這樣 POST？」</h2>
-
-  <p>某些 cross-origin request 在真正送出前，Browser 會先送一個 <code>OPTIONS</code> request。這叫 <strong>preflight</strong>。</p>
-
-  <p>第一性原理可以把它想成兩階段：</p>
-
-  <pre><code>Browser
-  │
-  │ 1. OPTIONS：我想用 POST，還想帶這些 headers，可以嗎？
+<h3>Trace 還要分清兩層暫存</h3>
+<pre><code>HTTP instrumentation 結束 span
+  │ ended span 交給
   ▼
-receiver / gateway
-  │
-  │ 2. response：允許哪些 origin / method / headers
+OTel span processor queue
+  │ exporter 匯出並呼叫 pushTraces()
   ▼
-Browser
-  │
-  ├─ allowed   → 才繼續真正 request
-  └─ not allowed → Browser 在這裡擋下</code></pre>
+Faro TransportItem queue
+  │ flush：交出當時累積的資料
+  ▼
+FetchTransport → POST /alloy</code></pre>
+<p><strong>Queue</strong> 是待處理資料的記憶體暫存區；<strong>flush</strong> 是把當時累積的資料交給下一階段。v2.12.1 的 Faro queue 預設每 250 ms 檢查，或達到 50 個 TransportItems 時 flush；它不是一定等滿 50 次操作。</p>
+<p>低流量時一個 batch 只有一筆資料也正常；依 meta 分組後，同次 flush 也可能產生多個 POST。Timer、資料單位與第一層 span processor 的細節收在 <a href="../reference/0011-faro-batching-and-queues.html">Queue／Batch 支線</a>，不把預設時間當成送達上限。</p>
 
-  <p>注意：<strong>不是所有 request 都一定會 preflight。</strong>是否需要 preflight，是 Browser 依 request 是否跨 origin、method、headers、content type 等條件決定。</p>
+<h3>Collector POST 不應再形成無限的 tracing POST</h3>
+<p>既有 v2.12.1 evidence 顯示 transport 的 receiver URL 會提供給 HTTP tracing 的 ignore URLs，避免把正常 /alloy delivery 又變成待匯出的 HTTP span。這不是讓 Network 看不到 /alloy，也不能只因出現多筆 POST 就判定 self-tracing loop；要看 payload 是否反覆包含指向 collector 的 tracing spans。</p>
+<p class="cite"><a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">已保存的 deployed-bundle / runtime evidence</a>；timer 與 grouping 的版本核查見 <a href="../sources/evidence/faro-conversation-verification-2026-10-22.md">2026-10-22 verification</a>。</p>
 
-  <div class="box ask">
-    <strong>Evidence boundary</strong><br>
-    2026-09-12 的驗證是主動對 stage/prod <code>/alloy</code> 發送 read-only <code>OPTIONS</code>，確認 receiver contract；它證明目前 endpoint 對這組 CORS 問法怎麼回答，<strong>不等於已捕捉到某個實際產品頁面的 Browser 自動發出同一個 preflight。</strong>
-  </div>
+<h2 id="cors">5. Cross-origin 時，Browser 還有 CORS 規則</h2>
+<p>Origin 由 <strong>scheme + host + port</strong> 組成；路徑不同不會自己變成跨來源。例如 <code>https://app.example.com</code> 與 <code>https://collector.example.com</code> 的 host 不同，就是 cross-origin。</p>
+<p><strong>CORS</strong> 是 Browser 依 server response headers 執行的跨來源存取規則。某些 request 還需要先做 <strong>preflight</strong>，也就是詢問是否允許所需 method 與 request headers：</p>
+<pre><code>Browser OPTIONS
+  │ 詢問 origin／method／headers 是否允許
+  ▼
+receiver / gateway 回應政策
+  │ Browser 檢查
+  ├─ 不通過 → 正式 request 被擋
+  └─ 通過   → 可繼續正式 request</code></pre>
+<p>不是所有跨來源 request 都先 OPTIONS；符合 safelisted 條件的 request 可以不先 preflight，但 response 仍受 CORS 讀取限制。同源則不需要這層 CORS 授權。Preflight cache 也會使需要 preflight 的 request 不必每次重新送 OPTIONS。</p>
+<details><summary>既有 /alloy OPTIONS 證據的範圍</summary>
+<p>2026-09-12 的主動 OPTIONS 檢查，詢問 POST 與 content-type、x-faro-session-id、traceparent；當時 stage/prod 回 204 並允許這組條件與 origin *。它只證明當時 endpoint 如何回答該次詢問，不證明 Browser 已送出 telemetry，也不證明下游可查。Credentials 與其他 headers 的情況要另按實際 request 核對。</p></details>
+<p>Business API 的 CORS 與 collector 的 CORS 是各自的契約。詳見 <a href="../reference/0004-cors-preflight.html">CORS 前置 Reference</a>；針對 traceparent 的設定邊界見 <a href="../reference/0010-trace-evidence-and-runtime-boundaries.html#cors">Trace propagation CORS 對照</a>。</p>
+<p class="cite"><a href="../sources/evidence/browser-to-alloy.md">歷史 OPTIONS evidence</a>、<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS">MDN CORS</a>。</p>
 
-  <h2>8. 目前 stage / prod 的 CORS evidence 實際證明了什麼？</h2>
+<h2 id="evidence">6. 每一層只下它能支持的結論</h2>
+<div class="table-wrap"><table><thead><tr><th>觀察</th><th>能支持</th><th>尚不能支持</th></tr></thead><tbody>
+<tr><td>資料已進 queue。</td><td>已交入這層暫存。</td><td>Network 已送出。</td></tr>
+<tr><td>Network 出現 POST body。</td><td>Browser 有這次傳送觀察。</td><td>接收端與下游全部成功。</td></tr>
+<tr><td>/alloy 回 HTTP 202。</td><td>接收端回覆接受處理。</td><td>Tempo／Loki 已可查或永久保存。</td></tr>
+<tr><td>Tempo 找到 exact span。</td><td>該 span 此時可查。</td><td>其他 spans 或全部請求都完整。</td></tr>
+</tbody></table></div>
+<p>看到多筆 POST，先看 Method 與 Payload 類型；看到空查詢，先核對應用身分、時間範圍及資料途徑。下一堂 <a href="0006-browser-devtools-verification.html">Lesson 6</a> 把這些判讀轉成 DevTools 操作；<a href="0009-faro-receiver-alloy-otel-collector.html">Lesson 9</a> 才追接收端之後的 signal 分流。</p>
 
-  <p>驗證時詢問的需求是：</p>
-
-  <pre><code>method: POST
-headers:
-  content-type
-  x-faro-session-id
-  traceparent</code></pre>
-
-  <p>stage 與 prod 的 endpoint 都回：</p>
-
-  <pre><code>HTTP 204
-Access-Control-Allow-Origin: *
-Access-Control-Allow-Methods: POST
-Access-Control-Allow-Headers:
-  content-type,x-faro-session-id,traceparent</code></pre>
-
-  <p>因此目前可以說：</p>
-
-  <ul>
-    <li>這兩個 <code>/alloy</code> endpoint 對這個 OPTIONS 問法，允許 POST。</li>
-    <li>它們允許測試中要求的三個 request headers。</li>
-    <li>它們當下回覆 <code>Access-Control-Allow-Origin: *</code>。</li>
-  </ul>
-
-  <p>但目前<strong>不能</strong>因此說：</p>
-
-  <ul>
-    <li>某一筆真實 Faro telemetry POST 已經成功寫入 Alloy。</li>
-    <li>某一個實際產品頁面的 Browser 已經自動觸發這個 OPTIONS。</li>
-    <li>POST 之後的 Alloy → Collector → storage 全部成功。</li>
-  </ul>
-
-  <p class="cite">以上界線全部來自 <a href="../sources/evidence/browser-to-alloy.md">Browser Faro endpoint and Alloy receiver evidence</a>；該次驗證刻意沒有送 telemetry POST。</p>
-
-  <h2>9. 一個很容易查錯的設定：<code>backendUrls</code> 不是 Faro receiver URL</h2>
-
-  <p>package 還有一個名稱很像「後端 URL」的設定：</p>
-
-  <pre><code>backendUrls</code></pre>
-
-  <p>很容易直覺猜成：</p>
-
-  <blockquote>「這是不是告訴 Faro 要把 telemetry POST 到哪裡？」</blockquote>
-
-  <p>不是。</p>
-
-  <p>現行 package evidence 顯示：</p>
-
-  <pre><code>environment
-  │
-  └─ decides → Faro receiver URL → /alloy
-
-backendUrls
-  │
-  └─ used by → tracing configuration
-               └─ 哪些 backend request 可以傳遞 trace header</code></pre>
-
-  <p>Tracing 的 header propagation 會在後面的 tracing Lessons 才展開。Lesson 5 只需要記住責任邊界：</p>
-
-  <blockquote><code>backendUrls</code> 不是用來設定 Faro telemetry receiver。</blockquote>
-
-  <p class="cite">現行 package implementation evidence：<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a>。其中 <code>backendUrls</code> 僅用於 TracingInstrumentation 的 trace-header propagation；receiver URL 由 environment resolver 決定。</p>
-
-  <h2>10. 把目前整段資料流畫完整</h2>
-
-  <pre><code>Browser action / API activity
-   │
-   ├─ ClickInstrumentation 等 instrumentation
-   │    └─ creates Faro telemetry
-   │
-   ├─ Browser performance instrumentation
-   │    └─ may create faro.performance.resource
-   │
-   └─ tracing instrumentation
-        └─ may create tracing event / spans
-
-Faro telemetry
-   │
-   ├─ payload ──────────────→ 「發生什麼」
-   │
-   └─ meta ─────────────────→ user / session / device / app ...
-           ▲
-           │
-           ├─ getUser()
-           ├─ device detection
-           └─ initFaro environment
-                    │
-                    └─ also chooses receiver URL
-
-Faro Transport
-   │
-   │ one or more Browser HTTP requests
-   ▼
-https://.../alloy
-   │
-   └─ Browser CORS rules may apply before delivery
-
-[ Lesson 5 到這裡停止 ]
-
-Alloy receiver 收到不同 telemetry 後如何處理
-   ↓
-後續 Lesson 再展開</code></pre>
-
-  <p>現在你應該能看到 Lesson 2、3、4、5 不是四段互不相關的知識：</p>
-
-  <pre><code>Lesson 2：telemetry 怎麼產生
-Lesson 3：Faro lifecycle 怎麼啟動並共用同一個 object
-Lesson 4：telemetry 背景 context 從哪裡來
-Lesson 5：telemetry 怎麼跨 Browser network boundary 離開頁面</code></pre>
-
-  <h2>11. Production-style troubleshooting：症狀先對到哪一層</h2>
-
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>症狀</th><th>第一個檢查點</th><th>理由</th></tr></thead>
-      <tbody>
-        <tr><td>click event 根本沒產生</td><td>ClickInstrumentation / DOM data</td><td>資料還沒到 Transport。</td></tr>
-        <tr><td>資料準備送到錯的 host</td><td><code>initFaro({ environment })</code> + resolver</td><td>environment 決定 receiver URL。</td></tr>
-        <tr><td>只操作一次卻看到多筆 <code>/alloy</code></td><td>先比 Method，再展開各筆 Payload</td><td>一個 business action/request 可以產生不同 telemetry；request 數量本身不能證明 duplication。</td></tr>
-        <tr><td>Browser Console 出現 CORS 錯誤</td><td>頁面 origin、目標 origin、preflight response</td><td>這是 Browser network boundary 的存取規則。</td></tr>
-        <tr><td>以為 <code>backendUrls</code> 可以改 receiver</td><td>停止查 <code>backendUrls</code></td><td>它屬於 tracing header propagation，不是 Faro telemetry destination。</td></tr>
-        <tr><td><code>/alloy</code> request 有送，但後端仍查不到資料</td><td>先看 <code>/alloy</code> 的 HTTP response；如果這一段成功，再查 Alloy 收到後往哪裡送</td><td>Browser 成功送到 <code>/alloy</code>，不代表 Alloy 後面的處理也一定成功。</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="box">
-    <strong>Primary source 與 evidence</strong><br>
-    本課的原始概念來源是 <a href="../sources/materials/2.%20Grafana%20Faro%20%26%20Alloy%20-%20前端可觀測性.html">Grafana Faro &amp; Alloy - 前端可觀測性</a>；公司目前 environment mapping、stage/prod <code>/alloy</code> 與 CORS runtime evidence 以 <a href="../sources/evidence/browser-to-alloy.md">browser-to-alloy evidence</a> 為準；package 責任邊界以 <a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a> 為準；一次 Jeter business request 對應不同 performance/tracing telemetry POST 的 observation 以 <a href="../sources/evidence/faro-performance-resource-runtime-2026-09-21.md">2026-09-21 resource-performance runtime evidence</a> 為準。Faro payload/meta/transport 結構則對照 upstream current source。
-  </div>
-
-  <h2>Self-check</h2>
-
-  <div class="quiz" data-quiz>
-    <div class="question">Q1. <code>ClickInstrumentation</code> 和 Transport 最主要的責任差異是什麼？</div>
-    <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="receiver URL 是 environment resolver / Faro transport configuration 的責任，不是 ClickInstrumentation 的主要工作。">ClickInstrumentation 決定 receiver，Transport 讀 DOM</button>
-      <button class="choice" data-correct="true" data-feedback-correct="Instrumentation 決定並產生要收集的 telemetry；Transport 負責把已產生的資料送出去。">Instrumentation 產生 telemetry，Transport 負責傳送</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="兩者不是同一個責任。">兩者都只負責 click filtering</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="CORS 是 Browser/server network boundary 的規則，不是 Instrumentation 自己實作。">Instrumentation 負責 CORS，Transport 負責 user sync</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
-  </div>
-
-  <div class="quiz" data-quiz>
-    <div class="question">Q2. User、session、device 最合理先被理解成哪一類資料？</div>
-    <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="它們不是 DOM click attribute。">Click payload 的 DOM 欄位</button>
-      <button class="choice" data-correct="true" data-feedback-correct="它們描述 telemetry 發生時的背景，因此屬於 meta 模型。">Telemetry 的 meta</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="receiver URL 是 transport destination，不是 user/device/session 的分類。">Receiver URL</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="CORS response header 是 HTTP 層的 server response。">CORS response header</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
-  </div>
-
-  <div class="quiz" data-quiz>
-    <div class="question">Q3. Browser 在真正 cross-origin POST 前送出 OPTIONS，最接近哪個意思？</div>
-    <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="OPTIONS 不是 telemetry payload 本身。">先把同一筆 telemetry 傳一次測試</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Session 建立是 Faro lifecycle 的另一件事。">先建立新的 Faro session</button>
-      <button class="choice" data-correct="true" data-feedback-correct="Preflight 是 Browser 先詢問 server：指定 method / headers 的跨 origin request 是否被允許。">先詢問這種跨 origin request 是否被允許</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Alloy pipeline 在 receiver 接到 request 之後才是下一層問題。">先要求 Alloy 把資料送到 Collector</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
-  </div>
-
-  <div class="quiz" data-quiz>
-    <div class="question">Q4. 目前 evidence 顯示 <code>backendUrls</code> 的用途是什麼？</div>
-    <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="Faro receiver URL 由 environment resolver 決定。">決定 Faro telemetry 要 POST 到哪個 /alloy</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Device detection 是另一條路徑。">決定 desktop / tablet</button>
-      <button class="choice" data-correct="true" data-feedback-correct="它屬於 tracing 設定，控制哪些 backend request 可以傳遞 trace header。">設定 tracing 的 backend URL 範圍</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="User state 來自 getUser()。">設定 getUser callback</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
-  </div>
-
-  <div class="quiz" data-quiz>
-    <div class="question">Q5. 2026-09-12 的 CORS evidence 可以直接證明哪一件事？</div>
-    <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="該次驗證沒有送 telemetry POST。">真實 Faro POST 已成功寫入 Alloy</button>
-      <button class="choice" data-correct="true" data-feedback-correct="OPTIONS response 已證實 endpoint 對測試中的 method / headers 給出允許回覆。">目前 /alloy endpoint 的 preflight contract 允許測試中的 POST 與 headers</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Browser 自動 preflight 並沒有在該次 evidence 中被捕捉。">產品頁面的 Browser 一定已送出 OPTIONS</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Collector / storage 成功不在該次 OPTIONS evidence 的證明範圍。">Alloy 到 Collector 到 storage 全部成功</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
-  </div>
-
-  <h2>Recap</h2>
-
-  <ul>
-    <li><strong>Instrumentation</strong> 解決「要產生什麼 telemetry」；<strong>Transport</strong> 解決「已產生的 telemetry 怎麼送出去」。</li>
-    <li><strong>Environment</strong> 在現行 package 中會解析成 Faro receiver URL；<code>tw-stage</code> 與 <code>tw-prod</code> 目前分別對應各自的 <code>/alloy</code> endpoint。</li>
-    <li><strong>Payload</strong> 描述 telemetry 本身；<strong>Meta</strong> 描述 telemetry 發生時的背景。</li>
-    <li><strong>business request、telemetry item、transport POST 不一一對應</strong>；Jeter runtime 已觀察到同一次 API request 產生 performance event 與 tracing telemetry，分別出現在不同 <code>/alloy</code> POST。</li>
-    <li><strong>多筆 <code>/alloy</code> 不能只靠數量判 duplication</strong>；先比較 Method，再以 Payload 內容分類。</li>
-    <li><strong>Session identity</strong> 可以同時存在 meta 與 HTTP transport header；先分清資料層與 transport 層。</li>
-    <li><strong>CORS</strong> 是 Browser 對 cross-origin network access 執行的規則；某些 request 會先以 <code>OPTIONS</code> 做 preflight。</li>
-    <li><strong>目前 runtime evidence</strong> 證實 stage/prod <code>/alloy</code> 的 OPTIONS contract；另一組 Jeter runtime evidence 則實際捕捉到 telemetry POST，但這兩組 evidence 的目的與時間不同，不應混成同一次 capture。</li>
-    <li><strong><code>backendUrls</code></strong> 是 tracing header propagation 的設定，不是 Faro telemetry receiver URL。</li>
-    <li><strong>Lesson 5 邊界</strong>：到 Browser → <code>/alloy</code> receiver entry 為止；Alloy 收到後的 signal conversion / storage pipeline 留到後續 Lesson。</li>
-  </ul>
-
-  <div class="box ask">
-    <strong>完成這堂後，下一個真正需要的能力</strong><br>
-    不是再背 Transport 名詞，而是打開 Browser DevTools，從 Network 證明：request URL、method、headers、body、response 與 CORS 到底實際長什麼樣；看到多筆 <code>/alloy</code> 時，還要能用 Payload 判斷它們是不是不同 telemetry。Course Map 將這件事放在下一堂 Browser-side verification。
-  </div>
-
-  <p><a href="0004-user-device-environment-context.html">← Lesson 4</a> · <a href="../learning-map/index.html">Learning Map →</a></p>
-  <div class="box tip" id="automatic-telemetry-reference"><strong>Payload 不只有 custom events</strong><br>到 <a href="../reference/0007-faro-automatic-telemetry-and-web-vitals.html#workflow">Faro automatic telemetry／Web Vitals Reference</a>，跟著真實 DevTools 展開 measurements，辨認 INP、CLS、LCP 與接收結果。</div>
-</body>
-</html>
+<h2>Self-check</h2>
+<div class="quiz" data-quiz><div class="question">一次 business request 後有兩筆 /alloy，應先如何判讀？</div><div class="choices">
+<button class="choice" data-correct="false" data-feedback-incorrect="POST 數量不足以證明重複初始化。">先判定 SDK 重複啟動</button>
+<button class="choice" data-correct="true" data-feedback-correct="先確認是 OPTIONS 還是 POST，再辨認每個 body 的 signals 與 IDs。">先比較 Method 與內容</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="Business requests 與 telemetry POST 不一對一。">先照排列順序配對</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="未定義錯誤與證據前，不先變更 telemetry 行為。">先關閉全部批次設定</button>
+</div><div class="feedback" aria-live="polite"></div></div>
+<div class="quiz" data-quiz><div class="question">backendUrls 在這個整合中主要描述哪一條路徑？</div><div class="choices">
+<button class="choice" data-correct="true" data-feedback-correct="它控制 business requests 的 trace-header propagation，不選擇 collector。">業務請求的 context 傳播</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="Telemetry receiver 由另一個設定／resolver 決定。">觀測資料的 collector 位置</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="Dashboard query 並非由 backendUrls 建立。">Grafana 面板的資料篩選</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="這個設定不決定在哪裡安裝後端 instrumentation。">後端服務的 SDK 安裝位置</button>
+</div><div class="feedback" aria-live="polite"></div></div>
+<div class="quiz" data-quiz><div class="question">/alloy POST 回 202，下一個尚未被這項結果證明的部分是？</div><div class="choices">
+<button class="choice" data-correct="false" data-feedback-incorrect="202 已是這次 HTTP response 的觀察。">HTTP 回應是否為 202</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="Network 的 POST 記錄已呈現這個 method。">這筆傳輸是否用 POST</button>
+<button class="choice" data-correct="true" data-feedback-correct="需要獨立到儲存／查詢端核對相同資料。">下游資料是否已可查</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="題目已指定這筆 receiver request；不是從狀態碼推斷其路徑。">此筆觀察是否指 /alloy</button>
+</div><div class="feedback" aria-live="polite"></div></div>
+<h2>Recap</h2>
+<ul><li>Instrumentation 產生資料；Transport 負責送到 receiver。</li><li>Receiver destination 與 business API 的 backendUrls 是不同契約。</li><li>單筆 TransportItem 的 payload/meta，與 Network 的整個 body 要分層看。</li><li>操作、signal、span、batch 與 POST 不一對一；trace 另經兩層暫存。</li><li>Collector tracing exclusion 用來避免回饋循環，不代表 Network 沒有 POST。</li><li>CORS 與 preflight 不是同義詞；相同來源和有效 cache 都會影響觀察。</li><li>排隊、送出、HTTP 接收與查詢可見性，必須各自拿證據。</li></ul>
+<p>可把一個已遮蔽敏感資料的 Network payload 交給教學 agent，一起判讀它包含的資料種類與證據界線。</p>
+<nav class="lesson-nav" aria-label="課程導覽"><a href="0004-user-device-environment-context.html">← Lesson 4</a><a href="../learning-map/index.html">Learning Map</a><a href="0006-browser-devtools-verification.html">Lesson 6 →</a></nav>
+</body></html>

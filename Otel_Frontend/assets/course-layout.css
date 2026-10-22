@@ -1,0 +1,11 @@
+/* Opt-in reading width; outranks the shared mobile safeguard's body max-width. */
+body.learning-page { max-width: min(100%, var(--max-width)); }
+
+/* Opt-in responsive evidence figures; retain the original captured pixels. */
+.evidence-shot.evidence-responsive { margin: 1.5rem 0; }
+.evidence-shot.evidence-responsive .evidence-frame { width: 100%; }
+.evidence-shot.evidence-responsive .evidence-frame img {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
