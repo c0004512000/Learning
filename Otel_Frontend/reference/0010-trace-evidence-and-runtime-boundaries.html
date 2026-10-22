@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference｜Trace 證據與前後端邊界</title>
+<link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/course-layout.css"><script src="../assets/theme.js"></script><script src="../assets/quiz.js" defer></script></head>
+<body class="learning-page">
+<h1>Trace 證據與前後端邊界</h1>
+<p class="subtitle">Lessons 5–8 查表 · 分清資料內容、關聯識別與觀察能支持的結論</p>
+<nav class="lesson-nav" aria-label="返回主課"><a href="../lessons/0005-faro-browser-to-alloy-transport.html#payload">← Lesson 5：Payload</a><a href="../lessons/0008-verifying-single-trace-browser-to-tempo.html#runtime-boundary">Lesson 8：跨 Runtime 驗證 →</a></nav>
+<p>同一個 business request 可以帶出 <code>traceparent</code>，稍後又在 /alloy 出現 event 與完整 span。它們不是重複的 HTTP 操作，而是同一筆活動在不同觀察位置留下的資料。</p>
+<p class="cite">來源：<a href="../sources/materials/2026-10-22-faro-conversation-materials.md">2026-10-22 匯出的主線對話</a>及 <a href="../sources/evidence/faro-conversation-verification-2026-10-22.md">獨立核查與限制</a>。對話中的歷史 runtime 報告不等於本次重新查詢了內部 Grafana。</p>
+<nav aria-label="查表章節"><p><a href="#payload">Payload</a> · <a href="#ids">Header 與 ID</a> · <a href="#runtime">前後端分界</a> · <a href="#raw-json">原始 JSON</a> · <a href="#query">查不到資料</a> · <a href="#cors">CORS</a></p></nav>
+
+<h2 id="payload">1. 先辨認這包資料是什麼</h2>
+<div class="table-wrap"><table><thead><tr><th>欄位</th><th>回答什麼</th><th>判讀邊界</th></tr></thead><tbody>
+<tr><td>meta</td><td>應用、頁面、session 等背景。</td><td>不是 span，也不是每個部署都必有 user 欄位。</td></tr>
+<tr><td>events</td><td>發生了什麼事件，包含 name、時間與 attributes。</td><td>tracing event 與 resource-performance event 不是相同資料。</td></tr>
+<tr><td>logs</td><td>Log records。</td><td>console/error 最終如何映射，要看實際 instrumentation 與 payload。</td></tr>
+<tr><td>exceptions</td><td>例外資料，例如型別、訊息與 stack。</td><td>不要把 exceptions 陣列和 logs 陣列當同一欄位。</td></tr>
+<tr><td>measurements</td><td>數值量測，例如 Web Vitals。</td><td>有數值不表示這包包含 distributed trace。</td></tr>
+<tr><td>traces</td><td>匯出的 OpenTelemetry span 資料。</td><td>往 resourceSpans／scopeSpans／spans 找真正的 span。</td></tr>
+</tbody></table></div>
+<p>這是欄位分類，不是宣告應用啟用了所有功能。沒有 traces 的 batch 可能完全正常；<code>faro.performance.resource</code> 不能替代 backend child span 的證據。</p>
+<pre><code>events[i].trace
+  trace_id + span_id
+  → 這個 event 關聯到哪個 span
+
+traces.resourceSpans[*].scopeSpans[*].spans[*]
+  traceId、spanId、parentSpanId、kind、時間、attributes…
+  → span 本身的觀測資料</code></pre>
+<p><strong>單數 trace 是關聯資訊；複數 traces 是 span 資料容器。</strong>並非每個 event 都必有 trace 關聯。要確認是同一個 span，必須比對實際 ID，不能只因同一 body 同時有這兩個 key 就宣稱吻合。</p>
+<p class="cite">結構可對照 <a href="https://github.com/grafana/faro-web-sdk/blob/v2.12.1/packages/core/src/transports/types.ts">Faro transport types</a>與既有 <a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">mixed batch evidence</a>。</p>
+
+<h2 id="ids">2. 一個 Span ID，在上下游有不同角色名稱</h2>
+<pre><code>00-3295c1225c7a9afdc7ce066a20e0503a-6ac9514f41c5b99d-01
+│  │                                │                │
+版本 整條 trace 的 ID                 上游 span 的 ID   flags</code></pre>
+<p>W3C version 00 的正式欄位名依序是 <code>version</code>、<code>trace-id</code>、<code>parent-id</code>、<code>trace-flags</code>。Trace ID 為 32 位 hex；parent-id 為 16 位 hex，兩種 ID 都不能全零。</p>
+<pre><code>Browser span A
+  spanId = 6ac9514f41c5b99d
+  │ 把 A 放進 outgoing header 的 parent-id
+  ▼
+Backend span B（直接接續且沒有中間 span 的例子）
+  spanId       = 後端自己的新 ID
+  parentSpanId = 6ac9514f41c5b99d
+  traceId      = 與 A 相同</code></pre>
+<p>因此「上游 Span ID」與 header 的「parent-id」不矛盾：前者說這個值屬於誰，後者說它在傳輸格式中的角色。<code>01</code> 表示 sampled bit 已設定，不保證 export、接收、保存或保留期限內查詢都成功。</p>
+<p class="cite"><a href="https://www.w3.org/TR/trace-context/#traceparent-header">W3C Trace Context</a>；完整查表與 sampler 問答見 <a href="0006-w3c-traceparent.html">Reference 0006</a>。</p>
+
+<h2 id="story">3. 把三個觀察串成一段有邊界的說明</h2>
+<pre><code>Business request 的 traceparent = T / A
+  │ ID 比對
+  ├─ Faro event.trace = T / A
+  └─ 匯出的 Browser span = T / A
+       │ 再到 Tempo 核對
+       ▼
+同 trace T 的 Backend span B
+  parentSpanId = A（直接 parent 的情況）</code></pre>
+<p>前三個觀察支持「Browser 建立 context、帶入業務 request，並在 telemetry 中送出相關資料」。最後一個觀察才支持「Backend 接續了這個上游 context」。Browser 可以看到自己產生的 spans 及其中的 parent 欄位，但一般不會從自己的 /alloy payload 看到後端獨立匯出的 server span。</p>
+<p>若中間有已插樁的 gateway／proxy，Backend 的直接 parent 可以是中間 span，不必直接等於 A；此時要逐段驗證同 trace 的 ancestor chain。單看時間接近、相同 Trace ID 或 UI 顏色，都不等於已證明直接父子關係。</p>
+
+<h2 id="runtime">4. 用產生資料的 Runtime 判斷前後端，不用顏色</h2>
+<p>先找 span 所屬的 <strong>Resource</strong>，也就是描述產生資料之服務與執行環境的共同屬性，再看 instrumentation scope 與 span 的操作角色。</p>
+<div class="table-wrap"><table><thead><tr><th>歷史 IDP 例子的線索</th><th>Browser 端</th><th>Backend 端</th></tr></thead><tbody>
+<tr><td>service.name</td><td>IDP-Portal</td><td>IDP-Keychain-API</td></tr>
+<tr><td>Resource</td><td>process.runtime.name = browser；telemetry.sdk.language = webjs；Faro distro。</td><td>telemetry.sdk.language = dotnet；另有 container／Kubernetes 部署屬性。</td></tr>
+<tr><td>Instrumentation scope</td><td>XMLHttpRequest instrumentation。</td><td>Microsoft.AspNetCore。</td></tr>
+<tr><td>這次邊界上的 kind</td><td>CLIENT：送出 HTTP。</td><td>SERVER：處理收到的 HTTP。</td></tr>
+</tbody></table></div>
+<p>這些欄位是歷史對話報告的值，不保證每個 SDK／版本都填完全相同的欄位。<code>service.name</code> 也只是設定名稱；應配合已知部署角色、runtime、scope 與 parent chain 判讀。</p>
+<p>下圖是操作角色的示意，不是原對話未附完整 JSON 的 IAM 路徑重建：</p>
+<pre><code>Browser CLIENT
+  │ 呼叫
+  ▼
+Keychain SERVER
+  │ 在後端建立向外呼叫
+  ▼
+Keychain CLIENT
+  │ 呼叫另一個後端
+  ▼
+IAM Topology SERVER</code></pre>
+<p><strong>CLIENT 是這次 operation 的呼叫角色，不是「前端」的同義詞。</strong>後端呼叫其他服務也會建立 CLIENT span。UI 的顏色沒有「黃色必為 frontend」這種 Trace Context 語意；主線對話也記錄了不同服務顏色相同的觀察。判讀分界要回到資料來源與呼叫關係。</p>
+<p class="cite"><a href="https://opentelemetry.io/docs/specs/otel/trace/api/#spankind">OpenTelemetry SpanKind 定義</a>；歷史欄位來源見 <a href="../sources/materials/2026-10-22-faro-conversation-materials.md">主線 Turn 8</a>。</p>
+
+<h2 id="raw-json">5. Parent 欄位未顯示時，查原始 Trace 資料</h2>
+<p>某些 Grafana detail view 只顯示 Span ID。Tree 的縮排表達關係，但要直接做等號比對，需使用可取得的 trace 匯出資料或該 datasource 的 query API。UI 按鈕與 API 路徑依版本／部署而異；本次沒有重新驗證內部介面，不編造按鈕位置。</p>
+<p>主線對話記錄的歷史 Trace <code>fd778573afcedbadfb854d68716708cf</code> 有以下摘錄：</p>
+<pre><code>Portal CLIENT
+  spanId = "WdMbrwohow0="
+
+Keychain SERVER
+  spanId       = "k6tmuVMYCm8="
+  parentSpanId = "WdMbrwohow0="</code></pre>
+<p>這份摘錄支持直接比較兩個相同字串；但原始 API 回應未隨附件提供，所以它是<strong>對話報告的案例</strong>，不是本次新捕捉的 runtime evidence。</p>
+<pre><code>Base64 WdMbrwohow0= → bytes → hex 59d31baf0a21a30d
+Base64 k6tmuVMYCm8= → bytes → hex 93ab66b953180a6f</code></pre>
+<p>上述轉換已做離線核對。不要把「JSON ID 一律是 Base64」當規則：一般 Protobuf JSON bytes 可用 Base64，但 OTLP/JSON 對 trace/span IDs 採 hex。先確認來源與表示法，再以相同 bytes／hex 比對；不能對已是 hex 的 ID 又做 Base64 decode。</p>
+<p class="cite"><a href="https://opentelemetry.io/docs/specs/otlp/#json-protobuf-encoding">OTLP JSON Protobuf Encoding</a>；既有完整 Browser／Tempo 範例與截圖請回 <a href="../lessons/0008-verifying-single-trace-browser-to-tempo.html#exact-ids">Lesson 8</a>。</p>
+
+<h2 id="query">6. 分清「沒有觀測證據」與「確定沒有發生」</h2>
+<div class="table-wrap"><table><thead><tr><th>觀察</th><th>下一步與限制</th></tr></thead><tbody>
+<tr><td>操作後才開 Network。</td><td>Preserve log 不能補回未記錄的 request。從有界時間窗、service、method、URL 找候選，保留關聯強度的限制。</td></tr>
+<tr><td>Dashboard Job 選了前端但沒有結果。</td><td>檢查 time range、大小寫、duration 單位、method、URL、namespace 與 panel 實際 query；不是自動判定 propagation 失敗。</td></tr>
+<tr><td>後端 span 看起來沒有 parent。</td><td>只能先描述儲存資料；缺少原 request／完整 trace 時，不能只靠它斷言 Browser 沒送 header。</td></tr>
+<tr><td>舊分頁失敗，重新載入後成功。</td><td>支持優先核對實際載入版本與初始化狀態；沒有 bundle／runtime 證據，不能宣稱已唯一定位根因。</td></tr>
+<tr><td>POST /alloy 回 202。</td><td>是 HTTP 接收結果，不是 Tempo／Loki 可查詢或長期保存保證。</td></tr>
+<tr><td>長 trace 有多個慢 child spans。</td><td>先看起訖與重疊，不直接相加。最長 downstream call 是候選瓶頸，不是僅憑一個 duration 就證明根因。</td></tr>
+</tbody></table></div>
+<p>原紀錄中的 41 秒案例 Trace ID 字串只有 31 位，不符合本課採用的 32 位 W3C 表示；未取得原始回應前不自行補零或猜字元，也不據此判定當時查詢必然失敗。其他歷史 Trace 也可能已超過 retention；查不到舊例子不等於目前平台故障。</p>
+<div class="box ask"><strong>安全的重現方式</strong><br>優先使用唯讀 request、已核准的測試環境或隔離測試。單次 abort 不保證後續 interceptor／OAuth retry 不會送出另一筆寫入；不可把「預計攔截」當作「一定不建立 Credential」的保證。本教材不要求對真實資料重播建立／刪除操作。</div>
+
+<h2 id="cors">7. 跨來源傳播需要允許實際 Request 的條件</h2>
+<p>同源由 scheme、host、port 判斷；同源 request 不需要 CORS 授權，但仍需要 instrumentation 與 propagation 正常運作。跨來源加入 <code>traceparent</code> 這種非 safelisted request header 時，需要通過適用的 preflight；若已有有效 preflight cache，Network 不一定每次出現新的 OPTIONS。</p>
+<p>既有合法的 ASP.NET Core CORS policy 要接受一個跨來源的 JSON POST，且實際只有 Content-Type 與 traceparent 這兩個相關 request headers 時，可對照：</p>
+<pre><code>// Policy 內容範例；仍須註冊並套用到正確 endpoint。
+policy
+    .WithOrigins("https://frontend.example.com")
+    .WithMethods("POST")
+    .WithHeaders("Content-Type", "traceparent");</code></pre>
+<p>這不是完整 Program.cs。實際有 Authorization、credentials 或其他 headers，必須保留並依需求一併允許；不要用只剩 traceparent 的 WithHeaders 覆蓋原有清單。<code>Access-Control-Expose-Headers</code> 則控制 JavaScript 可讀的 response headers，不能替代 request header 的允許設定。</p>
+<p><code>traceparent</code> 足以承載這個基本 parent 關係；<code>tracestate</code> 用於額外 tracing-system state，不是每筆都必有。但實際 propagator 會送出 tracestate 時，就應按需要允許並保留，不應因簡化範例而全面移除。<code>baggage</code> 也不是本案例必填。</p>
+<p>Cross-origin safelisted（常稱 simple）request 可以不先 preflight，response 仍受 CORS 讀取限制。因此「沒有 OPTIONS」不等於「沒有 CORS」。業務 API 的 CORS 與 collector /alloy 的 CORS 是兩個 endpoint 的契約，不能混用。</p>
+<p class="cite"><a href="https://learn.microsoft.com/en-us/aspnet/core/security/cors?view=aspnetcore-10.0">ASP.NET Core CORS</a>、<a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS">MDN CORS</a>。前置概念見 <a href="0004-cors-preflight.html">Reference 0004</a>。</p>
+
+<h2>Self-check</h2>
+<div class="quiz" data-quiz><div class="question">Backend 的下一層出現 kind=CLIENT，能直接得出哪個結論？</div><div class="choices">
+<button class="choice" data-correct="false" data-feedback-incorrect="CLIENT 不是 frontend 的分類標籤。">這一層必然回到前端</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="後端也可建立 CLIENT span，不代表資料錯誤。">這一層必然記錄錯誤</button>
+<button class="choice" data-correct="true" data-feedback-correct="Kind 描述 operation 角色；資料來源與 runtime 要另看 Resource。">這一層描述呼叫角色</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="不能由 kind 推斷 UI 應使用哪個顏色。">這一層應使用前端色</button>
+</div><div class="feedback" aria-live="polite"></div></div>
+<div class="quiz" data-quiz><div class="question">API header 與 event.trace 都是 T/A，但尚未查看後端 span。哪個結論有足夠證據？</div><div class="choices">
+<button class="choice" data-correct="true" data-feedback-correct="已看見 Browser 端相符的 context；後端如何接續仍需獨立證據。">前端 context 可以對上</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="尚未查看後端 span 及 parent chain。">後端 parent 已經對上</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="尚未核對 query 結果，也沒有持久化保證。">全部資料已經持久化</button>
+<button class="choice" data-correct="false" data-feedback-incorrect="一筆觀察不能擴大到所有請求。">所有請求已完成串接</button>
+</div><div class="feedback" aria-live="polite"></div></div>
+<h2>Recap</h2>
+<ul><li>meta 是背景；event.trace 是關聯；traces 裡才是完整 spans。</li><li>Header parent-id 承載上游 spanId；下游另建自己的 spanId。</li><li>Frontend／Backend 看 Resource、已知部署與 scope；CLIENT／SERVER 看操作角色。</li><li>直接 parent equality 與經 proxy 的 ancestor chain 是不同驗證形態。</li><li>原始 JSON 的表示法先辨認再轉換；歷史對話不能冒充本次 runtime capture。</li><li>查詢空白、未錄到 header、HTTP 202 與 sampled flag 都有各自的證據上限。</li><li>CORS 允許真實 request 的 origin、method、headers；traceparent-only 片段不是完整應用設定。</li></ul>
+<p>實作練習請回主課，依同一筆 request 的 ID 一步一步比對；遇到無法支持的結論，先保留未知並向教學 agent 提供實際 evidence。</p>
+<nav class="lesson-nav" aria-label="返回主課"><a href="../lessons/0008-verifying-single-trace-browser-to-tempo.html#runtime-boundary">← 回 Lesson 8</a><a href="0011-faro-batching-and-queues.html">Queue／Batch 支線 →</a><a href="../learning-map/index.html">Learning Map</a></nav>
+</body></html>
