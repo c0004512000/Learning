@@ -9,7 +9,7 @@
 </head>
 <body>
   <h1>Faro tracing ownership 與 propagation 邊界</h1>
-  <p class="subtitle">Internal package、Grafana Faro、OpenTelemetry 到底各自做哪一段，以及 <code>traceparent</code> 實際怎麼進入 request</p>
+  <p class="subtitle">Internal package → Faro → OpenTelemetry：<code>service.name</code> 的產生與 <code>traceparent</code> 的傳遞</p>
 
   <div class="box tip">
     <strong>一句話版本</strong><br>
@@ -75,7 +75,79 @@ WebTracerProvider / propagation API
     Internal package 是「幫你配置」；Faro 是「把元件接起來」；OpenTelemetry 是「提供真正的 tracing / propagation primitives」。不要把三層都叫成「Faro SDK 自己做的」。
   </div>
 
-  <h2>2. 設定階段：這時候還沒有任何 request</h2>
+
+  <h2 id="app-name-service-name">2. <code>app.name</code> 是怎麼變成 <code>service.name</code> 的？</h2>
+
+  <p>先用已知的應用設定 <code>app.name = "idp-portal"</code> 開始。OpenTelemetry 除了儲存每個 operation 的 Span，也需要描述「產生這些 spans 的服務」；這份服務層級的資訊稱為 <strong>Resource</strong>，其中一個欄位是 <code>service.name</code>。</p>
+
+  <figure class="diagram">
+    <figcaption><strong>這是在 Browser 裡初始化 tracing 時發生的值指定，不是 Grafana 查詢時做字串轉換</strong></figcaption>
+    <pre><code>Application
+  initFaro({ app: { name: "idp-portal" }, ... })
+        │ passes app config
+        ▼
+Internal SDK
+  initializeFaro({ app: ..., instrumentations: [...] })
+        │ initializes
+        ▼
+Faro TracingInstrumentation.initialize()
+  this.config.app.name = "idp-portal"
+        │ assigns to OTel resource attribute
+        ▼
+attributes["service.name"] = "idp-portal"
+        │ creates Resource
+        ▼
+OpenTelemetry WebTracerProvider({ resource })
+        │ associates Resource with frontend spans
+        ▼
+Faro export → Alloy / Collector → Tempo
+  frontend Resource: service.name = "idp-portal"</code></pre>
+  </figure>
+
+  <p><strong>誰做的？</strong>公司 SDK 把 app config 傳給 Grafana Faro 並啟用 tracing；<strong>Grafana <code>@grafana/faro-web-tracing</code></strong> 讀取設定、指定 Resource attribute；OpenTelemetry 提供 <code>Resource</code> 與 <code>WebTracerProvider</code>。Faro v2.8.2 的實際程式碼是：</p>
+
+  <pre><code>if (this.config.app.name) {
+  attributes[ATTR_SERVICE_NAME] = this.config.app.name;
+}
+Object.assign(attributes, options.resourceAttributes);
+const resource = defaultResource().merge(
+  resourceFromAttributes(attributes)
+);
+const provider = new WebTracerProvider({ resource, /* ... */ });</code></pre>
+
+  <p><code>ATTR_SERVICE_NAME</code> 對應標準屬性鍵 <code>"service.name"</code>。上面的指定<strong>直接保留原字串</strong>；預設不改大寫、小寫、句點或連字號，例如 <code>IDP.Portal</code> 不會因此變成 <code>IDP-Portal</code>。</p>
+
+  <div class="box ask">
+    <strong>精確的成立條件</strong>
+    <ul>
+      <li><code>app.name</code> 必須有值，Faro 才會走這段指定。</li>
+      <li>接著才執行 <code>Object.assign(attributes, options.resourceAttributes)</code>；若低階 Faro tracing option 明確提供同名 <code>service.name</code>，就可能覆寫。<strong>這不代表公司內部 SDK 已公開這個 option</strong>。</li>
+    </ul>
+  </div>
+
+  <h3>四種名稱／ID，不要混在一起</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>資訊</th><th>所在位置</th><th>作用</th></tr></thead>
+      <tbody>
+        <tr><td><code>service.name</code></td><td>frontend OTel <strong>Resource</strong></td><td>這些 frontend spans 屬於哪個應用／服務。</td></tr>
+        <tr><td><code>traceId</code> / <code>spanId</code></td><td>Span tracing context</td><td>區分整條 trace 和個別 operation。</td></tr>
+        <tr><td><code>traceparent</code></td><td>Business HTTP request header</td><td>跨 Browser/backend 傳 trace ID、parent ID 與 flags；<strong>不含 service name</strong>。</td></tr>
+        <tr><td>Grafana Dashboard <code>Job</code></td><td>另一條 release / Dashboard 流程</td><td>查詢要篩哪個名字；<strong>Faro 不會自動建立或同步 Job</strong>。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>同一條 distributed trace 的 frontend 和 backend <strong>可以有不同的 <code>service.name</code></strong>。它們靠 trace ID 與 span parent 關係串接，而不是靠服務名稱相同。Loki 的 <code>service_name</code> 則是 downstream logs 的查詢 label，不能說是同一行 Resource 指派。</p>
+
+  <div class="box tip">
+    <strong>Production case｜Trace 存在，Dashboard 卻找不到</strong><br>
+    IDP Portal 的 runtime evidence 記錄 <code>app.name="idp-portal"</code>，但 Dashboard Job 選的是 <code>IDP-Portal</code>。應先用 exact trace ID 在 Tempo 找 frontend Resource，核對 <code>service.name</code> 與 Dashboard filter 是否相符；不能看到空結果就認定 tracing 失敗。<a href="../lessons/0008-verifying-single-trace-browser-to-tempo.html#verify-service-identity">Lesson 8 實務驗證 →</a>
+  </div>
+
+  <p class="cite">Source chain：<a href="https://github.com/grafana/faro-web-sdk/blob/v2.8.2/packages/web-tracing/src/instrumentation.ts">Grafana Faro v2.8.2 tracing source</a>（v2.9.0 同段一致）；<a href="../sources/evidence/faro-app-name-otel-service-name-2026-10-12.md">source-level evidence</a>；<a href="../sources/evidence/idp-portal-keychain-runtime-2026-10-05.md">IDP Portal runtime query evidence</a>。</p>
+
+  <h2>3. 設定階段：這時候還沒有任何 request</h2>
 
   <p>先把 runtime request 拿掉，只看初始化。</p>
 
@@ -99,7 +171,7 @@ Faro TracingInstrumentation
 
   <p>到這一步只是把 tracing runtime 準備好。<strong>還沒有產生 <code>traceparent</code></strong>，因為真正的 business request 還沒發生。</p>
 
-  <h2>3. Request 發生時：<code>traceparent</code> 到底怎麼被放進 header？</h2>
+  <h2>4. Request 發生時：<code>traceparent</code> 到底怎麼被放進 header？</h2>
 
   <figure class="diagram">
     <figcaption><strong>一筆 Browser business request 的 runtime sequence</strong></figcaption>
@@ -148,7 +220,7 @@ Faro TracingInstrumentation
 
   <p>所以「傳遞」不是把 Browser span object 傳去 backend。真正跨網路的只有序列化後的 header value；backend 再從 header 還原 parent context。</p>
 
-  <h2>4. 到底是誰「寫」<code>traceparent</code>？</h2>
+  <h2>5. 到底是誰「寫」<code>traceparent</code>？</h2>
 
   <div class="table-wrap">
     <table>
@@ -166,7 +238,7 @@ Faro TracingInstrumentation
 
   <blockquote>Faro 把 OpenTelemetry 的 HTTP instrumentation 與 W3C propagator 接起來；HTTP instrumentation 在 outbound request 時使用 propagation 機制，而 W3C propagator 負責把目前 SpanContext 序列化成標準 header。</blockquote>
 
-  <h2>5. <code>backendUrls</code> 到底控制什麼？</h2>
+  <h2>6. <code>backendUrls</code> 到底控制什麼？</h2>
 
   <pre><code>backendUrls
    │
@@ -190,7 +262,7 @@ propagateTraceHeaderCorsUrls
 
   <p>它的責任很單純：告訴 browser HTTP instrumentation，哪些 target URL 可以參與 cross-origin trace-header propagation。</p>
 
-  <h2>6. 為什麼一定要把 propagation 與 telemetry export 畫成兩條線？</h2>
+  <h2>7. 為什麼一定要把 propagation 與 telemetry export 畫成兩條線？</h2>
 
   <pre><code>Path A — Business request / context propagation
 
@@ -217,7 +289,7 @@ Backend span B
 
   <p>所以 request 裡看到 <code>traceparent</code>，不等於 Tempo 一定會看到完整 trace；反過來，兩邊都有 spans，也不代表它們一定被串成同一條 trace。</p>
 
-  <h2>7. 一張表記住 ownership</h2>
+  <h2>8. 一張表記住 ownership</h2>
 
   <div class="table-wrap">
     <table>
@@ -234,7 +306,7 @@ Backend span B
     </table>
   </div>
 
-  <h2>8. Source evidence</h2>
+  <h2>9. Source evidence</h2>
 
   <p>這個 ownership 不是從 package 名稱猜出來的，而是直接從 source chain 切分：</p>
 
@@ -251,6 +323,6 @@ Backend span B
     如果 <code>traceparent</code> 根本沒出現在 business request：先查 frontend instrumentation / URL matching / propagation。若 header 已存在但 backend trace ID 不同：查 backend extraction。若 relationship 正確但 Tempo 缺 span：再查 export pipeline。
   </div>
 
-  <p><a href="../lessons/0007-frontend-backend-trace-context-propagation.html">← 回到 Lesson 7</a> · <a href="0006-w3c-traceparent.html">W3C traceparent 快速查表</a> · <a href="../learning-map/index.html">Learning Map →</a></p>
+  <p><a href="../lessons/0007-frontend-backend-trace-context-propagation.html">← 回到 Lesson 7</a> · <a href="../lessons/0008-verifying-single-trace-browser-to-tempo.html#verify-service-identity">Lesson 8｜驗證 service.name</a> · <a href="0006-w3c-traceparent.html">W3C traceparent 快速查表</a> · <a href="../learning-map/index.html">Learning Map →</a></p>
 </body>
 </html>
