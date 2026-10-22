@@ -10,264 +10,146 @@
 </head>
 <body>
   <h1>How ClickInstrumentation Handles Browser Clicks</h1>
-  <p class="subtitle">Milestone 1 · Browser Event → Faro click telemetry</p>
+  <p class="subtitle">Milestone 1 · 從 Browser Event 到有應用語意的 click telemetry</p>
+  <div class="box tip"><strong>本課目標</strong><br>給你一個被點擊的 DOM element，能沿著 listener、attribute extraction 與 payload，說明這次 click 是否會形成 Faro event。</div>
+  <p>先沿用 <a href="0001-browser-click-foundation.html">Lesson 1</a>：Browser 決定點擊的 target，再依事件路徑呼叫 listener。這堂課只追 listener 收到事件之後，套件如何讀取應用標記。</p>
+  <p class="cite">本課的 Foreman 設定與數量以 <a href="../sources/evidence/data-link-name-investigation-2026-09-17.md">2026-09-17 source investigation</a>、<a href="../sources/evidence/data-link-name-clickable-inventory-2026-09-17.md">同日 template inventory</a>及 <a href="../sources/evidence/faro-click-tracking.md">套件實作證據</a>為準；不是所有 Faro 應用的固定設定。</p>
 
-  <div class="box tip">
-    <strong>這堂課的目標</strong><br>
-    理解為什麼 listener 掛在 <code>document</code>，ClickInstrumentation 卻從 <code>event.target</code> 開始找資料；並能說出 Foreman Assistant 現在實際追蹤哪些 attribute、誰建立它、最後 payload 會送什麼。
-  </div>
+  <h2 id="listener">1. Listener 所在位置，不等於點擊起點</h2>
+  <pre><code>document.addEventListener('click', this.handleClick)
 
-  <div class="box ask">
-    <strong>本課 References</strong><br>
-    <a href="0001-browser-click-foundation.html">Lesson 1：target / currentTarget / bubbling →</a><br>
-    <a href="../sources/evidence/faro-click-tracking.md">Faro click-tracking evidence →</a><br>
-    <a href="../sources/evidence/foreman-integration.md">Foreman Assistant integration evidence →</a>
-  </div>
+currentTarget = document
+  → 這次 callback 所屬 listener 的位置
 
-  <h2>1. listener 在哪裡，和 click 從哪裡開始，是兩件事</h2>
+target = 使用者原先點到的 element
+  → 例如按鈕裡的 span</code></pre>
+  <p>Listener 掛在 <code>document</code>，不代表要從 document 讀業務資料。套件要知道「這次點擊對應哪個功能」，所以從 <code>event.target</code> 開始查找。</p>
 
-  <p>ClickInstrumentation 註冊的是：</p>
-
-  <pre><code>document.addEventListener('click', this.handleClick)</code></pre>
-
-  <p>當 descendant click bubble 到 <code>document</code>，Browser 呼叫 <code>handleClick(event)</code>。這時：</p>
-
-  <pre><code>event.currentTarget → document
-                      目前正在執行 listener 的 object
-
-event.target        → 使用者最初點到的 element
-                      例如 span / button / a</code></pre>
-
-  <p>所以 <code>currentTarget</code> 回答「listener 現在在哪裡執行」；<code>target</code> 回答「這次 click 最初命中哪個 element」。</p>
-
-  <h2>2. 為什麼 extraction 要從 <code>event.target</code> 開始？</h2>
-
-  <p>因為 <code>currentTarget</code> 在這條 listener 裡幾乎永遠只會告訴你：</p>
-
-  <pre><code>currentTarget = document</code></pre>
-
-  <p>但 ClickInstrumentation 真正想知道的是：</p>
-
-  <blockquote>這次 click 是從 DOM tree 的哪個位置進來？它自己或它的 ancestors 上，有沒有我要追蹤的 attribute？</blockquote>
-
-  <p>因此搜尋起點必須是 <code>event.target</code>。</p>
-
-  <div class="box tip">
-    <strong>讀 <code>event.target</code> 不代表 listener 掛在 target 上。</strong><br>
-    listener 仍在 <code>document</code>。<code>target</code> 只是 Browser Event 保留的原始命中 element reference。
-  </div>
-
-  <h2>3. <code>closest()</code> 解決 ancestor 上才有 attribute 的情況</h2>
-
-  <pre><code>&lt;p-button data-link-name="MCCS"&gt;
+  <h2 id="selector">2. 從內層文字，找回被標記的入口</h2>
+  <pre><code>&lt;p-button data-link-name="DailySchedule"&gt;
   &lt;button&gt;
-    &lt;span&gt;MCCS&lt;/span&gt;
+    &lt;span&gt;每日生產排程&lt;/span&gt;
   &lt;/button&gt;
 &lt;/p-button&gt;</code></pre>
+  <p>點到 <code>span</code> 時，標記卻在外層。<code>closest()</code> 先檢查自己，再沿 parent 往上找第一個符合條件的 element：</p>
+  <pre><code>span（target，沒有標記）
+  ↑ 查 parent
+button（沒有標記）
+  ↑ 查 parent
+p-button（有 data-link-name）
+  → 找到，讀取 "DailySchedule"</code></pre>
+  <pre><code>target.closest('[data-link-name]')
+      ?.getAttribute('data-link-name')</code></pre>
+  <p>整句是 JavaScript，但兩個字串的用途不同：<code>closest()</code> 接受 CSS selector，<code>[data-link-name]</code> 表示「具有這個 attribute」；<code>getAttribute()</code> 接受 attribute 名稱，因此不加中括號。<code>?.</code> 表示前一步沒找到 element 時，不再呼叫後面的讀取。</p>
+  <p>這是在找被標記的 element，不是在尋找 listener；listener 早已註冊在 document。</p>
 
-  <p>如果使用者點到內層 <code>span</code>：</p>
+  <h2 id="semantic-bridge">3. 同一個值，經過三個不同層次</h2>
+  <p>Foreman 在導入 Faro 前就有 <code>subsystem</code> 功能識別值，例如 <code>DailySchedule</code>。原本的應用也會把它交給自己的 <code>insertForemanWebLog(topic, system.subsystem)</code>；這是應用函式，不是 Browser API。</p>
+  <p>2026-08-20 的整合 commit 才把該值寫入 Main template 的 tracking attribute：</p>
+  <pre><code>[attr.data-link-name]="item.subsystem"</code></pre>
+  <pre><code>Application state
+item.subsystem = "DailySchedule"
+  │ Angular binding 寫入
+  ▼
+DOM attribute
+data-link-name="DailySchedule"
+  │ ClickInstrumentation 讀取並改寫 key
+  ▼
+Telemetry payload
+{ link_name: "DailySchedule" }</code></pre>
+  <p>值可以相同，但位置與責任不同：宿主應用提供語意，Angular 把值寫到 DOM，套件從 DOM 擷取。套件不是直接讀 Angular 的 <code>item</code>，也不是從畫面文字猜功能名稱。</p>
+  <p>HTML 提供標準的 <code>data-*</code> 自訂屬性機制；<code>data-link-name</code> 這個具體名稱則是這個整合選用的 contract，不是 HTML、Faro 或 OpenTelemetry 通用必填欄位。</p>
 
-  <pre><code>event.target = span
+  <h2 id="coverage">4. 設定決定讀哪些欄位，標記決定涵蓋哪些入口</h2>
+  <pre><code>trackAttributes: ['data-link-name']</code></pre>
+  <p><code>trackAttributes</code> 是要擷取的欄位清單，不是 listener 清單。若設定多個 attribute，套件會從同一個 target 分別執行各自的 <code>closest()</code> 查找；不同欄位可以來自不同 ancestor。</p>
+  <p>在已查核的 Foreman template inventory 中，48 個 <code>p-button</code> declaration 只有 6 個自身帶有 <code>data-link-name</code>：一個 Main subsystem tile template，以及五個 Toolbar 功能。Main template 會經迴圈產生多個實際入口，所以「6 個 declaration」不等於「畫面只有 6 顆按鈕」。</p>
+  <pre><code>UserGuide.UserGuide
+ReferenceDocument.SDS
+ReferenceDocument.AI
+ReferenceDocument.ForemanManual
+Contact.ContactAdministrator</code></pre>
+  <p>同份 inventory 的兩個原生 <code>&lt;a&gt;</code> declaration 沒有這個標記。因此這裡的 link 不是「所有超連結」：目前是選擇性追蹤功能入口，不是完整 clickstream。未標記 element 的 click 仍可能因 ancestor 有標記而被擷取；應沿實際 DOM 路徑判斷。</p>
 
-document
-  └── ...
-      └── p-button[data-link-name="MCCS"]
-          └── button
-              └── span  ← target</code></pre>
-
-  <p>ClickInstrumentation 從 <code>span</code> 往 ancestor 找：</p>
-
-  <pre><code>span                              ✗
-  ↑
-button                            ✗
-  ↑
-p-button[data-link-name="MCCS"]   ✓</code></pre>
-
-  <p>這就是 <code>closest('[data-link-name]')</code> 的用途。它不是找 listener，而是找「離 target 最近、具有指定 attribute 的 ancestor / self」。</p>
-
-  <h2>4. <code>data-*</code> 是誰建立的？</h2>
-
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>角色</th><th>責任</th></tr></thead>
-      <tbody>
-        <tr><td>Browser / HTML</td><td>原生支援 <code>data-*</code> custom data attributes。</td></tr>
-        <tr><td>Foreman developer</td><td>在 template / component markup 上實際加上 <code>data-link-name</code> 與它的值。</td></tr>
-        <tr><td>Faro click package</td><td>不建立這些 DOM attributes；只依 <code>trackAttributes</code> 去讀。</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <pre><code>Developer marks DOM
-      ↓
-data-link-name exists
-      ↓
-ClickInstrumentation reads it
-      ↓
-Faro payload</code></pre>
-
-  <h2>5. Foreman Assistant 現在實際追蹤哪些 attributes？</h2>
-
-  <p>目前已驗證的初始化設定只有：</p>
-
-  <pre><code>trackAttributes: [
-  'data-link-name'
-]</code></pre>
-
-  <p>所以現在的 Foreman click tracking 並沒有設定 <code>data-page</code>、<code>data-action</code>、<code>data-panel-topic</code>。</p>
-
-  <p>目前已驗證有 <code>data-link-name</code> 的地方包含：</p>
-
-  <ul>
-    <li>主畫面的 subsystem 入口：<code>[attr.data-link-name]="item.subsystem"</code>。</li>
-    <li>Toolbar 的五個 static link：User Guide、Reference Document、AI、Foreman Manual、Contact Administrator。</li>
-  </ul>
-
-  <p>DOM 裡即使還有其他 <code>data-*</code>，例如 <code>data-red-light-count</code>，只要沒有列進 <code>trackAttributes</code>，就不會進 click payload。</p>
-
-  <h2>6. 現在 payload 會送什麼？</h2>
-
-  <p>例如 ancestor 上有：</p>
-
-  <pre><code>data-link-name="MCCS"</code></pre>
-
-  <p>ClickInstrumentation 會形成：</p>
-
-  <pre><code>{
-  link_name: "MCCS"
-}</code></pre>
-
-  <p>轉換規則：</p>
-
+  <h2 id="payload">5. 先形成 payload，再判斷是否送出</h2>
   <pre><code>data-link-name
-  ↓ remove "data-"
-  ↓ replace "-" with "_"
+  │ 移除 data- 前綴
+  ▼
+link-name
+  │ 將 - 改為 _
+  ▼
 link_name</code></pre>
+  <p>命中 <code>data-link-name="DailySchedule"</code> 後，核心 click payload 是 <code>{ link_name: "DailySchedule" }</code>。DOM 上其他未設定的欄位不會因為存在就自動全部收集。</p>
+  <pre><code>Browser Event 到達 document listener
+  │ 呼叫 handler
+  ▼
+從 event.target 依 trackAttributes 查找
+  ├─ 沒有讀到資料 → payload 為空 → 不送 event
+  └─ 有讀到資料 → 組成 payload
+       │ 檢查同 target 的重複 click
+       ├─ 約 300 ms 內重複 → throttle
+       └─ 通過 → api.pushEvent('click', payload)</code></pre>
+  <p>如果事件在抵達 document 前被阻止冒泡，這個 listener 也收不到它。反過來，即使 listener 收到了 Browser click，也不代表一定會送出 Faro event。</p>
+  <p><strong>Browser Event 與 Faro telemetry event 是不同物件。</strong>前者供 Browser 分派 callback；後者是套件依設定建立的觀測資料。<code>pushEvent()</code> 也不等於當場完成一個 HTTP POST；傳送機制留到 <a href="0005-faro-browser-to-alloy-transport.html">Lesson 5</a>。</p>
 
-  <p>現行 click payload 只包含命中的 configured <code>trackAttributes</code>。它不會自動塞入所有 DOM 資訊。</p>
-
-  <h2>7. User / device 是另外的 metadata 路徑</h2>
-
-  <pre><code>Click payload
-└── link_name       ← data-link-name
-
-User state
-└── id / username   ← getUser() / Faro user state
-
-Device metadata
-└── device.type     ← device detector</code></pre>
-
-  <p>因此不要把 user、device 誤認為 ClickInstrumentation 從 DOM 抽出的額外 click attributes。</p>
-
-  <h2>8. 什麼情況不會送 click telemetry？</h2>
-
-  <p>第一種：target 與 ancestors 都找不到 <code>data-link-name</code>。</p>
-
-  <pre><code>closest('[data-link-name]') → not found
-payload = {}
-→ stop
-→ 不呼叫 pushEvent()</code></pre>
-
-  <p>第二種：同一個 <code>EventTarget</code> 在約 300 ms 內重複 click，後續事件會被 throttle。</p>
-
-  <h2>9. 目前 Foreman 的完整 click 資料流</h2>
-
-  <pre><code>User click
-    │ Browser determines target
-    ▼
-Browser Event
-    │
-    │ target = original clicked element
-    │ currentTarget = document
-    ▼
-document listener
-    │ Browser calls
-    ▼
-ClickInstrumentation.handleClick(event)
-    │
-    ├── start from event.target
-    │
-    ├── find configured attribute
-    │      └── data-link-name only
-    │
-    ├── closest('[data-link-name]')
-    │
-    ├── not found → empty payload → stop
-    │
-    ├── found → { link_name: value }
-    │
-    ├── same target within 300 ms → stop
-    │
-    ▼
-api.pushEvent('click', payload)
-    │
-    ▼
-Faro click telemetry</code></pre>
+  <h2 id="context">6. Click 語意與背景資料分開理解</h2>
+  <pre><code>DOM data-link-name → click payload.link_name
+宿主的 getUser()  → Faro user state
+device detector  → Faro device meta</code></pre>
+  <p>User 與 device 不是這個 handler 額外從 DOM 抽出的 click attributes。先把本課的 extraction 模型穩住；<a href="0004-user-device-environment-context.html">Lesson 4</a> 再說明背景資料何時更新，以及如何與 click signal 組合。</p>
+  <p><a href="../reference/0009-data-link-name-device-adoption.html">Reference｜三層語意、CSS selector 與 Device Adoption</a>保留較完整的查表與 KPI 邊界。</p>
 
   <h2>Self-check</h2>
-
   <div class="quiz" data-quiz>
-    <div class="question">Q1. 為什麼 document listener 裡要從 <code>event.target</code> 開始找 attribute？</div>
+    <div class="question">Listener 在 document，點擊命中內層 span；擷取屬性應從哪裡開始？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="listener 實際仍掛在 document。">因為 listener 掛在 target 上</button>
-      <button class="choice" data-correct="true" data-feedback-correct="target 保留原始 click element，可作為 ancestor lookup 起點。">因為它保留原始 click element</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="currentTarget 有 reference，只是此時它是 document。">因為 currentTarget 沒有 reference</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="target 是 Browser 決定的，不是 Faro 建立的。">因為 Faro 會重建 target</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
+      <button class="choice" data-correct="false" data-feedback-incorrect="document 是 listener 的位置，不是這次點擊的業務起點。">從 document 開始查找</button>
+      <button class="choice" data-correct="true" data-feedback-correct="target 保留原始命中位置，再由 closest 往 ancestor 查找。">從 event.target 開始查找</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="這個 handler 的 currentTarget 是 document。">從 currentTarget 開始查找</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="套件依 DOM 標記擷取，不是從 Angular state 開始。">從 item.subsystem 開始查找</button>
+    </div><div class="feedback" aria-live="polite"></div>
   </div>
-
   <div class="quiz" data-quiz>
-    <div class="question">Q2. Foreman 現在的 <code>data-link-name</code> 是誰建立在 DOM 上的？</div>
+    <div class="question">[attr.data-link-name]="item.subsystem" 的責任是什麼？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="Browser 只提供 data-* 能力，不知道你的業務語意。">Browser 自動產生</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Faro package 只讀，不會替 DOM 加這個 attribute。">Faro SDK 自動產生</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Alloy 不負責修改 Browser DOM。">Grafana Alloy 寫入</button>
-      <button class="choice" data-correct="true" data-feedback-correct="Foreman developer 在 template / markup 上主動標記。">Foreman developer 標記</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Faro 不負責建立應用的 subsystem。">由 Faro 建立識別資料</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="這行是 template binding，不是 network transport。">由 Browser 直接送資料</button>
+      <button class="choice" data-correct="true" data-feedback-correct="Angular 將既有 application value 寫到 DOM attribute。">由應用寫入 DOM 屬性</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="值來自 item.subsystem，而不是由畫面文字推導。">由畫面文字推導名稱</button>
+    </div><div class="feedback" aria-live="polite"></div>
   </div>
-
   <div class="quiz" data-quiz>
-    <div class="question">Q3. Foreman 現在 <code>trackAttributes</code> 的實際設定是？</div>
+    <div class="question">closest('[data-link-name]') 裡的中括號屬於哪種語法？</div>
     <div class="choices">
-      <button class="choice" data-correct="true" data-feedback-correct="目前 main.ts 已驗證只設定 data-link-name。">只有 data-link-name</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="目前沒有設定 data-page。">data-page 與 data-link-name</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="目前沒有設定 data-action。">data-action 與 data-panel-topic</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="它存在 DOM，但沒有被設定為 tracked attribute。">只有 data-red-light-count</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
+      <button class="choice" data-correct="true" data-feedback-correct="這是 CSS attribute selector；getAttribute 才直接接受 attribute name。">CSS 的屬性選擇語法</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="字串內的中括號不是建立 JavaScript array。">JavaScript 陣列語法</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="它不描述 JSON payload 的 key。">JSON 的欄位宣告語法</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="它不是 Faro 專有查詢語言。">Faro 的事件查詢語法</button>
+    </div><div class="feedback" aria-live="polite"></div>
   </div>
-
   <div class="quiz" data-quiz>
-    <div class="question">Q4. <code>data-link-name="MCCS"</code> 被命中時，核心 click payload 是？</div>
+    <div class="question">document listener 收到 click，但 target 與 ancestors 都沒有已設定的 attribute，會如何？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="user 是另一條 Faro state / metadata 路徑。"><code>{ link_name: "MCCS", user: "..." }</code></button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="device 是另一條 metadata 路徑。"><code>{ link_name: "MCCS", device: "tablet" }</code></button>
-      <button class="choice" data-correct="true" data-feedback-correct="data-link-name 會 normalize 成 link_name。"><code>{ link_name: "MCCS" }</code></button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="data- prefix 會先被移除。"><code>{ data_link_name: "MCCS" }</code></button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
+      <button class="choice" data-correct="false" data-feedback-incorrect="目前 schema 不會自動以 button 文字補值。">改用按鈕文字後送出</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="User state 不能代替 click 的語意欄位。">改用使用者 ID 送出</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="沒有資料時不是產生空的 click telemetry。">保留空白 payload 送出</button>
+      <button class="choice" data-correct="true" data-feedback-correct="空 payload 會停止這類 event；這不表示其他 instrumentation 也停止。">停止這筆 click 的送出</button>
+    </div><div class="feedback" aria-live="polite"></div>
   </div>
-
   <h2>Recap</h2>
-
   <ul>
-    <li><code>currentTarget</code> 是目前 listener 所在 object；這裡是 <code>document</code>。</li>
-    <li><code>target</code> 是原始 click element，所以是 <code>closest()</code> 搜尋的起點。</li>
-    <li>listener location 與 click origin 是兩個不同概念。</li>
-    <li><code>data-link-name</code> 由 Foreman developer 放在 DOM 上，Faro package 只讀取。</li>
-    <li>Foreman 現在 <code>trackAttributes</code> 只有 <code>data-link-name</code>。</li>
-    <li><code>data-link-name="MCCS"</code> 會形成 <code>{ link_name: "MCCS" }</code>。</li>
-    <li>找不到 attribute 就不送；同 target 約 300 ms 內重複 click 也會被擋。</li>
+    <li>Listener 在 document，extraction 從 event.target 開始；closest 依 CSS selector 找自己或 ancestor。</li>
+    <li>Application subsystem、DOM data-link-name、payload link_name 是不同層次，可承載同一個值。</li>
+    <li>trackAttributes 決定欄位；各欄位獨立查找。實際標記與事件路徑決定 coverage。</li>
+    <li>空 payload、未到達 listener、同 target 的短時間重複 click，都可能使這類 telemetry 不產生。</li>
+    <li>Browser Event、Faro event 與 HTTP request 不是同一個單位；User/device 另有資料來源。</li>
   </ul>
-
-  <p class="cite">
-    現行行為依據：<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking evidence</a>、<a href="../sources/evidence/foreman-integration.md">Foreman integration evidence</a>。
-  </p>
-
-  <p><a href="0001-browser-click-foundation.html">← Lesson 1｜How a Browser Click Reaches JavaScript</a></p>
-  <p><a href="../learning-map/">Course Map</a></p>
-  <p><strong>Next:</strong> Lesson 3｜Package Initialization, Singleton, and Public API</p>
+  <p class="cite">主教材：<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction</a>。實作與歷史：<a href="../sources/evidence/faro-click-tracking.md">package evidence</a>、<a href="../sources/evidence/data-link-name-investigation-2026-09-17.md">semantic investigation</a>。</p>
+  <p>若無法沿一個實際 element 說明這條路徑，請把卡住的 DOM 或程式片段交給教學 agent，先補那個前置觀念。</p>
+  <nav class="lesson-nav" aria-label="課程導覽">
+    <a href="0001-browser-click-foundation.html">← Lesson 1</a>
+    <a href="../learning-map/index.html">Learning Map</a>
+    <a href="0003-package-initialization-singleton-public-api.html">Lesson 3 →</a>
+  </nav>
 </body>
 </html>

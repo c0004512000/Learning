@@ -10,455 +10,189 @@
 </head>
 <body>
   <h1>User, Device, and Environment Context</h1>
-  <p class="subtitle">Milestone 2 · 同一筆 telemetry 的背景資料，誰提供、何時更新、Faro 怎麼使用</p>
+  <p class="subtitle">Milestone 2 · 一筆 telemetry 的背景，誰提供、何時更新</p>
+  <div class="box tip"><strong>本課目標</strong><br>看到 user、device、environment 時，能判斷資料來源與更新時機；需要做統計時，能先分清「計數的事件」與「事件的背景」。</div>
+  <p><a href="0002-faro-click-instrumentation.html">Lesson 2</a> 的 <code>{ link_name: "DailySchedule" }</code> 回答「點了哪個入口」。誰操作、當時使用何種輸入、在哪個環境，則是另一組問題。這些描述發生背景的資訊稱為 <strong>context</strong>，不是 ClickInstrumentation 從 DOM 擷取的欄位。</p>
+  <p>以下依 <a href="../sources/evidence/faro-click-tracking.md">內部套件實作證據</a>與 <a href="../sources/evidence/foreman-integration.md">Foreman 整合紀錄</a>解說；User 與 device 是依需求啟用的能力，不是每個前端導入都必須收集的資料。</p>
 
-  <div class="box tip">
-    <strong>這堂課的目標</strong><br>
-    看到 user、device、environment 時，你要能判斷三件事：資料原本由誰知道、package 什麼時候取得或更新它、它和 click payload 有什麼不同。最後你應該能判斷一個欄位應該由宿主應用提供，還是由共用 package 處理。
-  </div>
+  <h2 id="ownership">1. 先找真正知道資料的角色</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>資料</th><th>來源</th><th>套件責任</th></tr></thead>
+    <tbody>
+      <tr><td>User</td><td>宿主應用的登入狀態。</td><td>詢問並同步至 Faro user state。</td></tr>
+      <tr><td>Device</td><td>Browser 提供的能力與實際輸入。</td><td>依既定規則維護分類。</td></tr>
+      <tr><td>Environment</td><td>宿主應用／部署設定。</td><td>使用傳入值解析接收位置。</td></tr>
+    </tbody>
+  </table></div>
+  <p><a href="0003-package-initialization-singleton-public-api.html">Lesson 3</a> 已建立：套件保存的是同一個 Faro object 的 reference。後續同步資料作用在這個 object，不是每次再初始化一個 Faro。</p>
 
-  <p>先沿用 <a href="0002-faro-click-instrumentation.html">Lesson 2</a> 已建立的一件事：一次 click 可以產生這種資料：</p>
-
-  <pre><code>{
-  link_name: "DailyProductionSchedule"
-}</code></pre>
-
-  <p>這筆資料能回答：</p>
-
-  <blockquote>使用者點了哪個被標記的操作？</blockquote>
-
-  <p>但實際維運時，通常還會想知道另外三件事：</p>
-
-  <pre><code>誰做的？       → user
-使用什麼輸入？ → device
-在哪個環境？   → environment</code></pre>
-
-  <p>這些都不是 <code>ClickInstrumentation</code> 從 <code>data-*</code> 抽出來的 click 欄位。</p>
-
-  <p>它們是在描述「這筆 telemetry 發生時的背景」。這堂課把這類背景資料統稱為 <strong>context</strong>。</p>
-
-  <h2>1. 第一個邊界：不是所有 context 都應該由 Faro 自己猜</h2>
-
-  <p>先不看程式碼，只問一個最基本的問題：</p>
-
-  <blockquote>誰最接近真正的資料來源？</blockquote>
-
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th>資料</th><th>真正知道它的是誰？</th><th>原因</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>User</td><td>宿主應用</td><td>登入狀態、員工資料放在哪裡，是應用自己的設計。</td></tr>
-        <tr><td>Device</td><td>Browser + package</td><td>Browser 能提供觸控與實際輸入資訊，package 可以依固定規則判定。</td></tr>
-        <tr><td>Environment</td><td>宿主應用／部署設定</td><td>只有導入方知道這次啟動應該代表 tw-stage、tw-prod 或其他環境。</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <p>因此 package 的責任不是「擁有所有真相」，而是建立一致的接法：</p>
-
-  <pre><code>宿主應用知道的資料
-  │ provides
-  ▼
-@sre2/faro-click-tracking
-  │ converts / synchronizes
-  ▼
-同一個 Faro object</code></pre>
-
-  <p class="cite">這裡的「同一個 Faro object」沿用 <a href="0003-package-initialization-singleton-public-api.html">Lesson 3</a> 已建立的模型：<code>initializeFaro()</code> 建立一個 Faro object，package 只是保存它的 reference，沒有再建立第二顆。</p>
-
-  <p>接下來分別看三條路徑。</p>
-
-  <h2>2. User：package 不知道誰登入，所以它向宿主應用詢問</h2>
-
-  <p>以 Foreman Assistant 為例，真正知道目前員工是誰的不是 Faro package，而是 Foreman 自己。</p>
-
-  <p>Foreman 把員工資料放在 Browser 提供的 <code>localStorage</code>。這裡只需要把它理解成：<strong>Foreman 選擇用 Browser 裡的一塊持久儲存空間保存目前員工資料。</strong></p>
-
-  <p>Foreman 初始化 Faro 時會提供一個 <code>getUser</code> function。概念可以縮成：</p>
-
-  <pre><code>initFaro({
+  <h2 id="user">2. getUser：把讀取入口交給套件</h2>
+  <p>Foreman 選擇把員工資料放在 <code>localStorage</code>，也就是 Browser 提供的一塊持久儲存空間。這是應用的設計，不代表所有應用都應把登入資訊放在相同位置。</p>
+  <pre><code>// 說明責任的 skeleton；省略其他必要初始化參數。
+initFaro({
   getUser: () => {
-    const employee = /* 從 Foreman 自己的 localStorage 取得 */
-
-    if (!employee) return null
-
+    const employee = /* 從宿主的既有狀態讀取 */;
+    if (!employee) return null;
     return {
       id: employee.empID,
       username: employee.ename
-    }
+    };
   }
-})</code></pre>
-
-  <p class="cite">這是依 <a href="../sources/evidence/foreman-integration.md">Foreman integration evidence</a> 中 <code>src/main.ts:11-34</code> 整理的等價 skeleton，不是逐字 source。</p>
-
-  <p>這裡的設計重點不是 <code>localStorage</code> 本身，而是責任：</p>
-
-  <pre><code>Foreman
-  │ knows where its login state lives
-  │ provides getUser function reference
+});</code></pre>
+  <p>宿主先傳入一個 function reference，套件需要資料時才呼叫這個 function；這就是此處的 <strong>callback</strong>。<code>getUser</code> 負責回傳目前使用者或 <code>null</code>，不是直接把資料推進 Faro。只提供已核准的身分欄位，不把 credential 或 token 當成識別資料。</p>
+  <pre><code>宿主應用提供 getUser function
+  │ 套件之後呼叫
   ▼
-package
-  │ calls getUser() later when it needs fresh user state
+立即回傳 current user / null
+  │ 套件比較並同步
   ▼
-Faro user state</code></pre>
+同一個 Faro object 的 user state</code></pre>
+  <p><code>getUser()</code> 應快速、同步回傳既有狀態；不要在 callback 裡才等待遠端 API。Callback 仍不清楚時，先讀 <a href="../reference/0002-callback-function.html">Callback Reference</a>，再回到這一節。</p>
 
-  <p>宿主應用先把一個 function reference 交給 package，package 之後需要時才呼叫它。這就是這裡的 <strong>callback</strong>。</p>
-
-  <div class="box ask">
-    <strong>Callback 這條線如果還不穩</strong><br>
-    只回看這個概念即可：<a href="../reference/0002-callback-function.html">Reference｜Callback 到底是什麼 →</a>。看完直接回到這裡，不需要重讀前面整課。
-  </div>
-
-  <p>所以 <code>getUser</code> 不是「把 user 推進 Faro 的 function」。它比較像：</p>
-
-  <blockquote>package 要同步 user 時，用這個入口向宿主應用問：「你現在認為登入者是誰？」</blockquote>
-
-  <h2>3. User 為什麼不能只在初始化時讀一次？</h2>
-
-  <p>先看一個具體情境：</p>
-
-  <pre><code>頁面載入：尚未登入
-  ↓
-Faro 第一次詢問 → getUser() 回傳 null
-  ↓
-使用者稍後登入：employee = A123
-  ↓
-如果 package 永遠不再問 getUser()
-  ↓
-後面的 telemetry 仍會沿用舊的 user 狀態</code></pre>
-
-  <p>所以 package 需要在「有可能值得重新確認 user」的時機，再問一次 <code>getUser()</code>。</p>
-
-  <p>目前 implementation 選了四種時機：</p>
-
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>實際發生的事</th><th>Browser / package 看見什麼</th><th>接下來做什麼</th></tr></thead>
-      <tbody>
-        <tr>
-          <td><code>initFaro()</code> 剛完成</td>
-          <td>Faro object 已建立並保存</td>
-          <td>立即呼叫一次 <code>getUser()</code></td>
-        </tr>
-        <tr>
-          <td>使用者在頁面點了一下</td>
-          <td>Browser 分派已經熟悉的 <code>click</code> event</td>
-          <td>再呼叫一次 <code>getUser()</code></td>
-        </tr>
-        <tr>
-          <td>使用者切到別的頁籤、把 Browser 放到背景，或稍後切回來</td>
-          <td>Browser 知道「這個頁面現在可見／不可見的狀態改變了」；這個通知叫 <a href="https://developer.mozilla.org/en-US/docs/Web/API/Document/visibilitychange_event"><code>visibilitychange</code></a></td>
-          <td>再呼叫一次 <code>getUser()</code></td>
-        </tr>
-        <tr>
-          <td>另一個同網站頁籤改了和目前頁面共用的 <code>localStorage</code></td>
-          <td>Browser 通知目前頁面「共用儲存內容被別的頁面改了」；這個通知叫 <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/storage_event"><code>storage</code> event</a></td>
-          <td>再呼叫一次 <code>getUser()</code></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <p>所以 <code>visibilitychange</code> 不是某個 Faro 專有名詞。它只是 Browser 對「頁面可見狀態改變」的正式 event 名稱。</p>
-
-  <p><code>storage</code> event 也不是「這個頁面自己每次寫 localStorage 都會收到」。對 <code>localStorage</code> 而言，它主要讓<strong>其他共用同一份 storage 的頁面／頁籤</strong>知道資料被改了；做出修改的那個頁面本身不會收到自己的 <code>storage</code> event。</p>
-
-  <p>這四種時機的共同目的都不是「處理 click」或「處理頁籤切換」本身，而是：</p>
-
-  <blockquote>出現一個合理的重新檢查點時，再問宿主應用：「現在的 user 還是一樣嗎？」</blockquote>
-
-  <p>負責這套重新檢查邏輯的 package 元件，現行程式名稱叫 <code>UserSyncInstrumentation</code>。</p>
-
-  <p>同步時，package 會比較 user <strong>id</strong>。如果身份真的改變，就更新或清除 Faro user state。</p>
-
-  <pre><code>package calls getUser()
-        │
-        ▼
-宿主應用立即回傳 current user / null
-        │
-        ▼
-user id changed?
-├── yes → setFaroUser(...) 或 clearFaroUser()
-└── no  → 不重複更新</code></pre>
-
-  <p>目前 <code>getUser</code> 的要求是：呼叫後要很快、直接回傳結果。不要在這個 callback 裡才開始等一個遠端 API request 回來。</p>
-
-  <p class="cite">現行 user sync 時機與比較規則依據：<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking implementation evidence</a>，對應 <code>userSync.ts:5-71</code>。</p>
-
-  <div class="box tip">
-    <strong>責任邊界</strong><br>
-    「user 資料放哪裡、怎麼取得」由宿主應用決定；「哪些時機重新詢問、如何寫入 Faro user state」由共用 package 決定。
-  </div>
-
-  <h2>4. Device：宿主應用只決定要不要開，實際判定由 package 做</h2>
-
-  <p>Device 的責任分法不同。</p>
-
-  <p>宿主應用只需要明確決定要不要啟用：</p>
-
-  <pre><code>enableDeviceTypeDetection: true</code></pre>
-
-  <p>一旦開啟，目前 package 先從 Browser 已知道的觸控能力建立起始值。</p>
-
-  <h3>第一步：頁面剛啟動時</h3>
-
-  <p>Browser 會提供一些目前裝置能力資訊。其中 <code>navigator.maxTouchPoints</code> 表示 Browser 宣告「最多可以同時辨識幾個觸控接觸點」。</p>
-
-  <pre><code>navigator.maxTouchPoints > 0 ?
-├── yes → tablet
-└── no  → desktop</code></pre>
-
-  <p>所以這一步只是利用「裝置有沒有觸控能力」建立一個起始判定。</p>
-
-  <h3>第二步：之後真的收到輸入時</h3>
-
-  <p>頁面啟動後，實際輸入能提供更新的線索。例如使用者按下滑鼠按鍵，或手指碰到觸控螢幕時，Browser 會分派一個代表「指標剛按下」的 event；這個 event 名稱叫 <code>pointerdown</code>。</p>
-
-  <p>這個 Event 裡的 <code>pointerType</code> 會告訴程式這次輸入是哪一類，例如 <code>mouse</code>、<code>touch</code> 或其他值。</p>
-
-  <p>目前 package 的規則是：</p>
-
-  <pre><code>pointerType === 'mouse' → desktop
-pointerType === 'touch' → tablet
-其他值                → 保持原值</code></pre>
-
-  <p>因此一台有觸控螢幕的筆電可能出現這個時間線：</p>
-
-  <pre><code>頁面載入
-maxTouchPoints > 0
-  │ sets
+  <h2 id="user-lifecycle">3. 登入狀態會變，所以不能永遠只讀第一次</h2>
+  <pre><code>頁面載入，尚未登入 → getUser() 回傳 null
+  │ 使用者稍後登入
   ▼
-tablet
-
-使用者接著用滑鼠
-pointerType = 'mouse'
-  │ updates
+宿主已有 user A
+  │ 如果套件從此不再詢問
   ▼
-desktop
+後續 telemetry 仍可能沿用舊 user state</code></pre>
+  <p>已查核的 <code>UserSyncInstrumentation</code> 在下列時機重新詢問：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>時機</th><th>先理解發生什麼</th></tr></thead>
+    <tbody>
+      <tr><td>初始化完成</td><td>Faro object 已建立，可以同步初始狀態。</td></tr>
+      <tr><td>Browser click</td><td>收到點擊時重新確認登入狀態。</td></tr>
+      <tr><td>visibilitychange</td><td>Browser 通知頁面從可見變不可見，或反過來。</td></tr>
+      <tr><td>storage event</td><td>其他共用同份 localStorage 的頁面改了資料，通知目前頁面。</td></tr>
+    </tbody>
+  </table></div>
+  <p><code>visibilitychange</code> 與 <code>storage</code> 都是 Browser event，不是 Faro 專有名詞。修改 localStorage 的頁面本身不會收到自己的 storage event；它不能取代應用所有登入／登出狀態轉換的驗證。</p>
+  <pre><code>重新呼叫 getUser()
+  │ 比較 user id
+  ├─ 改變 → setFaroUser(...) / clearFaroUser()
+  └─ 未變 → 不重複更新</code></pre>
+  <p>這是已查核版本的比較規則；不能自行推論同一 id 下其他欄位的變更必然同步。宿主決定資料來源，套件決定詢問與同步時機。</p>
+  <p class="cite"><a href="../sources/evidence/faro-click-tracking.md">userSync.ts 實作證據</a>；Browser 定義：<a href="https://developer.mozilla.org/en-US/docs/Web/API/Document/visibilitychange_event">visibilitychange</a>、<a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/storage_event">storage</a>。</p>
 
-之後再用手指觸控
-pointerType = 'touch'
-  │ updates
-  ▼
-tablet</code></pre>
+  <h2 id="device">4. Device 是會更新的分類，不是永久硬體身分</h2>
+  <p>Foreman 明確啟用 <code>enableDeviceTypeDetection: true</code>。套件先讀 <code>navigator.maxTouchPoints</code>，也就是 Browser 宣告最多可同時辨識幾個觸控接觸點，建立起始值：</p>
+  <pre><code>maxTouchPoints > 0 → tablet
+maxTouchPoints = 0 → desktop</code></pre>
+  <p>之後收到 <code>pointerdown</code>，也就是滑鼠按下或手指觸碰等「指標開始按下」事件時，讀取事件的 <code>pointerType</code>：</p>
+  <pre><code>mouse → desktop
+touch → tablet
+其他值 → 保持原值</code></pre>
+  <p>所以有觸控螢幕的筆電可以先被分類為 tablet，使用滑鼠後變成 desktop，再以手指操作時變回 tablet。依這個實作，欄位較接近「初始觸控能力／最近一次可辨識輸入的分類」，不能直接當作永久硬體機型。</p>
+  <p class="cite"><a href="../sources/evidence/faro-click-tracking.md">deviceTypeDetector.ts 實作證據</a>。</p>
 
-  <p>所以這裡的 <code>device.type</code> 更接近「目前最近一次可辨識的輸入型態」；不要把它理解成永久不變的硬體分類。</p>
-
-  <p class="cite">現行 device 判定依據：<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking implementation evidence</a>，對應 <code>deviceTypeDetector.ts:5-75</code>。</p>
-
-  <h2>5. Device 寫在哪裡？不是塞進 click payload</h2>
-
-  <p>Lesson 2 的 click payload 是這條路：</p>
-
-  <pre><code>DOM data-*
-  → ClickInstrumentation
-  → api.pushEvent('click', payload)</code></pre>
-
-  <p>Device 走的是另一條路。</p>
-
-  <p>Faro 可以在 telemetry 旁邊附上「描述當下背景」的資料。這類背景資料在 Faro 裡叫 <strong>meta</strong>。</p>
-
-  <p>package 會向 Faro 註冊一個 function，讓 Faro 需要背景資料時取得目前的 device type。source 中的核心形式是：</p>
-
+  <h2 id="meta">5. Device 放在背景資料，不是 click payload</h2>
+  <p>Faro 把描述 telemetry 發生背景的資料稱為 <strong>meta</strong>。套件註冊一個提供資料的 function，讓 Faro 需要 meta 時讀到目前分類：</p>
   <pre><code>faro.metas.add(() => ({
-  device: {
-    type: currentDeviceType
-  }
-}))</code></pre>
-
-  <p>因此：</p>
-
-  <pre><code>click payload.link_name  ← DOM data-* 決定
-meta.device.type         ← device detector 決定</code></pre>
-
-  <p>兩者可以一起進入後續 telemetry 流程，但來源與更新機制完全不同。</p>
-
-  <h2>6. Environment：宿主應用在初始化時就要說清楚</h2>
-
-  <p>Browser 最後必須知道：Faro 資料要送到哪個接收 URL。</p>
-
-  <p>但 package 不能憑空知道目前是 stage 還是 production，所以 <code>initFaro()</code> 要求宿主應用明確傳入 <code>environment</code>：</p>
-
-  <pre><code>initFaro({
-  environment: 'tw-stage'
-})</code></pre>
-
-  <p>package 不會自己看 Kubernetes namespace、網址或 <code>window.location</code> 然後猜這是哪個環境。</p>
-
-  <p>目前 implementation 會用 <code>environment</code> 當查找條件，從 package 內建對照找到相對應的 Faro 接收 URL，最後加上 <code>/alloy</code> 路徑。</p>
-
-  <pre><code>environment
-  │ package uses as lookup key
+  device: { type: currentDeviceType }
+}));</code></pre>
+  <p>這是套件內部的實作片段，不是要求宿主額外建立另一套 Faro lifecycle。</p>
+  <pre><code>DOM 標記
+  │ ClickInstrumentation 擷取
   ▼
-對應的 Faro 接收 URL
-  │ append path
+click payload.link_name
+
+Browser 輸入
+  │ device detector 更新
   ▼
-/alloy</code></pre>
+currentDeviceType
+  │ meta provider 讀取
+  ▼
+meta.device.type</code></pre>
+  <p>兩條路可以在同筆 telemetry 會合，但不是點到 <code>data-link-name</code> 後才開始偵測裝置。</p>
 
-  <p>所以 environment 不只是顯示用的文字。給錯值，Browser 後續就可能被設定成把 Faro 資料送往錯的接收位置。</p>
+  <h2 id="environment">6. Environment 是初始化輸入，也可能決定送往哪裡</h2>
+  <p>在這組歷史實作中，宿主呼叫 <code>initFaro({ environment: 'tw-stage', ... })</code>，套件以 environment 查表解析 receiver URL，再接上 <code>/alloy</code>。它不會自己從 Kubernetes namespace 或目前頁面網址猜環境。</p>
+  <p>因此 environment 不只是畫面標籤：值錯了，資料也可能被送到錯的接收位置。實際導入時要核對正在使用的 SDK contract，而不是照抄歷史範例的環境字串。</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Context</th><th>生命週期</th></tr></thead>
+    <tbody>
+      <tr><td>User</td><td>初始化與後續重新檢查點同步。</td></tr>
+      <tr><td>Device</td><td>起始判定後，依 pointer input 更新。</td></tr>
+      <tr><td>Environment</td><td>初始化提供；此版本沒有 user 那樣的重新詢問流程。</td></tr>
+    </tbody>
+  </table></div>
+  <p class="cite"><a href="../sources/evidence/faro-click-tracking.md">environmentUrls.ts / initFaro.ts 證據</a>。Browser 實際接收 URL、payload 與 environment 的核對，接續 <a href="0005-faro-browser-to-alloy-transport.html">Lesson 5</a>；source 設定本身不證明某個部署的實際輸出。</p>
 
-  <p class="cite">environment 與接收 URL 對照依據：<a href="../sources/evidence/faro-click-tracking.md">faro-click-tracking implementation evidence</a>，對應 <code>environmentUrls.ts:4-45</code> 與 <code>initFaro.ts:13-146</code>。HTTP、request 與 CORS 細節留到 Lesson 5。</p>
+  <h2 id="adoption">7. 做統計前，先定義拿什麼來計數</h2>
+  <p>假設想知道主要功能入口的 tablet／desktop 使用比例，先拆成兩部分：</p>
+  <pre><code>signal：被拿來計數的觀測資料
+  例如一筆 tracked subsystem entry click
 
-  <p>它的更新方式也和 user 不同：</p>
+context：該筆資料發生時的背景
+  例如 device.type = tablet</code></pre>
+  <p>若分母是被追蹤的入口事件，得到的是<strong>這些入口事件的裝置分類分布</strong>，不是所有 sessions、users、操作或使用時間的比例。沒有必要為這個狹義 KPI 強制標記每一顆 Submit／Cancel；但也不能因此宣稱已取得完整使用者操作歷程。</p>
+  <p>同一個 user 在電腦與平板開兩個 Browser，各自有自己的 runtime 與 device state。平板若停在功能頁，後續只做未標記操作，可能沒有新的入口 signal 被計數；那是 coverage 問題，不代表電腦第一次 click 把所有裝置都鎖成 desktop。</p>
+  <div class="box ask"><strong>證據邊界</strong><br>Source 證明 click extraction 與 device meta 是不同路徑；尚不能單憑這點宣稱 production 已能用 user + device.type + link_name 完整聚合。仍需要實際 payload、下游欄位與查詢結果，以及產品對 KPI 分母的定義。</div>
+  <p><a href="../reference/0009-data-link-name-device-adoption.html">Reference｜功能入口、Device Adoption 與 coverage</a>保留跨 Lesson 2／4 的完整對照。</p>
 
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Context</th><th>什麼時候提供／更新？</th></tr></thead>
-      <tbody>
-        <tr><td>User</td><td>初始化後立即同步；之後在幾個合理的重新檢查點再次詢問宿主應用。</td></tr>
-        <tr><td>Device</td><td>初始化時先判定；之後依實際滑鼠／觸控輸入更新。</td></tr>
-        <tr><td>Environment</td><td><code>initFaro()</code> 時提供；目前 package 沒有像 user 一樣的後續重新詢問流程。</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="box ask">
-    <strong>Evidence boundary</strong><br>
-    現在能證實的是：environment 是初始化必要設定，而且會決定接收 URL。Learning repo 尚未保存一筆 Browser request，直接證明 environment 在實際送出的資料裡最後長在哪個欄位；這會在 Lesson 5 用 Browser Network / payload evidence 驗證，不在這裡把未觀察結果寫成既成事實。
-  </div>
-
-  <h2>7. Foreman 與 Jeter：同一個 package，宿主資料來源可以不同</h2>
-
-  <p>前面的責任切分，讓不同宿主應用可以用同一個 package，而不用共享同一套登入實作。</p>
-
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th></th><th>Foreman Assistant</th><th>Jeter demo</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>User source</td><td>讀自己的 <code>localStorage</code> employee 資料。</td><td>讀應用目前保存在記憶體裡的 current user id。</td></tr>
-        <tr><td>Device</td><td>開啟 package device detection。</td><td>同樣開啟 package device detection。</td></tr>
-        <tr><td>Environment</td><td>目前 source 直接傳 <code>tw-prod</code>。</td><td>由 <code>FARO_ENVIRONMENT</code> runtime config 提供。</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <p>package 不需要知道 Foreman 的 employee schema，也不需要知道 Jeter 的登入狀態怎麼實作。</p>
-
-  <p>它只要求雙方遵守相同的介面規則：</p>
-
-  <pre><code>你告訴我 environment
-你需要 user sync → 給我 getUser()
-你需要 device detection → 明確 enable
-
-剩下同步與 Faro integration 的共同邏輯
-由 package 統一處理</code></pre>
-
-  <p class="cite">宿主差異依據：<a href="../sources/evidence/foreman-integration.md">Foreman integration evidence</a> 與 <a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter integration evidence</a>。Foreman repository source 的 <code>environment: 'tw-prod'</code> 只證明 source 怎麼設定，不能直接證明 tw-stage 已部署 bundle 此刻實際送出的 environment；runtime delivery 仍需 Browser evidence。</p>
-
-  <h2>8. 最重要的模型：三種 context 不走同一條管線</h2>
-
-  <pre><code>                         ┌─ getUser() ───────────────→ Faro user state
-宿主應用 initFaro(...) ─┼─ environment ─────────────→ 選擇 Faro 接收 URL
-                         └─ enableDeviceDetection ───→ device detector
-                                                          │
-Browser 實際滑鼠／觸控輸入 ────────────────────────────────┘
-                                                          │ updates
-                                                          ▼
-                                                   Faro device meta
-
-DOM data-* ─→ ClickInstrumentation ─→ click payload</code></pre>
-
-  <p>如果把它們全部想成「Faro click 裡面的欄位」，debug 時就會查錯地方。</p>
-
-  <p>正確問題應該是：</p>
-
-  <ul>
-    <li>User 錯了：宿主應用的 <code>getUser()</code> 回了什麼？package 有沒有到達重新檢查 user 的時機？</li>
-    <li>Device 錯了：初始化時的 <code>maxTouchPoints</code> 是多少？最近一次實際輸入的 <code>pointerType</code> 是什麼？</li>
-    <li>Environment 錯了：宿主應用傳給 <code>initFaro()</code> 的值是什麼？它選到哪個 Faro 接收 URL？</li>
-    <li>Click 欄位錯了：回到 <a href="0002-faro-click-instrumentation.html">Lesson 2</a>，檢查 <code>trackAttributes</code>、DOM <code>data-*</code> 與 <code>closest()</code>。</li>
-  </ul>
-
-  <h2>9. Production-style check：症狀要先對到責任邊界</h2>
-
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>觀察到的症狀</th><th>第一個該查的地方</th><th>為什麼</th></tr></thead>
-      <tbody>
-        <tr><td><code>link_name</code> 正確，但 user 不對</td><td><code>getUser()</code> 與 user sync</td><td>User 不是由 ClickInstrumentation 從 DOM 抽出的。</td></tr>
-        <tr><td>觸控筆電被標成 desktop</td><td>最近一次 <code>pointerType</code></td><td>mouse 的 pointer input 會把目前 device type 更新成 desktop。</td></tr>
-        <tr><td>stage 頁面準備送往錯的 Faro 接收位置</td><td><code>initFaro({ environment })</code></td><td>environment 會決定 package 選到哪個接收 URL。</td></tr>
-        <tr><td>click payload 沒有 user/device 欄位</td><td>先不要判定為錯誤</td><td>它們本來就不是 <code>trackAttributes</code> 產生的 click payload 欄位。</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="box">
-    <strong>Primary source</strong><br>
-    如果你要回到原始教材對照「宿主應用怎麼設定 Faro package」，本課最直接的主教材是 <a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction (for developer) →</a>。現行實作差異則以上面各段就地連結的 verified evidence 為準。
-  </div>
+  <h2 id="debug">8. 用預期與觀察定位責任</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>預期／觀察</th><th>先查哪裡</th></tr></thead>
+    <tbody>
+      <tr><td>link_name 正確，登入身分不符。</td><td>宿主 getUser() 回值、user sync 時機。</td></tr>
+      <tr><td>觸控筆電顯示 desktop。</td><td>最近一次 pointerType；依目前規則可能正確。</td></tr>
+      <tr><td>Stage 資料疑似送錯位置。</td><td>實際 initFaro environment 與解析出的 receiver。</td></tr>
+      <tr><td>click payload 本身沒有 user/device。</td><td>先分清 payload 與 meta，不先判定遺失。</td></tr>
+      <tr><td>很多平板操作，入口事件數卻沒增加。</td><td>KPI signal 定義與實際 tracking coverage。</td></tr>
+    </tbody>
+  </table></div>
+  <p>不同宿主可以沿用相同介面：歷史 Foreman 從 localStorage 取 user、source 傳 tw-prod；Jeter 從記憶體取 current user、由 FARO_ENVIRONMENT 設定環境。來源不同不等於共用套件應猜測資料；source 值也不能替代已部署頁面的觀察。</p>
+  <p class="cite"><a href="../sources/evidence/foreman-integration.md">Foreman</a>、<a href="../sources/evidence/jeter-integration-and-tracing.md">Jeter</a>。</p>
 
   <h2>Self-check</h2>
-
   <div class="quiz" data-quiz>
-    <div class="question">Q1. 為什麼 package 要讓宿主應用提供 <code>getUser()</code>？</div>
+    <div class="question">套件需要知道目前登入者，getUser callback 的角色是什麼？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="Device type 是另一條 detector 路徑。">判斷 當前 裝置 類型</button>
-      <button class="choice" data-correct="true" data-feedback-correct="登入資料放在哪裡是宿主應用自己的知識，因此 package 透過 callback 取得。">取得 當前 使用者 狀態</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="接收 URL 主要由 environment 決定。">解析 當前 接收 URL</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Click attribute 是 ClickInstrumentation 從 DOM 讀取。">讀取 當前 click 屬性</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Device 由另一個 detector 維護。">回傳目前裝置分類</button>
+      <button class="choice" data-correct="true" data-feedback-correct="宿主知道登入狀態；套件在需要同步時詢問它。">回傳目前登入狀態</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Environment 不是這個 callback 的回傳值。">回傳目前部署環境</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Click attribute 由 DOM extraction 取得。">回傳目前點擊屬性</button>
+    </div><div class="feedback" aria-live="polite"></div>
   </div>
-
   <div class="quiz" data-quiz>
-    <div class="question">Q2. 一台有觸控螢幕的筆電載入後先判成 tablet，接著使用者按下滑鼠。依目前 detector，下一個 device type 是什麼？</div>
+    <div class="question">觸控筆電先分類為 tablet，下一次 pointerdown 為 mouse；這個版本應如何更新？</div>
     <div class="choices">
-      <button class="choice" data-correct="true" data-feedback-correct="mouse pointerdown 會把 current device type 更新成 desktop。">desktop</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="初始化結果不是永久值，後續 pointer input 可以更新。">tablet</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="目前實作只有 desktop / tablet 這條判定，不會產生 laptop。">laptop</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="mouse 是目前實作明確處理的 pointerType。">unknown</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
+      <button class="choice" data-correct="true" data-feedback-correct="規則依最近可辨識輸入更新；不是永久硬體身分。">更新成 desktop 分類</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="起始判定不是永久鎖定。">保持為 tablet 分類</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="此實作不產生 laptop 分類。">更新成 laptop 分類</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="mouse 是已處理的輸入，不需要清空。">清除掉 device 分類</button>
+    </div><div class="feedback" aria-live="polite"></div>
   </div>
-
   <div class="quiz" data-quiz>
-    <div class="question">Q3. 下列哪個敘述最符合 Lesson 4 的資料路徑？</div>
+    <div class="question">只計數 tracked subsystem entry events，哪個分母符合這項統計？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="User 不需要從 DOM data-* 取得。"><code>User</code> 由 DOM 屬性 提供</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Device meta 不是 trackAttributes 的 click payload。"><code>Device</code> 由 click payload 提供</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="Environment 是 initFaro 的必要設定，不是 Browser 自動猜測。"><code>Environment</code> 由 Browser 自動 提供</button>
-      <button class="choice" data-correct="true" data-feedback-correct="三種 context 的來源與更新方式不同，package 只統一接法。"><code>Context</code> 由 各自 來源 提供</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
+      <button class="choice" data-correct="false" data-feedback-incorrect="事件數不等於不重複使用者數。">全部使用者的數量</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="入口事件不能代表全部操作。">全部操作事件數量</button>
+      <button class="choice" data-correct="true" data-feedback-correct="分母必須與實際被選來計數的 signal 一致。">被追蹤入口事件數</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="沒有以 session 作為計數單位。">全部使用期間數量</button>
+    </div><div class="feedback" aria-live="polite"></div>
   </div>
-
   <div class="quiz" data-quiz>
-    <div class="question">Q4. stage telemetry 疑似準備送到錯的 Faro 接收位置，第一個最合理的檢查點是什麼？</div>
+    <div class="question">Stage telemetry 準備送到不符合預期的 receiver，第一個直接相關的檢查是？</div>
     <div class="choices">
-      <button class="choice" data-correct="false" data-feedback-incorrect="data-link-name 只影響 click payload extraction。">檢查 DOM data-link-name 設定</button>
-      <button class="choice" data-correct="true" data-feedback-correct="environment 會決定接收 URL，先確認宿主應用實際傳入值。">檢查 initFaro environment 設定</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="getUser() 決定 user state，不決定接收 URL。">檢查 getUser 回傳 user</button>
-      <button class="choice" data-correct="false" data-feedback-incorrect="pointerType 只會更新 device type。">檢查 pointerType 最近 input</button>
-    </div>
-    <div class="feedback" aria-live="polite"></div>
+      <button class="choice" data-correct="false" data-feedback-incorrect="Click 標記不選擇 receiver。">核對 DOM 標記與值</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="登入身分不決定此 resolver 的環境。">核對 user 身分與值</button>
+      <button class="choice" data-correct="false" data-feedback-incorrect="輸入裝置不是 receiver 選擇條件。">核對 pointer 輸入值</button>
+      <button class="choice" data-correct="true" data-feedback-correct="核對實際初始化參數，再確認 SDK 解析出的目的地。">核對環境與解析結果</button>
+    </div><div class="feedback" aria-live="polite"></div>
   </div>
-
   <h2>Recap</h2>
-
   <ul>
-    <li><strong>Context</strong> 是描述 telemetry 發生背景的資料；User、Device、Environment 不等於 click payload。</li>
-    <li><strong>User</strong> 的真實來源由宿主應用掌握；package 透過 <code>getUser()</code> callback 取得並同步到 Faro user state。</li>
-    <li><strong>User 重新同步</strong>：初始化後立即檢查；之後 click、頁面切到背景／回到前景（<code>visibilitychange</code>）、或其他共用頁面改了 localStorage（<code>storage</code> event）時，再重新詢問 user。</li>
-    <li><strong>Device</strong> 需要宿主應用明確開啟；起始值看 <code>maxTouchPoints</code>，之後由實際輸入的 <code>pointerType</code> 更新。</li>
-    <li><strong>Device meta</strong> 是 Faro 附在 telemetry 旁邊的背景資料，不是由 DOM <code>data-*</code> 建立的 click payload。</li>
-    <li><strong>Environment</strong> 是宿主應用在 <code>initFaro()</code> 提供的必要設定，並決定 package 選到哪個 Faro 接收 URL。</li>
-    <li><strong>責任邊界</strong>：宿主應用提供它自己才知道的登入／部署資料；共用 package 統一 user 同步、device 判定與 Faro 接法。</li>
-    <li><strong>Debug</strong> 時先判斷資料走哪一條路，再檢查對應來源；不要把 user、device、environment 都當成 ClickInstrumentation 欄位。</li>
+    <li>Context 描述資料發生的背景；來源與 click payload 不同。</li>
+    <li>getUser 是宿主提供的同步讀取 callback；套件在初始化及後續檢查點同步同一個 Faro。</li>
+    <li>visibilitychange 是可見狀態通知；storage 不通知同一個寫入頁面。</li>
+    <li>Device 依初始能力與後續 pointer input 更新，透過 meta provider 提供，不是永久硬體分類。</li>
+    <li>Environment 在初始化提供；source 設定與 deployed runtime 必須分開驗證。</li>
+    <li>Signal 決定計數單位，context 用來分組；入口事件分布不能擴大解釋為所有使用行為。</li>
   </ul>
-
-  <div class="box ask">
-    <strong>有哪一段不確定？</strong><br>
-    直接問我那一段即可。若卡在 callback、Browser 的觸控／輸入資訊，或 Faro user/meta 的差別，我會先補最小必要前置，再回到這條主線。
-  </div>
-
-  <nav class="lesson-nav" aria-label="課程導覽">
-    <a href="0003-package-initialization-singleton-public-api.html">← Lesson 3</a>
-    <a href="../learning-map/index.html">Learning Map →</a>
-  </nav>
+  <p class="cite">主教材：<a href="../sources/materials/3.%20Faro-Click-Tracking%20Introduction%20(for%20developer).html">Faro-Click-Tracking Introduction</a>。KPI 的 source basis：<a href="../sources/evidence/data-link-name-investigation-2026-09-17.md">data-link-name investigation</a>。</p>
+  <p>有不確定的欄位時，先說出「我預期什麼、實際看到什麼」，再請教學 agent 協助沿責任邊界檢查。</p>
+  <nav class="lesson-nav" aria-label="課程導覽"><a href="0003-package-initialization-singleton-public-api.html">← Lesson 3</a><a href="../learning-map/index.html">Learning Map</a><a href="0005-faro-browser-to-alloy-transport.html">Lesson 5 →</a></nav>
 </body>
 </html>
