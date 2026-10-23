@@ -1,0 +1,17 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="CKAD 半年學習計畫：每週五小時，觀念、實作與限時練習。"><title>OpenMAIC 使用方式 · CKAD Learning</title><link rel="stylesheet" href="assets/style.css"><script defer src="assets/progress.js"></script></head><body><main><nav aria-label="主要導覽"><a href="index.html">CKAD 學習首頁</a><a href="index.html#roadmap">24 週路線</a><a href="lessons/01-diagnostic.html">開始診斷課</a><a href="openmaic.html">OpenMAIC</a></nav><header><span class="eyebrow">LEARNING COMPANION</span><h1>讓 OpenMAIC<br>解釋你卡住的地方。</h1><p class="lead">GitHub Pages 是閱讀與練習入口；AI 課堂在 OpenMAIC 服務中執行。</p></header><section class="card"><h2>目前狀態</h2><p>本站尚未連接 OpenMAIC，也沒有建立 AI 課堂。下方提供可直接使用的課程需求；你可在自己的 OpenMAIC 貼入，之後將匯出教材加入此區。</p><p><a class="button" href="https://open.maic.chat/">前往 OpenMAIC</a> <a href="https://github.com/THU-MAIC/OpenMAIC">部署與使用說明</a></p></section><section class="card"><h2>第一堂課的輸入材料</h2><p>複製以下文字，並附上第一堂課的診斷結果。每次只處理一個主要缺口。</p><pre>請以繁體中文建立 CKAD 互動短課，主題：
+Pod Running，但透過 Service 無法存取。
+
+學員有 SRE 與 CI/CD 經驗，每週學習 5 小時。
+先從 Service selector 與 Pod label 不一致的例子開始。
+依序說明 label、selector、EndpointSlice、Readiness。
+每個新術語先用具體例子解釋，再引入正式名稱。
+先要求學員預測結果，再顯示解釋與下一步提示。
+
+提供：情境、圖解、判讀問題、分層提示、外部叢集實作、驗證標準。
+不要假設網頁模擬等於真實 Kubernetes 執行。
+將參考來源列為 Kubernetes 官方文件。
+未知資訊請標示待確認，不要虛構命令執行結果。
+
+實作：修復 Service selector，從另一個 Pod 請求 Service。
+變化題：readiness 失敗會不會重啟 container？
+講解應控制在 20～30 分鐘，實作另外進行。</pre></section><section class="card"><h2>如何帶回此網站</h2><p>OpenMAIC README 說明可匯出離線 HTML 或 PPTX。取得輸出後，先檢查內容與外部依賴，再把靜態教材加入 repo 並新增課程連結。即時 AI 對話仍需要另外運行的服務，不會因為發布 HTML 就自動具備。</p></section><footer>CKAD Learning · 每週 5 小時 · 2026-10-24 建立<br>進度是自我記錄，不代表通過認證。<a href="https://github.com/c0004512000/Learning/tree/main/CKAD">教材原始碼</a></footer></main></body></html>

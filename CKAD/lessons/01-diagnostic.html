@@ -1,0 +1,24 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="CKAD 半年學習計畫：每週五小時，觀念、實作與限時練習。"><title>第一堂診斷課 · CKAD Learning</title><link rel="stylesheet" href="../assets/style.css"><script defer src="../assets/progress.js"></script></head><body><main><nav aria-label="主要導覽"><a href="../index.html">CKAD 學習首頁</a><a href="../index.html#roadmap">24 週路線</a><a href="../lessons/01-diagnostic.html">開始診斷課</a><a href="../openmaic.html">OpenMAIC</a></nav><header><span class="eyebrow">WEEK 01 · DIAGNOSTIC LAB</span><h1>Pod 在跑，<br>為什麼服務連不到？</h1><p class="lead">先操作，再找出值得補強的觀念。本課是自訂練習，不是真實考題。</p></header><div class="content"><section class="callout"><strong>開始前</strong><p>使用可重建的個人練習叢集，不要在公司正式環境執行。需有 kubectl、可用節點、可拉取 nginx 與 busybox image，以及建立 Namespace 的權限。本站不提供雲端 Terminal。</p><p>先執行 <code>kubectl config current-context</code> 與 <code>kubectl get nodes</code> 確認目標。新手可由 <a href="https://kubernetes.io/docs/setup/learning-environment/">官方練習環境指南</a>建立環境。鏡像拉取或節點未就緒屬環境問題，另記錄，不算解題時間。</p></section>
+<h2>1. 先做一輪，不看解答</h2><p>建議先用 40 分鐘完成以下任務。時間是訓練目標，不是官方配分標準；卡住可以查官方文件。</p><ol><li>建立 <code>ckad-lab</code> Namespace。</li><li>建立名稱為 web、image 為 nginx:1.28-alpine 的 Deployment，兩個副本。</li><li>透過 ConfigMap web-config 注入 <code>APP_MODE=practice</code>。</li><li>加入 HTTP readiness probe，檢查 port 80 的 <code>/</code>。</li><li>建立 Service web，port 80 轉至容器 port 80。</li><li>從同 Namespace 的另一個 Pod 請求 <code>http://web</code>。</li></ol><p>完成證據：兩個 Ready Pod、環境變數正確、EndpointSlice 有 Ready 位址、測試 Pod 收到 nginx 頁面。</p>
+<details><summary>提示：先看哪些資訊？</summary><pre>kubectl -n ckad-lab get deploy,pods,svc
+kubectl -n ckad-lab describe deployment web
+kubectl -n ckad-lab get pods --show-labels
+kubectl -n ckad-lab get endpointslices -l kubernetes.io/service-name=web
+kubectl explain deployment.spec.template.spec.containers.readinessProbe</pre></details>
+<h2>2. 建立故障情境</h2><p>完成診斷後，用以下練習檔建立或覆寫本課的同名資源。檔案故意放了一個 Service 設定錯誤。</p><p><a href="../labs/01-service.yaml" download>下載 01-service.yaml</a>，在下載的目錄執行：</p><pre>kubectl apply -f 01-service.yaml
+kubectl -n ckad-lab rollout status deployment/web --timeout=120s
+kubectl -n ckad-lab run probe --image=busybox:1.37 --restart=Never --command -- sh -c 'wget -T 5 -qO- http://web'
+kubectl -n ckad-lab logs probe</pre><p>若 logs 提示容器仍在建立，等 Pod 開始執行後再查。先確認 nginx Pods 為 Ready，再排查連線。</p>
+<h2>3. 用證據縮小範圍</h2><p>Service 透過 <strong>selector（選取條件）</strong>尋找有對應 <strong>label（標籤）</strong>的 Pod。EndpointSlice 記錄後端端點與就緒狀態。Pod Running 只描述生命週期階段，不等於應用可接收流量。</p><p>先比較 Service selector 和 Pod labels，再檢查 EndpointSlice。若沒選到 Pod，繼續猜 DNS 或 Ingress 通常會浪費時間。</p>
+<details><summary>第一層提示：比較兩端</summary><pre>kubectl -n ckad-lab get svc web -o yaml
+kubectl -n ckad-lab get pods --show-labels
+kubectl -n ckad-lab get endpointslices -l kubernetes.io/service-name=web -o yaml</pre><p>Service 的 app 值和 Pod 的 app 值相同嗎？</p></details>
+<details><summary>解答與驗證</summary><p>練習檔中的 Service 選擇 app=wrong-label，但 Pod 的標籤是 app=web。修正 selector：</p><pre>kubectl -n ckad-lab patch service web -p '{"spec":{"selector":{"app":"web"}}}'
+kubectl -n ckad-lab get endpointslices -l kubernetes.io/service-name=web
+kubectl -n ckad-lab delete pod probe --ignore-not-found
+kubectl -n ckad-lab run probe --image=busybox:1.37 --restart=Never --command -- sh -c 'wget -T 5 -qO- http://web'
+kubectl -n ckad-lab logs probe
+kubectl -n ckad-lab exec deployment/web -- printenv APP_MODE</pre><p>等待測試容器執行後，日誌應出現 nginx 歡迎頁，APP_MODE 應為 practice。也要把本地 YAML 的 selector 改成 web，避免下次 apply 再引入錯誤。這份檔案修正後也可作為前段診斷任務的參考答案。</p></details>
+<h2>4. 變化題：Ready 與 Running</h2><p>把 readiness probe path 改成 <code>/not-found</code>，等待探測失敗。先預測 Ready 狀態、容器重啟次數與 Service 請求結果，再實際觀察。完成後改回 <code>/</code>。</p><details><summary>判讀重點</summary><p>在本課預設 Service 行為下，readiness 失敗的 Pod 不會作為正常就緒後端接收 Service 流量；readiness 失敗本身不會重啟容器。Liveness 才會在失敗達門檻後觸發容器重啟。注意更新 Deployment 本身會建立新 Pod，不能把 rollout 的替換誤認為 probe 重啟。</p></details>
+<h2>5. 留下診斷記錄</h2><label for="notes">耗時／查閱文件／卡住原因／修復證據／下次重做結果</label><textarea id="notes" data-note="diagnostic-note" placeholder="例如：selector 排錯 8 分鐘；查 EndpointSlice 指令；下一次換成 targetPort 錯誤再試。"></textarea><p id="save-status" role="status">此記錄保存在本瀏覽器，可回首頁匯出備份。</p><p><a class="button" href="../index.html#week-1">回首頁更新學習進度</a></p>
+<h2>收尾與來源</h2><p>所有紀錄存好、且確認只包含本課資源後，可清除整個練習 Namespace：</p><pre>kubectl delete namespace ckad-lab</pre><ul><li><a href="https://kubernetes.io/docs/tasks/access-application-cluster/service-access-application-cluster/">官方：透過 Service 存取應用</a></li><li><a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/">官方：Liveness、Readiness 與 Startup Probes</a></li></ul></div><footer>CKAD Learning · 每週 5 小時 · 2026-10-24 建立<br>進度是自我記錄，不代表通過認證。<a href="https://github.com/c0004512000/Learning/tree/main/CKAD">教材原始碼</a></footer></main></body></html>
