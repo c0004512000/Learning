@@ -4,3 +4,5 @@
 .domain .cite{margin-top:.65rem}.domain strong{color:var(--ink)}.domain h2{line-height:1.35}.domain:target{border-color:var(--accent)}
 
 .domain .cite{margin-top:.65rem}.domain strong{color:var(--ink)}.domain h2{line-height:1.35}.domain:target{border-color:var(--accent)}
+
+.containment div{border:1px solid var(--line);padding:.65rem;margin:.5rem 0;background:var(--panel)}.containment{margin:1rem 0}.containment figcaption{font-size:.85rem}progress{display:block;width:100%;margin:.5rem 0}
