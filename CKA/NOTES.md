@@ -1,1 +1,4 @@
 2026-10-25: User corrected previous sequencing: should begin with K8s fundamentals. Earlier map mistakenly treated highest-weight troubleshooting domain as the first lesson. New map separates learning prerequisites from official coverage weights. No prior answers; no mastery record. Prior NotReady page preserved as optional later lab, original URL now foundation lesson. User has SRE/CI-CD experience but K8s foundational knowledge is unverified. Continue adaptively; do not turn landmarks into a rigid 24-week lesson syllabus.
+
+2026-10-25: User explicitly authorized borrowing Learning-from-docs global Course Map planning while retaining Learning teaching/runtime. 7 milestones, 34 planned Lessons with goals, acceptance and primary source. Future Lesson files not authored. Current first Lesson still awaits answers; no mastery inferred.
+
