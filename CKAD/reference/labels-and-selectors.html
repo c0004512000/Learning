@@ -1,0 +1,10 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>標籤選取速查｜CKAD Learning</title><meta name="description" content="每次掌握一個概念，以具體案例、互動練習與回饋準備 CKAD。"><link rel="stylesheet" href="../assets/learning.css"><link rel="stylesheet" href="../assets/lesson.css"><script src="../assets/learning-theme.js"></script></head><body><button class="theme-toggle" aria-label="切換深淺色模式">切換淺色</button><nav aria-label="學習導覽"><a href="../index.html">學習首頁</a><a href="../learning-map/index.html">學習地圖</a><a href="../reference/labels-and-selectors.html">標籤速查</a></nav><main><p class="eyebrow">REFERENCE · LESSON 0001</p><h1>Label 與 Selector</h1><p>Label 是資源帶著的鍵值標記，例如 <code>app: shop</code>。Selector 是選取條件，例如 Service 的 <code>spec.selector</code>。</p><h2>判讀順序</h2><ol><li>確認正在比較同一 Namespace 內的 Service 與 Pods。</li><li>讀取 Service 的每一個 selector 鍵值。</li><li>逐一比對 Pod labels：每項都符合才選到。</li><li>忽略 selector 沒要求的額外 labels。</li></ol><pre>Pod labels:
+  app: shop
+  version: v2
+
+Service selector:
+  app: shop
+
+結果：符合；version 不影響本次選取。</pre><h2>實際查看</h2><p>在自己的練習環境，以實際 Namespace 和名稱替換範例：</p><pre>kubectl -n ckad-lab get svc web -o yaml
+kubectl -n ckad-lab get pods --show-labels
+kubectl -n ckad-lab get pods -l app=shop</pre><p>最後一行只是以標籤篩選 Pod，沒有驗證 HTTP 連線。</p><p><a href="https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/">官方 Labels and Selectors</a> · <a href="https://kubernetes.io/docs/concepts/services-networking/service/">官方 Service</a></p><nav class="lesson-nav"><a href="../lessons/0001-service-label-selection.html#">← 回第一堂課</a><a href="../learning-map/index.html">學習地圖 →</a></nav></main><footer>CKAD · Learning<br>閱讀與手機練習在這裡；追問與個別回饋請回到原本的 ChatGPT 對話。</footer></body></html>
