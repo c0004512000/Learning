@@ -10,3 +10,5 @@ Before publishing or calling a CKA Lesson complete:
 3. Trace the lesson's concept dependency in order: familiar situation → observable behavior → one new idea → name and precise boundary → retrieval/practice → feedback. Move a term to a later Lesson if it is not needed for the current goal.
 4. Check the question, automatic feedback, reference page, and recap against the same terminology order. Do not introduce fresh unexplained terms in feedback.
 5. Verify the actual page and interaction at desktop and mobile viewports before reporting it as live-verified. Report unmet checks plainly.
+
+When a terminology gap reveals an overloaded Lesson, redesign its scope and prerequisite sequence. Do not append a glossary paragraph for each missing concept until the Lesson becomes a compressed architecture survey. First Lesson teaches Kubernetes purpose and boundaries only; use the current foundation map to place later concepts. Lesson count is derived from scope and may change.

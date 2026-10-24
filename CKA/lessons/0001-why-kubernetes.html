@@ -1,65 +1,48 @@
 <!doctype html>
-<html lang="zh-Hant" data-theme="dark">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>第一堂：期望與實際狀態｜CKA Learning</title>
-  <link rel="stylesheet" href="../assets/learning.css">
-  <link rel="stylesheet" href="../assets/lesson.css">
-  <link rel="stylesheet" href="../assets/cka.css">
-  <script src="../assets/learning-theme.js"></script>
-  <script defer src="../assets/cka-lesson.js"></script>
-</head>
-<body>
-<button class="theme-toggle" aria-label="切換深淺色模式">切換淺色</button>
-<nav aria-label="學習導覽"><a href="../index.html">CKA 首頁</a><a href="../learning-map/index.html">學習地圖</a></nav>
-<main>
-  <p class="eyebrow">LESSON 0001 · 約 10–15 分鐘</p>
-  <h1>你要兩份網站，現在只剩一份</h1>
-  <p>想像網站原本同時執行兩份。一份停止後，網站可能還能使用，但少了一份備援。若你只在一開始啟動兩份，沒有人繼續檢查，系統就會一直停在「只剩一份」。</p>
-  <p>這堂先學一件事：<strong>分清楚「希望有幾份」與「現在真的有幾份」</strong>。這是後面理解 Kubernetes 如何維持應用的起點。</p>
-
-  <h2>1. 同一個網站，兩個數字</h2>
-  <div class="cards">
-    <div class="pod"><strong>期望狀態：2 份</strong><p>你希望網站維持兩份執行中的副本。「副本」在這裡就是另一份能提供相同網站服務的執行個體。</p></div>
-    <div class="pod"><strong>實際狀態：1 份</strong><p>此刻只有一份真的在執行。這個數字要靠觀察確認，不能只看原先提交的要求。</p></div>
-  </div>
-  <p>兩個數字相同，才算在「份數」這件事上達到目標。份數相同也還不能保證網站真的能正常回應；那需要其他檢查。</p>
-
-  <h2>2. Kubernetes 為什麼要持續檢查？</h2>
-  <p>你把「維持兩份」的要求交給 Kubernetes。它會記住這個目標，反覆觀察現在有幾份；如果只剩一份，就嘗試補回一份。<strong>嘗試</strong>不等於<strong>已經成功</strong>：例如可用的機器不足，第二份就可能還沒跑起來。</p>
-  <p>這種反覆比較目標和現況、並嘗試縮小差距的做法，叫做 <strong>調和（reconciliation）</strong>。這個名稱先對應你剛看到的行為，不必在第一堂記住所有內部元件。</p>
-  <p class="cite"><a href="https://kubernetes.io/docs/concepts/overview/working-with-objects/">官方：Kubernetes 物件與期望狀態</a></p>
-
-  <h2>3. 網站在哪裡執行？</h2><p>網站程式需要執行環境。<strong>容器</strong>讓程式在機器上具有隔離的執行環境，並使用準備好的程式與相依檔案；它仍使用所在機器的資源。Kubernetes 可以管理多台機器上的這些容器，這組共同管理的機器與管理元件稱為<strong>叢集</strong>。</p>
-  <p><strong>Node（節點）</strong>是供 Kubernetes 執行網站的機器。<strong>Pod</strong> 是 Kubernetes 放置並管理一個或多個容器的單位；這堂的例子可以先想成「一個 Pod 裡有一個網站容器」。希望有兩份網站時，這個簡化例子就是希望有兩個 Pod 在執行。Pod 不是整台 Node。</p>
-  <p>先知道「機器承載 Pod、Pod 裡執行容器」就夠了。建立 Pod、挑選哪台機器、在機器上啟動容器等步驟，後續課程再逐一拆解。</p>
-  <figure class="containment" aria-label="機器包含 Pod，Pod 包含網站容器"><div>Node：執行工作的機器<div>包含 Pod：管理容器的單位<div>包含容器：網站程式在這裡執行</div></div></div><figcaption>這是包含關係；一台機器可以承載多個 Pod，此處只畫一個。</figcaption></figure><p class="cite"><a href="https://kubernetes.io/docs/concepts/overview/components/">官方：Kubernetes 元件</a> · <a href="https://kubernetes.io/docs/concepts/workloads/pods/">官方：Pods</a></p>
-
-  <h2>4. 先自己判斷，再看回饋</h2>
-  <p>你要求兩份網站，目前只看到一個 Pod 在執行。下面哪句最合理？</p>
-  <fieldset><legend>選一項</legend>
-    <label class="choice"><input type="radio" name="q" value="done">要求接受就表示兩份已執行</label>
-    <label class="choice"><input type="radio" name="q" value="observe">先確認現況再查為何少一份</label>
-    <label class="choice"><input type="radio" name="q" value="pod">只需確認目標仍然設定兩份</label>
-  </fieldset>
-  <button id="check" type="button">檢查判斷</button><p id="feedback" class="feedback" role="status"></p>
-
-  <h2>5. 把判斷帶到觀察</h2>
-  <p>如果你有獲授權的練習叢集，可以先用 <code>kubectl get nodes</code> 看有哪些機器，再用 <code>kubectl get pods -A</code> 看叢集裡有哪些 Pod。<code>kubectl</code> 是向 Kubernetes 查詢或提交要求的指令工具；<code>-A</code> 在這裡代表查看所有命名空間中的 Pod，命名空間是叢集內用來分組管理資源的範圍；這裡先跨所有分組查看 Pod。</p>
-  <p>手機上沒有叢集時，先回答：「目標兩份、實際一份，下一步要確認哪個數字？為什麼不能說任務已完成？」手機上的推理練習不等於完成叢集操作。</p>
-  <div class="task"><p><strong>用自己的話回答：</strong>Node 和 Pod 哪個是機器？一份網站停止後，為什麼只看先前提交的「兩份」要求不夠？</p></div>
-  <textarea id="reflection" aria-label="我的理解" placeholder="Node 是……；Pod 是……；我還要確認……"></textarea>
-  <p><button id="copy" type="button" class="primary">複製我的回答，貼回對話</button><span id="copied" role="status"></span></p>
-
-  <h2>今天記住</h2>
-  <ul>
-    <li>期望狀態是你要的結果；實際狀態是目前觀察到的結果。</li>
-    <li>Kubernetes 會反覆比較兩者並嘗試補足差距；接受要求不保證已達成。</li>
-    <li>反覆比較與嘗試補足差距的過程稱為調和。</li><li>容器提供程式的隔離執行環境；Node 承載 Pod，Pod 裡執行容器。</li><li>叢集把機器與管理元件整合運作；命名空間用來分組管理資源。</li><li>kubectl 是查詢與提交要求的工具；get nodes 查看機器，get pods -A 跨所有命名空間查看 Pod。</li>
-  </ul>
-  <p>哪一步不清楚，可以把你的疑問貼回對話，我會從那一步重新說明。</p>
-  <p><a href="../reference/desired-and-actual.html">期望／實際狀態速查 →</a> · <a href="../learning-map/index.html">回學習地圖</a></p>
-</main>
-<footer>CKA · Learning<br>手機閱讀與判讀；真實操作另外驗收。</footer>
-</body></html>
+<html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kubernetes 是什麼？為什麼會需要它？｜CKA Learning</title><link rel="stylesheet" href="../assets/learning.css"><link rel="stylesheet" href="../assets/lesson.css"><link rel="stylesheet" href="../assets/cka.css"><script src="../assets/learning-theme.js"></script><script defer src="../assets/cka-lesson.js"></script></head><body><button class="theme-toggle" aria-label="切換深淺色模式">切換淺色</button><nav aria-label="學習導覽"><a href="../index.html">CKA 首頁</a><a href="../learning-map/index.html">學習地圖</a></nav><main><p class="eyebrow">LESSON 01 · 約 8–10 分鐘</p>
+<h1>Kubernetes 是什麼？為什麼會需要它？</h1>
+<p class="lead">網站能啟動，只代表它現在跑得起來。之後機器故障、使用人數增加、程式換版，還有一連串工作需要持續處理。</p>
+<p>這堂的目標：用自己的話說出 Kubernetes 負責哪一類工作，以及它無法替你解決什麼。</p>
+<h2>1. 從一個能運作的網站開始</h2>
+<p>假設你已經寫好一個網站，也能在一台機器上啟動它。現在，公司希望這個網站持續供大家使用。</p>
+<p>接下來，你會遇到幾個問題：</p>
+<ul><li>原本的機器需要維修，網站能不能在其他機器繼續執行？</li><li>一份網站程式忙不過來，能不能再啟動幾份分擔工作？</li><li>新版程式準備好了，怎麼逐步替換正在執行的舊版？</li></ul>
+<p>這些問題關心的是<strong>程式在哪裡執行，以及如何持續運作</strong>。你可以手動處理，也能寫程式自動化；當機器與應用越來越多，需要協調和追蹤的事情也會增加。</p>
+<h2>2. Kubernetes 接手哪一部分？</h2>
+<p><strong>Kubernetes，常簡稱 K8s，是一套協調機器、管理應用執行的開源系統。</strong>開源表示其程式碼公開，讓人可以檢視與參與開發。</p>
+<p>你提供應用和執行要求，它在可用的機器上安排應用執行，並根據設定處理後續的維持與變更。前面的「增加執行份數」「替換版本」「故障後恢復執行」，都屬於它可以協助的管理工作。</p>
+<div class="task"><p><strong>具體例子：</strong>你準備好新版網站，要求逐步替換舊版。Kubernetes 可以依設定執行替換；網站的新功能與程式碼，仍然要由開發者完成。</p></div>
+<p class="cite"><a href="https://kubernetes.io/docs/concepts/overview/#why-you-need-kubernetes-and-what-it-can-do">主要來源：Kubernetes 的用途</a></p>
+<h2>3. 有了它，還需要管理員嗎？</h2>
+<p>需要。Kubernetes 必須有合適的機器、設定與可執行的應用，才能完成工作。如果所有機器都沒有足夠資源，再要求啟動更多份網站，也不會憑空產生運算能力。</p>
+<p>如果網站程式把金額算錯，重新啟動它，通常仍會算錯。Kubernetes 可以處理執行與恢復相關的工作；程式的計算邏輯仍要由人修正。</p>
+<p>所以，是否採用 Kubernetes，要看你需要自動化的管理工作，是否值得承擔這套系統本身的建置與維護。只有一個簡單網站時，它不一定是最合適的選擇。</p>
+<p class="cite"><a href="https://kubernetes.io/docs/concepts/overview/#what-kubernetes-is-not">來源：Kubernetes 的功能邊界</a></p>
+<h2>4. 換個情境，自己判斷</h2>
+<p>每題選完按「檢查」，再閱讀原因。可以修改答案重試。</p>
+<section class="quiz" data-question="responsibility"><fieldset><legend>哪件事最適合交給 Kubernetes 協助？</legend>
+<label class="choice"><input type="radio" name="responsibility" value="code">替網站新增付款結帳的功能</label>
+<label class="choice"><input type="radio" name="responsibility" value="run" data-correct="true">依照設定增加網站執行份數</label>
+<label class="choice"><input type="radio" name="responsibility" value="bug">自動修正網站計算金額錯誤</label></fieldset>
+<button type="button" data-check>檢查第一題</button><p class="feedback" role="status" aria-live="polite"></p>
+<template data-feedback="code">新增付款功能需要改寫網站程式。再回想 Kubernetes 負責的是哪一類工作。</template>
+<template data-feedback="run">對。依設定增加執行份數屬於應用執行的管理工作；仍需要足夠的機器資源。</template>
+<template data-feedback="bug">程式的計算錯誤需要修正程式。讓它多執行幾份，仍可能得到錯誤結果。</template></section>
+<section class="quiz" data-question="capacity"><fieldset><legend>所有機器的資源都已用完，再要求增加網站份數，最合理的判斷是？</legend>
+<label class="choice"><input type="radio" name="capacity" value="limited" data-correct="true">仍需有足夠資源才能夠執行</label>
+<label class="choice"><input type="radio" name="capacity" value="automatic">系統會自動生出更多新機器</label>
+<label class="choice"><input type="radio" name="capacity" value="fixed">只要重新下令就能正常執行</label></fieldset>
+<button type="button" data-check>檢查第二題</button><p class="feedback" role="status" aria-live="polite"></p>
+<template data-feedback="limited">對。管理系統能安排可用資源，但不能憑空產生運算能力。</template>
+<template data-feedback="automatic">Kubernetes 本身不會憑空建立機器；額外擴充機器需要另有可用的基礎設施與機制。</template>
+<template data-feedback="fixed">重複要求沒有增加可用資源。要先處理容量不足，才可能執行更多份。</template></section>
+<h2>5. 用自己的話連回工作</h2>
+<p>假設同事說：「網站交給 Kubernetes 後，就不用再管了。」請用一個例子，說明它能幫忙的事，以及人仍需負責的事。</p>
+<label for="reflection">我的說明</label><textarea id="reflection" placeholder="它能協助……；人仍需要……，因為……"></textarea>
+<button type="button" id="copy">複製回答，貼回對話</button><p id="copied" role="status"></p><textarea id="export" aria-label="可複製的回答" hidden readonly></textarea>
+<noscript><p>目前瀏覽器未啟用互動功能。你仍可閱讀課文，將兩題選項及自己的說明直接貼回對話。</p></noscript>
+<h2>今天帶走的觀念</h2>
+<ul><li>Kubernetes 協助管理應用的執行，包含安排、變更與恢復等工作。</li><li>自動化依賴正確設定、可用資源與可執行的應用，不保證所有問題都能自行解決。</li><li>管理員需要理解它的運作方式，才能設定、觀察與修復；程式本身的錯誤仍需要修正。</li></ul>
+<p>下一堂會問：程式要以什麼形式交給 Kubernetes 執行？從這個問題開始認識容器。你的回答會決定下一堂需要補哪些前提。</p>
+<p>有任何一句不清楚，直接把那句貼回來詢問。</p>
+<p><a href="../reference/kubernetes-purpose.html">Kubernetes 用途速查 →</a> · <a href="../learning-map/milestones/foundation.html">基礎章完整路線 →</a></p></main><footer>CKA · Learning<br>理解與實作，依你的回答逐步推進。</footer></body></html>

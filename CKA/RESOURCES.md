@@ -5,7 +5,8 @@
 - [CNCF curriculum](https://github.com/cncf/curriculum): public versioned curriculum. Historical revisions matter; do not rely on old prep guides for current weights.
 
 ## Technical knowledge
-- [Kubernetes Components](https://kubernetes.io/docs/concepts/overview/components/), [Objects and desired state](https://kubernetes.io/docs/concepts/overview/working-with-objects/), [Pods](https://kubernetes.io/docs/concepts/workloads/pods/): first principles for first lesson.
+- [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/): Lesson 01 purpose, operational examples and functional boundaries.
+- [Kubernetes Components](https://kubernetes.io/docs/concepts/overview/components/), [Objects and desired state](https://kubernetes.io/docs/concepts/overview/working-with-objects/), [Pods](https://kubernetes.io/docs/concepts/workloads/pods/): sources for later foundation Lessons.
 - Further primary Kubernetes docs selected per actual lesson, not pre-written wholesale.
 
 ## Practice and signal

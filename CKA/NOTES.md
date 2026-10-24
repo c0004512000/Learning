@@ -2,3 +2,4 @@
 
 2026-10-25: User explicitly authorized borrowing Learning-from-docs global Course Map planning while retaining Learning teaching/runtime. 7 milestones, 34 planned Lessons with goals, acceptance and primary source. Future Lesson files not authored. Current first Lesson still awaits answers; no mastery inferred.
 
+2026-10-25 redesign: Earlier corrections accumulated unrelated concepts in Lesson 01. Rebuild from concept dependencies rather than appending definitions. First Lesson establishes purpose and limits only; container/image, architecture, Pod, desired state, objects, component collaboration and observation each receive a separate planned Lesson. Foundation expanded from 5 to 8 Lessons; total 37. User's goal includes understanding operational causes, not only exam routines. CKA remains a practical administration mission; kernel internals and source-code study are optional prerequisites only when needed. No learner mastery inferred.
