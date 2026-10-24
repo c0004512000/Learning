@@ -1,0 +1,1 @@
+2026-10-24: User clarified target CKA, requests separate directory, same six-month/five-hour/mobile/no-extra-cost Learning conditions, CKAD preserved. Prior CKAD answer absent; no CKA mastery inferred.
