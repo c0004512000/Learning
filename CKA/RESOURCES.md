@@ -30,3 +30,11 @@ See [practice/index.html](practice/index.html) for eight specific assignments an
 - Lesson 34: 修復網站連線失敗 — 社群 CKA 實作題（CKA 題庫引用的共用題）: https://github.com/bmuschko/ckad-crash-course/blob/master/exercises/30-troubleshooting-service/instructions.md
 
 Source review notes: bmuschko CKA exercises 08/19/24 explicitly refer to CKAD-repository exercises because the skills overlap; this does not change the course's CKA target. Excluded the dynamic-binding exercise from this selected set because it describes StorageClass as namespace-scoped and includes old beta annotation/environment assumptions; use current official guidance when creating that lesson. The selected official storage exercise is single-node hostPath only. Installation exercise with old Calico version is not assigned unchanged. Preserve free learning requirement; commercial hosted labs linked by source authors are optional and not prerequisites.
+
+## Lesson 02：映像與容器
+
+- https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-an-image/ — 映像內容與不可直接改寫的性質。
+- https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/ — 隔離執行、與整台機器的差異。
+- https://kubernetes.io/docs/concepts/containers/ — Kubernetes 如何使用容器與映像。
+
+這堂的情境題為自編觀念驗收，不標示為官方考題或已完成的操作實驗。

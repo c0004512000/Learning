@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>映像與容器：準備好的程式，如何開始執行｜CKA Learning</title><link rel="stylesheet" href="../assets/learning.css"><link rel="stylesheet" href="../assets/lesson.css"><link rel="stylesheet" href="../assets/cka.css"><script src="../assets/learning-theme.js"></script><script defer src="../assets/cka-lesson.js?v=images-20261025"></script></head><body><button class="theme-toggle" aria-label="切換深淺色模式">切換淺色</button><nav aria-label="學習導覽"><a href="../index.html">CKA 首頁</a><a href="../learning-map/index.html">學習地圖</a></nav><main data-report-title="CKA Lesson 02｜映像與容器"><p class="eyebrow">LESSON 02 · 約 8–10 分鐘</p>
+<h1>映像與容器：準備好的程式，如何開始執行</h1>
+<p class="lead">網站程式改好了，交給另一台機器時，只複製程式碼就一定跑得起來嗎？</p>
+<p>這堂只處理一個區分：<strong>準備好可以執行的內容</strong>，與<strong>實際啟動一份應用</strong>。先試著回答上面的問題，再往下讀。</p>
+<h2>1. 另一台機器可能少了什麼？</h2>
+<p>假設網站用 Python 撰寫。另一台機器除了網站程式碼，還需要能執行 Python 程式的軟體，以及網站用到的其他套件。套件就是別人已寫好、供這個程式使用的功能。</p>
+<p>如果每台機器都靠人重新安裝，可能有人裝了不同版本，也可能漏裝。結果就會出現「同一份程式，在這台能跑、另一台卻不能跑」。</p>
+<p>為了重複交付同一套內容，我們可以事先把程式與執行所需的檔案準備成一份標準格式的包，並記下啟動程式的方式。</p>
+<h2>2. 準備好的內容，叫做映像</h2>
+<p>這種準備好的包叫做<strong>容器映像（container image）</strong>，以下簡稱<strong>映像</strong>。這裡的「映像」不是圖片，而是用來建立應用執行環境的內容。</p>
+<p>以這個網站為例，映像可以包含網站程式碼、執行 Python 所需的軟體，以及網站使用的套件。映像準備好或下載完成，<strong>都不表示網站已經啟動</strong>。</p>
+<p>一份已建立的映像內容不會直接改寫。若要交付修正後的網站程式，就要依修正版建立新的映像。</p>
+<p class="cite"><a href="https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-an-image/">主要來源：Docker 官方對映像的說明</a></p>
+<h2>3. 用這份內容建立獨立的執行環境</h2>
+<p>機器可以根據映像建立一個供應用執行的隔離環境，再於其中啟動程式。這個環境稱為<strong>容器（container）</strong>。隔離的意思是：限制程式能看到和使用的檔案、執行中的程式等資源，減少與其他應用互相干擾。</p>
+<p>容器仍然依靠所在機器的作業系統與運算資源。它不是另外生出的一整台機器，也不是把一套完整、獨立的作業系統開機。</p>
+<p>同一份映像可以建立多個容器。每個容器各自有執行狀態，可以分別啟動或停止；停止其中一個，不代表另一個也會停止。</p>
+<p class="cite"><a href="https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-a-container/">主要來源：Docker 官方對容器的說明</a></p>
+<h2>4. 一份映像，兩個容器</h2>
+<p>假設用同一份網站映像建立容器 A、B，並啟動它們。接著只停止 A，沒有設定額外的自動重啟。</p>
+<div class="task"><p><strong>先預測：</strong>此時還有幾個容器在執行？原本的映像會不會因此被刪掉？</p></div>
+<details><summary>想過後，展開對照</summary>
+<table><thead><tr><th>對象</th><th>停止 A 之後</th></tr></thead><tbody>
+<tr><td>原本的映像</td><td>仍保留，可繼續用來建立容器</td></tr>
+<tr><td>容器 A</td><td>已停止，程式不再執行；停止不等於刪除</td></tr>
+<tr><td>容器 B</td><td>仍在執行，不會因為停止 A 就一起停止</td></tr>
+</tbody></table>
+<p>因此是兩個已建立的容器，其中一個在執行。映像的數量和執行中的容器數量，是兩件不同的事。</p></details>
+<h2>5. 修正程式後，為什麼還要換版？</h2>
+<p>假設舊映像裡的網站會把金額算錯，而你已修正電腦上的程式碼。正在執行的舊容器不會因此自動拿到新程式。</p>
+<p>在這個以映像交付網站的流程中，需要先用修正版建立新映像，再要求 Kubernetes 用新映像執行應用、替換舊版。<strong>只把舊版重新啟動，仍會執行舊的計算邏輯。</strong></p>
+<p>Kubernetes 管理的是這類以容器執行的應用。至於它如何協調多台機器、如何安排容器，我們會在接下來的課程逐步建立。</p>
+<p class="cite"><a href="https://kubernetes.io/docs/concepts/containers/">主要來源：Kubernetes 的容器概念</a></p>
+<h2>6. 換個情境判斷</h2>
+<section class="quiz" data-question="download"><fieldset><legend>同事已下載網站映像，尚未建立或啟動容器。現在可以確定哪件事？</legend><label class="choice"><input type="radio" name="download" value="0">網站已經開始接受使用者連線</label><label class="choice"><input type="radio" name="download" value="1">機器已經自動建立兩份網站</label><label class="choice"><input type="radio" name="download" value="2" data-correct="true">建立容器所需的映像已備妥</label></fieldset><button type="button" data-check>檢查第一題</button><p class="feedback" role="status" aria-live="polite"></p><template data-feedback="0">下載準備好的內容，不等於啟動程式。還需要建立並啟動容器。</template><template data-feedback="1">下載映像本身不會自動建立或啟動兩個容器。</template><template data-feedback="2">對。映像是準備好的內容；實際執行還需要建立並啟動容器。</template></section>
+<section class="quiz" data-question="version"><fieldset><legend>網站程式封裝在舊映像裡；你只改了電腦上的程式碼。要交付修正版，下一步應該做什麼？</legend><label class="choice"><input type="radio" name="version" value="0">把舊容器停止再重新啟動</label><label class="choice"><input type="radio" name="version" value="1" data-correct="true">建立新映像並替換舊版本</label><label class="choice"><input type="radio" name="version" value="2">將舊映像再下載一次使用</label></fieldset><button type="button" data-check>檢查第二題</button><p class="feedback" role="status" aria-live="polite"></p><template data-feedback="0">重新啟動仍使用舊內容，並未交付修改後的程式。</template><template data-feedback="1">對。修正版需要進入新映像，再由新版本的容器執行。</template><template data-feedback="2">重新下載同一份舊映像，得到的仍是舊程式。</template></section>
+<h2>7. 用自己的話確認</h2>
+<p>同一份映像建立了 A、B 兩個容器。若只停止 A，映像、A、B 各自會怎樣？再說明：容器為什麼不是另一整台機器？</p>
+<label for="reflection">我的說明</label><textarea id="reflection" placeholder="映像……；A……；B……。容器仍需要……"></textarea>
+<button type="button" id="copy">複製回答，貼回對話</button><p id="copied" role="status"></p><textarea id="export" aria-label="可複製的回答" hidden readonly></textarea>
+<noscript><p>互動功能需要 JavaScript。也可以將選項與自己的說明直接貼回對話。</p></noscript>
+<p>這次確認映像與容器的觀念。後續會在實際練習環境操作，並觀察真正的執行結果。</p>
+<p>有任何一句不清楚，直接把那句貼回來詢問。</p>
+<p><a href="../reference/images-and-containers.html">映像與容器速查 →</a> · <a href="../learning-map/milestones/foundation.html#lesson-03">接下來的學習目標 →</a> · <a href="../practice/index.html">後續實戰練習與來源 →</a></p>
+</main><footer>CKA · Learning<br>理解與實作，依你的回答逐步推進。</footer></body></html>

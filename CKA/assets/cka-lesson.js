@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const chosen = quiz.querySelector('input:checked');
       return `第 ${index + 1} 題：${chosen ? chosen.closest('label').textContent.trim() : '未作答'}；檢查 ${attempts.get(quiz.dataset.question) || 0} 次`;
     });
-    const result = ['CKA Lesson 01｜Kubernetes 的用途與邊界', ...answers,
+    const result = [document.querySelector('main').dataset.reportTitle || 'CKA Lesson 01｜Kubernetes 的用途與邊界', ...answers,
       '我的說明：' + (document.querySelector('#reflection').value || '尚未填寫'),
       '本次為觀念練習，未驗證叢集操作能力。'].join('\n');
     const status = document.querySelector('#copied');
