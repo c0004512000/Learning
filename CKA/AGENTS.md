@@ -12,3 +12,6 @@ Before publishing or calling a CKA Lesson complete:
 5. Verify the actual page and interaction at desktop and mobile viewports before reporting it as live-verified. Report unmet checks plainly.
 
 When a terminology gap reveals an overloaded Lesson, redesign its scope and prerequisite sequence. Do not append a glossary paragraph for each missing concept until the Lesson becomes a compressed architecture survey. First Lesson teaches Kubernetes purpose and boundaries only; use the current foundation map to place later concepts. Lesson count is derived from scope and may change.
+
+## Sourced hands-on practice
+Use practice/index.html and RESOURCES.md assignments when teaching the corresponding operational Lessons. Conceptual multiple-choice checks do not replace practical tasks. Before assigning a task, prepare and validate the environment/setup, explicit task and constraints, hints separated from solution, and observable acceptance checks. Preserve the source attribution and distinguish official Kubernetes tutorials, community CKA exercises, and original variations. A link or task listing is not a tested lab or learner completion. Keep real practice after necessary prerequisites; do not overload Lesson 01 with operational tasks. Later practice must include spaced, mixed and eventually timed tasks.
