@@ -19,5 +19,31 @@ metadata:
 spec:
   selector:
     app: shop</code></pre><p>Pod 名稱 <code>shop-v2</code> 不必與 Service 名稱一致。這個 selector 比較的是 <code>app</code> 標籤。</p><div class="box"><strong>選到 ≠ 已證明連得通。</strong><p>標籤匹配只回答「哪些 Pod 符合條件」。實際連線還要確認 Pod 是否就緒、服務埠與應用是否正常。本課先停在選取規則。</p></div><p class="cite"><a href="https://kubernetes.io/docs/concepts/services-networking/service/#defining-a-service">來源：Service 的定義與 selector</a>。本課限定有 selector 的 Service；沒有 selector 的 Service 屬於另一種配置。</p>
+<section id="exam-practice"><h2>考試風格任務：修復選錯對象的 Service</h2>
+<p>原創模擬題，對應 Service 與 selector 能力；不是官方歷屆真題。第一次不限時，熟悉後挑戰 6 分鐘（教學目標，非官方配分或時限）。</p>
+<p><strong>任務：</strong>在 <code>ckad-selector-lab</code> Namespace，修正既有 <code>store</code> Service，只選取 <code>app=store</code> 且 <code>tier=frontend</code> 的 Pod。不得修改 Pod 標籤、重建 Service，或改變其 type、port、targetPort。</p>
+<pre><code>Pod             labels
+store-front     app=store,tier=frontend
+store-back      app=store,tier=backend
+billing-front   app=billing,tier=frontend
+
+store Service 現況：
+spec:
+  selector:
+    app: store
+    tier: backend
+  ports:
+  - port: 80
+    targetPort: 80</code></pre>
+<p><strong>先作答：</strong>目前選到誰？應修改哪個欄位？寫出修正後的 selector，以及你會用什麼證據證明選對了。手機先完成這三件事即可；下面提供真正的叢集練習。</p>
+<details><summary>需要提示：如何把觀念轉成操作</summary><p><code>kubectl</code> 是操作 Kubernetes 的命令列工具；<code>-n</code> 指定 Namespace；<code>get</code> 讀取資源；<code>edit</code> 編輯既有資源。先執行 <code>kubectl -n ckad-selector-lab get pods --show-labels</code> 與 <code>kubectl -n ckad-selector-lab get service store -o yaml</code>，再用 <code>kubectl -n ckad-selector-lab edit service store</code>。只修改 selector 裡必要的值。</p></details>
+<details><summary>叢集實作：準備練習環境（不計時）</summary><p>在可拋棄的練習叢集操作。先用 <code>kubectl config current-context</code> 確認目前叢集；不要在工作環境執行。下載 <a href="../labs/selector-setup.yaml" download>練習初始設定</a>，存成 <code>selector-setup.yaml</code>。這份檔案建立專用 Namespace、三個 Pod，以及故意選錯後端的 Service。</p><pre><code>kubectl apply -f selector-setup.yaml
+kubectl -n ckad-selector-lab wait --for=condition=Ready pod --all --timeout=120s</code></pre><p>若等待失敗，先用 <code>kubectl -n ckad-selector-lab describe pods</code> 查看原因；映像下載或排程失敗不代表你答錯 selector。全部就緒後才開始解題。重新套用初始檔案會重設本題的 Service。</p><p>需要瀏覽器練習環境時，可從 <a href="https://killercoda.com/ckad">Killercoda CKAD 社群練習</a>挑選環境；部分課程需付費，本課不要求購買。GitHub Pages 本身沒有 Kubernetes 終端機。</p></details>
+<details><summary>完成後核對：解法與驗收</summary><p>原本選到 store-back。應將 <code>spec.selector.tier</code> 改成 <code>frontend</code>，保留 <code>app: store</code>。除了 edit，也可用 patch（只更新指定欄位）：</p><pre><code>kubectl -n ckad-selector-lab patch service store --type=merge -p '{"spec":{"selector":{"tier":"frontend"}}}'
+kubectl -n ckad-selector-lab get service store -o yaml
+kubectl -n ckad-selector-lab get pods -l app=store,tier=frontend -o wide
+kubectl -n ckad-selector-lab get endpointslices -l kubernetes.io/service-name=store -o yaml</code></pre><p><code>-l</code> 依標籤篩選。EndpointSlice 是 Kubernetes 維護的 Service 後端清單；控制器更新需要少許時間。</p><ul><li>Service selector 恰為 app=store、tier=frontend，原本 type、port、targetPort 保持不變。</li><li>三個 Pod 的標籤保持不變；標籤查詢只列出 store-front。</li><li>EndpointSlice 的 endpoints 中，targetRef.name 只指向 store-front，conditions.ready 為 true；雙協定環境可能有多份 Slice，不能只數檔案或 IP。</li></ul><p>這些證據驗收「選取與後端登錄」，不代表 HTTP 已連通。三個 Pod 都用 nginx，單看收到歡迎頁也不足以證明選對 Pod。</p><p>實作後貼回：修改指令／YAML、驗收輸出、花費時間、是否看過提示。只讀過解析請標記「尚未實作」。練習結束，確認名稱後可刪除本題專用 Namespace：<code>kubectl delete namespace ckad-selector-lab</code>。</p></details>
+<details><summary>變化題：隔一次學習再做</summary><p>現在需求改為「選到 store 的前端與後端，但排除 billing」。只改 Service selector，寫出解法。想一想：把 app 改對，卻留下 tier 條件，會造成什麼結果？</p><details><summary>作答後核對</summary><p>selector 只保留 <code>app: store</code>，刪除 tier 條件，才能選到 store-front 與 store-back。若用 merge patch，必須明確移除舊鍵：</p><pre><code>kubectl -n ckad-selector-lab patch service store --type=merge -p '{"spec":{"selector":{"app":"store","tier":null}}}'</code></pre><p>重新核對 Pod 標籤與 EndpointSlice；只送 app 欄位不會自動清除原有 tier。</p></details></details>
+<p class="cite">公開題型延伸：<a href="https://github.com/dgkanatsios/CKAD-exercises/blob/main/f.services.md">CKAD-exercises：Services and Networking</a>（建立 Service、檢查後端的社群題）。本題另行設計修復情境與驗收。技術依據：<a href="https://kubernetes.io/docs/concepts/services-networking/service/">Service 官方文件</a>、<a href="https://kubernetes.io/docs/reference/kubectl/generated/kubectl_patch/">kubectl patch</a>。</p></section>
 <h2>今天留下這三件事</h2><ul><li>Label 是 Pod 帶著的鍵值標記；selector 是 Service 要求的條件。</li><li>所有條件都必須符合；Pod 可以有額外標籤。</li><li>判斷選取結果，和驗證真正連線，是兩個不同步驟。</li></ul><p><a href="../reference/labels-and-selectors.html">打開一頁速查 →</a></p>
 <h2>把你的判斷帶回對話</h2><p>做完後，把下面結果貼回我們原本的對話。我會依你的說明決定下一步；有哪一段不清楚，也直接寫下來。</p><label for="learning-summary">本次練習結果</label><textarea id="learning-summary" readonly>JavaScript 未啟用時，請直接將自己的答案貼回對話。</textarea><p><button id="copy-summary" class="primary" type="button">複製結果，回對話貼上</button></p><p id="copy-status" role="status"></p><p class="cite">自己的說明保留在這個瀏覽器；作答次數僅記錄本次開啟期間。結果不會自動傳送給我，也不會直接標記「已掌握」。</p><nav class="lesson-nav"><a href="../learning-map/index.html">← 查看學習地圖</a><a href="#">↑ 回到課程開頭</a></nav></main><footer>CKAD · Learning<br>閱讀與手機練習在這裡；追問與個別回饋請回到原本的 ChatGPT 對話。</footer></body></html>
