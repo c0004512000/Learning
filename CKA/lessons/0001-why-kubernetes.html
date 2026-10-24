@@ -1,1 +1,65 @@
-test
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>第一堂：期望與實際狀態｜CKA Learning</title>
+  <link rel="stylesheet" href="../assets/learning.css">
+  <link rel="stylesheet" href="../assets/lesson.css">
+  <link rel="stylesheet" href="../assets/cka.css">
+  <script src="../assets/learning-theme.js"></script>
+  <script defer src="../assets/cka-lesson.js"></script>
+</head>
+<body>
+<button class="theme-toggle" aria-label="切換深淺色模式">切換淺色</button>
+<nav aria-label="學習導覽"><a href="../index.html">CKA 首頁</a><a href="../learning-map/index.html">學習地圖</a></nav>
+<main>
+  <p class="eyebrow">LESSON 0001 · 約 10–15 分鐘</p>
+  <h1>你要兩份網站，現在只剩一份</h1>
+  <p>想像網站原本同時執行兩份。一份停止後，網站可能還能使用，但少了一份備援。若你只在一開始啟動兩份，沒有人繼續檢查，系統就會一直停在「只剩一份」。</p>
+  <p>這堂先學一件事：<strong>分清楚「希望有幾份」與「現在真的有幾份」</strong>。這是後面理解 Kubernetes 如何維持應用的起點。</p>
+
+  <h2>1. 同一個網站，兩個數字</h2>
+  <div class="cards">
+    <div class="pod"><strong>期望狀態：2 份</strong><p>你希望網站維持兩份執行中的副本。「副本」在這裡就是另一份能提供相同網站服務的執行個體。</p></div>
+    <div class="pod"><strong>實際狀態：1 份</strong><p>此刻只有一份真的在執行。這個數字要靠觀察確認，不能只看原先提交的要求。</p></div>
+  </div>
+  <p>兩個數字相同，才算在「份數」這件事上達到目標。份數相同也還不能保證網站真的能正常回應；那需要其他檢查。</p>
+
+  <h2>2. Kubernetes 為什麼要持續檢查？</h2>
+  <p>你把「維持兩份」的要求交給 Kubernetes。它會記住這個目標，反覆觀察現在有幾份；如果只剩一份，就嘗試補回一份。<strong>嘗試</strong>不等於<strong>已經成功</strong>：例如可用的機器不足，第二份就可能還沒跑起來。</p>
+  <p>這種反覆比較目標和現況、並嘗試縮小差距的做法，叫做 <strong>調和（reconciliation）</strong>。這個名稱先對應你剛看到的行為，不必在第一堂記住所有內部元件。</p>
+  <p class="cite"><a href="https://kubernetes.io/docs/concepts/overview/working-with-objects/">官方：Kubernetes 物件與期望狀態</a></p>
+
+  <h2>3. 兩個接下來會看到的名稱</h2>
+  <p><strong>Node（節點）</strong>是供 Kubernetes 執行網站的機器。<strong>Pod</strong> 是 Kubernetes 放置並管理一個或多個容器的單位；這堂的例子可以先想成「一個 Pod 裡有一個網站容器」。希望有兩份網站時，這個簡化例子就是希望有兩個 Pod 在執行。Pod 不是整台 Node。</p>
+  <p>先知道「機器承載 Pod、Pod 裡執行容器」就夠了。建立 Pod、挑選哪台機器、在機器上啟動容器等步驟，後續課程再逐一拆解。</p>
+  <p class="cite"><a href="https://kubernetes.io/docs/concepts/overview/components/">官方：Kubernetes 元件</a> · <a href="https://kubernetes.io/docs/concepts/workloads/pods/">官方：Pods</a></p>
+
+  <h2>4. 先自己判斷，再看回饋</h2>
+  <p>你要求兩份網站，目前只看到一個 Pod 在執行。下面哪句最合理？</p>
+  <fieldset><legend>選一項</legend>
+    <label class="choice"><input type="radio" name="q" value="done">要求已被接受，所以兩份必定已執行</label>
+    <label class="choice"><input type="radio" name="q" value="observe">先確認現況，找出為何只執行一份</label>
+    <label class="choice"><input type="radio" name="q" value="pod">一個 Pod 就是一整台實體機器</label>
+  </fieldset>
+  <button id="check" type="button">檢查判斷</button><p id="feedback" class="feedback" role="status"></p>
+
+  <h2>5. 把判斷帶到觀察</h2>
+  <p>如果你有獲授權的練習叢集，可以先用 <code>kubectl get nodes</code> 看有哪些機器，再用 <code>kubectl get pods -A</code> 看叢集裡有哪些 Pod。<code>kubectl</code> 是向 Kubernetes 查詢或提交要求的指令工具；<code>-A</code> 在這裡代表查看所有命名空間中的 Pod，命名空間的用途留待後續課程。</p>
+  <p>手機上沒有叢集時，先回答：「目標兩份、實際一份，下一步要確認哪個數字？為什麼不能說任務已完成？」手機上的推理練習不等於完成叢集操作。</p>
+  <div class="task"><p><strong>用自己的話回答：</strong>Node 和 Pod 哪個是機器？一份網站停止後，為什麼只看先前提交的「兩份」要求不夠？</p></div>
+  <textarea id="reflection" aria-label="我的理解" placeholder="Node 是……；Pod 是……；我還要確認……"></textarea>
+  <p><button id="copy" type="button" class="primary">複製我的回答，貼回對話</button><span id="copied" role="status"></span></p>
+
+  <h2>今天記住</h2>
+  <ul>
+    <li>期望狀態是你要的結果；實際狀態是目前觀察到的結果。</li>
+    <li>Kubernetes 會反覆比較兩者並嘗試補足差距；接受要求不保證已達成。</li>
+    <li>Node 是執行工作的機器；Pod 是放置並管理容器的單位。</li>
+  </ul>
+  <p>哪一步不清楚，可以把你的疑問貼回對話，我會從那一步重新說明。</p>
+  <p><a href="../reference/desired-and-actual.html">期望／實際狀態速查 →</a> · <a href="../learning-map/index.html">回學習地圖</a></p>
+</main>
+<footer>CKA · Learning<br>手機閱讀與判讀；真實操作另外驗收。</footer>
+</body></html>
