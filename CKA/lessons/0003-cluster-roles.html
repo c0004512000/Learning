@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>叢集全貌：哪些機器執行，誰負責協調｜CKA Learning</title><link rel="stylesheet" href="../assets/learning.css"><link rel="stylesheet" href="../assets/lesson.css"><link rel="stylesheet" href="../assets/cka.css"><script src="../assets/learning-theme.js"></script><script defer src="../assets/cka-lesson.js?v=images-20261025"></script></head><body><button class="theme-toggle" aria-label="切換深淺色模式">切換淺色</button><nav aria-label="學習導覽"><a href="../index.html">CKA 首頁</a><a href="../learning-map/index.html">學習地圖</a></nav><main data-report-title="CKA Lesson 03｜叢集的協調與執行"><p class="eyebrow">LESSON 03 · 約 8 分鐘</p><h1>叢集全貌：哪些機器執行，誰負責協調</h1>
+<p class="lead">一台機器可以執行多個容器。如果現在有三台機器，誰來決定應用要放在哪裡？</p>
+<p>先回想：同一台主機上的兩個容器，為什麼不等於兩台獨立機器？想過後，再往下讀。</p>
+<h2>1. 多了機器，也多了協調工作</h2>
+<p>假設網站已包成映像，可以用來啟動容器。你有甲、乙、丙三台機器，希望網站執行兩份。甲很忙，乙、丙還有空間。</p>
+<p>手動處理時，你需要先確認各台機器的情況，再選擇執行位置。之後還得追蹤哪裡有程式在跑、哪台機器出了問題。只有「每台都能啟動容器」，還不足以完成整體管理。</p>
+<p>因此要分清楚兩件工作：<strong>協調整體安排</strong>，以及<strong>在選定的機器上執行應用</strong>。這就是今天要建立的架構分工。</p>
+<h2>2. 先認識實際執行的機器</h2>
+<p>Kubernetes 裡，加入管理、用來承載應用執行的機器稱為<strong>節點（Node）</strong>。在執行應用這個角色下，常稱<strong>工作節點（worker node）</strong>。</p>
+<p>前面的乙、丙可以各是一個工作節點。網站容器在它們上面執行，使用各自機器的處理器、記憶體等資源。一個節點可以承載多個容器；節點與容器不是同一層的東西。</p>
+<h2>3. 整體協調由誰處理？</h2>
+<p>需要有一組管理程式，記錄你希望應用如何執行、接收目前狀況，並據此協調安排。Kubernetes 把這組負責整體管理的元件稱為<strong>控制平面（control plane）</strong>。</p>
+<p>「平面」在這裡表示一組職責，不是一塊實體平板。控制平面本身也是在機器上執行的軟體。</p>
+<p>回到網站的例子：選擇合適的執行位置屬於整體協調；真正啟動網站、消耗處理器與記憶體，則發生在承載它的節點上。節點上的管理程式也會回報狀況，讓整體安排有依據。</p>
+<p class="cite"><a href="https://kubernetes.io/docs/concepts/overview/components/#core-components">主要來源：Kubernetes 官方架構分工</a></p>
+<h2>4. 合起來，就是一個叢集</h2>
+<p><strong>控制平面與受它管理的工作節點，合起來稱為 Kubernetes 叢集（cluster）。</strong>叢集表示它們共同形成一套管理與執行系統，不只是幾台互不協調的機器。</p>
+<figure class="containment"><div><strong>Kubernetes 叢集：包含以下兩部分</strong>
+<div><strong>控制平面</strong><p>協調應用安排、掌握整體狀況</p></div>
+<p>↓ 協調執行安排　↑ 回報執行情況</p>
+<div><strong>工作節點乙</strong><div>包含：執行中的網站容器 A</div></div>
+<div><strong>工作節點丙</strong><div>包含：執行中的網站容器 B</div></div>
+</div><figcaption>框線表示包含關係；箭頭表示管理資訊往來，不表示使用者瀏覽網站的路徑。此圖只呈現本堂的分工層次。</figcaption></figure>
+<p>這是角色分工，不代表必須購買一台專用控制機器再加兩台工作機器。練習環境可以讓同一台機器兼任管理與執行角色；較大型環境則可把管理元件分布在多台機器上。<strong>角色數量不等於機器數量。</strong></p>
+<h2>5. 用分工判讀一個狀況</h2>
+<p>假設你要求再增加一份網站，但每個工作節點都沒有足夠的可用資源。</p>
+<div class="task"><p>控制平面即使收到要求，能不能只靠「安排」讓新的網站一定跑起來？先說出理由。</p></div>
+<details><summary>想過後，展開說明</summary><p>不能。協調仍然需要可用的執行資源；管理軟體不會憑空產生處理器或記憶體。需要讓執行資源足夠，才可能完成新增安排。</p></details>
+<section class="quiz" data-question="placement"><fieldset><legend>網站容器被安排在節點乙上執行。它主要使用哪裡的處理器與記憶體？</legend><label class="choice"><input type="radio" name="placement" value="0" data-correct="true">節點乙的機器資源</label><label class="choice"><input type="radio" name="placement" value="1">控制端的機器資源</label><label class="choice"><input type="radio" name="placement" value="2">映像內的機器資源</label></fieldset><button type="button" data-check>檢查第一題</button><p class="feedback" role="status"></p><template data-feedback="0">對。應用在節點乙上執行，使用乙的資源。</template><template data-feedback="1">負責協調不等於承擔該網站的實際執行。此例網站位於乙。</template><template data-feedback="2">映像提供執行所需內容，不會提供處理器或記憶體。</template></section>
+<section class="quiz" data-question="single"><fieldset><legend>練習環境只有一台機器，同時負責控制平面與工作節點。哪個判斷合理？</legend><label class="choice"><input type="radio" name="single" value="0">只有執行而沒有協調角色</label><label class="choice"><input type="radio" name="single" value="1">兩個角色必須分兩台機器</label><label class="choice"><input type="radio" name="single" value="2" data-correct="true">同台機器可以兼任兩角色</label></fieldset><button type="button" data-check>檢查第二題</button><p class="feedback" role="status"></p><template data-feedback="0">題目已說明它也執行控制平面，因此有協調角色。</template><template data-feedback="1">角色是工作分工，不要求一個角色必須獨占一台機器。</template><template data-feedback="2">對。單機練習仍可同時具備管理與執行的分工。</template></section>
+<h2>6. 用自己的話串起來</h2><p>某個叢集的控制平面負責協調，乙、丙是工作節點。請說明「決定網站放哪裡」與「實際執行網站」各由哪個角色負責，以及容器、節點、叢集之間的關係。</p>
+<label for="reflection">我的說明</label><textarea id="reflection" placeholder="協調安排由……；實際執行在……。容器與節點……"></textarea><button type="button" id="copy">複製回答，貼回對話</button><p id="copied" role="status"></p><textarea id="export" aria-label="可複製的回答" hidden readonly></textarea>
+<h2>今天帶走的觀念</h2><ul><li>節點是機器；容器在機器上執行並使用它的資源。</li><li>控制平面是一組負責整體管理與協調的軟體元件。</li><li>控制平面與工作節點共同形成叢集；角色分工不等於固定的機器數量。</li></ul>
+<p>有任何一句不清楚，直接貼回來詢問。下一堂會接著說明 Kubernetes 如何把容器組織成管理單位。</p><p><a href="../reference/cluster-roles.html">架構分工速查 →</a> · <a href="../learning-map/milestones/foundation.html">基礎章路線 →</a></p></main></body></html>

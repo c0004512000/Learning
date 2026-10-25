@@ -38,3 +38,6 @@ Source review notes: bmuschko CKA exercises 08/19/24 explicitly refer to CKAD-re
 - https://kubernetes.io/docs/concepts/containers/ — Kubernetes 如何使用容器與映像。
 
 這堂的情境題為自編觀念驗收，不標示為官方考題或已完成的操作實驗。
+
+## Lesson 03：架構分工
+- https://kubernetes.io/docs/concepts/overview/components/ — 控制平面與工作節點的整體分工、部署彈性。
