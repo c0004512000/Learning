@@ -1,0 +1,31 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080d14"><meta name="description" content="SonarQube Community Build：從第一性原理到 GitHub Actions 與 Kubernetes 導入的繁體中文學習課程"><title>POC 導入決策清單｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a  href="../index.html">首頁</a><a  href="../learning-map/index.html">學習地圖</a><a  href="../lessons/0001-why-sonarqube.html">開始學習</a><a aria-current="page" href="../reference/0001-poc-playbook.html">POC 路線</a></nav><button class="theme" type="button" data-theme-toggle aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content"><p class="crumb"><a href="../index.html">SonarQube</a> / Reference</p><p class="kicker">REFERENCE / EXPERIMENT DESIGN</p><h1>從 POC 到上線：<br>導入驗證清單</h1><p class="intro">這是未來實驗的操作藍圖，不代表實驗已執行。每一步都有預期觀察、失敗訊號與通過條件。</p>
+<h2>Stage A / 最小 POC，先證明分析鏈路</h2><table><thead><tr><th>要做什麼</th><th>應有的驗證證據</th></tr></thead><tbody><tr><td>用核准的實驗環境啟動 Community Build</td><td>UI 可以登入；記錄 image 版本、資源及啟動 log</td></tr><tr><td>建立測試 Project、建立分析 Token</td><td>Project Key、Token 權限、保管方式皆已確認；不公開 Token</td></tr><tr><td>對 synthetic repo 執行 Scanner</td><td>Scanner report submission 成功、Background Task 完成</td></tr><tr><td>查看 Dashboard</td><td>能定位 Issue、Quality Gate 與 analysis timestamp</td></tr><tr><td>刻意加入可重現的規則違反</td><td>Issue / Gate 行為可被再次觀察，而非只看見漂亮截圖</td></tr></tbody></table>
+<p class="small">實驗性單節點 Docker 可以使用 H2 做短暫功能驗證；正式部署不能依賴 H2，應使用支援的外部資料庫。使用前需先檢查 Docker 版本、系統核心參數與當前官方 image tag。</p>
+<h2>Stage B / GitHub Actions POC</h2><p>先建立<strong>獨立、手動觸發、不影響 Production</strong>的 workflow。下面是針對具備相容 Runner 的簡化示意；實際 GitHub Enterprise／企業 Runner 需先確認能連到 SonarQube Server 與外部 Action 來源，必要時需走已核准的鏡像或內部 Action 路徑。</p>
+<pre><code>name: SonarQube POC
+on:
+  workflow_dispatch:
+
+jobs:
+  sonar:
+    runs-on: self-hosted # 依實際 label 修改
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Analyze
+        uses: SonarSource/sonarqube-scan-action@v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=demo-project
+            -Dsonar.sources=src
+            -Dsonar.qualitygate.wait=true</code></pre>
+<div class="callout warn"><strong>不要直接複製到公司部署 workflow。</strong><p>這是供理解與 POC 調整的例子，僅適合對應語言的 scanner 配置。Maven/Gradle/.NET 應使用各自的分析方式。正式使用需審查 Action 版本 pinning、可用來源、權限、Token、CA chain、build 產物與 branch 限制。</p></div>
+<details><summary>失敗注入：如何分辨不同失敗？</summary><ul><li><strong>Runner → Server 無法連線：</strong>先看 DNS / Firewall / Proxy / TLS CA；不應宣稱是品質不合格。</li><li><strong>Token 失效：</strong>API 回應授權問題；不等同 Scanner 找到漏洞。</li><li><strong>Scanner 成功、Gate 失敗：</strong>分析已完成，品質規則決策為 fail。</li><li><strong>Coverage 為 0 / 缺失：</strong>先確認測試工具是否產生報告，以及 Scanner 取用的路徑是否正確。</li><li><strong>Dashboard 舊結果：</strong>檢查 Background Tasks、Project Key、執行版本與 branch。</li></ul></details>
+<h2>Stage C / 與既有 CI/CD 的整合策略</h2><p>你們既有的典型流程可概念化為 <code>build → deploy → E2E</code>，並有獨立的 Secret Scanning 與 Production Release Gate。最初不要改變既有 Gate 的實際語意；可先在<strong>主分支合併後的獨立 job</strong>做非阻擋分析，再決定是否需要品質阻擋。</p><table><thead><tr><th>策略</th><th>優點</th><th>風險／限制</th></tr></thead><tbody><tr><td>主分支合併後掃描</td><td>符合免費版 main branch 模型、較容易接入</td><td>問題在合併後才被發現</td></tr><tr><td>放入 Release tag 流程</td><td>可建立版本發布前品質檢查</td><td>免費版沒有原生獨立 tag / 多分支分析；不要假定每個 tag 有獨立分析快照</td></tr><tr><td>直接當 PR Gate</td><td>理想上能提早攔截</td><td>免費版缺少原生 PR Analysis / Decoration；需另行設計，不應假設等同付費版</td></tr><tr><td>所有服務統一阻擋</td><td>標準一致</td><td>初期誤報、Legacy Code、Runner 時間與不可用風險較高</td></tr></tbody></table>
+<h2>Stage D / K8s 維運與 rollout</h2><ol class="sequence"><li>盤點 Helm Chart、社內容器映像政策、Image registry、Namespace、CPU/RAM 與版本升級路徑。</li><li>決定外部 PostgreSQL、備份／回復驗證、PVC 用途、Search index、容量觀測與故障處理責任。</li><li>驗證 Ingress / TLS / GitHub Runner → Server 網路及 CA trust chain；不要用略過憑證驗證取代修復。</li><li>定義 Token 權限、保管、rotation、RBAC、存取日誌與 SSO 需求（依免費版能力評估）。</li><li>選擇語言多樣的 pilot，記錄每次掃描時間、Issue 噪音、Gate 失敗率、失敗處理與例外政策。</li><li>確認可靠性與開發體驗後，才決定是否把 check 納入可阻擋部署的依賴鏈。</li></ol>
+<p class="note">公司實際 repo 的 workflow YAML 尚未做完整審查，這份文件的 GitHub Actions 整合點是根據既有 CI/CD 模式制定的待驗證假設。</p><a class="cta" href="../learning-map/index.html">回到學習地圖</a>
+<div class="sources"><strong>參考</strong><p><a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/analysis-overview">Analysis overview</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/ci-integration/overview">CI integration</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/server-installation/installing-the-database">Database</a></p></div></div></main><footer><div class="shell">SONARQUBE / LEARNING · Community Build · 2026-11-06　｜　<a href="../RESOURCES.md">官方來源</a>　·　<a href="../reference/0002-glossary.html">術語速查</a><p>這是教學與實驗規劃，不代表已完成公司環境部署或驗收。</p></div></footer><script src="../assets/site.js" defer></script></body></html>
