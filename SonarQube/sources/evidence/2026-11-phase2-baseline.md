@@ -17,3 +17,7 @@
 - 未取得公司 GitHub Enterprise 原始 workflow 與 Runner 的 SonarQube 連線、GitHub App、網路或相容性證據。
 - 沒有做本機或公司 SonarQube 真實 POC；教材中的 policy lab 是明確標示的瀏覽器端概念模擬。
 - GitHub Pages 的發布成功不代表學生完成 lesson / POC 驗收。
+
+## Precise distinction added 2026-11-07
+- A GitHub Actions `pull_request` event can start a Runner and Scanner, including reading a PR checkout. However the Community Build does not provide native pull-request/branch analysis storage, comparisons or PR decoration. Official instructions explicitly say only scan the main branch with Community Build, not use `on.pull_request` for SonarQube analysis. The outcome of trying unsupported parameters/checkout depends on scanner, version and configuration; do not make categorical claims that it will always error, always not scan, or always write main. https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow
+- The SonarQube Project represents the repository's analysis within SonarQube; projectKey routes the analysis. https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/overview

@@ -13,7 +13,10 @@
 <div class="boundary-arrow" aria-hidden="true">→</div>
 <section class="boundary accent"><span class="number">02 / ANALYSIS MODEL</span><h3>Community Build</h3><p>「哪個分支的分析結果能被正式管理？」</p><p class="code-inline">main branch</p><p class="small">免費版原生主分支分析，不提供完整的多分支與 PR 分析。</p></section>
 </div>
-<p>因此，寫出 <code>on: pull_request</code> 只是使 Scanner <em>有機會在 PR 工作流程被呼叫</em>；不會讓免費版突然擁有 PR 專屬的差異分析、PR Dashboard、PR Decoration。</p>
+<p>這裡要把「有啟動 Scanner」與「SonarQube Server 有能力管理這種結果」拆開。執行 <code>on: pull_request</code> 後，Runner 確實可以 Checkout PR 程式碼、啟動 Scanner，Scanner 也可以開始進行規則檢查；但是免費版<strong>沒有提供 PR #123 專屬的原生分析結果、與目標分支的比較、PR Dashboard 或 PR Decoration</strong>。</p>
+<div class="callout"><strong>不是「觸發了卻不分析」。</strong><p>而是「Scanner 可以執行分析，但 Server 不支援用 PR 這個獨立維度，正確儲存與呈現結果」。嘗試上傳 PR/branch 分析可能因設定與版本而失敗；如果硬把它當成 main 結果上傳，還可能污染 main 的分析狀態。這不是可依賴的 PR Gate。</p></div>
+<div class="flowchart"><p class="diagram-title">Figure / 同一段 Scanner 指令，兩種分析歸屬</p>
+<div class="cardgrid"><div class="card"><span class="number">PR #123 · PRE-MERGE</span><h3>Runner 可開始掃描</h3><p>但免費版沒有 PR #123 專屬的分析狀態，也無法提供原生 PR 差異視圖。</p><span class="result-bad">不支援原生 PR Analysis</span></div><div class="card"><span class="number">MAIN · POST-MERGE</span><h3>Runner 掃描 main</h3><p>Server 能將結果歸屬到 Project 的主分支，供 Dashboard 顯示 Issues、Metrics 和 Gate。</p><span class="result-good">支援 Main Branch Analysis</span></div></div></div>
 <div class="callout"><strong>容易誤解的例子：</strong>你可以在 GitHub PR 工作流程執行一般測試或其他掃描工具，但不能因此聲稱「SonarQube Community Build 已完成原生 PR Analysis」。</div>
 
 <h2>02 / 用四種實際事件驗證</h2>
@@ -24,6 +27,10 @@
 <tr><td><strong>Release Tag</strong><br><span class="small">例如 release/TW/PROD/…</span></td><td><span class="result-bad">沒有獨立 tag 分析維度</span></td><td>若版本來自 main，可研究以主分支分析結果做版本治理，但需驗證 SHA 對應。</td></tr>
 </tbody></table>
 <p class="small">主分支分析的「main」代表 SonarQube Project 所配置的主分支，不表示每個 repo 一定都必須叫 <code>main</code>。不要把不受支援的分支掃描直接上傳到同一 Project，並誤認為結果會自動分開。</p>
+<h3>先補一個名詞：SonarQube Project</h3>
+<p>Project 是 SonarQube 裡<strong>保存某份程式碼品質資訊的邏輯對象</strong>。GitHub Repository 裡放的是原始碼與 Git 歷史；SonarQube Project 裡管理的是這份原始碼的分析結果、Issues、Metrics、Quality Profile 與 Quality Gate。它不是 Kubernetes Namespace，也不是 Runner 本身。</p>
+<p>例如 GitHub <code>mes-backend</code> 對應 SonarQube 的 Project Key <code>mes-backend</code>。Scanner 透過 <code>sonar.projectKey=mes-backend</code> 告訴 Server 報告要歸屬哪個 Project。入門階段採用<strong>一個 Repo 對應一個 Project</strong>最容易看懂，但並不是產品唯一允許的映射方式。</p>
+<div class="callout"><strong>下階段會更仔細學：</strong>Phase 03 / Lesson 05 會從 Repository → Project → Project Key → Main Branch → Dashboard 的關係開始，再進入 Docker 啟動、資料庫與實際建置，不會突然要求你建立一個不知道用途的 Project。</div>
 
 <h2>03 / 免費版真正可以做到哪些事？</h2>
 <div class="cardgrid">
