@@ -1,38 +1,43 @@
-# Sources / RESOURCES
+# SonarQube Learning Resources
 
-資料核對日：2026-11-06。SonarQube Community Build 的 release cadence 與功能可能改變，操作前請再次確認官方版本文件。
+資料檢視：2026-11-07。以目前 Community Build 官方文件為準；開始 POC 前應固定實際版本並重新確認變動功能。
 
-## Learner-designated materials
-- 既有討論所形成的架構圖與問題（存成材料描述）：[`sources/materials/starting-point.md`](sources/materials/starting-point.md)
-- 使用者既有 CI/CD 模型：GitHub Actions / self-hosted Runner / Kubernetes / Deployment & Test Gates；作為需要後續核對的背景，不等於已讀取公司工作流程原文。
+## Knowledge（權威技術依據）
 
-## Primary official references
-1. [Analysis overview](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/analysis-overview) — Scanner 到 Server 的路徑、主分支模型。
-2. [GitHub integration introduction](https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/introduction) — 免費版不支援原生多分支、PR 分析。
-3. [CI integration overview](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/ci-integration/overview) — Quality Gate wait 與 CI job 失敗。
-4. [Scanner](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/scanners/sonarscanner) — Scanner CLI / token / host URL。
-5. [Project analysis setup](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/overview) — clone depth 與 Scanner 準備。
-6. [Coverage](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/overview) — 外部測試工具產出報告再匯入。
-7. [Docker setup](https://docs.sonarsource.com/sonarqube-community-build/server-installation/from-docker-image/set-up-and-start-container) — 容器安裝。
-8. [Database](https://docs.sonarsource.com/sonarqube-community-build/server-installation/installing-the-database) — H2 / PostgreSQL 正式使用。
-9. [SonarSource download](https://www.sonarsource.com/products/sonarqube/downloads/) — Community Build 功能與語言支持。
-10. [Official SonarQube Scan Action](https://github.com/SonarSource/sonarqube-scan-action) — GitHub Actions 呼叫方式。
+### 起點與分析模型
+- [Analysis overview](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/analysis-overview) — Scanner、Server 及分析任務的基本流程；適用 Lesson 01–02。
+- [Creating your project](https://docs.sonarsource.com/sonarqube-community-build/project-administration/creating-project) — Project 的建立方式與 Repository 對應；適用 Lesson 05。
+- [GitHub integration](https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/introduction) — GitHub App、repo 匯入與免費版限制；適用 Lesson 03。
+- [GitHub Actions analysis](https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow) — 僅掃描主分支的官方建議、Runner 準備與 Gate 回傳；適用 Lesson 03、07、09。
+- [Feature comparison](https://docs.sonarsource.com/sonarqube-community-build/feature-comparison-table) — Community Build 與其他產品的 branch / PR 功能邊界；適用 Lesson 03、09。
 
-## Evidence log
-- [`sources/evidence/2026-11-official-baseline.md`](sources/evidence/2026-11-official-baseline.md)
+### 規則與門檻
+- [Rules](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-rules/rules) — 規則與 Issue 的關係；適用 Lesson 04、13。
+- [Quality Profiles](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/understanding-quality-profiles) — 語言規則組如何選取；適用 Lesson 04、13。
+- [Quality Gates](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates) — 指標條件、PASS / FAIL 與 CI；適用 Lesson 04、08、10。
+- [New Code](https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code) — 新增程式碼定義不是 PR Analysis；適用 Lesson 03–04、09。
+- [Coverage overview](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/overview) — 外部測試工具先產生報告，再由 Scanner 匯入；適用 Lesson 08。
 
-不以舊 Community Edition 文件取代目前 Community Build 官方說明。
+### POC 與營運
+- [Docker setup](https://docs.sonarsource.com/sonarqube-community-build/server-installation/from-docker-image/set-up-and-start-container) — 隔離環境基本啟動與持久化掛載；適用 Lesson 05。
+- [Database requirements](https://docs.sonarsource.com/sonarqube-community-build/server-installation/installing-the-database) — H2 僅作試驗用途、正式環境持久化資料庫；適用 Lesson 05、11–12。
+- [Kubernetes Helm configuration](https://docs.sonarsource.com/sonarqube-community-build/server-installation/on-kubernetes-or-openshift/customizing-helm-chart) — 外部 DB 與 Kubernetes 設定；適用 Lesson 11。
+- [Official SonarQube Scan Action](https://github.com/SonarSource/sonarqube-scan-action) — GitHub Actions Scanner 整合、版本與限制；適用 Lesson 07。
+- [原始教材起點](sources/materials/starting-point.md) — 學習需求與示意架構圖的使用者描述；屬於需求素材而非技術權威。
 
-## Phase 02 — 基準與最新版本差異（2026-11-07）
-11. [Community Build feature comparison](https://docs.sonarsource.com/sonarqube-community-build/feature-comparison-table) — 主分支分析 / 自訂 Profile 與 Gate / 原生 PR 限制。
-12. [GitHub Actions in Community Build](https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow) — 官方建議僅掃描主分支。
-13. [Quality Profile concept](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/understanding-quality-profiles) — 規則集合，按語言選用。
-14. [Built-in Profiles (26.10)](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/built-in-quality-profiles) — core、extended、comprehensive。
-15. [Rules](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-rules/rules) — Rule 產生 Issue；MQR 與 Standard Mode。
-16. [Quality Gates](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates) — 指標條件、New Code、Gate 結果。
-17. [New Code](https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code) — New Code 不等於 Pull Request Analysis。
-18. [MQR / Standard Experience](https://docs.sonarsource.com/sonarqube-community-build/user-guide/code-metrics/changing-modes) — 分類與 Severity 可變。
-19. [Creating custom Quality Profiles](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/creating-a-quality-profile) — 內建 Profile 的繼承。
-20. [Custom Gate and Fudge Factor](https://docs.sonarsource.com/sonarqube-community-build/project-administration/adjusting-analysis/changing-quality-gate-and-fudge-factor) — 少量新增行數時可忽略 Coverage / Duplication 條件。
+## Wisdom（實務交流）
+- [Sonar Community](https://community.sonarsource.com/) — 官方維護的使用者論壇；遇到版本特定的 Scanner／Quality Gate 行為時，可查對照案例。社群回答須與該版官方文件、實測結果交叉檢查。
 
-Phase 02 來源核對：[`sources/evidence/2026-11-phase2-baseline.md`](sources/evidence/2026-11-phase2-baseline.md)。未曾驗證的公司環境特定功能不寫成既定事實。
+## Evidence 與課程映射
+- [初始來源核對](sources/evidence/2026-11-official-baseline.md) — 初始分析模型與未驗證範圍。
+- [Phase 02 核對](sources/evidence/2026-11-phase2-baseline.md) — branch / PR 與 Rules、Profiles、Gates。
+- [課程來源與驗收矩陣](sources/evidence/2026-11-source-matrix.md) — 每堂來源及可觀察的驗收標準。
+- [已連結的外部資料來源](sources/linked/external/sonarsource-docs.md) — 來源選取與更新界線。
+
+## Gaps（待有證據才可宣稱完成）
+- 尚無公司私有 GitHub Workflows 的逐檔稽核、Runner 網路與 TLS 連線證據。
+- 尚未啟動真實 SonarQube POC，因此沒有可稽核的 Dashboard 截圖、Issues、Background Tasks 或失敗注入結果。
+- 尚無正式 K8s / PostgreSQL 安裝、復原或升級實測。
+- 未有可驗證的學習者作答或操作成果；首頁的「已撰寫」不得作為學習完成率。
+
+這份清單是課程的參考依據，不表示所有後續階段的操作已經執行成功。

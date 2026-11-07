@@ -1,5 +1,7 @@
-# Learning records
+# Learning Records
 
-尚未有經使用者回答或操作驗證的學習紀錄。第一堂與第二堂已撰寫，但不等於已掌握。
+目前沒有符合 canonical `LEARNING-RECORD-FORMAT.md` 的學習紀錄。
 
-未來每個有意義的學習成果／觀念修正，依 canonical Learning-from-docs Skill 的 Learning Record 規範新增 `0001-*.md` 等記錄。
+**提問不代表已掌握。** 使用者關於 Analysis Report、PR 分析與 Project 的問題已整理至 `../NOTES.md`，作為後續教學約束；不升格為 Learning Record。
+
+只有在學習者實際證明理解、明確揭露既有能力、確認誤解已被修正，或 Mission 真正改變時，才建立 `0001-*.md`。未來按此目錄的最高正式編號遞增。
