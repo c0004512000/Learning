@@ -1,13 +1,13 @@
 <!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080d14"><meta name="description" content="SonarQube Community Build 免費版：完整的理解、限制、規則與品質門禁教學。"><title>Lesson 03 · 免費版能力邊界｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a href="../index.html">首頁</a><a href="../learning-map/index.html">學習地圖</a><a aria-current="page" href="0001-why-sonarqube.html">開始學習</a><a href="../reference/0001-poc-playbook.html">POC 路線</a></nav><button class="theme" type="button" data-theme-toggle aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content">
 <p class="crumb"><a href="../index.html">SonarQube</a> / <a href="../learning-map/index.html#phase-2">Phase 02</a> / Lesson 03</p>
 <p class="kicker">L03 / COMMUNITY BUILD / PRODUCT BOUNDARY</p>
-<h1>GitHub Actions 能跑，<br>就等於支援 PR 分析嗎？</h1>
-<p class="intro">這堂先分清楚兩層：<strong>GitHub 何時執行 workflow</strong>，與 <strong>SonarQube 能辨識、保存哪一種分析結果</strong>。後者的功能邊界會限制你能做的 CI 治理。</p>
+<h1>CI 觸發與分支分析，<br>是兩種不同的能力。</h1>
+<p class="intro">從一個最基本的例子開始：同一個 Repository 會有主分支與功能分支，PR 是合併前的變更請求。這堂先分清楚兩層：<strong>GitHub 何時執行 workflow</strong>，與 <strong>SonarQube 能辨識、保存哪一種分析結果</strong>。後者的功能邊界會限制你能做的 CI 治理。</p>
 <div class="meta"><span class="tag teal">Phase 02 · Lesson 03</span><span class="tag">約 12 分鐘</span><span class="tag">不需安裝</span></div>
 <div class="panel"><p class="eyebrow">學完要能做到</p><p>面對主分支、Feature Branch、Pull Request、Release Tag 四種情境，你可以辨認 Community Build 的原生能力，以及哪些需求需要改設計、不能靠改 workflow 名稱達成。</p></div>
 
 <h2>01 / 先看兩個系統的工作邊界</h2>
-<p>GitHub Actions 的 <code>on:</code> 決定 Runner 什麼時候被叫起來。Runner 可以在 PR、push 或 tag 事件執行一個 shell command；但<strong>命令被執行</strong>，不代表<strong>接收它的 SonarQube Server 支援該事件對應的分析模型</strong>。</p>
+<p>GitHub Actions 的 <code>on:</code> 決定 Runner 什麼時候被叫起來。Runner 是執行 CI job 的機器或容器，可以在 PR、push 或 tag 事件執行 Scanner。<strong>Scanner 對讀到的程式碼做檢查</strong>，而 <strong>SonarQube Server 決定這份資料能否被視為某個 Branch / PR 的獨立分析結果</strong>。兩件事不同。</p>
 <div class="boundary-grid" aria-label="GitHub Actions 和 SonarQube 的功能邊界">
 <section class="boundary"><span class="number">01 / TRIGGER</span><h3>GitHub Actions</h3><p>「什麼事件觸發工作？」</p><p class="code-inline">push / pull_request / tag</p><p class="small">由 workflow 定義 Runner 何時執行。</p></section>
 <div class="boundary-arrow" aria-hidden="true">→</div>
@@ -54,17 +54,17 @@
 <p>這表示你可以主張「從今天開始，新增的程式碼要乾淨」，不必馬上修完全部 Legacy Issues。但它<strong>不是</strong>在 PR 尚未合併前，對該 PR 相對目標分支做獨立分析。兩件事不能畫等號。</p>
 <div class="panel"><span class="number">VERSION WATCH / 26.10</span><p>目前官方文件對 Community Build 26.10 的 Quality Profile 分為 Sonar way <strong>core / extended / comprehensive</strong>；舊教學可能只寫 Sonar way。這是規則組的版本變化，不代表免費版突然開放 PR Analysis。下一堂會拆解規則與品質門檻。</p></div>
 
-<section class="quiz" data-quiz data-correct="c" data-explanation="GitHub Actions 的觸發事件不會改變 SonarQube Community Build 只能原生管理主分支分析的能力邊界。">
+<section class="quiz" data-quiz data-correct="b" data-explanation="PR 觸發只代表 GitHub Actions 可啟動 Runner；Community Build 並未因此提供原生 PR 獨立結果。">
 <p class="eyebrow">RETRIEVAL / 檢查是否能判斷</p>
 <fieldset style="border:0;padding:0;margin:0"><legend>假設把 workflow 的 <code>on.push</code> 改成 <code>on.pull_request</code>，對 Community Build 最準確的描述是？</legend>
-<label><input type="radio" name="phase2q1" value="a">原生 PR 差異分析就會啟用</label>
-<label><input type="radio" name="phase2q1" value="b">原生多分支保存就會啟用</label>
-<label><input type="radio" name="phase2q1" value="c">僅改變 CI 觸發，不解鎖功能</label></fieldset>
-<button class="check" type="button" data-check>確認判斷</button><p class="feedback" data-feedback role="status"></p></section>
+<label><input type="radio" name="audit-3" value="a">PR 觸發後會產生獨立分析紀錄</label>
+<label><input type="radio" name="audit-3" value="b">PR 觸發不代表支援獨立的分析</label>
+<label><input type="radio" name="audit-3" value="c">PR 觸發後能管理所有開發分支</label></fieldset>
+<button class="check" type="button" data-check disabled>確認判斷</button><p class="feedback" data-feedback role="status"></p><noscript><details><summary>JavaScript 未啟用：展開練習解析</summary><p>本題正解：B。PR 觸發只代表 GitHub Actions 可啟動 Runner；Community Build 並未因此提供原生 PR 獨立結果。</p></details></noscript></section>
 
 <h2>06 / 本堂結論與決策</h2>
 <ul><li>GitHub Actions <code>on:</code> 管的是觸發；SonarQube 版本管的是原生分析能力。</li><li>Community Build 適合先從 <strong>Main Branch + Dashboard + Quality Gate</strong> POC 切入。</li><li>New Code 可用於主分支的「新程式碼品質」，不能當成原生 PR Analysis。</li><li>GitHub App 整合與 Scanner 上傳分析是兩種不同層次；POC 可分開驗證。</li></ul>
 <a class="cta" href="0004-rules-profiles-gates.html">進入 Lesson 04 →</a>
 <a class="text-link" href="../reference/0002-glossary.html">術語速查</a>
-<section class="sources"><strong>官方來源（核對日期：2026-11-07）</strong><p><a href="https://docs.sonarsource.com/sonarqube-community-build/feature-comparison-table">Feature comparison</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/introduction">GitHub integration</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow">GitHub Actions configuration</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code">New code</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/built-in-quality-profiles">Built-in profiles / 26.10</a></p><p>若官方針對 Community Build 支援功能有變更，應以實際部署版本與該版本官方文件重新驗證。</p></section>
+<section class="sources"><strong>課後優先閱讀：</strong><a href="https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow">Community Build 官方 GitHub Actions 設定</a>，注意只分析主分支的建議。若無法解釋某個箭頭或情境，可把它帶回 ChatGPT 釐清；不必跳去研究商業版。<p></p><strong>官方來源（核對日期：2026-11-07）</strong><p><a href="https://docs.sonarsource.com/sonarqube-community-build/feature-comparison-table">Feature comparison</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/introduction">GitHub integration</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow">GitHub Actions configuration</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code">New code</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/built-in-quality-profiles">Built-in profiles / 26.10</a></p><p>若官方針對 Community Build 支援功能有變更，應以實際部署版本與該版本官方文件重新驗證。</p></section>
 </div></main><footer><div class="shell">SONARQUBE / LEARNING · Community Build · 官方資料核對：2026-11-07　｜　<a href="../RESOURCES.md">來源索引</a>　·　<a href="../reference/0002-glossary.html">術語速查</a><p>教學情境為概念演示，不代表已在公司環境完成安裝、測試或部署。</p></div></footer><script src="../assets/site.js" defer></script></body></html>
