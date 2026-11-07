@@ -6,14 +6,16 @@
 <path d="M340 90V145" stroke="#829aae" stroke-width="2.5" marker-end="url(#arrow)"/><text x="352" y="118" font-size="14" fill="#a5b6c7">上傳分析報告</text>
 <rect x="100" y="153" width="480" height="234" rx="20" stroke="#40c5b4" stroke-width="2.5" fill="#071b1c"/><text x="340" y="188" font-size="25" fill="#f2fafa" text-anchor="middle" font-weight="700">SonarQube Server</text>
 <rect x="133" y="214" width="414" height="62" rx="9" fill="#103334"/><text x="340" y="253" font-size="20" fill="#eefafa" text-anchor="middle">Web Server / API</text>
-<path d="M340 278V298" stroke="#40c5b4" stroke-width="2.5" marker-end="url(#arrow)"/>
+<path d="M340 278V298" stroke="#40c5b4" stroke-width="2.5" marker-end="url(#arrow)"/><text x="355" y="295" font-size="11" fill="#6cd4cb">排入處理</text>
 <rect x="133" y="308" width="414" height="59" rx="9" fill="#103334"/><text x="340" y="347" font-size="20" fill="#eefafa" text-anchor="middle">Compute Engine</text>
 <path d="M222 387V420H170V440" stroke="#829aae" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
-<path d="M458 387V420H510V440" stroke="#829aae" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+<text x="198" y="411" font-size="12" fill="#91adb7" text-anchor="middle">寫入結果</text>
+<path d="M313 491H364" stroke="#829aae" stroke-width="2.2" fill="none" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+<text x="339" y="479" font-size="11" fill="#91adb7" text-anchor="middle">查詢</text>
 <rect x="28" y="446" width="284" height="91" rx="14" fill="#0e1824" stroke="#829aae" stroke-width="2"/><text x="170" y="484" font-size="22" fill="#edf7f9" font-weight="650" text-anchor="middle">Database</text><text x="170" y="510" font-size="17" fill="#9aaebd" text-anchor="middle">PostgreSQL（正式環境）</text>
 <rect x="364" y="446" width="288" height="91" rx="14" fill="#0e1824" stroke="#829aae" stroke-width="2"/><text x="508" y="483" font-size="22" fill="#edf7f9" font-weight="650" text-anchor="middle">Dashboard / API</text><text x="508" y="510" font-size="16" fill="#9aaebd" text-anchor="middle">Issues / Quality Gate</text>
 <text x="508" y="565" font-size="15" fill="#5be0c5" text-anchor="middle">CI 可等待並讀取 Gate 結果</text>
-</svg><figcaption class="caption">概念圖。Dashboard / API 屬於同一個 SonarQube Server 的 Web 服務能力，右側並非額外一台獨立部署的 Dashboard；資料庫與 Search index 的實際連線也較圖示複雜。</figcaption></figure></div></section><section><h2>你會依序走過什麼？</h2><div class="cardgrid">
+</svg><figcaption class="caption">概念圖：Scanner 將報告提交給 Web API，Server 排入背景處理，Compute Engine 將結果持久化；Dashboard 由同一個 Server 的 Web 服務提供並查詢這些資料。右側不是另一個獨立部署的 Dashboard，圖示也省略了 Elasticsearch 等實際元件。</figcaption></figure></div></section><section><h2>你會依序走過什麼？</h2><div class="cardgrid">
 <a class="card" href="lessons/0001-why-sonarqube.html"><span class="number">01 / READY</span><h3>為什麼需要 SonarQube？</h3><p>靜態分析、測試與 Secret Scanning 的責任分工。</p><span class="text-link">進入 Lesson →</span></a>
 <a class="card" href="lessons/0002-analysis-flow.html"><span class="number">02 / READY</span><h3>Scanner 的結果去哪裡？</h3><p>從 CI Checkout 到非同步計算、Dashboard 與 Quality Gate。</p><span class="text-link">進入 Lesson →</span></a>
 <a class="card" href="lessons/0003-community-build-boundary.html"><span class="number">03 / READY</span><h3>Community Build 能做什麼？</h3><p>GitHub Actions 觸發、主分支與原生 PR 分析的差異。</p><span class="text-link">進入 Lesson →</span></a>
