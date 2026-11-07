@@ -22,3 +22,17 @@
 - [`sources/evidence/2026-11-official-baseline.md`](sources/evidence/2026-11-official-baseline.md)
 
 不以舊 Community Edition 文件取代目前 Community Build 官方說明。
+
+## Phase 02 — 基準與最新版本差異（2026-11-07）
+11. [Community Build feature comparison](https://docs.sonarsource.com/sonarqube-community-build/feature-comparison-table) — 主分支分析 / 自訂 Profile 與 Gate / 原生 PR 限制。
+12. [GitHub Actions in Community Build](https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow) — 官方建議僅掃描主分支。
+13. [Quality Profile concept](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/understanding-quality-profiles) — 規則集合，按語言選用。
+14. [Built-in Profiles (26.10)](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/built-in-quality-profiles) — core、extended、comprehensive。
+15. [Rules](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-rules/rules) — Rule 產生 Issue；MQR 與 Standard Mode。
+16. [Quality Gates](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates) — 指標條件、New Code、Gate 結果。
+17. [New Code](https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code) — New Code 不等於 Pull Request Analysis。
+18. [MQR / Standard Experience](https://docs.sonarsource.com/sonarqube-community-build/user-guide/code-metrics/changing-modes) — 分類與 Severity 可變。
+19. [Creating custom Quality Profiles](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/creating-a-quality-profile) — 內建 Profile 的繼承。
+20. [Custom Gate and Fudge Factor](https://docs.sonarsource.com/sonarqube-community-build/project-administration/adjusting-analysis/changing-quality-gate-and-fudge-factor) — 少量新增行數時可忽略 Coverage / Duplication 條件。
+
+Phase 02 來源核對：[`sources/evidence/2026-11-phase2-baseline.md`](sources/evidence/2026-11-phase2-baseline.md)。未曾驗證的公司環境特定功能不寫成既定事實。

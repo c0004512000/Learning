@@ -1,0 +1,63 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080d14"><meta name="description" content="SonarQube Community Build 免費版：完整的理解、限制、規則與品質門禁教學。"><title>Lesson 03 · 免費版能力邊界｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a href="../index.html">首頁</a><a href="../learning-map/index.html">學習地圖</a><a aria-current="page" href="0001-why-sonarqube.html">開始學習</a><a href="../reference/0001-poc-playbook.html">POC 路線</a></nav><button class="theme" type="button" data-theme-toggle aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content">
+<p class="crumb"><a href="../index.html">SonarQube</a> / <a href="../learning-map/index.html#phase-2">Phase 02</a> / Lesson 03</p>
+<p class="kicker">L03 / COMMUNITY BUILD / PRODUCT BOUNDARY</p>
+<h1>GitHub Actions 能跑，<br>就等於支援 PR 分析嗎？</h1>
+<p class="intro">這堂先分清楚兩層：<strong>GitHub 何時執行 workflow</strong>，與 <strong>SonarQube 能辨識、保存哪一種分析結果</strong>。後者的功能邊界會限制你能做的 CI 治理。</p>
+<div class="meta"><span class="tag teal">Phase 02 · Lesson 03</span><span class="tag">約 12 分鐘</span><span class="tag">不需安裝</span></div>
+<div class="panel"><p class="eyebrow">學完要能做到</p><p>面對主分支、Feature Branch、Pull Request、Release Tag 四種情境，你可以辨認 Community Build 的原生能力，以及哪些需求需要改設計、不能靠改 workflow 名稱達成。</p></div>
+
+<h2>01 / 先看兩個系統的工作邊界</h2>
+<p>GitHub Actions 的 <code>on:</code> 決定 Runner 什麼時候被叫起來。Runner 可以在 PR、push 或 tag 事件執行一個 shell command；但<strong>命令被執行</strong>，不代表<strong>接收它的 SonarQube Server 支援該事件對應的分析模型</strong>。</p>
+<div class="boundary-grid" aria-label="GitHub Actions 和 SonarQube 的功能邊界">
+<section class="boundary"><span class="number">01 / TRIGGER</span><h3>GitHub Actions</h3><p>「什麼事件觸發工作？」</p><p class="code-inline">push / pull_request / tag</p><p class="small">由 workflow 定義 Runner 何時執行。</p></section>
+<div class="boundary-arrow" aria-hidden="true">→</div>
+<section class="boundary accent"><span class="number">02 / ANALYSIS MODEL</span><h3>Community Build</h3><p>「哪個分支的分析結果能被正式管理？」</p><p class="code-inline">main branch</p><p class="small">免費版原生主分支分析，不提供完整的多分支與 PR 分析。</p></section>
+</div>
+<p>因此，寫出 <code>on: pull_request</code> 只是使 Scanner <em>有機會在 PR 工作流程被呼叫</em>；不會讓免費版突然擁有 PR 專屬的差異分析、PR Dashboard、PR Decoration。</p>
+<div class="callout"><strong>容易誤解的例子：</strong>你可以在 GitHub PR 工作流程執行一般測試或其他掃描工具，但不能因此聲稱「SonarQube Community Build 已完成原生 PR Analysis」。</div>
+
+<h2>02 / 用四種實際事件驗證</h2>
+<table><thead><tr><th>你希望分析什麼？</th><th>Community Build 原生能力</th><th>初期做法</th></tr></thead><tbody>
+<tr><td><strong>Main push</strong><br><span class="small">例如合併到 main</span></td><td><span class="result-good">支援</span></td><td>先用單一 Project 的主分支分析。</td></tr>
+<tr><td><strong>Feature Branch</strong><br><span class="small">例如 feature/payment</span></td><td><span class="result-bad">不支援多分支分析</span></td><td>不要假裝有獨立 branch history。</td></tr>
+<tr><td><strong>Pull Request</strong><br><span class="small">例如 PR #128</span></td><td><span class="result-bad">不支援原生 PR Analysis</span></td><td>不能期待 PR Decoration 或原生差異 Issue 結果。</td></tr>
+<tr><td><strong>Release Tag</strong><br><span class="small">例如 release/TW/PROD/…</span></td><td><span class="result-bad">沒有獨立 tag 分析維度</span></td><td>若版本來自 main，可研究以主分支分析結果做版本治理，但需驗證 SHA 對應。</td></tr>
+</tbody></table>
+<p class="small">主分支分析的「main」代表 SonarQube Project 所配置的主分支，不表示每個 repo 一定都必須叫 <code>main</code>。不要把不受支援的分支掃描直接上傳到同一 Project，並誤認為結果會自動分開。</p>
+
+<h2>03 / 免費版真正可以做到哪些事？</h2>
+<div class="cardgrid">
+<div class="card"><span class="number">AVAILABLE</span><h3>分析與 Dashboard</h3><p>原始碼靜態分析、Issues、Metrics，以及主分支 Project 的品質結果。</p></div>
+<div class="card"><span class="number">AVAILABLE</span><h3>Quality Profile / Gate</h3><p>可自行設定啟用哪些規則、以及分析指標達到什麼門檻才算通過。</p></div>
+<div class="card"><span class="number">AVAILABLE</span><h3>GitHub Actions 掃描</h3><p>CI Runner 可以執行 Scanner、提交報告，並選擇等待 Quality Gate 結果。</p></div>
+<div class="card"><span class="number">EXTERNAL INPUT</span><h3>Coverage</h3><p>可以匯入 Coverage 報告；測試與 Coverage 報告仍需外部工具產生。</p></div>
+</div>
+<div class="callout warn"><strong>GitHub 帳號整合不是 Scanner 的同義詞。</strong><p>使用 GitHub App 可協助匯入 repo、整合登入；但你可以先在 SonarQube 建立 Project，再由 CI 使用 URL、Project Key 與 Token 上傳。學習 POC 不必預設先建立完整企業級 GitHub App 整合。</p></div>
+
+<h2>04 / 免費版限制如何影響你們的 CI/CD？</h2>
+<p>你們目前主要從 <code>release/**</code> 標籤執行 build → deploy → E2E，也有 PR Merge 自動測試和 Production Release Gate。若想用免費版，<strong>我會先把 SonarQube 當「main branch 的持續品質監測」</strong>，而不是假設能在每個 PR 或 Release Tag 擁有獨立分析結果。</p>
+<div class="flowchart" aria-label="建議的第一版整合流程">
+<p class="diagram-title">Concept / 免費版優先整合位置</p>
+<div class="chain"><div class="flow-node">PR Merge to default branch<small>已有的合併事件</small></div><div class="chain-arrow">↓ <span>觸發</span></div><div class="flow-node teal-node">Main branch SonarQube Scan<small>獨立 job · 先觀察、不阻擋</small></div><div class="chain-arrow">↓ <span>報告提交／背景處理</span></div><div class="flow-node">SonarQube Quality Gate<small>在 Dashboard 與 API 查看狀態</small></div></div>
+<p class="caption">這是下一階段要驗證的設計提案，不是已實際部署的公司 workflow。是否進入 Release Gate 留到 Phase 05 討論。</p></div>
+<p>如果一定要<strong>阻擋尚未合併的 PR</strong>，就要明確評估其他免費工具、獨立自製檢查策略，或接受原生 PR Analysis 功能缺口；不要把主分支掃描硬稱為 PR Scan。</p>
+
+<h2>05 / New Code 並不等於 PR Analysis</h2>
+<p>免費版在主分支上仍可區分 <strong>New Code</strong> 與 <strong>Overall Code</strong>。前者是一段基於「前次版本、天數、指定分析」等設定所劃定的新增或修改程式碼範圍；後者包含整個專案。</p>
+<p>這表示你可以主張「從今天開始，新增的程式碼要乾淨」，不必馬上修完全部 Legacy Issues。但它<strong>不是</strong>在 PR 尚未合併前，對該 PR 相對目標分支做獨立分析。兩件事不能畫等號。</p>
+<div class="panel"><span class="number">VERSION WATCH / 26.10</span><p>目前官方文件對 Community Build 26.10 的 Quality Profile 分為 Sonar way <strong>core / extended / comprehensive</strong>；舊教學可能只寫 Sonar way。這是規則組的版本變化，不代表免費版突然開放 PR Analysis。下一堂會拆解規則與品質門檻。</p></div>
+
+<section class="quiz" data-quiz data-correct="c" data-explanation="GitHub Actions 的觸發事件不會改變 SonarQube Community Build 只能原生管理主分支分析的能力邊界。">
+<p class="eyebrow">RETRIEVAL / 檢查是否能判斷</p>
+<fieldset style="border:0;padding:0;margin:0"><legend>假設把 workflow 的 <code>on.push</code> 改成 <code>on.pull_request</code>，對 Community Build 最準確的描述是？</legend>
+<label><input type="radio" name="phase2q1" value="a">原生 PR 差異分析就會啟用</label>
+<label><input type="radio" name="phase2q1" value="b">原生多分支保存就會啟用</label>
+<label><input type="radio" name="phase2q1" value="c">僅改變 CI 觸發，不解鎖功能</label></fieldset>
+<button class="check" type="button" data-check>確認判斷</button><p class="feedback" data-feedback role="status"></p></section>
+
+<h2>06 / 本堂結論與決策</h2>
+<ul><li>GitHub Actions <code>on:</code> 管的是觸發；SonarQube 版本管的是原生分析能力。</li><li>Community Build 適合先從 <strong>Main Branch + Dashboard + Quality Gate</strong> POC 切入。</li><li>New Code 可用於主分支的「新程式碼品質」，不能當成原生 PR Analysis。</li><li>GitHub App 整合與 Scanner 上傳分析是兩種不同層次；POC 可分開驗證。</li></ul>
+<a class="cta" href="0004-rules-profiles-gates.html">進入 Lesson 04 →</a>
+<a class="text-link" href="../reference/0002-glossary.html">術語速查</a>
+<section class="sources"><strong>官方來源（核對日期：2026-11-07）</strong><p><a href="https://docs.sonarsource.com/sonarqube-community-build/feature-comparison-table">Feature comparison</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/introduction">GitHub integration</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow">GitHub Actions configuration</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code">New code</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/built-in-quality-profiles">Built-in profiles / 26.10</a></p><p>若官方針對 Community Build 支援功能有變更，應以實際部署版本與該版本官方文件重新驗證。</p></section>
+</div></main><footer><div class="shell">SONARQUBE / LEARNING · Community Build · 官方資料核對：2026-11-07　｜　<a href="../RESOURCES.md">來源索引</a>　·　<a href="../reference/0002-glossary.html">術語速查</a><p>教學情境為概念演示，不代表已在公司環境完成安裝、測試或部署。</p></div></footer><script src="../assets/site.js" defer></script></body></html>

@@ -1,0 +1,79 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080d14"><meta name="description" content="SonarQube Community Build 免費版：完整的理解、限制、規則與品質門禁教學。"><title>Lesson 04 · 規則、Profiles、Issues 與 Gates｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a href="../index.html">首頁</a><a href="../learning-map/index.html">學習地圖</a><a aria-current="page" href="0001-why-sonarqube.html">開始學習</a><a href="../reference/0001-poc-playbook.html">POC 路線</a></nav><button class="theme" type="button" data-theme-toggle aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content">
+<p class="crumb"><a href="../index.html">SonarQube</a> / <a href="../learning-map/index.html#phase-2">Phase 02</a> / Lesson 04</p>
+<p class="kicker">L04 / RULES → PROFILES → ISSUES → GATES</p>
+<h1>偵測到問題，<br>為什麼不一定會阻擋？</h1>
+<p class="intro">上一堂確認了免費版「分析哪個分支」的範圍。現在要解開另一個核心疑問：<strong>系統依什麼規則找問題，又依什麼標準認定結果不合格？</strong></p>
+<div class="meta"><span class="tag teal">Phase 02 · Lesson 04</span><span class="tag">約 15 分鐘</span><span class="tag">互動門檻實驗</span></div>
+<div class="panel"><p class="eyebrow">學完要能做到</p><p>從一個問題發生的程式碼情境，推導出 Rule → Quality Profile → Issue / Metric → Quality Gate → CI 的因果鏈，並判斷改變規則或 Gate 門檻會產生什麼不同結果。</p></div>
+
+<h2>01 / 假設你想禁止某種程式碼寫法</h2>
+<p>例如某個語言的程式存在已知易出錯的寫法。你希望 Scanner 找出這種寫法。那系統必須先有一個可執行的<strong>判定條件</strong>，描述什麼樣的程式碼要被標記。</p>
+<div class="callout"><strong>這個判定條件叫 Rule（規則）。</strong><p>Rule 是「某種寫法要不要被視為問題」的檢查定義；真正發生在你程式碼某個位置的違規結果，才叫 <strong>Issue（問題實例）</strong>。</p></div>
+<p>所以一條 Rule 可以在整個 Project 中找出 0 個、1 個或很多個 Issues。不要把「規則數量」誤當成「程式碼問題數量」。</p>
+
+<h2>02 / 為什麼還需要 Quality Profile？</h2>
+<p>假設 Java 支援數百條 Rules。你不一定希望每個 Project 都套用全部規則；有的專案重視安全，有的專案會從較小的規則集合開始導入。</p>
+<p>因此需要 <strong>Quality Profile</strong>：它是<strong>針對某種語言啟用哪些 Rules</strong>的設定組。沒有被啟用的規則，不會以該 Profile 的規則檢查程式碼。</p>
+<div class="flowchart" aria-label="Quality Profile 內有已啟用規則，再由 Scanner 對程式碼檢查">
+<p class="diagram-title">Figure 02 / Which rules are enabled?</p>
+<div class="rule-board"><div><span class="number">LANGUAGE</span><h3>Java</h3><p class="small">該語言可用的規則集合</p></div><div class="rule-profile"><span class="number">QUALITY PROFILE</span><h3>Example / Java Profile</h3><div class="rule-line"><span class="rule-dot good"></span><span>Rule A：啟用</span><span class="result-good">ON</span></div><div class="rule-line"><span class="rule-dot good"></span><span>Rule B：啟用</span><span class="result-good">ON</span></div><div class="rule-line"><span class="rule-dot"></span><span>Rule C：停用</span><span class="small">OFF</span></div></div></div>
+<p class="caption">示意資料，不是實際 Java 規則名稱。Profile 是「檢查清單」，不是「阻擋清單」。</p></div>
+<h3>26.10 的內建三種嚴格程度</h3>
+<table><thead><tr><th>內建 Profile</th><th>主要差異</th><th>適合先理解的定位</th></tr></thead><tbody>
+<tr><td><strong>Sonar way core</strong></td><td>官方精選的高影響規則，26.10 新安裝預設</td><td>較低噪音的起點</td></tr>
+<tr><td><strong>Sonar way extended</strong></td><td>在可靠性、可維護性規則更嚴格</td><td>要求更全面的團隊</td></tr>
+<tr><td><strong>Sonar way comprehensive</strong></td><td>使用完整的官方推薦規則集</td><td>深入盤點、較高要求</td></tr>
+</tbody></table>
+<p class="small">以上是官方 26.10 文件描述。升級自舊版不一定自動改寫既有專案的 Profile 或 default；POC 應先確認所部署的版本與選用規則集。自訂時可 Extend 內建 Profile 以沿用上游規則更新。</p>
+
+<h2>03 / 那 Quality Gate 負責哪一層？</h2>
+<p>Scanner 跑完有效規則後，會產生 Issues 與其他 Metrics，Server 綜合成 Project 品質資料。但即使你看到了 15 個 Issues，也不能直接推出「分析不合格」——因為組織可能只要求<strong>新程式碼不可新增問題</strong>。</p>
+<div class="flowchart" aria-label="Rule 到 Gate 以及 CI 的完整因果鏈">
+<p class="diagram-title">Figure 03 / From a rule to a release decision</p>
+<div class="chain">
+<div class="flow-node"><strong>Rule</strong><small>判定哪種程式碼寫法有問題</small></div><div class="chain-arrow">↓ <span>啟用於</span></div>
+<div class="flow-node"><strong>Quality Profile</strong><small>每種語言要執行哪些 Rules</small></div><div class="chain-arrow">↓ <span>Scanner 使用規則集分析原始碼</span></div>
+<div class="flow-node"><strong>Issue + Metrics</strong><small>具體違規、數量、Coverage 等指標</small></div><div class="chain-arrow">↓ <span>Compute Engine 彙總並判斷條件</span></div>
+<div class="flow-node teal-node"><strong>Quality Gate</strong><small>Project 是否 PASS / FAIL</small></div><div class="chain-arrow">↓ <span>可選擇讓 CI 等待並採用結果</span></div>
+<div class="flow-node"><strong>GitHub Actions Job</strong><small>工作流程要不要因 Gate 而失敗？</small></div>
+</div>
+</div>
+<p><strong>Quality Profile 控制「檢查哪些規則」；Quality Gate 控制「哪些品質指標達到何種門檻才通過」。</strong>例如自訂 Gate 可設定「新程式碼 Issues 數量必須為 0」。</p>
+
+<h2>04 / 用同一段程式碼，改兩種設定會發生什麼？</h2>
+<p>以下是<strong>純前端概念模擬</strong>，不是連線到真正 SonarQube；用來比較「停用規則」和「放寬 Gate」的不同。你可以調整條件，觀察 <em>Issue 是否產生</em>和 <em>Gate 是否通過</em>是兩種不同決定。</p>
+<div class="policy-lab" data-policy-lab>
+<div class="lab-grid"><label>這條 Rule 有啟用嗎？<select data-lab-rule><option value="on">啟用 Rule</option><option value="off">停用 Rule</option></select></label>
+<label>程式碼有觸犯這條 Rule 嗎？<select data-lab-violation><option value="yes">有違反</option><option value="no">沒有違反</option></select></label>
+<label>自訂 Gate 允許的最多 New Issues<small>（示例閾值，不是預設 Gate）</small><select data-lab-allow><option value="0">0 個</option><option value="1">1 個</option></select></label></div>
+<div class="lab-results" aria-live="polite"><div class="lab-metric"><span>此次示例 New Issues</span><strong data-lab-issues>1</strong></div><div class="lab-metric"><span>Custom Quality Gate</span><strong data-lab-gate class="result-bad">FAIL</strong></div></div>
+<p class="lab-explanation" data-lab-reason>Rule 已啟用且程式碼違規，產生 1 個新 Issue；Gate 只允許 0 個，因此 FAIL。</p>
+</div>
+<div class="callout"><strong>真正有用的比較：</strong><p>停用 Rule 會使這條規則不再產生 Issue；提高 Gate 容忍門檻卻不會讓 Issue 消失，只是允許有問題的結果仍然通過。這兩個治理選項的影響完全不同。</p></div>
+
+<h2>05 / New Code 與 Overall Code 的 Gate 差異</h2>
+<p>假設現在有 <strong>20 個舊 Issue</strong>，但是這次定義的 New Code <strong>0 個新 Issue</strong>：</p>
+<table><thead><tr><th>假設自訂 Gate 條件</th><th>結果</th><th>為什麼</th></tr></thead><tbody>
+<tr><td>Overall Issues ≤ 0</td><td><span class="result-bad">FAIL</span></td><td>全專案仍有 20 個問題。</td></tr>
+<tr><td>New Issues ≤ 0</td><td><span class="result-good">PASS</span></td><td>新程式碼沒有新增問題。</td></tr></tbody></table>
+<p>上表<strong>只比較單一 Issues 條件</strong>。真實的 Sonar way Gate 還有 Coverage、Duplication 等條件；任何一項失敗，整體 Gate 就可能 FAIL。因此不能拿這個例子宣稱「現實專案一定 PASS」。</p>
+<p>另外，Coverage 不是 Scanner 自己跑測試得來；需要先匯入外部測試工具的報告。若實際採用新程式碼 Coverage 門檻，要先確定報告存在，並注意官方對少量新增行數的忽略機制（Fudge Factor）。</p>
+
+<h2>06 / 類型、嚴重程度、版本差異</h2>
+<p>SonarQube 介面可選擇 <strong>Standard Experience</strong> 或 <strong>Multi-Quality Rule（MQR）</strong>模式：前者常見 Bug / Vulnerability / Code Smell，後者以 Reliability / Security / Maintainability 為品質面向。切換模式會影響 Issue 分類、Severity 與部分 Gate 指標，POC 中不要在未確認模式時直接複製舊教學數據。</p>
+<div class="callout warn"><strong>版本差異：</strong>新版官方文件註明 Security Hotspots 正逐步淘汰或轉換為 Issues；不同版本的預設 Gate 與 Dashboard 呈現可能不同。實驗時以 <strong>你安裝的版本</strong>、Quality Gate 頁面實際條件、官方該版文件三者交叉核對。</div>
+
+<section class="quiz" data-quiz data-correct="b" data-explanation="Quality Profile 管啟用哪些檢查規則，Quality Gate 管計算後哪些指標門檻算通過；修改 Gate 不會自動停用原本的 Rule。">
+<p class="eyebrow">RETRIEVAL / 核心觀念</p>
+<fieldset style="border:0;padding:0;margin:0"><legend>想保留程式碼 Issues 供工程師修正，但初期不因這些 Issue 阻擋 CI，主要應調整哪一層？</legend>
+<label><input type="radio" name="phase2q2" value="a">把所有規則從 Profile 中停用</label>
+<label><input type="radio" name="phase2q2" value="b">調整 Quality Gate 與 CI 阻擋策略</label>
+<label><input type="radio" name="phase2q2" value="c">關閉 Scanner 的所有分析流程</label></fieldset>
+<button class="check" type="button" data-check>確認我的判斷</button><p class="feedback" data-feedback role="status"></p></section>
+
+<h2>07 / 本堂結論與下一階段</h2>
+<ul><li>Rule 是「條件」；Issue 是「在程式碼某處被判定違規的一次具體結果」。</li><li>Quality Profile 選定「哪些 Rules 有效」，通常按語言管理。</li><li>Quality Gate 使用 Issues 與其他 Metrics 判斷 PASS / FAIL，可以只要求 New Code 達標。</li><li>Quality Gate FAIL 不必然等於部署失敗；CI 要如何採用它，需要另外設計。</li></ul>
+<p>有了這個基礎，Phase 03 才適合開始啟動 SonarQube，檢查你選用的 Profile、人工觸發 Rule 違規、觀察 Issue，再查看 Gate 是否如預期變化。</p>
+<a class="cta" href="../reference/0001-poc-playbook.html">查看 Phase 03 POC 計畫 →</a><a class="text-link" href="../learning-map/index.html">回到學習地圖</a>
+<section class="sources"><strong>官方來源（核對日期：2026-11-07）</strong><p><a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-rules/rules">Rules</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/understanding-quality-profiles">Quality Profiles</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/built-in-quality-profiles">Built-in Profiles / 26.10</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates">Quality Gates</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code">New Code</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/code-metrics/changing-modes">MQR / Standard Experience</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/project-administration/adjusting-analysis/changing-quality-gate-and-fudge-factor">Fudge factor</a></p><p>完整的 Rule 名稱和 Gate 條件以真正 POC 選定的產品版本為準；本頁的規則模擬是推導概念，不是替代實測。</p></section>
+</div></main><footer><div class="shell">SONARQUBE / LEARNING · Community Build · 官方資料核對：2026-11-07　｜　<a href="../RESOURCES.md">來源索引</a>　·　<a href="../reference/0002-glossary.html">術語速查</a><p>教學情境為概念演示，不代表已在公司環境完成安裝、測試或部署。</p></div></footer><script src="../assets/site.js" defer></script></body></html>
