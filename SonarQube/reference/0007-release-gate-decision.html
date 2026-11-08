@@ -1,0 +1,48 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="GitHub Actions 和 SonarQube：Release Tag 與 Quality Gate 治理矩陣"><title>Release Trigger 與 CI Gate 決策矩陣｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a href="../index.html">首頁</a><a href="../learning-map/index.html">學習地圖</a><a href="../lessons/0009-release-trigger-analysis-identity.html">Lesson 09</a><a href="../lessons/0010-nonblocking-to-blocking.html">Lesson 10</a></nav><button class="theme" type="button" disabled data-theme-toggle aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content"><p class="crumb"><a href="../index.html">SonarQube</a> / Reference / Release Gate</p><p class="kicker">REFERENCE 07 / CI POLICY</p>
+<h1>Release 要過 Gate，<br>先證明是哪一次分析。</h1>
+<p class="intro">這份速查把 GitHub 事件、Checkout SHA、SonarQube Project、Quality Gate 和 Deployment Job 連成同一個決策模型。它是制定規範的輔助表，不是已對任何正式 Repo 啟用的阻擋政策。</p>
+<h2 id="triggers">01 / 事件選擇與分析身分</h2>
+<table><thead><tr><th>要回答的事</th><th>輸入與選擇</th><th>最易忽略的風險</th></tr></thead><tbody>
+<tr><td><strong>什麼時候掃？</strong></td><td><code>push main</code>、<code>pull_request closed + merged</code>、<code>push tags</code></td><td>同一個 Commit 被多個 Trigger 重掃</td></tr>
+<tr><td><strong>掃哪個 Commit？</strong></td><td>直接檢查 <code>git rev-parse HEAD</code></td><td>Checkout main HEAD 不是當時的 PR merge 或 Release Tag</td></tr>
+<tr><td><strong>結果放哪裡？</strong></td><td><code>sonar.projectKey</code> 與 Server Main Branch</td><td>Community 不是多分支系統，重掃可能更新同 Project 的最新結果</td></tr>
+<tr><td><strong>哪個 Release？</strong></td><td>Tag → <code>sonar.projectVersion</code></td><td>標版本≠分析上一版本的 Git diff，也不提供舊版完整 Dashboard 的永久快照</td></tr>
+<tr><td><strong>是否阻擋？</strong></td><td>CE Task → Gate → CI Job → Deploy <code>needs</code></td><td>Dashboard 顯示 PASS 也可能不是該 SHA 的結果</td></tr>
+</tbody></table>
+<h3>主分支單一分析政策</h3><p>選 <code>push main</code> 為唯一權威分析觸發；PR 開啟時執行 Build／Test／Lint，直到合併後再掃 SonarQube Main Project。這是 Community Build 較直接的導入起點。</p>
+<h3>僅 Release Tag 分析政策</h3><p>在 <code>push tags</code> 事件 Checkout 該 Tag 的 Commit，傳入該 Tag 至 <code>sonar.projectVersion</code>。限制是沒有每次 main 更新的品質訊號，且 Tag 不一定是 main 最新 SHA；必須核對發布流程的 Commit 身分與版本順序。</p>
+<h3>獨立 PR Merge 後掃描政策</h3><p>若使用 <code>pull_request: closed</code>，同時要求 <code>merged == true</code> 且 <code>base.ref == main</code>。確認 <code>merge_commit_sha</code> 確實對應合併結果；若和 <code>push main</code> 同時使用，先決定去重／優先順序。不要把此事件當成原生 PR Quality Gate。</p>
+<h2 id="decision">02 / 同一個 Release，Gate 與部署如何決策？</h2>
+<table><thead><tr><th>分析狀態</th><th>Observe</th><th>Blocking</th></tr></thead><tbody>
+<tr><td>CE SUCCESS，Gate PASS，SHA 相符</td><td>記錄結果</td><td>允許進入後續既有 Gate；不等於立即部署</td></tr>
+<tr><td>CE SUCCESS，Gate FAIL</td><td>記錄問題與 Owner，先不新增部署阻擋</td><td>阻擋；依核准的例外流程處理</td></tr>
+<tr><td>Scanner／Token／TLS 失敗</td><td>標示 Scan Failure；部署是否繼續依觀測政策</td><td>沒有可信 Gate，採事前核准的 Fail Policy</td></tr>
+<tr><td>CE FAILED／Gate Timeout</td><td>標示 Unknown；不應標為 PASS</td><td>預設暫停／重試；若允許例外需授權與追蹤</td></tr>
+<tr><td>Gate PASS 但不是這個 Tag SHA</td><td>記錄版本身分不符</td><td>不可視為這個 Release 已通過</td></tr>
+</tbody></table>
+<p>本表是<strong>建議的治理範型</strong>，不是 SonarQube 或 GitHub Actions 自動內建的 Fail-open／Fail-closed 政策。需要由工作流程、批准機制與發版規範實現。</p>
+<h2>03 / 具體設定在哪一層？</h2>
+<div class="flowchart"><p class="diagram-title">Figure / 品質判定的傳遞方向</p><div class="chain">
+<div class="flow-node"><strong>SonarScanner</strong><small>提交分析；預設 sonar.qualitygate.wait=false</small></div><div class="chain-arrow">↓ <span>SonarQube CE 計算 Gate</span></div>
+<div class="flow-node"><strong>Quality Gate = PASS / FAIL</strong><small>Profile 決定查哪些 Rules；Gate 決定哪些 Metrics 未達標</small></div><div class="chain-arrow">↓ <span>wait=true 或獨立 Gate Check 將結果轉成 CI Status</span></div>
+<div class="flow-node teal-node"><strong>GitHub Actions needs / if</strong><small>當部署 Job 依賴 Gate Job 成功，FAIL 才會阻擋</small></div>
+</div></div>
+<p>對已有建置、E2E、Secret Scanning 等 Gate 的流程，新增 SonarQube 的依賴前，先確認所有既有條件的 <code>needs</code> 與 <code>if</code>，避免因 <code>always()</code>、<code>continue-on-error</code> 或獨立 Workflow 邊界造成意外放行。<code>wait=true</code> 的預設 Timeout 為 <strong>300 秒</strong>，是等 Gate 的時間上限，不是分析一定需要 300 秒。</p>
+<h2 id="evidence">04 / Release Evidence 最小契約</h2>
+<table><thead><tr><th>欄位</th><th>為何記錄？</th></tr></thead><tbody>
+<tr><td>Repository／Project Key</td><td>確定分析被存到哪個邏輯 Project</td></tr>
+<tr><td>Trigger／Workflow Run ID</td><td>確定本次檢查的執行來源</td></tr>
+<tr><td>Git Tag／Commit SHA</td><td>確定發布的是哪份不可變的程式碼</td></tr>
+<tr><td><code>sonar.projectVersion</code></td><td>可在 SonarQube Activity 追蹤的版本標籤</td></tr>
+<tr><td>CE Task ID／Status</td><td>查明 Report 是否已完成背景處理</td></tr>
+<tr><td>Gate Status／失敗指標</td><td>保留發布時採用的品質決策證據</td></tr>
+<tr><td>部署 Job 結果／例外紀錄</td><td>追查哪個 Policy 允許或阻止發布</td></tr>
+</tbody></table>
+<p>查詢 Gate 不應只抓<strong>Project 現在最新的狀態</strong>就直接對舊版 Tag 放行；若多個分析同時完成，可能誤認另一個 Commit 的 PASS。應讓本次 CI 掃描與 CE Task 綁定，確認 Task 完成並保留當次 Gate Result；使用 scanner wait 或官方 Gate Check 的實際行為，在 POC 中驗證。</p>
+<h2 id="failure">05 / 上線前最少四個 Failure Injection</h2>
+<ol class="sequence"><li>建一個受控新 Issue，CE 完成但 Gate FAIL：確認 Observe 不新增阻擋、Enforce 會讓部署 Job skipped。</li><li>故意提供無效 Token：Scanner Fail 應顯示認證失敗，不得記為 Quality Gate PASS。</li><li>在測試環境模擬 CE 延遲／等待超時：記錄 Timeout、重試上限和人工介入。</li><li>重新分析較舊 Tag：確認查到的版本／SHA／Task 是自己要發布的版本，不用最新 Dashboard 取代證據。</li></ol>
+<div class="callout warn"><strong>例外是業務與資安決策，不是默默開關參數。</strong><p>必須定義核准人、服務範圍、有效期限、風險理由、補驗方式與稽核記錄；不能用永久 <code>continue-on-error: true</code> 代替例外管理。</p></div>
+<p>概念延伸：<a href="../lessons/0009-release-trigger-analysis-identity.html">回 Lesson 09 看觸發模式</a> · <a href="../lessons/0010-nonblocking-to-blocking.html">回 Lesson 10 看阻擋策略</a> · <a href="0005-new-code-release-version.html">New Code 與版本基準</a>。</p>
+<section class="sources"><strong>官方資料：</strong><a href="https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow">SonarQube Community GitHub Actions</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/analysis-parameters/parameters-not-settable-in-ui">Scanner Quality Gate Wait</a> · <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows">GitHub Events</a> · <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax">GitHub needs / if</a>。</section>
+<a class="cta" href="../lessons/0009-release-trigger-analysis-identity.html">回到 Lesson 09 →</a><a class="text-link" href="../learning-map/index.html">回到學習地圖</a>
+</div></main><footer><div class="shell">SONARQUBE / LEARNING · 2026-11-09 · <a href="../RESOURCES.md">來源索引</a></div></footer><script src="../assets/site.js" defer></script></body></html>
