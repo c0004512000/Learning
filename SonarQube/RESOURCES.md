@@ -12,7 +12,10 @@
 - [Feature comparison](https://docs.sonarsource.com/sonarqube-community-build/feature-comparison-table) — Community Build 與其他產品的 branch / PR 功能邊界；適用 Lesson 03、09。
 
 - [SonarScanner CLI](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/scanners/sonarscanner) — Scanner 的 CLI、Docker 與執行方式；適用 Lesson 02–03。
-- [GitHub pull_request event](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request) — 觸發 PR 後的模擬合併 ref/SHA 與 checkout 差異；適用 Lesson 03。
+- [GitHub pull_request event](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request) — 觸發 PR 後的模擬合併 ref/SHA 與 checkout 差異；適用 Lesson 03、09。
+- [GitHub push / tags / merged PR events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows) — Branch、Tag 與 closed+merged 的觸發、GITHUB_SHA；適用 L09。
+- [GitHub Actions jobs.needs / if](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax) — CI Gate FAIL 如何傳遞到 Deploy Job；適用 L08、L10。
+- [GitHub Actions concurrency](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency) — 版本掃描競爭與取消語意；適用 L09–L10。
 - [PR Analysis (Server 2025.1)](https://docs.sonarsource.com/sonarqube-server/2025.1/analyzing-source-code/pull-request-analysis/introduction) — 商業版 PR 的 New Code 範圍及 Gate；僅作對照。
 - [Generic Test Data](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/generic-test-data) — Generic Coverage / Test Execution 格式；適用 Reference 與後續測試整合。
 
@@ -41,11 +44,15 @@
 ## Learner-facing Reference
 - [Scanner／分析身分／PR／測試報告速查](reference/0003-analysis-identity-and-test-data.html) — 補充 L03 的參數、Project 建立及測試資料適用性；可從 L03 返回。
 - [Rule／Profile／Gate／New Code 速查](reference/0004-rules-gates-new-code.html) — L04 的自訂 Rule 路線、Metadata、門禁和固定基準設定。
+- [Release Tag／Project Version／New Code](reference/0005-new-code-release-version.html) — 版本基準、滾動日期與既往不咎政策。
+- [Community Build vs Commercial](reference/0006-community-vs-commercial.html) — Branch、PR Analysis／Decoration 與功能版別。
+- [Release Gate 決策矩陣](reference/0007-release-gate-decision.html) — CI Trigger、SHA、Gate／Deployment、失效與例外。
 
 ## Wisdom（實務交流）
 - [Sonar Community](https://community.sonarsource.com/) — 官方維護的使用者論壇；遇到版本特定的 Scanner／Quality Gate 行為時，可查對照案例。社群回答須與該版官方文件、實測結果交叉檢查。
 
 ## Evidence 與課程映射
+- [Phase 05 Trigger／Gate 治理官方核對](sources/evidence/2026-11-09-phase5-governance.md) — 官方事件語意、Scanner 等候與 GitHub Job Dependency；**尚未實機驗證**。
 - [L04 Rules／Gates／New Code 官方核對](sources/evidence/2026-11-09-l04-governance.md) — 可追溯規則建立、Specific analysis API、CI 等待與 Coverage 邊界。
 - [L03 分析歸屬與測試資料核對](sources/evidence/2026-11-08-analysis-identity-and-test-data.md) — 依新版官方資料核對 Scanner、PR Checkout、免費版及報告格式。
 - [初始來源核對](sources/evidence/2026-11-official-baseline.md) — 初始分析模型與未驗證範圍。
@@ -55,8 +62,8 @@
 
 ## Gaps（待有證據才可宣稱完成）
 - 尚無公司私有 GitHub Workflows 的逐檔稽核、Runner 網路與 TLS 連線證據。
-- 尚未啟動真實 SonarQube POC，因此沒有可稽核的 Dashboard 截圖、Issues、Background Tasks 或失敗注入結果。
+- 公開課程尚未保存可供驗收的完整實機 POC 證據鏈（Checkout SHA、Scanner、CE Task、Gate、Deployment），因此不能據此宣稱 Phase 04／05 已通過。
 - 尚無正式 K8s / PostgreSQL 安裝、復原或升級實測。
-- 未有可驗證的學習者作答或操作成果；首頁的「已撰寫」不得作為學習完成率。
+- 已有部分 L03 分析身分情境作答紀錄，但其餘 Lesson 尚未完成正式驗收；首頁的「已撰寫」不得當作學習完成率。
 
 這份清單是課程的參考依據，不表示所有後續階段的操作已經執行成功。

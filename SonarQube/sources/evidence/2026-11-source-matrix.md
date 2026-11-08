@@ -12,8 +12,8 @@
 | L06 完成第一次掃描並核對 Dashboard | https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/analysis-overview | 保存 Scanner log、Task 完成狀態、Issue 與 Quality Gate 的對應截圖／值 | 僅規劃；待實測 |
 | L07 Runner 如何連上 SonarQube | https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow | 在隔離 repo 跑成功一次掃描，證明 Runner → Server 的連線與授權 | 已撰寫；待實機驗收 |
 | L08 Coverage 與 Quality Gate 失敗演練 | https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/overview | 用外部測試工具提供 Coverage；展示至少一個預期 Gate FAIL 案例 | 已撰寫；待實機驗收 |
-| L09 PR／Merge／Release Tag 的適當整合點 | https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/introduction | 產出 main、PR、tag 觸發與支援能力矩陣，說明採用與放棄理由 | 僅規劃；待實測 |
-| L10 Non-blocking → Blocking 的導入門檻 | https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates | 設計升級、例外、回退及 SonarQube 不可用時的 CI 行為 | 僅規劃；待實測 |
+| L09 PR／Merge／Release Tag 的適當整合點 | https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/introduction | 產出 main、PR、tag 觸發與支援能力矩陣，說明採用與放棄理由 | 已撰寫；待情境與實測驗收 |
+| L10 Non-blocking → Blocking 的導入門檻 | https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates | 設計升級、例外、回退及 SonarQube 不可用時的 CI 行為 | 已撰寫；待情境與實測驗收 |
 | L11 Helm、Database、PVC、Ingress 與網路 | https://docs.sonarsource.com/sonarqube-community-build/server-installation/on-kubernetes-or-openshift/customizing-helm-chart | 交付不含機敏資料的部署拓樸和資源／網路驗證清單 | 僅規劃；待實測 |
 | L12 Backup、Recovery、Upgrade 與維運 | https://docs.sonarsource.com/sonarqube-community-build/server-installation/installing-the-database | 至少設計並記錄一套備份復原與升級回退驗收方案 | 僅規劃；待實測 |
 | L13 不同語言的掃描與規則落差 | https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/understanding-quality-profiles | 完成兩種語言的分析比較，量測執行時間、Issue 噪音和誤報 | 僅規劃；待實測 |
@@ -38,3 +38,8 @@
 - L07：已撰寫 Runner Checkout、TLS、Token、CE Task 與 Non-blocking CI 的教學及驗收步驟；需實測，官方 https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow
 - L08：已撰寫 LCOV 匯入、CE/Gate/CI Failure 邊界與 needs/wait 的實驗；需實測，官方 https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/overview
 - 學習進度仍 0/14；Phase 03 暫緩詳細撰寫不代表正式課程跳過驗收。
+
+## 2026-11-09 Phase 05 教材擴充
+- L09 已撰寫：main Push／PR Merge／Tag 觸發選擇、checkout SHA、Project Key、版本追溯與舊 Tag 重掃風險。Reference：`reference/0007-release-gate-decision.html`。來源核對：`sources/evidence/2026-11-09-phase5-governance.md`。
+- L10 已撰寫：Non-blocking／Warn／Enforce、Gate wait + CI needs、CE／Token／Timeout 不可用、例外與回退。來源同上。
+- 兩堂只具備教學材料和預期練習，**未完成理解驗收與實機失效注入**，正式完成仍為 0/14。

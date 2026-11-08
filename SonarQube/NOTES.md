@@ -62,3 +62,9 @@
 - Edge Case：上一個 Release 未修 Issue 可能離開後續版本 New Code Period，但仍屬 Overall Code；固定 Specific Analysis 與每版重新起算的治理政策不同。
 - 新增 Reference 0005（完整 Release 時間線）／0006（Community 與付費版）；Phase 04 L07／08 已提供獨立教學與實驗流程。Phase 03 L05／06 只暫緩撰寫，尚無本次資料顯示已完成正式驗收。
 - 請勿把新寫完的實驗流程等同於已實測；Learning Records 的通過資格未改變。
+
+### Phase 05 教材準備（2026-11-09）
+- 依請求續寫 Phase 05（Lesson 09、10），不因教材已撰寫而推論 L07／08 已通過。Phase 03 L05／06 仍暫緩。
+- L09 教學應先依因果關係拆開 Event、Checkout SHA、Project Key、Project Version、New Code；Community 沒有原生 PR／Tag 分支；選主分支或 Tag 唯一權威 Trigger，避免錯 SHA、重複掃描、較舊 Tag 覆寫 latest dashboard 造成誤判。
+- L10 治理需分 Gate FAIL、Scanner／TLS／Token Fail、CE FAILED／Timeout、錯版本資料。Observe 保留真實紅燈，Blocking 透過 wait/Quality Gate Check + needs/if 連接到 Deploy。例外必須核准且可追溯，不可永久全體 continue-on-error。
+- 新增 Reference 0007 事件、Status、失效與證據欄位；官方核對來源見 `sources/evidence/2026-11-09-phase5-governance.md`。正式驗收與實機 QA 仍未完成，0/14。
