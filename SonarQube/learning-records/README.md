@@ -1,7 +1,9 @@
 # Learning Records
 
-目前沒有符合 canonical `LEARNING-RECORD-FORMAT.md` 的學習紀錄。
+正式學習紀錄只保存已證明的能力與關鍵理解，不將問答歷程或已閱讀教材直接當成通過。
 
-**提問不代表已掌握。** 使用者關於 Analysis Report、PR 分析與 Project 的問題已整理至 `../NOTES.md`，作為後續教學約束；不升格為 Learning Record。
+- [LR-0001 · Checkout、Project Key 與分析身分的責任邊界](0001-checkout-project-key-analysis-identity.md)：已在兩個情境中正確推導分析歸屬與 Community 多 Project 設計；**不是**整堂 Lesson 03 的結業證明。
 
-只有在學習者實際證明理解、明確揭露既有能力、確認誤解已被修正，或 Mission 真正改變時，才建立 `0001-*.md`。未來按此目錄的最高正式編號遞增。
+其他尚未確認理解的 New Code、Project Version、Quality Gate／CI 因果關係，仍保留於 [Teaching Notes](../NOTES.md) 做下一輪驗收。
+
+新增紀錄時依此目錄中最高正式編號遞增，格式遵照 canonical Learning-from-docs 所採用的 `LEARNING-RECORD-FORMAT.md`。
