@@ -40,3 +40,10 @@
 - 測試匯入要分 Coverage、Test Execution、E2E 詳細報表、壓測效能指標；Scanner 不負責產生測試結果或負載測試 Dashboard。
 - 教學處置：L03 補短橋接及推導情境；長參數／格式移至 `reference/0003-analysis-identity-and-test-data.html`；可追溯事實在 `sources/evidence/2026-11-08-analysis-identity-and-test-data.md`。
 - **驗收界線**：這段對話有局部理解作答，但未完成跨情境、無提示的獨立應用／真實分析結果查驗，因此不將整個 L03 或 Course Map 標記為已完成。未向公開 GitHub Pages 放入私有 PoC hostname、Token、公司內部 Workflow。
+
+### Lesson 03–04 互動驗收與 New Code / Gate 缺口（2026-11-09）
+- L03：使用者正確推導 checkout develop + 同一 projectKey → Project Main Branch 分析結果；能設計依 branch 選不同 Project Key 以在 Community Build 獨立追蹤，並能區分付費版原生多分支。尚未完成完整 L03 無提示驗收，不宣稱完成。
+- L04：使用者知道 Rule 開啟才能持續偵測 Issues，也能推導 Scanner 上傳後 Server 背景處理、Quality Gate wait 的必要性；但曾將「既往不咎」誤解為停用 Quality Profile 中的 Rule，並將「CI 不阻擋」誤解為應讓 Quality Gate PASS。
+- 明確需要橋接：New Code Definition 四種模式（Previous version、Number of days、Specific analysis、Reference branch）、Specific analysis 需透過 Web API 設定、Quality Gate 本身的 PASS/FAIL 與 CI Job/Deployment 阻擋是獨立決策；sonar.qualitygate.wait 預設 false、timeout 預設 300 秒，也可用獨立 Quality Gate Check Action。
+- 下一輪應要求使用者自行選擇「固定既往不咎基準 + New Code Gate + Non-blocking CI」的具體設定，確認能推導後才更新 Learning Records 和完成率。
+- 官方依據：https://docs.sonarsource.com/sonarqube-community-build/project-administration/adjusting-analysis/configuring-new-code-calculation ；https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/analysis-parameters/parameters-not-settable-in-ui ；https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow
