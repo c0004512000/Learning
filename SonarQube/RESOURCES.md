@@ -58,6 +58,7 @@
 - [Release Tag／Project Version／New Code](reference/0005-new-code-release-version.html) — 版本基準、滾動日期與既往不咎政策。
 - [Community Build vs Commercial](reference/0006-community-vs-commercial.html) — Branch、PR Analysis／Decoration 與功能版別。
 - [Release Gate 決策矩陣](reference/0007-release-gate-decision.html) — CI Trigger、SHA、Gate／Deployment、失效與例外。
+- [Kubernetes 架構／維運／恢復速查](reference/0008-kubernetes-operations.html) — DB 權威資料、ES 重建、PVC、Host / Helm / Restore / Update 的故障判斷。
 
 ## Wisdom（實務交流）
 - [Sonar Community](https://community.sonarsource.com/) — 官方維護的使用者論壇；遇到版本特定的 Scanner／Quality Gate 行為時，可查對照案例。社群回答須與該版官方文件、實測結果交叉檢查。
