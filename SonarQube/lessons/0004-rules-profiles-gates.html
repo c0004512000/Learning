@@ -3,7 +3,7 @@
 <p class="kicker">L04 / RULES → PROFILES → ISSUES → GATES</p>
 <h1>偵測到問題，<br>為什麼不一定會阻擋？</h1>
 <p class="intro">上一堂確認了免費版「分析哪個分支」的範圍。現在要解開另一個核心疑問：<strong>系統依什麼規則找問題，又依什麼標準認定結果不合格？</strong></p>
-<div class="meta"><span class="tag teal">Phase 02 · Lesson 04</span><span class="tag">約 15 分鐘</span><span class="tag">互動門檻實驗</span></div>
+<div class="meta"><span class="tag teal">Phase 02 · Lesson 04</span><span class="tag">約 20 分鐘</span><span class="tag">互動門檻實驗</span></div>
 <div class="panel"><p class="eyebrow">學完要能做到</p><p>從一個問題發生的程式碼情境，推導出 Rule → Quality Profile → Issue / Metric → Quality Gate → CI 的因果鏈，並判斷改變規則或 Gate 門檻會產生什麼不同結果。</p></div>
 
 <h2>01 / 假設你想禁止某種程式碼寫法</h2>
@@ -11,6 +11,7 @@
 <div class="callout"><strong>這個判定條件叫 Rule（規則）。</strong><p>Rule 是「某種寫法要不要被視為問題」的檢查定義；真正發生在你程式碼某個位置的違規結果，才叫 <strong>Issue（問題實例）</strong>。</p></div>
 <p>所以一條 Rule 可以在整個 Project 中找出 0 個、1 個或很多個 Issues。不要把「規則數量」誤當成「程式碼問題數量」。</p>
 
+<p>官方提供的是<strong>一批 Rules，以及從這批 Rules 選好部分啟用的內建 Quality Profiles</strong>。Rule 是檢查定義，不等於「公司自訂規則」；Issue 則是程式碼某處真正被這條 Rule 判定為違規的實例。</p>
 <h2>02 / 為什麼還需要 Quality Profile？</h2>
 <p>假設 Java 支援數百條 Rules。你不一定希望每個 Project 都套用全部規則；有的專案重視安全，有的專案會從較小的規則集合開始導入。</p>
 <p>因此需要 <strong>Quality Profile</strong>：它是<strong>針對某種語言啟用哪些 Rules</strong>的設定組。沒有被啟用的規則，不會以該 Profile 的規則檢查程式碼。</p>
@@ -26,6 +27,7 @@
 </tbody></table>
 <p class="small">以上是官方 26.10 文件描述。升級自舊版不一定自動改寫既有專案的 Profile 或 default；POC 應先確認所部署的版本與選用規則集。自訂時可 Extend 內建 Profile 以沿用上游規則更新。</p>
 
+<h3>Profile 不是只能整個 Instance 共用</h3><p>Project A 和 Project B 都有 Python，也能選不同的 Python Profile；同一個 Project 的 Python 和 JavaScript 還可各自選 Profile。沒有自訂指派時，用該語言的 Instance Default Profile。官方內建 Profile 不能直接改；可建立自訂 Profile，選擇 <strong>Extend（繼承）</strong>、<strong>Copy（獨立副本）</strong> 或 Blank。Project 管理者可到 <strong>Project Settings → Quality Profiles</strong> 逐語言指定；正常情況下不必在每次 CI 傳入 Profile 名稱。<a href="../reference/0004-rules-gates-new-code.html#profiles">查看設定與差異</a>。</p>
 <h2>03 / 那 Quality Gate 負責哪一層？</h2>
 <p>Scanner 跑完有效規則後，會產生 Issues 與其他 Metrics，Server 綜合成 Project 品質資料。但即使你看到了 15 個 Issues，也不能直接推出「分析不合格」——因為組織可能只要求<strong>新程式碼不可新增問題</strong>。</p>
 <div class="flowchart" aria-label="Rule 到 Gate 以及 CI 的完整因果鏈">
@@ -40,6 +42,7 @@
 </div>
 <p><strong>Quality Profile 控制「檢查哪些規則」；Quality Gate 控制「哪些品質指標達到何種門檻才通過」。</strong>例如自訂 Gate 可設定「新程式碼 Issues 數量必須為 0」。</p>
 
+<div class="callout"><strong>Quality Gate 是條件集合，不是總分。</strong><p>每條條件是「Metric（指標）＋比較運算子＋門檻」，可以檢查 New Code 或 Overall Code 的 Issues、Rating、Coverage、Duplication 等官方支援指標；任一條失敗，整個 Gate 就 FAIL。例如 New Coverage 85% 符合「≥ 80%」，但 New Duplication 5% 不符合「≤ 3%」，因此 Gate FAIL，不會取平均分數。</p></div><p>同理，<strong>產生 Issue 並不會自動使 Gate FAIL</strong>；需要某條 Gate 條件不達標。Community Build 的 Gate 並不能直接以「指定 Rule Key 一犯就擋」當成一般原生條件；有這種要求應另在 CI 檢查。<a href="../reference/0004-rules-gates-new-code.html#specific-rule">區分單條 Rule 與 Gate 指標</a>。</p>
 <h2>04 / 用同一段程式碼，改兩種設定會發生什麼？</h2>
 <p>以下是<strong>純前端概念模擬</strong>，不是連線到真正 SonarQube；用來比較「停用規則」和「放寬 Gate」的不同。你可以調整條件，觀察 <em>Issue 是否產生</em>和 <em>Gate 是否通過</em>是兩種不同決定。</p>
 <div class="policy-lab" data-policy-lab><noscript><p class="small">此模擬需要 JavaScript。無法操作時，可直接閱讀下方示例：啟用 Rule + 違規 = 1 Issue；若 Gate 允許 0 個，就 FAIL。</p></noscript>
@@ -51,6 +54,7 @@
 </div>
 <div class="callout"><strong>兩個設定的本質不同：</strong><p>停用 Rule 會使這條規則不再產生 Issue；提高 Gate 容忍門檻卻不會讓 Issue 消失，只是允許有問題的結果仍然通過。這兩個治理選項的影響完全不同。</p></div>
 
+<h3>自己想增加一種原本沒有的檢查呢？</h3><p>從現有 Rules 中啟用一條只是啟用，不是建立新 Rule。若需要全新檢查能力，官方列出三種路線：<strong>XPath Rule Template</strong>（限支援語言、可在 UI 建 Rule）、<strong>Java Plugin</strong>（自己開發後在 SonarQube 註冊 Rule）、<strong>External Analyzer</strong>（在外部判定違規，匯入 Issues）。第三種只有外部 Issues，不會新增可在 Quality Profile 啟停的 Rule，但仍可參與 Gate 指標。</p><p><strong>Java Plugin 的檢查邏輯和 Rule Metadata 是不同責任：</strong>邏輯判斷哪裡違規，Metadata 記錄 Rule Key、分類／Software Quality、Severity 等；在 Plugin 註冊時交給 SonarQube。UI 可在 Profile 啟用 Rule、調整可覆寫的 Severity／參數，不等於 UI 一定能更改 Plugin 所宣告的原始分類；XPath 模板型 Custom Rule 則可在 UI Create 時定義並編輯 Metadata。<a href="../reference/0004-rules-gates-new-code.html#custom-rules">查看四種做法與 Metadata</a>。</p>
 <h2>05 / New Code 與 Overall Code 的 Gate 差異</h2>
 <p>假設現在有 <strong>20 個舊 Issue</strong>，但是這次定義的 New Code <strong>0 個新 Issue</strong>：</p>
 <table><thead><tr><th>假設自訂 Gate 條件</th><th>結果</th><th>為什麼</th></tr></thead><tbody>
@@ -59,8 +63,9 @@
 <p>上表<strong>只比較單一 Issues 條件</strong>。真實的 Sonar way Gate 還有 Coverage、Duplication 等條件；任何一項失敗，整體 Gate 就可能 FAIL。因此不能拿這個例子宣稱「現實專案一定 PASS」。</p>
 <p>另外，Coverage 不是 Scanner 自己跑測試得來；需要先匯入外部測試工具的報告。若實際採用新程式碼 Coverage 門檻，要先確定報告存在，並注意官方對少量新增行數的忽略機制（Fudge Factor）。</p>
 
+<h3>既往不咎與每次 Commit 掃描：不同的開關</h3><p><strong>New Code Definition</strong> 決定哪些新增或修改程式碼屬於 New Code；<strong>CI Trigger</strong> 決定何時掃描；<strong>Quality Gate / CI 策略</strong> 決定是否阻擋。固定導入基準與每次 Commit 重掃並不衝突。</p><div class="flowchart"><p class="diagram-title">Figure 05 / 固定起點，持續檢查</p><div class="chain"><div class="flow-node"><strong>分析 A：導入基準</strong><small>A 以前舊 Issues 不以新碼 Gate 阻擋</small></div><div class="chain-arrow">↓ <span>以 A 作為固定 New Code 起點</span></div><div class="flow-node"><strong>Commit B → 掃描 B</strong><small>B 新增 1 個未修 Issue → New Issues Gate FAIL</small></div><div class="chain-arrow">↓ <span>C 仍使用固定基準 A</span></div><div class="flow-node"><strong>Commit C → 掃描 C</strong><small>B 的 Issue 尚未修復，仍須受治理</small></div></div><p class="caption">合成例子：箭頭表示時間先後，而不是每次改寫基準。</p></div><p>如果你每次把比較起點移到上一個 Commit，先前引入但尚未修的問題可能會離開 New Code 範圍，因此不符合「導入後新問題持續受管制」的目的。</p><table><thead><tr><th>New Code Definition</th><th>起算方式</th><th>應注意</th></tr></thead><tbody><tr><td>Specific analysis</td><td>指定已完成的一次分析</td><td>固定起點；目前 Community Build 官方要求透過 <strong>Web API</strong> 設定，不是直接在 Project UI 選取，也不能填未來時間或 Git SHA。</td></tr><tr><td>Number of days</td><td>最近 N 天</td><td>滑動時間窗；過期未修 Issue 可能離開 New Code。</td></tr><tr><td>Previous version</td><td>本次 Project Version 開始</td><td>隨版本更新，不等於上一個 Commit。</td></tr><tr><td>Reference branch</td><td>相對參照分支的差異</td><td>不能推論免費版有原生 PR／多分支分析。</td></tr></tbody></table><p>「明天中午開始既往不咎」可規劃在切換點完成一次分析，以那次分析作固定基準，再讓 CI 從預定時點採用 Gate；不是直接輸入「明天 12:00」就會自動建立歷史基準。<a href="../reference/0004-rules-gates-new-code.html#new-code">New Code 策略細節</a>。</p><h3>Coverage 與 GitHub Actions 的另外兩道邊界</h3><p>Coverage 需由測試工具產出報告，Scanner 再匯入；Scanner 不會自行執行測試。沒有 Coverage 報告時不能一概說「一定 FAIL」：還要考慮可計算的 Coverage 指標、Gate 條件、新碼可覆蓋行數與 Fudge Factor。</p><p>GitHub Actions 必須接收 Gate 判定才可能阻擋後續部署，例如 Scanner 加 <code>-Dsonar.qualitygate.wait=true</code>，或另設查詢 Gate 的步驟。下一個 Job 還需要 <code>needs</code> 等依賴。<a href="../reference/0004-rules-gates-new-code.html#ci">查看 Coverage / CI 實際資料流</a>。</p>
 <details><summary>選讀：版本差異與 MQR / Standard Experience（不影響本堂主要目標）</summary><h3>分類方式會因模式與版本不同</h3>
-<p>SonarQube 介面可選擇 <strong>Standard Experience</strong> 或 <strong>Multi-Quality Rule（MQR）</strong>模式：前者常見 Bug / Vulnerability / Code Smell，後者以 Reliability / Security / Maintainability 為品質面向。切換模式會影響 Issue 分類、Severity 與部分 Gate 指標，POC 中不要在未確認模式時直接複製舊教學數據。</p>
+<p>SonarQube 介面可選擇 <strong>Standard Experience</strong> 或 <strong>Multi-Quality Rule（MQR）</strong>模式：前者按 Bug / Vulnerability / Code Smell 等 Rule Type 分類；後者可讓同一 Rule 同時影響 Reliability / Security / Maintainability 等多個品質面向，而且各有 Severity。這並不等於產生多個 Issues。切換模式會影響 Issue 分類、Severity 與部分 Gate 指標，POC 中不要在未確認模式時直接複製舊教學數據。</p>
 <p class="small">不同版本的預設 Profile、Gate 條件及 Security Hotspot 呈現可能不同；不要把其他版本的畫面或條件當成已測事實。實驗時以<strong>部署版本</strong>、實際 Quality Gate 頁面與對應官方文件交叉核對。</p></details>
 
 <section class="quiz" data-quiz data-correct="a" data-explanation="保留 Rule 才能繼續產生問題資料；是否讓 Gate 失敗以及是否讓 CI 阻擋則是後續獨立的政策。">
@@ -71,9 +76,10 @@
 <label><input type="radio" name="audit-4" value="c">關閉掃描並保留完整問題紀錄</label></fieldset>
 <button class="check" type="button" data-check disabled>確認我的判斷</button><p class="feedback" data-feedback role="status"></p><noscript><details><summary>JavaScript 未啟用：展開練習解析</summary><p>本題正解：A。保留 Rule 才能繼續產生問題資料；是否讓 Gate 失敗以及是否讓 CI 阻擋則是後續獨立的政策。</p></details></noscript></section>
 
+<section class="quiz" data-quiz data-correct="b" data-explanation="New Code 基準固定在導入分析，CI 每次 Commit 重新掃描；兩者分別控制治理範圍與執行時機。"><p class="eyebrow">RETRIEVAL / 導入政策</p><fieldset style="border:0;padding:0;margin:0"><legend>想既往不咎，但導入後未修新問題持續被 Gate 管理，並且每次 Commit 都掃描。哪種作法符合？</legend><label><input type="radio" name="audit-4-baseline" value="a">每次掃描前移動基準到上一個 Commit</label><label><input type="radio" name="audit-4-baseline" value="b">固定導入分析為基準且每次重新掃描</label><label><input type="radio" name="audit-4-baseline" value="c">固定最新 Commit 為基準並停止掃描</label></fieldset><button class="check" type="button" data-check disabled>確認我的判斷</button><p class="feedback" data-feedback role="status"></p><noscript><details><summary>JavaScript 未啟用：展開練習解析</summary><p>正解 B。New Code 基準與 CI 掃描時機是分開設定的。</p></details></noscript></section>
 <h2>06 / 本堂結論與下一階段</h2>
-<ul><li>Rule 是「條件」；Issue 是「在程式碼某處被判定違規的一次具體結果」。</li><li>Quality Profile 選定「哪些 Rules 有效」，通常按語言管理。</li><li>Quality Gate 使用 Issues 與其他 Metrics 判斷 PASS / FAIL，可以只要求 New Code 達標。</li><li>Quality Gate FAIL 不必然等於部署失敗；CI 要如何採用它，需要另外設計。</li></ul>
+<ul><li>Rule 是「條件」；Issue 是「在程式碼某處被判定違規的一次具體結果」。</li><li>Quality Profile 選定「哪些 Rules 有效」，通常按語言管理。</li><li>Quality Gate 使用 Issues 與其他 Metrics 判斷 PASS / FAIL，可以只要求 New Code 達標。</li><li>Quality Gate FAIL 不必然等於部署失敗；CI 要如何採用它，需要另外設計。</li><li>新增 Rule 可用 XPath Template 或 Java Plugin，External Analyzer 則匯入 Issues。</li><li>New Code 基準與 CI 掃描頻率可分開設定；固定導入基準同時逐次掃描。</li><li>Coverage 來自外部測試報告；要阻擋部署需 CI 等候或查詢 Gate。</li></ul>
 <p>有了這個基礎，Phase 03 才適合開始啟動 SonarQube，檢查你選用的 Profile、人工觸發 Rule 違規、觀察 Issue，再查看 Gate 是否如預期變化。</p>
-<a class="cta" href="../reference/0001-poc-playbook.html">查看 Phase 03 POC 計畫 →</a><a class="text-link" href="../learning-map/index.html">回到學習地圖</a>
-<section class="sources"><strong>課後優先閱讀：</strong><a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates">官方 Understanding Quality Gates</a>。若模擬器的結果和預期不同，可將條件／結果帶回 ChatGPT 推導原因；此模擬不能取代真實 POC。<p></p><strong>官方來源（核對日期：2026-11-07）</strong><p><a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-rules/rules">Rules</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/understanding-quality-profiles">Quality Profiles</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/built-in-quality-profiles">Built-in Profiles / 26.10</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates">Quality Gates</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code">New Code</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/code-metrics/changing-modes">MQR / Standard Experience</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/project-administration/adjusting-analysis/changing-quality-gate-and-fudge-factor">Fudge factor</a></p><p>完整的 Rule 名稱和 Gate 條件以真正 POC 選定的產品版本為準；本頁的規則模擬是推導概念，不是替代實測。</p></section>
+<a class="cta" href="../reference/0004-rules-gates-new-code.html">查看 L04 速查 Reference →</a><a class="text-link" href="../reference/0001-poc-playbook.html">Phase 03 POC 計畫</a><a class="text-link" href="../learning-map/index.html">回到學習地圖</a>
+<section class="sources"><strong>課後優先閱讀：</strong><a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates">官方 Understanding Quality Gates</a>。若模擬器的結果和預期不同，可將條件／結果帶回 ChatGPT 推導原因；此模擬不能取代真實 POC。<p></p><strong>官方來源（補充核對：2026-11-09）</strong><p><a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-rules/rules">Rules</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/understanding-quality-profiles">Quality Profiles</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/built-in-quality-profiles">Built-in Profiles / 26.10</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates">Quality Gates</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code">New Code</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/code-metrics/changing-modes">MQR / Standard Experience</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/project-administration/adjusting-analysis/changing-quality-gate-and-fudge-factor">Fudge factor</a></p><p>完整的 Rule 名稱和 Gate 條件以真正 POC 選定的產品版本為準；本頁的規則模擬是推導概念，不是替代實測。</p></section>
 </div></main><footer><div class="shell">SONARQUBE / LEARNING · Community Build · 官方資料核對：2026-11-07　｜　<a href="../RESOURCES.md">來源索引</a>　·　<a href="../reference/0002-glossary.html">術語速查</a><p>教學情境為概念演示，不代表已在公司環境完成安裝、測試或部署。</p></div></footer><script src="../assets/site.js" defer></script></body></html>
