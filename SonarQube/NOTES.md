@@ -31,3 +31,12 @@
 - 教學需先建立：Scanner 讀取 checkout 後工作目錄的內容；GitHub push workflow 的 actions/checkout 預設取事件 SHA，未必存在名為 main 的本地分支（detached HEAD 合法）。
 - `fetch-depth: 0` 是取得完整 Git History 以支援 SCM 資料，不是設定分析分支。
 - 在 L03 保留最小實例與反例，避免將 GitHub main、SonarQube Main Branch、checkout 動作與 SHA 混為一談；不依提問推論學習者已完成 Lesson。
+
+### L03 對話所暴露的知識依賴（2026-11-08）
+- 已能在問答中正確判斷：同 Project Key、未提供獨立分支／PR 身分，Checkout 改成別的 Branch 時，Dashboard Main Branch **名稱不自動改，分析狀態被更新**；能區分 Scanner 提交與 Server Compute Engine 完成。
+- 後續仍需鞏固的依賴：CI Trigger vs Checkout SHA vs Scanner 工具 vs 分析身分（Project Key／Branch／PR）vs Server 儲存模型；Project 的建立與命名；同 Repo 多 Project 是獨立追蹤而非原生 Multi-Branch。
+- 追加概念：為何 PR Analysis 不是僅掃最後一個 Commit；來源與目標 Branch 同時前進時，PR New Code Gate 不等於合併結果測試。GitHub pull_request **預設模擬 merge Checkout** 要與商業版 SonarQube PR Analysis 的「來源分支差異檢查」分開。
+- Scanner 是 Runner 上執行的分析程式，不是 Pipeline／Runner／Pod 的別名；Community 與商業版掃描都以外部 Scanner 發送報告，不是商業版才由 Server 主動掃 GitHub。
+- 測試匯入要分 Coverage、Test Execution、E2E 詳細報表、壓測效能指標；Scanner 不負責產生測試結果或負載測試 Dashboard。
+- 教學處置：L03 補短橋接及推導情境；長參數／格式移至 `reference/0003-analysis-identity-and-test-data.html`；可追溯事實在 `sources/evidence/2026-11-08-analysis-identity-and-test-data.md`。
+- **驗收界線**：這段對話有局部理解作答，但未完成跨情境、無提示的獨立應用／真實分析結果查驗，因此不將整個 L03 或 Course Map 標記為已完成。未向公開 GitHub Pages 放入私有 PoC hostname、Token、公司內部 Workflow。
