@@ -1,0 +1,77 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="SonarQube Phase 05：PR、Merge 與 Release Tag：該在哪裡掃描？"><title>Lesson 09 · PR、Merge 與 Release Tag：該在哪裡掃描？｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a href="../index.html">首頁</a><a href="../learning-map/index.html">學習地圖</a><a href="0009-release-trigger-analysis-identity.html">Lesson 09</a><a href="0010-nonblocking-to-blocking.html">Lesson 10</a></nav><button class="theme" type="button" disabled data-theme-toggle aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content"><p class="crumb"><a href="../index.html">SonarQube</a> / <a href="../learning-map/index.html#phase-5">Phase 05</a> / Lesson 09</p><p class="kicker">L09 / TRIGGER → CHECKOUT → ANALYSIS IDENTITY</p>
+<h1>同一份程式碼，<br>為什麼掃描時機會改變結果？</h1>
+<p class="intro">你已經知道 Runner 能執行 Scanner。現在真正需要決定的是：<strong>哪個事件值得掃？這次 Scanner 真正 Checkout 哪個 Git Commit？分析又被存入哪個 SonarQube Project？</strong></p>
+<div class="meta"><span class="tag teal">Phase 05 · Lesson 09</span><span class="tag">約 18 分鐘</span><span class="tag">CI/CD 決策情境</span></div>
+<div class="panel"><p class="eyebrow">學習目標</p><p>針對 Community Build 的 <strong>PR 開啟／PR 合併／main Push／Release Tag</strong> 事件，能選擇掃描時點，對照事件 SHA、Project Key、<code>sonar.projectVersion</code>，並辨識重複分析、歷史覆寫及不受支援的原生 PR 分析。</p></div>
+<h2>01 / 先把四個問題拆開</h2>
+<div class="flowchart"><p class="diagram-title">Figure / 四個不互相替代的決定</p><div class="chain">
+<div class="flow-node"><strong>GitHub Event</strong><small>何時啟動工作流程？例如 push、pull_request、Tag</small></div>
+<div class="chain-arrow">↓ <span>Event payload 和 actions/checkout 選定</span></div>
+<div class="flow-node"><strong>Checkout Commit SHA</strong><small>Runner 眼前究竟是哪份完整的原始碼？</small></div>
+<div class="chain-arrow">↓ <span>Scanner 以 Project Key 提交</span></div>
+<div class="flow-node"><strong>SonarQube Project / Main Branch</strong><small>這次分析被保存到哪一個品質歷史？</small></div>
+<div class="chain-arrow">↓ <span>可同時附上 Release Version 標記</span></div>
+<div class="flow-node teal-node"><strong>Project Version + Quality Gate</strong><small>標記軟體版本、評估設定的 New Code 品質條件</small></div>
+</div><p class="caption">箭頭是流程中的決策／傳送，不代表 Event、SHA、Project Version 自動等價。Scanner 分析 Checkout 的完整原始碼；New Code 是在這個分析中界定的範圍。</p></div>
+<h2 id="events">02 / 四個常見事件的能力矩陣</h2>
+<table><thead><tr><th>事件</th><th>實際分析內容</th><th>Community Build 的定位</th></tr></thead><tbody>
+<tr><td><strong>PR opened / synchronize</strong></td><td>通常是 PR 的模擬合併 Checkout；可顯式改為 head SHA</td><td>可以執行一般 CI，但<strong>沒有原生 PR Analysis / Decoration</strong>；不應直接共用 main Project Key 覆寫主分支歷史</td></tr>
+<tr><td><strong>PR closed 且 merged</strong></td><td>明確 Checkout 合併結果 SHA，避免抓到已繼續前進的 main HEAD</td><td>可對已合併程式碼做主分支持續分析；不等於合併前的 PR Gate</td></tr>
+<tr><td><strong>push main</strong></td><td>觸發這次 Push 的 main SHA</td><td>官方建議的免費版主分支分析模式；對所有 main 變更較單純</td></tr>
+<tr><td><strong>push Release Tag</strong></td><td>該 Tag 指向的 Commit（確認 Checkout）</td><td>適合發布版本追蹤；Tag 名稱可給 <code>sonar.projectVersion</code>，但不保證精確比較上一個 Release Tag 的 Git Diff</td></tr>
+</tbody></table>
+<p>官方 Community Build 文件建議只分析你的主分支，且不要在免費版的同一 Project 以 <code>on.pull_request</code> 當原生 PR 分析使用。GitHub 的 PR 事件仍可以進行 <strong>Build、Test、Lint</strong>，只是這些並非 SonarQube 的獨立 PR 結果。<a href="https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow">官方 Community CI 建議</a> · <a href="../reference/0006-community-vs-commercial.html#pr">原生 PR 版別差異</a>。</p>
+<h2>03 / 選擇一個權威的掃描事件</h2>
+<p>一個 Repo 的 main 可能先在 10:00 合併 PR，10:01 觸發 <code>push main</code>，隔天再在同一個 Commit 打 Release Tag。若三個事件都掃描同一個 <code>sonar.projectKey</code>，便可能發生<strong>重複分析、相同 SHA 不同版本標記、相互覆寫最新品質狀態</strong>。</p>
+<div class="callout"><strong>初始治理建議：把 main push 當成主要、連續的品質分析路徑。</strong><p>它能包含直接 Push、合併 PR 等 main 更新，不必對每個 PR merge 再掃一次同一個 Project。若業務要求僅在 Release Tag 掃描，就改成 Tag 為唯一權威路徑，但那是<strong>Release 品質觀測</strong>，不是「合併前 PR 阻擋」。</p></div>
+<p>如果必須在 <code>pull_request: closed</code> 時執行，例如要接既有的 Post-Merge E2E，應加上 <code>merged == true</code>、<code>base.ref == main</code>，並明確判定使用的 Merge Commit；不要只用 <code>main</code> 字串 Checkout，因為 main 可能已在事件後前進。詳見 <a href="../reference/0007-release-gate-decision.html#triggers">Reference：事件選擇與重複掃描</a>。</p>
+<h2 id="examples">04 / 兩種最小 GitHub Actions 觸發方式</h2>
+<p><strong>A：main push 持續掃描（Community Build 較單純的基線）。</strong></p>
+<pre><code>on:
+  push:
+    branches: [main]
+
+jobs:
+  sonar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git rev-parse HEAD
+          # 其後使用已核准的 Scanner / Token 執行分析</code></pre>
+<p><strong>B：只在 Release Tag 掃描並記錄版本（擇一政策，不是與 A 無條件疊加）。</strong></p>
+<pre><code>on:
+  push:
+    tags: ['release/**']
+
+jobs:
+  sonar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Analyze the tagged revision
+        env:
+          RELEASE_VERSION: ${{ github.ref_name }}
+        run: |
+          git rev-parse HEAD
+          sonar-scanner \
+            -Dsonar.projectKey=demo-api \
+            -Dsonar.projectVersion="$RELEASE_VERSION"</code></pre>
+<p class="small">教學片段：B 假設 Scanner CLI 已安裝、連線資訊與 Token 已用安全方式提供。完整 Runner 前提看 <a href="0007-runner-to-sonarqube.html">Lesson 07</a>。請在部署前使用授權 Runner、固定 Action 版本、核對 Event 類型及 <code>GITHUB_SHA</code>；<strong>Tag Workflow 並不保證該 Tag 必在 main 或指向最新版本</strong>。</p>
+<h2>05 / Edge Case：舊 Tag 在新版本之後被重掃</h2>
+<div class="flowchart"><p class="diagram-title">Figure / Latest Project Analysis 不是最新 Release 保證</p><div class="chain">
+<div class="flow-node"><strong>11/01：Tag v1.2 → Commit C</strong><small>Project demo-api 看到 v1.2 的分析結果</small></div><div class="chain-arrow">↓ <span>新 Release 發布</span></div>
+<div class="flow-node"><strong>11/08：Tag v1.3 → Commit D</strong><small>最新分析變成 v1.3</small></div><div class="chain-arrow">↓ <span>有人重新跑 v1.2 的 Workflow</span></div>
+<div class="flow-node teal-node"><strong>11/09：舊 Commit C 重新分析</strong><small>同 Project Key 的最新 Dashboard 可能改顯舊版本的分析；不是自動建立 Tag 分支</small></div>
+</div></div>
+<p>因此，Release 必須建立一筆可稽核的<strong>Tag → SHA → Project Key → Project Version → CE Task → Gate 結果</strong>關聯。只看「目前 Dashboard 是綠燈」不能推出「待部署的 Tag 已經通過」。若並行分析同一個 Project，還要設計序列化、完成時序與結果歸屬；不要依賴沒有綁定分析 ID 的「最新 Project 狀態」。</p>
+<p>另外，Release Tag 改變 <code>sonar.projectVersion</code> 只是記錄版本，不會自動產生原生 Tag 分支，也不等於 Git diff。<a href="../reference/0005-new-code-release-version.html#previous">回顧 Previous Version 的首次分析起點陷阱</a>。</p>
+<section class="quiz" data-quiz data-correct="b" data-explanation="Community Build 不提供原生 PR Analysis；PR opened 事件即便成功執行 Scanner，仍不會自動產生獨立 PR Quality Gate。"><p class="eyebrow">RETRIEVAL / 事件與產品能力</p><fieldset style="border:0;padding:0;margin:0"><legend>團隊希望在 PR 尚未合併前，於 Community Project 取得原生 PR 專屬 Gate。哪一個判斷正確？</legend><label><input type="radio" name="l09a" value="a">只需變更 GitHub 觸發事件</label><label><input type="radio" name="l09a" value="b">免費版不支援原生 PR Gate</label><label><input type="radio" name="l09a" value="c">只需改寫 Project Version</label></fieldset><button class="check" type="button" data-check disabled>確認判斷</button><p class="feedback" data-feedback role="status"></p><noscript><details><summary>無 JavaScript 時展開解析</summary>正解 B。工作流程能在 PR 事件執行，不等於 Community Server 原生保存 PR 分析身分。</details></noscript></section>
+<h2>06 / 一分鐘回顧</h2>
+<ul><li>Event 決定時機；Checkout SHA 決定掃哪份完整原始碼。</li><li>Community Build 的單一 Project 沒有原生 PR 或 Tag 分支。</li><li>主分支持續掃描與每次 Release Tag 掃描各有用途；不要無設計地疊加。</li><li>Project Version 可記錄 Tag，並不保證上一個 Release 的 Git Diff。</li><li>Gate 放行的對象必須是<strong>正確的 Commit／分析結果</strong>，不只是 Project 最新狀態。</li></ul>
+<section class="sources"><strong>優先閱讀：</strong><a href="https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow">SonarSource：Community Actions 分支建議</a> · <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows">GitHub：事件與 SHA</a> · <a href="../reference/0007-release-gate-decision.html">Reference：事件／Gate 決策矩陣</a>。若某個 Commit 歸屬不直覺，請將事件與 Checkout SHA 帶回 ChatGPT 一起推導。</section>
+<p><a class="cta" href="0010-nonblocking-to-blocking.html">前往 Lesson 10 →</a><a class="text-link" href="0008-coverage-gate-ci.html">前一堂</a></p></div></main><footer><div class="shell">SONARQUBE / LEARNING · 2026-11-09 · <a href="../RESOURCES.md">官方來源</a></div></footer><script src="../assets/site.js" defer></script></body></html>

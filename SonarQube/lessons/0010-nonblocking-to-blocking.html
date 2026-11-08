@@ -1,0 +1,79 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="SonarQube Phase 05：從 Non-blocking 到 Blocking：Gate 怎麼控制部署？"><title>Lesson 10 · 從 Non-blocking 到 Blocking：Gate 怎麼控制部署？｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a href="../index.html">首頁</a><a href="../learning-map/index.html">學習地圖</a><a href="0009-release-trigger-analysis-identity.html">Lesson 09</a><a href="0010-nonblocking-to-blocking.html">Lesson 10</a></nav><button class="theme" type="button" disabled data-theme-toggle aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content"><p class="crumb"><a href="../index.html">SonarQube</a> / <a href="../learning-map/index.html#phase-5">Phase 05</a> / Lesson 10</p><p class="kicker">L10 / QUALITY GATE → CI POLICY → DEPLOYMENT</p>
+<h1>Gate FAIL 了，<br>部署要怎麼真的被擋下？</h1>
+<p class="intro">SonarQube 的 Quality Gate 只負責產生品質判定；<strong>是否阻止部署，是 GitHub Actions 的 Job Dependency 與組織治理政策</strong>。從 Non-blocking 升級成 Blocking，必須同時設計成功路徑與失敗路徑。</p>
+<div class="meta"><span class="tag teal">Phase 05 · Lesson 10</span><span class="tag">約 20 分鐘</span><span class="tag">治理／回退演練</span></div>
+<div class="panel"><p class="eyebrow">學習目標</p><p>設計一條可逐步啟用的 CI Quality Gate：區分 <strong>Quality Gate FAIL、Scanner Fail、CE Fail、Timeout／平台不可用</strong>，能解釋 <code>sonar.qualitygate.wait</code>、<code>needs</code>、<code>continue-on-error</code>、例外、回退及部署授權。</p></div>
+<h2>01 / 五個看似一樣的「紅燈」其實不同</h2>
+<table><thead><tr><th>狀態</th><th>發生在哪個階段？</th><th>政策該回答</th></tr></thead><tbody>
+<tr><td>Code Issue 引起 Gate FAIL</td><td>CE 完成、Quality Gate 判定</td><td>品質不達標，要禁止發布嗎？</td></tr>
+<tr><td>Scanner Fail</td><td>Runner、Token、TLS、設定</td><td>沒有可信分析，能否繼續？</td></tr>
+<tr><td>CE Task FAILED</td><td>Server 背景處理</td><td>Report 上傳了但結果無效，是否中止？</td></tr>
+<tr><td>等待逾時／Server 不可用</td><td>CI 等待／連線階段</td><td>重試、人工核准或 Fail Closed？</td></tr>
+<tr><td>資料錯位／不是該 Release</td><td>Trigger、Checkout、Project / Version</td><td>綠燈能代表這個 Tag 和 SHA 嗎？</td></tr>
+</tbody></table>
+<p>前四種分別是<strong>品質決策</strong>與<strong>品質服務無法提供可信決策</strong>；第五種甚至可能讓你錯把「別的版本的 PASS」當成這個 Release 的證據。正式 Gate 不能只問綠或紅，要先問它是不是這次部署所對應的分析。</p>
+<h2>02 / Rule、Gate、CI 三個責任分層</h2>
+<div class="flowchart"><p class="diagram-title">Figure / 品質規則如何傳遞到部署</p><div class="chain">
+<div class="flow-node"><strong>Rule + Quality Profile</strong><small>選哪些程式碼問題要被偵測：不以停用 Rule 來取得綠燈</small></div><div class="chain-arrow">↓ <span>Scanner 上傳，CE 彙總</span></div>
+<div class="flow-node"><strong>New Code Definition + Quality Gate</strong><small>哪些程式碼受新碼政策約束，以及 Metrics 是否合格</small></div><div class="chain-arrow">↓ <span>Scanner wait 或獨立 Gate Check 把判定轉為 CI 狀態</span></div>
+<div class="flow-node"><strong>Quality-check Job</strong><small>決定成功／失敗／逾時／不可用的處置</small></div><div class="chain-arrow">↓ <span>Deploy Job 的 needs / if／核准條件</span></div>
+<div class="flow-node teal-node"><strong>Deployment</strong><small>符合政策才開始；既有 Build／E2E／Security Gate 仍須保留</small></div>
+</div></div>
+<h2 id="stages">03 / 如何由觀測轉成阻擋？</h2>
+<table><thead><tr><th>階段</th><th>Quality Gate 實際狀態</th><th>GitHub Actions 如何處置？</th></tr></thead><tbody>
+<tr><td><strong>A / Observe</strong></td><td>正常計算 PASS／FAIL</td><td>分析作為獨立觀測 Job；部署不依賴 Gate Check，絕不為了不擋部署而強迫 Gate PASS</td></tr>
+<tr><td><strong>B / Warn</strong></td><td>FAIL 仍可辨識</td><td>將不合格關聯到 Commit、Owner、Issue／報告；通知及追蹤趨勢，確認噪音／誤報與 Server 可用性</td></tr>
+<tr><td><strong>C / Enforce</strong></td><td>FAIL 是阻擋訊號</td><td>Gate Check 成功才放行 Release Job；逾時或不可用時依事先核准的 Fail Policy 處理</td></tr>
+</tbody></table>
+<div class="callout"><strong>切換到 Blocking 前應完成的條件</strong><p>已能穩定重現成功掃描／CE 完成／紅色 Gate、建立每次 Tag → SHA → Gate 的關聯、確認 Rules 與 New Code Definition 符合治理政策、分析誤報與 Timeout 行為、定義誰能核准例外及何時回退。這些是<strong>驗收準則</strong>，不是已在真實環境通過的證據。</p></div>
+<h2 id="workflow">04 / 讓 Gate FAIL 確實阻擋一個示範部署 Job</h2>
+<p>以下是隔離環境的教學工作流程。假設 Runner 已安裝相容 SonarScanner CLI，且測試 Project Key 已存在。<strong>deploy-demo 只列印字串，不進行真實部署。</strong></p>
+<pre><code>name: Sonar Quality Gate Lab
+on:
+  workflow_dispatch:
+
+jobs:
+  quality-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan and wait
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+        run: |
+          sonar-scanner \
+            -Dsonar.projectKey=demo-api \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=300
+
+  deploy-demo:
+    needs: quality-check
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Simulation only — no deployment"</code></pre>
+<p>這個範例中，當 CE 算出 Gate FAIL、Scanner 正常等待並取得結果時，<code>quality-check</code> Job 會失敗；因為 <code>deploy-demo</code> 有 <code>needs: quality-check</code>，後者<strong>預設會被略過</strong>。這不是 SonarQube 直接終止部署，而是 GitHub Actions 根據依賴關係停止後續 Job。<a href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds">GitHub needs 官方說明</a>。</p>
+<div class="callout warn"><strong>最常見的兩種誤設</strong><p>第一，只有 <code>sonar.qualitygate.wait=false</code>：Scanner 上傳成功就可結束，Gate FAIL 不會讓該 Step 失敗。第二，只設 <code>wait=true</code> 卻讓 Deploy Job 完全不依賴 Quality-check，部署仍可繼續。還要檢查 <code>if: always()</code> 或 <code>continue-on-error</code> 是否意外繞過政策。</p></div>
+<h2>05 / Non-blocking 不是把所有錯誤都吞掉</h2>
+<p>在 Observe 階段，你可以保留獨立的分析 Job（若掃描失敗，它自己仍標紅），讓原有 Deployment 只依賴原本已建立的 Build／Test／Security Gate。這樣部署可以不受 SonarQube 影響，但你仍看得到 Scanner 失敗與 Gate FAIL。若把整個分析流程無條件 <code>continue-on-error: true</code>，可能同時掩蓋 Token、網路與真正的品質問題，不利於判斷何時可升級為 Blocking。</p>
+<p><strong>Fail-closed vs. Fail-open：</strong>Fail-closed 是無法取得可信品質判定就暫停部署；Fail-open 是平台故障時，依事先核准的例外程序放行。沒有一個選項適用所有服務；正式策略必須定義環境範圍、風險、時效、Owner、紀錄及復原後的補驗。不能把 SonarQube Server Outage 誤記成「程式碼品質 PASS」。</p>
+<h2 id="exceptions">06 / 例外與回退要怎麼設計？</h2>
+<ol class="sequence"><li><strong>先界定：</strong>是新碼 Gate FAIL、Scanner 故障、CE FAILED，還是等待 Timeout？依失敗來源選路徑，不能直接所有狀態放行。</li><li><strong>若需例外：</strong>記錄 Release Tag／SHA、Gate 指標、風險說明、核准人、截止時間與補驗動作；保留可追溯的 CI 執行結果。</li><li><strong>受控回退：</strong>先停止這個 Sonar Quality Enforcement 的部署依賴、恢復原觀測模式；<strong>不要</strong>為了綠燈全面停用 Rules 或把 Gate 改成永遠 PASS。</li><li><strong>復原驗證：</strong>在隔離環境重跑 PASS、FAIL、Timeout、Server 不可用四類情境，再決定是否重新開啟阻擋。</li></ol>
+<p>兩個不同的回退必須分清：<strong>Release 回退</strong>是把服務部署退回舊版；<strong>Quality Gate Enforcement 回退</strong>是暫時調整 CI 阻擋政策。兩者不互相替代。</p>
+<h2 id="lab">07 / 請用失效注入證明你真的理解</h2>
+<table><thead><tr><th>在隔離環境製造</th><th>應記錄的可觀察證據</th></tr></thead><tbody>
+<tr><td>受控 New Code Issue 導致 Gate FAIL</td><td>CE SUCCESS、Gate FAIL、Scanner Exit Code、Deploy Job skip</td></tr>
+<tr><td>Token 或 TLS 失效</td><td>Scanner Fail、無有效 Gate 判定、部署處置</td></tr>
+<tr><td>Server CE 逾時或不可用</td><td>Timeout 與 Retry／例外／阻擋結果</td></tr>
+<tr><td>重跑較舊 Release Tag</td><td>Tag、SHA、CE Task、Gate 結果能否仍精確對應</td></tr>
+</tbody></table>
+<p>驗收要證明<strong>同一個 Release／Commit</strong> 在 PASS、FAIL 和 Unknown 三個狀態下的部署決策；不能只截一張「Dashboard 綠燈」當成治理完成。更完整的政策矩陣見 <a href="../reference/0007-release-gate-decision.html#decision">Reference 07</a>。</p>
+<section class="quiz" data-quiz data-correct="c" data-explanation="Gate 判定已失敗卻仍部署，應優先檢查 Gate 是否轉成 CI Job 狀態、Deploy 的 needs／if 是否真正依賴該 Job；修改 Rules 會改變偵測範圍而不是建立依賴。"><p class="eyebrow">RETRIEVAL / 決策責任</p><fieldset style="border:0;padding:0;margin:0"><legend>Dashboard 已顯示這次分析 Gate FAIL，Deployment Job 卻仍執行。最先檢查哪一層？</legend><label><input type="radio" name="l10a" value="a">將原本規則全部停用</label><label><input type="radio" name="l10a" value="b">將新碼基準全部重設</label><label><input type="radio" name="l10a" value="c">查核 CI Job 相依條件</label></fieldset><button class="check" type="button" data-check disabled>確認判斷</button><p class="feedback" data-feedback role="status"></p><noscript><details><summary>無 JavaScript 時展開解析</summary>正解 C。Quality Gate 到 CI 的失敗傳遞、CI Job 到 Deploy 的相依關係，都必須存在。</details></noscript></section>
+<h2>08 / 一分鐘回顧</h2>
+<ul><li>Gate FAIL 是品質結果，不等於 Scanner／CE 執行失敗。</li><li><code>wait=true</code>（或獨立 Gate Check）把結果送入 CI；<code>needs</code> 控制後續部署。</li><li>Non-blocking 仍應保留可觀測的紅燈；不應停用 Rules 或將 Gate 假設為 PASS。</li><li>Enforcement 需要例外、Timeout、Outage、回退、Owner 及正確 Release SHA 身分。</li></ul>
+<section class="sources"><strong>優先閱讀：</strong><a href="https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow">SonarSource：Quality Gate Check／wait</a> · <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax">GitHub：needs、if、continue-on-error</a> · <a href="../reference/0007-release-gate-decision.html">治理矩陣速查</a>。若失效注入的觀察與推導不同，請帶著 CE Task ID、Exit Code、Release SHA 返回對話定位。</section>
+<p><a class="cta" href="../learning-map/index.html">回到學習地圖 →</a><a class="text-link" href="0009-release-trigger-analysis-identity.html">前一堂</a></p></div></main><footer><div class="shell">SONARQUBE / LEARNING · 2026-11-09 · <a href="../RESOURCES.md">官方來源</a></div></footer><script src="../assets/site.js" defer></script></body></html>
