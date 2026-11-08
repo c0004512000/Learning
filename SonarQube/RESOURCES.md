@@ -52,6 +52,14 @@
 - [Official SonarQube Scan Action](https://github.com/SonarSource/sonarqube-scan-action) — GitHub Actions Scanner 整合、版本與限制；適用 Lesson 07。
 - [原始教材起點](sources/materials/starting-point.md) — 學習需求與示意架構圖的使用者描述；屬於需求素材而非技術權威。
 
+### Phase 07：多語言 Pilot 與共用 Workflow
+- [Java Analyzer](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/languages/java) — Bytecode、Maven／Gradle Scanner 的前提。
+- [JS／TS Analyzer](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/languages/javascript-typescript-css) — Exclusions、Runtime 與完整分析輸入。
+- [Coverage Parameters](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/test-coverage-parameters) — JaCoCo、LCOV、Python Coverage XML。
+- [Project Token](https://docs.sonarsource.com/sonarqube-community-build/user-guide/managing-tokens) — Project Analysis Token 與最小權限。
+- [Instance Permissions](https://docs.sonarsource.com/sonarqube-community-build/instance-administration/user-management/user-permissions) — Global Execute Analysis、Visibility。
+- [Reusable Workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations) — workflow_call 與 Secrets。
+
 ## Learner-facing Reference
 - [Scanner／分析身分／PR／測試報告速查](reference/0003-analysis-identity-and-test-data.html) — 補充 L03 的參數、Project 建立及測試資料適用性；可從 L03 返回。
 - [Rule／Profile／Gate／New Code 速查](reference/0004-rules-gates-new-code.html) — L04 的自訂 Rule 路線、Metadata、門禁和固定基準設定。
@@ -63,7 +71,10 @@
 ## Wisdom（實務交流）
 - [Sonar Community](https://community.sonarsource.com/) — 官方維護的使用者論壇；遇到版本特定的 Scanner／Quality Gate 行為時，可查對照案例。社群回答須與該版官方文件、實測結果交叉檢查。
 
+- [Phase 07 多語言 Pilot／Rollout 決策速查](reference/0009-pilot-rollout-checklist.html) — Coverage、Project Token、共用 Workflow 與 Go／No-Go 矩陣。
+
 ## Evidence 與課程映射
+- [Phase 07 官方核對](sources/evidence/2026-11-09-phase7-pilot-governance.md) — Java Bytecode、Coverage 報告、Project Token、Reusable Workflow；尚未實測。
 - [Phase 06 Kubernetes／Restore／Upgrade 官方核對](sources/evidence/2026-11-09-phase6-kubernetes.md) — DB／ES／Helm／Argo CD 及復原規則；未實機驗證。
 - [Phase 05 Trigger／Gate 治理官方核對](sources/evidence/2026-11-09-phase5-governance.md) — 官方事件語意、Scanner 等候與 GitHub Job Dependency；**尚未實機驗證**。
 - [L04 Rules／Gates／New Code 官方核對](sources/evidence/2026-11-09-l04-governance.md) — 可追溯規則建立、Specific analysis API、CI 等待與 Coverage 邊界。
@@ -74,6 +85,7 @@
 - [已連結的外部資料來源](sources/linked/external/sonarsource-docs.md) — 來源選取與更新界線。
 
 ## Gaps（待有證據才可宣稱完成）
+- Phase 07 尚未提供兩種語言的完整 Scan／Coverage／Issue 實測、共享 Workflow Canary 或 Go／No-Go 決策證據。
 - 尚無公司私有 GitHub Workflows 的逐檔稽核、Runner 網路與 TLS 連線證據。
 - 公開課程尚未保存可供驗收的完整實機 POC 證據鏈（Checkout SHA、Scanner、CE Task、Gate、Deployment），因此不能據此宣稱 Phase 04／05 已通過。
 - 尚無可公開引用的正式 K8s、PostgreSQL Restore、ES Reindex 或升級演練證據。

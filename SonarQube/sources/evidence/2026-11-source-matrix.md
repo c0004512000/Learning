@@ -16,8 +16,8 @@
 | L10 Non-blocking → Blocking 的導入門檻 | https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates | 設計升級、例外、回退及 SonarQube 不可用時的 CI 行為 | 已撰寫；待情境與實測驗收 |
 | L11 Helm、Database、PVC、Ingress 與網路 | https://docs.sonarsource.com/sonarqube-community-build/server-installation/on-kubernetes-or-openshift/customizing-helm-chart | 交付不含機敏資料的部署拓樸和資源／網路驗證清單 | 已撰寫；待理解與實機驗收 |
 | L12 Backup、Recovery、Upgrade 與維運 | https://docs.sonarsource.com/sonarqube-community-build/server-installation/installing-the-database | 至少設計並記錄一套備份復原與升級回退驗收方案 | 已撰寫；待理解與實機驗收 |
-| L13 不同語言的掃描與規則落差 | https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/understanding-quality-profiles | 完成兩種語言的分析比較，量測執行時間、Issue 噪音和誤報 | 僅規劃；待實測 |
-| L14 共用模板、權限與 Rollout 決策 | https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow | 根據實測產出採用／暫緩的 decision record 和 rollout checklist | 僅規劃；待實測 |
+| L13 不同語言的掃描與規則落差 | https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/understanding-quality-profiles | 完成 Java／TypeScript 的 Bytecode／LCOV／JaCoCo、受控 Issue／CE 結果比較 | 已撰寫；待實測 |
+| L14 共用模板、權限與 Rollout 決策 | https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow | 提供共享 Contract、Project Token／最小權限、Go／No-Go 與回退證據 | 已撰寫；待實測 |
 
 ## 概念依賴
 - L01 知道靜態分析與執行測試的功能差異，才能在 L02 辨識 Scanner 的輸出與 Server 的後續處理。
@@ -48,3 +48,8 @@
 - L11：Pod、Compute Engine、Elasticsearch、PostgreSQL 的資料責任，Chart、Pod Security、Argo CD 未完整驗證限制與網路／Probe；詳見 `lessons/0011-kubernetes-architecture.html`。
 - L12：DB Backup／Restore、ES Reindex、RPO／RTO、Calendar Update Path、Schema Migration 與 Helm Rollback；詳見 `lessons/0012-recovery-upgrade.html`。
 - 維運 Reference `reference/0008-kubernetes-operations.html` 與官方核對 `sources/evidence/2026-11-09-phase6-kubernetes.md`。詳細教材完成，實測與理解驗收仍未完成；課程正式完成 0/14。
+
+## 2026-11-09 Phase 07 教材擴充
+- L13：Java Bytecode／JaCoCo、TypeScript／LCOV 的前置與規則差異；分析成功不代表輸入完整。見 `lessons/0013-multilanguage-pilot.html`。
+- L14：Workflow Contract、Project Token、Global Execute Analysis／Visibility、Go／No-Go、Owner 與 Rollback。見 `lessons/0014-template-permissions-rollout.html`。
+- Reference `reference/0009-pilot-rollout-checklist.html`；Evidence `sources/evidence/2026-11-09-phase7-pilot-governance.md`。兩堂尚未經使用者獨立作答和實測驗收，0/14。

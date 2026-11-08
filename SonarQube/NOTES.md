@@ -74,3 +74,9 @@
 - Official Community Helm Chart：26.2 移除 PostgreSQL dependency；`persistence.enabled` 主要是 ES Index，不是 DB Backup；ArgoCD-based deployment 官方未 fully supported／validated。
 - 重建 Pod、重建 ES、還原 DB、回退 Helm Chart 是不同操作；DB Schema Migration 不可只靠 Helm Rollback 回復。
 - Phase 05 與 06 已寫完，不表示使用者已通過；Phase 03 暫緩，進度 0/14。
+
+### Phase 07 來源與教學要求（2026-11-09）
+- 多語言導入：先講 Java Bytecode／JaCoCo、TypeScript／LCOV 的前置，再談 Rule、Profile 與跨語言比較；避免以 Raw Issue Count 或 Scanner SUCCESS 誤判。
+- 共用模板把 Repo 的 Build／Test／Coverage 輸入與平台的 Project Key、SHA、Token、Gate Policy 分開；Project Analysis Token 優先，需檢查 Default Visibility 和 Global Execute Analysis。
+- 需有明確 Rollout Metrics、False Positive Owner、Outage/Timeout 行為、Canary 與回退；新教材只能稱已撰寫，不是已執行 Pilot。
+- Phase 07 L13、L14、Reference 0009 和 Evidence 已新增。Phase 03 L05／06 仍暫緩，正式驗收維持 0/14。
