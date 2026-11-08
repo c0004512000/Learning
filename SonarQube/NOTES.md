@@ -26,3 +26,8 @@
 - 使用者正確指出 SonarQube Main Branch 與 GitHub Default Branch 是不同層級概念；教材應避免把「免費版只支援主分支」寫成「只能掃 SCM Default Branch」。
 - 此訊息能顯示學習者已形成合理假設，但未有實際分析歸屬的操作證據；不將此記為正式 Lesson 驗收完成。
 - 在 Phase 03 教 Project 時，要以 CI Checkout → Scanner → Project Key → Main Branch 的模型逐層教學，示範重複 Project Key 掃不同 Branch 的覆寫風險。
+
+### Git 工作目錄中的 Commit vs Branch label（2026-11-08）
+- 教學需先建立：Scanner 讀取 checkout 後工作目錄的內容；GitHub push workflow 的 actions/checkout 預設取事件 SHA，未必存在名為 main 的本地分支（detached HEAD 合法）。
+- `fetch-depth: 0` 是取得完整 Git History 以支援 SCM 資料，不是設定分析分支。
+- 在 L03 保留最小實例與反例，避免將 GitHub main、SonarQube Main Branch、checkout 動作與 SHA 混為一談；不依提問推論學習者已完成 Lesson。
