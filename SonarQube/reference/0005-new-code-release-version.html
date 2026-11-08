@@ -1,0 +1,46 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="SonarQube 學習參考：New Code、Release Version 與品質政策"><title>New Code、Release Version 與品質政策｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a href="../index.html">首頁</a><a href="../learning-map/index.html">學習地圖</a><a href="../lessons/0003-community-build-boundary.html">Lesson 03</a><a href="../lessons/0004-rules-profiles-gates.html">Lesson 04</a></nav><button class="theme" type="button" disabled data-theme-toggle aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content"><p class="crumb"><a href="../index.html">SonarQube</a> / Reference / New Code</p><p class="kicker">REFERENCE 05 / RELEASE GOVERNANCE</p>
+<h1>一個 Release Tag，<br>三個不同的角色。</h1>
+<p class="intro">Git Tag 鎖定發布的 Git Commit；<code>sonar.projectVersion</code> 標記這次分析對應的軟體版本；New Code Definition 則決定哪一部分程式碼接受「新程式碼」的品質要求。這三者可以搭配，但不是同一種設定。</p>
+<div class="panel"><p class="eyebrow">先記得這條因果鏈</p><div class="chain"><div class="flow-node"><strong>Git Tag → Checkout Commit</strong><small>Scanner 看到哪份程式碼</small></div><div class="chain-arrow">↓ <span>Scanner 提交完整分析與版本標記</span></div><div class="flow-node"><strong>Project Key + Project Version</strong><small>分析歸到哪個 Project、記錄什麼發布版本</small></div><div class="chain-arrow">↓ <span>Server 根據 New Code Definition 選定範圍</span></div><div class="flow-node teal-node"><strong>Quality Gate</strong><small>只針對選定的 New Code／Overall 指標判定 PASS 或 FAIL</small></div></div></div>
+<h2 id="version">01 / Project Version 究竟在記錄什麼？</h2>
+<p><code>sonar.projectVersion=v1.2.0</code> 是「這次分析對應軟體版本 v1.2.0」的標記。Project Activity 能顯示版本事件、品質 Gate 與指標歷史，協助查找哪個版本的分析開始出現品質變化；它不會主動做 Git Tag diff，也不是任意時刻可重現的完整舊 Dashboard。</p>
+<pre><code># Tag workflow 已 checkout 該 Tag 的 Commit 之後
+sonar-scanner \
+  -Dsonar.projectKey=demo-api \
+  -Dsonar.projectVersion="$RELEASE_TAG"</code></pre>
+<p>對「每次正式 Release 打 Tag」的工作流程，將正式 Tag 值寫入 Project Version 是有意義的；<strong>不要把每次 CI Run Number 當版本</strong>。同一版本內的日常掃描可以使用相同版本值。Maven／Gradle Scanner 可能從 Build Metadata 推導版本，應核對實際送出的值。<a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/analysis-parameters/parameters-not-settable-in-ui">官方分析參數</a>、<a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/viewing-projects/activity-and-history">Activity</a>。</p>
+<h2 id="three">02 / 三種 New Code 模式的起點不是同一件事</h2>
+<table><thead><tr><th>設定</th><th>New Code Period 起點</th><th>適合問什麼？</th></tr></thead><tbody>
+<tr><td><strong>Previous version</strong></td><td>目前 Project Version<strong>首次被分析</strong>的日期</td><td>這個版本開發週期以來，新程式碼品質如何？</td></tr>
+<tr><td><strong>Number of days</strong></td><td>分析日往前 N 天的日期</td><td>最近 7／30 天修改的程式碼品質如何？</td></tr>
+<tr><td><strong>Specific analysis</strong></td><td>明確指定某次既有分析的日期</td><td>自我設定的固定導入基準以來，品質如何？</td></tr>
+</tbody></table>
+<p>以上是官方定義的<strong>日期期間</strong>，不等於要求 Scanner 只看期間內 Commit，也不等於直接執行 <code>git diff</code>。完整掃描仍處理目前 Checkout 程式碼；SonarQube 利用分析結果與 SCM 資訊計算 New Code 指標。<a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code">官方 New Code 定義</a>。</p>
+<h3 id="previous">Previous Version：版本切換不等於上一個 Release 的 Git Diff</h3>
+<table><thead><tr><th>分析</th><th>傳入版本</th><th>期間起點的意義</th></tr></thead><tbody>
+<tr><td>11/01 A</td><td>v1.0</td><td>首次分析 v1.0</td></tr>
+<tr><td>11/08 B</td><td>v1.1</td><td>首次分析 v1.1，成為此版本期間的起點</td></tr>
+<tr><td>11/15 C</td><td>v1.1</td><td>沿用 v1.1 的 11/08 起點</td></tr>
+<tr><td>11/22 D</td><td>v1.2</td><td>首次分析 v1.2，重新劃定期間</td></tr>
+</tbody></table>
+<div class="callout warn"><strong>Release Tag-only 掃描的陷阱</strong><p>若只在成品 Tag 出現之後，第一次把新版本值送入 SonarQube，這次分析同時就是<strong>新版本期間起點</strong>；不能因此斷言當次 Quality Gate 已精確檢查「上一個 Release Tag → 這個 Tag」的全部變更。若要驗證兩個 Tag 的 Git 差異，需有另一個明確比對方式或經過驗證的分析時序。</p></div>
+<h3 id="days">Number of Days：日期怎麼滾動？</h3>
+<p>假設 11/15 分析，<code>Number of Days = 7</code>，起點就是 <strong>11/08</strong>；到 11/16 分析，起點變成 <strong>11/09</strong>。每天向前滾動一天，並不是拿「七個 Commit 前」或「七天前的 Git SHA」做固定比較。</p>
+<div class="flowchart"><p class="diagram-title">Figure / 同一個 7 天設定，兩天的期間</p><div class="chain"><div class="flow-node"><strong>11/15 掃描</strong><small>期間：11/08 → 11/15</small></div><div class="chain-arrow">↓ <span>日期前進 1 天，設定不變</span></div><div class="flow-node teal-node"><strong>11/16 掃描</strong><small>期間：11/09 → 11/16</small></div></div><p class="caption">箭頭是時間推進，不代表 SonarQube 從分析歷史挑一筆最接近的 Git Commit。官方以期間起訖日期定義 New Code，Issue／變更的定位依 SCM 與分析資料計算。</p></div>
+<p><strong>適用情境：</strong>持續交付、沒有固定版本週期的服務，團隊只想關注「近期改動」。代價是未修的 New Issue 在超過時間窗口後可能離開 New Code 指標，不適合要求「導入日起所有新問題永遠維持在新碼門檻」的政策。</p>
+<h3 id="specific">Specific Analysis：固定既往不咎的界線</h3>
+<p>先完成導入基準 A 的分析（等待 Compute Engine 完成），再用 <strong>Web API <code>api/new_code_periods/set</code></strong> 指定那次分析作為起點。B、C、D 後續重掃但仍以 A 為固定起點；除非明確修改 New Code Definition，基準不隨 Tag、日期或新的 Scan 自行漂移。</p>
+<div class="callout"><strong>不要把 Specific Analysis 當成填 Git SHA 或未來日期。</strong><p>目前 Community Build 官方文件表示，Specific Analysis 要透過 Web API 設定，Project UI 並不提供直接選取。操作前應從該 Server 的 Web API 文件核對參數與合法分析 ID。</p></div>
+<h2 id="edge">03 / 真實治理的 Edge Case：Issue 沒修，Gate 卻 PASS</h2>
+<p>假設導入時有 20 個歷史 Issues；版本 v1.1 又新增 Issue A，因為仍是 Non-blocking 所以先部署；v1.2 沒再新增，但 A 仍沒修。</p>
+<table><thead><tr><th>政策</th><th>v1.2 的 New Code Gate</th><th>Overall Code</th></tr></thead><tbody>
+<tr><td>固定 Specific Analysis 在導入 A</td><td>若 Issue A 仍落在新碼範圍，繼續 FAIL</td><td>A 仍存在</td></tr>
+<tr><td>每版更換 Previous Version 期間</td><td>A 可能不再屬於此版新碼，可能 PASS</td><td>A 仍存在</td></tr>
+</tbody></table>
+<p>這是<strong>條件式案例</strong>，不是承諾 SonarQube 每個 Issue 都以相同方式重新分類。New Code 的行數、Issue 日期、SCM blame、Rule 與 Gate 條件，都可能影響真實判定。**不在 New Code ≠ 沒有 Issue；只代表它未必再觸發僅檢查 New Code 的 Gate。**</p>
+<h2 id="decision">04 / 實務選擇與資料責任</h2>
+<p>若企業政策是「只有導入前舊問題豁免；之後所有新問題持續受管」，使用<strong>固定 Specific Analysis</strong> 作為新碼起點最直覺；CI 可以照樣每個 Release Tag 跑掃描並更新 <code>sonar.projectVersion</code>，版本標籤與固定基準不衝突。若政策是「每個新開發週期重新計算 New Code」，則評估 Previous Version 與分析的切換時點。</p>
+<p>為了真正追溯每個發布版本，CI 還應保存 <strong>Git Tag、Commit SHA、Project Key、Project Version、CE Task ID、Gate 結果</strong> 的關聯；Project Activity 有歷史趨勢，但不是永久保存完整每版 Dashboard。Housekeeping 會清理部分舊 Snapshot，尤其要避免用每次 Build Number 不斷製造版本事件。<a href="https://docs.sonarsource.com/sonarqube-community-build/instance-administration/system-functions/housekeeping">官方 Housekeeping</a>。</p>
+<h2>自我檢驗</h2><p>當 v1.1 新增 Issue A，到了 v1.2 還沒修，你希望它繼續導致 New Code Gate FAIL 嗎？先決定治理政策，再選 New Code Definition；不要先選下拉選單才倒推政策。</p>
+<section class="sources"><strong>官方來源：</strong><a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code">New Code</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/project-administration/adjusting-analysis/configuring-new-code-calculation">設定 New Code</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/analysis-parameters/parameters-not-settable-in-ui">Project Version</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/viewing-projects/activity-and-history">Activity</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/instance-administration/system-functions/housekeeping">Housekeeping</a>。</section>
+<p><a class="cta" href="../lessons/0004-rules-profiles-gates.html">回到 Lesson →</a><a class="text-link" href="../learning-map/index.html">回到學習地圖</a></p></div></main><footer><div class="shell">SONARQUBE / LEARNING · 2026-11-09 · <a href="../RESOURCES.md">官方來源索引</a></div></footer><script src="../assets/site.js" defer></script></body></html>
