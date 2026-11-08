@@ -1,0 +1,29 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="SonarQube 多語言 Pilot 與跨 Repo Rollout 決策速查"><title>Phase 07 · Pilot 與 Rollout 速查｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a href="../index.html">首頁</a><a href="../learning-map/index.html">學習地圖</a><a href="../lessons/0013-multilanguage-pilot.html">Lesson 13</a><a href="../lessons/0014-template-permissions-rollout.html">Lesson 14</a></nav><button class="theme" data-theme-toggle type="button" disabled aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content"><p class="crumb"><a href="../index.html">SonarQube</a> / Reference / Pilot &amp; Rollout</p><p class="kicker">REFERENCE 09 / MULTI-REPO GOVERNANCE</p>
+<h1>可比較的 Pilot，<br>才有可放大的決策。</h1>
+<p class="intro">以下是跨語言和跨 Repo 的驗收契約。若任何欄位未知，就標明 Unknown；不以 Scanner Success 代替完整的品質資料，也不以單一 Dashboard 的綠燈代替 Release Gate 的治理證據。</p>
+<h2 id="languages">01 / 語言差異速查</h2>
+<table><thead><tr><th>類型</th><th>分析前要準備</th><th>匯入 Coverage 的參數</th></tr></thead><tbody>
+<tr><td>Java</td><td>編譯好的 .class、相容 Build/Scanner（推薦 Maven／Gradle）</td><td><code>sonar.coverage.jacoco.xmlReportPaths</code>（JaCoCo XML）</td></tr>
+<tr><td>JavaScript／TypeScript</td><td>原始碼、相容 Node / Analyzer Runtime、LCOV 報告</td><td><code>sonar.javascript.lcov.reportPaths</code>（LCOV）</td></tr>
+<tr><td>Python</td><td>原始碼、正確 Python Version、Cobertura XML 報告</td><td><code>sonar.python.coverage.reportPaths</code>（Coverage.py XML）</td></tr>
+</tbody></table>
+<p>Scanner 不會自行建立 Coverage；應核對測試工具、產物相對路徑及 SonarSource 所支援的語言／Scanner 版本。<a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/test-coverage-parameters">官方 Coverage 參數</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/languages/java">Java</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/languages/python">Python</a>。</p>
+<h2 id="evidence">02 / 每個 Repo 應交付的最低證據</h2>
+<table><thead><tr><th>責任</th><th>必須保留的資料</th></tr></thead><tbody>
+<tr><td>身份</td><td>Repository、Branch／Tag、Checkout SHA、Project Key、Project Version</td></tr>
+<tr><td>掃描環境</td><td>Runner 類型、Scanner Version、Build / Test 工具與版本</td></tr>
+<tr><td>語言與品質政策</td><td>語言、Quality Profile、Quality Gate、New Code Definition</td></tr>
+<tr><td>Coverage</td><td>Report 格式／檔案路徑／存在性／匯入結果</td></tr>
+<tr><td>Server</td><td>CE Task ID、Status、指標與 Failed Conditions</td></tr>
+<tr><td>CI Policy</td><td>Observe／Warn／Enforce、Gate Job Result、部署需要的 needs、例外</td></tr>
+<tr><td>維運</td><td>Scan 耗時、CE Queue、Failure Rate、Error Owner、Fallback</td></tr>
+</tbody></table>
+<h2 id="tokens">03 / 權限的最小原則</h2>
+<p>優先使用每 Project 的 Analysis Token，禁止把高權限 User Token 直接共用給所有 Repo；明確審查 Global Execute Analysis、Project Visibility、Administer Profiles／Gates、Secret Rotation。Token 的儲存與範圍應由組織允許的 Secret System 與流程管理。<a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/managing-tokens">官方 Token</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/instance-administration/user-management/user-permissions">官方權限</a>。</p>
+<h2 id="rollout">04 / 受控 Rollout 檢查</h2>
+<ol class="sequence"><li>選至少兩個不同語言或建置工具的 Pilot；排除假成功（缺 Report、錯 SHA、錯 Profile）。</li><li>量測 Scan Success、CE Delay、Gate Failure、Noise、Scanner Runtime 與團隊處理成本，別把 Quality Gate FAIL 混入平台錯誤率。</li><li>確認業務 Owner、Profile／Gate 管理者、最低 Token 權限與 Project Visibility；審查相同 Project Key 是否被其他 Repo 誤用。</li><li>在隔離環境完成 Gate PASS／FAIL、Token 失效、Server Timeout、舊 Release 重掃與回退情境。</li><li>有風險與例外處理辦法後，先 Canary 少量服務，再逐批擴大；任何共用 Template 變更都需版本鎖定與回退方案。</li></ol>
+<h2 id="decision">05 / Pilot Decision Record 模板</h2>
+<div class="panel"><p><strong>Scope：</strong>評估哪些 Repo／語言／部署環境？</p><p><strong>Baseline：</strong>各 Repo 的 Profile、Gate、New Code、Coverage 是否可追溯？</p><p><strong>Evidence：</strong>掃描／CE 的成功率、延遲、誤報與受控 Gate FAIL 實驗結果。</p><p><strong>Risk：</strong>版本／Commit 對錯、Server 不可用、DB Recoverability、Token 及例外處理。</p><p><strong>Decision：</strong>Go／Conditional Go／Hold。列出 Owner、日期、下一個 Canary 範圍、取消／回退條件。</p></div>
+<p>這份模板不能代替真正的測試報告；不應直接填合成範例數字來宣稱 POC 已成功。</p>
+<section class="sources"><strong>官方主要來源：</strong><a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/understanding-quality-profiles">Profile</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates">Gate</a> · <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations">GitHub Workflow Reuse</a>。<a href="../lessons/0013-multilanguage-pilot.html">Lesson 13</a> / <a href="../lessons/0014-template-permissions-rollout.html">Lesson 14</a>。</section>
+<a class="cta" href="../learning-map/index.html">回到學習地圖 →</a></div></main><footer><div class="shell">SONARQUBE / LEARNING · 2026-11-09 · Phase 07</div></footer><script src="../assets/site.js" defer></script></body></html>

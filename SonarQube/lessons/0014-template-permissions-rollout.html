@@ -1,0 +1,71 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="如何將 SonarQube 擴展成可治理的共用服務？，SonarQube Community Build 的 Phase 07 教學。"><title>Lesson 14 · 如何將 SonarQube 擴展成可治理的共用服務？｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a href="../index.html">首頁</a><a href="../learning-map/index.html">學習地圖</a><a href="0013-multilanguage-pilot.html">Lesson 13</a><a href="0014-template-permissions-rollout.html">Lesson 14</a></nav><button class="theme" data-theme-toggle type="button" disabled aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content"><p class="crumb"><a href="../index.html">SonarQube</a> / <a href="../learning-map/index.html#phase-7">Phase 07</a> / Lesson 14</p><p class="kicker">PHASE 07 / TEMPLATE & ROLLOUT DECISION</p>
+<h1>十個 Repo 都跑得動，<br>就能一次推到一千個嗎？</h1>
+<p class="intro">技術上可以把一段 Scanner Step 複製到所有 Repo，但這不是可治理的 Rollout。真正要標準化的是<strong>分析身分、掃描輸入、Credential 邊界、政策、錯誤處置與可回退性</strong>，而不是把每個服務都硬套同一條 Coverage Path。</p>
+<div class="meta"><span class="tag teal">Phase 07 · Lesson 14</span><span class="tag">約 20 分鐘</span><span class="tag">Decision Record</span></div>
+<div class="panel"><p class="eyebrow">學完你應能做到</p><p>為多個 Repo 定義一份<strong>最小的共享 Scanner Contract</strong>，列出 Community Build 的權限邊界和 Quality Gate 治理；能提出按批次試點的 Go／No-Go 判斷、例外流程、監控指標與回退路徑。</p></div>
+<h2>01 / 為什麼複製 YAML 不等於標準化？</h2>
+<p>想像兩個服務：A 使用 Java / Maven、B 使用 TypeScript / Jest。兩邊都需要 SonarQube，但前者須先完成編譯並匯入 JaCoCo XML，後者須先有 LCOV；如果共用 Workflow 強制執行同一條 <code>npm test</code>，Java 直接失敗。如果完全忽略測試報告，又會出現<strong>Scanner SUCCESS，Coverage 不完整</strong>的假成功。</p>
+<div class="flowchart"><p class="diagram-title">Figure / 共用 Contract 與語言差異的責任邊界</p><div class="chain">
+<div class="flow-node"><strong>Repo 自己負責 Build / Test / Coverage</strong><small>每種語言準備好相容的 Bytecode／Coverage；團隊對程式碼與測試品質負責</small></div><div class="chain-arrow">↓ <span>將固定的分析輸入交給共用 Workflow</span></div>
+<div class="flow-node"><strong>共用 SonarScanner Workflow</strong><small>Project Key／Commit SHA／Token／Server／Scanner Version／Gate Mode</small></div><div class="chain-arrow">↓ <span>Server 套用 Project 的 Profile、New Code 與 Gate</span></div>
+<div class="flow-node teal-node"><strong>Release Policy + Evidence</strong><small>CE Task／Gate 狀態／例外／Owner；Policy 決定是否阻擋部署</small></div>
+</div><p class="caption">這是治理設計示意，不是聲稱 SonarQube 會替你建立 GitHub Actions Reusable Workflow、授權或部署策略。</p></div>
+<h2 id="contract">02 / 共用 Workflow 最小 Contract</h2>
+<table><thead><tr><th>欄位／責任</th><th>誰決定？</th><th>為何必須存在？</th></tr></thead><tbody>
+<tr><td><code>project_key</code></td><td>Platform 分配、Repo 綁定</td><td>穩定分析歸屬；防止不同 Repo 用相同 Key 覆寫</td></tr>
+<tr><td><code>source_sha</code></td><td>Caller Workflow Checkout</td><td>對應實際 Commit，不把最新 Dashboard 當作這次 Release</td></tr>
+<tr><td><code>project_version</code></td><td>Release Pipeline</td><td>Tag 是正式發布版本時，記錄版本以供 Activity 回溯</td></tr>
+<tr><td><code>coverage_report_path</code></td><td>應用端依語言產生</td><td>不強迫不同語言使用同一種格式</td></tr>
+<tr><td><code>scanner_version</code></td><td>Platform 固定並驗證</td><td>避免不同 Repo 因 Runtime／Action 更新導致非預期失敗</td></tr>
+<tr><td><code>gate_mode</code></td><td>有權的治理負責人</td><td>Observe／Warn／Enforce 必須可審核，不由任意 Repo 自行繞過</td></tr>
+</tbody></table>
+<p>**Shared Workflow 本身不應替應用程式決定 Quality Profile 的 Rules，或偷偷把 Gate Fail 設成 PASS。** Profile／Gate 在 SonarQube 管理並記錄指派；共用 Workflow 控制執行與狀態傳遞。另可在 Repo 將語言參數放在受審核的 Scanner 設定檔，不必每個 Job 硬塞十幾個 <code>-D</code>。</p>
+<h2 id="reusable">03 / Reusable Workflow：抽掉共用流程，留下 Repo 差異</h2>
+<p>GitHub Actions 提供 <code>workflow_call</code>，但<strong>這只是 CI 工具提供的重用機制</strong>，不是 SonarQube Community 原生的多 Repo 管理服務。以下是概念化的 Caller；假設被呼叫 Workflow 已實作 Checkout／Scanner／Gate 檢查，並設計好的 <code>project-key</code> 輸入、Secret 與權限。</p>
+<pre><code># .github/workflows/sonar.yml — 合成 Repo 範例
+name: SonarQube Analysis
+on:
+  push:
+    branches: [main]
+jobs:
+  sonar:
+    uses: demo-platform/ci/.github/workflows/sonar-scan.yml@v1
+    with:
+      project-key: demo-service
+      gate-mode: observe
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}</code></pre>
+<p>這裡的 <code>@v1</code> 只是教學示意；正式導入應以<strong>受審核、不可變的 Commit SHA</strong> 或有保護的版本發布流程追蹤共享 Workflow 版本。Caller／Callee 的 Secret 可見範圍、最低 <code>GITHUB_TOKEN</code> 權限與 Runner 連通性都需要另行驗證。<a href="https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations">GitHub Reusable Workflows</a>。</p>
+<div class="callout warn"><strong>需要刻意避免的漏洞：</strong><p>不要允許服務 Repo 只改 <code>gate-mode: observe</code> 就繞過原本已啟用的 Production Blocking Policy。可將部署授權檢查放在受控的共用 Release Gate／Environment Protection 中，並規定誰能調整或批准例外。</p></div>
+<h2 id="permissions">04 / Token 與權限不能用最高權限圖方便</h2>
+<p>官方提供 <strong>Project Analysis Token</strong>，只允許對特定 Project 執行分析；相比綁全域管理員的 User Token 或 Global Analysis Token，更適合跨 Repo 隔離。預設 <code>sonar-users</code> 可能具有 Global Execute Analysis 權限，導入時要檢查並按公司政策縮限。<a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/managing-tokens">官方 Token</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/instance-administration/user-management/user-permissions">官方權限</a>。</p>
+<table><thead><tr><th>權限／設定</th><th>應由誰持有？</th></tr></thead><tbody>
+<tr><td>Project Execute Analysis</td><td>該 Repo 的 Scanner Identity／Project Token</td></tr>
+<tr><td>Administer Quality Profiles</td><td>經授權的規則治理管理者</td></tr>
+<tr><td>Administer Quality Gates</td><td>經授權的品質政策管理者</td></tr>
+<tr><td>Administer Project／Visibility</td><td>特定 Project Owner／受控管理者</td></tr>
+<tr><td>Secret／Token Rotation</td><td>指定的平台憑證管理流程</td></tr>
+</tbody></table>
+<p>每個 Project 可按語言套用專屬 Profile，Gate 也可由有權者指定；**不要因為同一個 Repo 會用共享 CI Template，就把所有 Project 的管理權交給同一個無差別 Token**。Project Visibility 也要核對：官方預設新 Project 可能是 Public，代表未經身份驗證也能瀏覽部分原始碼內容與 Issues。<a href="https://docs.sonarsource.com/sonarqube-community-build/project-administration/setting-project-permissions">Project Permissions</a>。</p>
+<h2 id="rollout">05 / 一個 Pilot 什麼時候可以擴大？</h2>
+<p>先定義成功標準，再用數據決定推廣。下面是<strong>合成決策範例</strong>，不是實測或公司核准門檻：</p>
+<table><thead><tr><th>面向</th><th>假設門檻</th><th>若不達標</th></tr></thead><tbody>
+<tr><td>分析成功率</td><td>≥ 99%（排除已歸因程式碼品質的 Gate FAIL）</td><td>先修 Scanner／Token／CE／網路可靠性</td></tr>
+<tr><td>CE 任務延遲</td><td>P95 ≤ 3 分鐘</td><td>先排查 Queue、CPU／記憶體、DB／ES</td></tr>
+<tr><td>誤報處理</td><td>明確定義 Review Owner 與回報時限</td><td>先調整 Profile、Exclusions 或政策，而非大範圍關 Rule</td></tr>
+<tr><td>Coverage 匯入</td><td>每個試點 Repo 都能證明報告存在並正確讀取</td><td>修正語言專屬建置與路徑</td></tr>
+<tr><td>故障與回退</td><td>Gate FAIL／Server Outage／Token 失效皆有演練記錄</td><td>先維持 Observe，再完成政策驗收</td></tr>
+</tbody></table>
+<p>為避免「只挑最好掃的專案」造成偏差，Pilot 至少選兩種不同語言或建置型態，記錄原本的測試覆蓋、Repo 規模與團隊維護成本。<strong>運作成功率、Gate PASS 率和品質改善率是不同指標</strong>，不能混在同一個 KPI。</p>
+<h2 id="decision">06 / Go／No-Go 的可審核決策</h2>
+<div class="callout"><strong>Go：</strong><p>已確認版本與支援邊界、Project 身分與最小權限、語言前置報告、CE／Gate 時序和 CI 例外回退；可在受控批次擴大，並保留儀表化指標和 Owner。</p></div>
+<div class="callout warn"><strong>No-Go／Hold：</strong><p>若仍有未定義的 Outage 放行政策、無法追溯 Release SHA、DB Backup 未能還原、Project 權限過大、誤報無 Owner，或跨語言 Coverage 大量缺漏，應維持或縮小 Pilot。這是「證據尚不足」，不是「工具本身沒價值」。</p></div>
+<ol class="sequence"><li>先在小批 Repo 上以 Observe 模式收集固定期間數據、分類 Failure，建立 Issue／Gate Owner。</li><li>審查規則噪音、Coverage 匯入、DB／CE 容量、Token 與權限；保持原有 E2E／Security Release Gate。</li><li>取得專案負責人與平台治理核准後，針對特定 Repo／環境轉成 Enforce；清楚記錄例外期限與回退開關。</li><li>逐批擴大；每次變更共享 Workflow 版本都做 Canary，若有問題先回退共用模板／Gate Enforcement，再評估是否需要 Release Rollback。</li></ol>
+<section class="quiz" data-quiz data-correct="c" data-explanation="標準化不是只讓 Scanner 能執行；若 Source SHA、Project Key、憑證權限或 Gate 失敗傳遞無法稽核，擴大部署可能同時放大治理風險。"><p class="eyebrow">RETRIEVAL / Rollout 決策</p><fieldset style="border:0;padding:0;margin:0"><legend>兩個 Repo 掃描成功，但無法證明 Gate 對應的 Release SHA。下一步最適合？</legend>
+<label><input type="radio" name="l14" value="a">立即將全部 Repo 強制阻擋</label>
+<label><input type="radio" name="l14" value="b">立即把所有 Gate 門檻放寬</label>
+<label><input type="radio" name="l14" value="c">先補齊版本對應驗證再推廣</label>
+</fieldset><button class="check" type="button" data-check disabled>確認我的判斷</button><p class="feedback" data-feedback role="status"></p><noscript><details><summary>無 JavaScript 時展開解析</summary>正解 C。先證明 Gate 屬於真正要部署的 SHA，再考慮轉成阻擋政策並擴大。</details></noscript></section>
+<h2>07 / 一分鐘回顧</h2><ul><li>Repo 層準備語言特定資料；Shared Workflow 控制身份、執行、回報與政策。</li><li>Project Token 限縮授權；Profile、Gate 由獨立治理權限管理。</li><li>Scanner SUCCESS 不是 Coverage 完整、Gate PASS 或可正式推廣的證明。</li><li>Rollout 要有 Reliability、False Positive、成本、Owner、Exception、Canary 和 Rollback 的可觀察證據。</li></ul>
+<section class="sources"><strong>優先閱讀：</strong><a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/managing-tokens">SonarQube Tokens</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/instance-administration/user-management/user-permissions">Permissions</a> · <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations">GitHub Reusable Workflow</a> · <a href="../reference/0009-pilot-rollout-checklist.html#rollout">Pilot Decision Checklist</a>。若你要將流程變成正式 SRE 模板，應先帶匿名化的 Contract、例外和指標設計回對話逐項驗證。</section>
+<p><a class="cta" href="../learning-map/index.html">回到學習地圖 →</a><a class="text-link" href="0013-multilanguage-pilot.html">前一堂</a></p></div></main><footer><div class="shell">SONARQUBE / LEARNING · 官方資料核對 2026-11-09 · <a href="../RESOURCES.md">來源索引</a></div></footer><script src="../assets/site.js" defer></script></body></html>

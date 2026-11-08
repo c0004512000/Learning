@@ -1,0 +1,58 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="不同語言的掃描，為什麼不能直接套同一份模板？，SonarQube Community Build 的 Phase 07 教學。"><title>Lesson 13 · 不同語言的掃描，為什麼不能直接套同一份模板？｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a href="../index.html">首頁</a><a href="../learning-map/index.html">學習地圖</a><a href="0013-multilanguage-pilot.html">Lesson 13</a><a href="0014-template-permissions-rollout.html">Lesson 14</a></nav><button class="theme" data-theme-toggle type="button" disabled aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content"><p class="crumb"><a href="../index.html">SonarQube</a> / <a href="../learning-map/index.html#phase-7">Phase 07</a> / Lesson 13</p><p class="kicker">PHASE 07 / LANGUAGE PILOT</p>
+<h1>兩個專案都掃成功，<br>能說品質一樣好嗎？</h1>
+<p class="intro">把 SonarQube 推廣到多個 Repo 時，最容易誤判的不是 Scanner 出錯，而是<strong>分析成功卻缺少必要輸入</strong>：Java 沒有編譯好的 Class、JS/TS 沒有 LCOV，或兩邊的 Quality Profile 規則不同。先建立可比較的分析條件，才有意義地比較結果。</p>
+<div class="meta"><span class="tag teal">Phase 07 · Lesson 13</span><span class="tag">約 18 分鐘</span><span class="tag">雙語言 Pilot</span></div>
+<div class="panel"><p class="eyebrow">學完你應能做到</p><p>為一個 Java Repo 和一個 TypeScript Repo 分別列出 Scanner 的前置資料、Coverage 報告格式和 Quality Profile；能說明為何不能只用 Issue 數量、Coverage 百分比或 Scanner Exit Code 就認定跨專案品質優劣。</p></div>
+<h2>01 / 共同流程不代表共同輸入</h2>
+<div class="flowchart"><p class="diagram-title">Figure / 共用外框，語言各自生產證據</p><div class="chain">
+<div class="flow-node"><strong>Git Checkout + Build／Test</strong><small>Java：編譯 .class + JaCoCo XML；TS：JS/TS Source + LCOV</small></div><div class="chain-arrow">↓ <span>準備好語言分析器實際需要的檔案</span></div>
+<div class="flow-node"><strong>Scanner 讀取 Project + Coverage</strong><small>源碼、編譯產物、測試報告的路徑必須可對上</small></div><div class="chain-arrow">↓ <span>使用對應語言的 Quality Profile</span></div>
+<div class="flow-node teal-node"><strong>SonarQube Issues／Coverage／Gate</strong><small>共同顯示結果，但原始規則與資料覆蓋度可能不同</small></div>
+</div><p class="caption">箭頭表示資料被產生與匯入；Scanner 不會替你執行 Java Build、Jest 或 JaCoCo。圖中僅為合成 Pilot。</p></div>
+<h2 id="matrix">02 / Java 與 TypeScript 的真正差異</h2>
+<table><thead><tr><th>能力／輸入</th><th>Java</th><th>TypeScript</th></tr></thead><tbody>
+<tr><td>主要分析對象</td><td>Java Source 與編譯後 Bytecode</td><td>TS/JS Source 與 Analyzer 所需 Runtime</td></tr>
+<tr><td>建議 Scanner 整合</td><td>優先使用 Maven／Gradle Scanner，利用 Build Metadata</td><td>可使用 SonarScanner CLI／GitHub Scan Action</td></tr>
+<tr><td>Coverage 報告</td><td>JaCoCo XML</td><td>LCOV</td></tr>
+<tr><td>Coverage 參數</td><td><code>sonar.coverage.jacoco.xmlReportPaths</code></td><td><code>sonar.javascript.lcov.reportPaths</code></td></tr>
+<tr><td>Quality Profile</td><td>Java Rules 的 Profile</td><td>TypeScript／JavaScript 對應語言的 Profile</td></tr>
+<tr><td>常見缺口</td><td>Bytecode 缺失導致分析失敗或不完整</td><td>報告不存在、相對路徑錯誤、產生的 Bundle 被排除</td></tr>
+</tbody></table>
+<p>官方 Java Analyzer 要求：多個 Java 原始檔時必須提供編譯後的 <code>.class</code>；直接用 CLI 掃 Java 而沒提供 <code>sonar.java.binaries</code>，可能失敗。Maven／Gradle Scanner 能更自然取得建置資訊。<a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/languages/java">Java 官方文件</a>。JS/TS 規則另有預設排除目錄與分析資源需求，不能簡化成「只需給一個 Repo URL」。<a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/languages/javascript-typescript-css">JS/TS 官方文件</a>。</p>
+<h2 id="coverage">03 / 同樣寫 80% Coverage，來源可能完全不同</h2>
+<p>Java 範例：測試工具先執行並產生 <code>target/site/jacoco/jacoco.xml</code>，供 Scanner 匯入；若這個 XML 根本不存在，不能因 Scanner Exit Code = 0 就宣稱 JaCoCo Coverage 已成功匯入。</p>
+<pre><code># Java / Maven 的概念檢查（需專案事先配置 JaCoCo Plugin）
+mvn test jacoco:report
+test -s target/site/jacoco/jacoco.xml
+# Maven Scanner 的執行時機依實際建置及 Scanner 設定安排</code></pre>
+<p>TypeScript 範例：Jest、Vitest 或其他工具先產生 LCOV，再指定 Scanner 匯入。</p>
+<pre><code># TypeScript / 合成範例
+npm ci
+npm test -- --coverage
+test -s coverage/lcov.info
+
+sonar-scanner \
+  -Dsonar.projectKey=demo-web \
+  -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info</code></pre>
+<p>這兩份檔案都必須先由<strong>外部測試工具</strong>產生，Scanner 再匯入；Test Execution 的「測試通過幾個」不是 Source Coverage。<a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/test-coverage-parameters">官方 Coverage Parameters</a>。</p>
+<h2>04 / 不同 Quality Profile，怎麼比較？</h2>
+<p>Quality Profile 是<strong>按語言</strong>啟用規則的組合。你不能對 Java 和 TypeScript 套同一組 Rule Keys，再因 Java 有 12 個 Issues、TS 有 4 個，就推論 Java 程式碼品質更差。</p>
+<div class="callout"><strong>最小公平比較模型：</strong><p>先在每個 Repo 記錄語言、版本、Source Exclusions、Quality Profile、已啟用的 Rules、New Code Definition、Gate、Coverage 報告是否存在，再看<strong>相同治理政策</strong>下是否有新問題。Issues／千行碼、New Code Gate 失敗原因、誤報比例與分析成本，比分母不明的 Raw Issue Count 更有用，但仍不能視為跨語言的精確排名。</p></div>
+<p>同一 Project 有多種語言時，可以各自關聯對應的 Quality Profile；預設使用該語言的 Instance Default，也可以由 Project 管理者明確指派。<a href="https://docs.sonarsource.com/sonarqube-community-build/project-administration/adjusting-analysis/changing-quality-profiles">官方 Profile 指派</a>。Quality Gate 則是 Project 層的條件集合，不是一個按語言執行的 Rule 清單。</p>
+<h2 id="lab">05 / Pilot 實驗怎麼設計才有證據？</h2>
+<ol class="sequence">
+<li>選兩個合成、結構簡單的 Repo：<code>demo-java</code>、<code>demo-web</code>。固定 SonarQube Build、Scanner 版本與 Runner 類型。</li>
+<li>各跑一次沒有 Coverage 的 Baseline，記錄 Scanner Log、CE Task、Profile、Issues 與 Gate，**不把缺值自動當成 0%**。</li>
+<li>準備 Bytecode／JaCoCo XML 與 LCOV，再跑一次。核對 Report 路徑、CE Task SUCCESS 與 Dashboard 上新增的 Coverage 指標。</li>
+<li>對每種語言各引入一處<strong>可驗證的受控規則違規</strong>，記錄正確偵測／未偵測／誤報；不要選無法證明受 Profile 啟用的 Rule。</li>
+<li>記錄分析時間、Runner CPU／Memory、Source 行數、Issues／New Code Gate，以及每個例外案例的根因。再討論是否值得推廣。</li>
+</ol>
+<table><thead><tr><th>證據欄位</th><th>demo-java</th><th>demo-web</th></tr></thead><tbody><tr><td>Bytecode / Coverage Report</td><td>是否存在 JaCoCo XML</td><td>是否存在 LCOV</td></tr><tr><td>Profile / Gate</td><td>Java Profile 名稱、Gate 名稱</td><td>JS/TS Profile、Gate 名稱</td></tr><tr><td>品質偵測</td><td>已知違規是否產生 Issue</td><td>已知違規是否產生 Issue</td></tr><tr><td>分析效率</td><td>Scan、CE 耗時及失敗率</td><td>Scan、CE 耗時及失敗率</td></tr></tbody></table>
+<section class="quiz" data-quiz data-correct="b" data-explanation="Java 必須有編譯產物，並且各語言的 Coverage 檔案與規則集不同；只有 Scanner 綠燈不能證明兩個專案都有完整、可比較的品質資訊。"><p class="eyebrow">RETRIEVAL / 找出不可比較的根因</p><fieldset style="border:0;padding:0;margin:0"><legend>兩個 Repo 都顯示 Scanner SUCCESS，但 Java Coverage 沒資料。下一步先檢查什麼？</legend>
+<label><input type="radio" name="l13" value="a">直接調低 Java Quality Gate</label>
+<label><input type="radio" name="l13" value="b">確認 JaCoCo XML 是否存在</label>
+<label><input type="radio" name="l13" value="c">直接提高 Java Quality Gate</label>
+</fieldset><button class="check" type="button" data-check disabled>確認我的判斷</button><p class="feedback" data-feedback role="status"></p><noscript><details><summary>無 JavaScript 時展開解析</summary>正解 B。先核對外部測試報告及 Scanner 匯入路徑，再談 Gate 門檻；調整門檻不會產生 Coverage 資料。</details></noscript></section>
+<h2>06 / 本堂結論</h2><ul><li>相同的 Scanner 成功訊號，不代表語言前置資料都完整。</li><li>Java 需要適當 Bytecode；JaCoCo XML、LCOV 都由外部工具產生。</li><li>Quality Profile 按語言管理 Rules；跨語言不能直接比 Raw Issue Count。</li><li>Pilot 必須先有可追溯的輸入、配置與 CE Task，才有可解釋的結果。</li></ul>
+<section class="sources"><strong>優先閱讀：</strong><a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/languages/java">Java Analyzer</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/languages/javascript-typescript-css">JS/TS Analyzer</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/test-coverage-parameters">Coverage Parameters</a>。延伸：<a href="../reference/0009-pilot-rollout-checklist.html#languages">Pilot 語言配置矩陣</a>；若實驗結果與推導不符，請帶著 Scanner Log 的檔案路徑和 Rule Key 回到 ChatGPT 排障。</section>
+<p><a class="cta" href="0014-template-permissions-rollout.html">進入 Lesson 14 →</a><a class="text-link" href="0012-recovery-upgrade.html">前一堂</a></p></div></main><footer><div class="shell">SONARQUBE / LEARNING · 官方資料核對 2026-11-09 · <a href="../RESOURCES.md">來源索引</a></div></footer><script src="../assets/site.js" defer></script></body></html>
