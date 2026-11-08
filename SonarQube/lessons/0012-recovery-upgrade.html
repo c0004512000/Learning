@@ -1,0 +1,57 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="SonarQube Community Build Phase 06：Backup、Restore、Reindex 與 Upgrade：真正可復原才算完成"><title>Lesson 12 · Backup、Restore、Reindex 與 Upgrade：真正可復原才算完成｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a href="../index.html">首頁</a><a href="../learning-map/index.html">學習地圖</a><a href="0011-kubernetes-architecture.html">Lesson 11</a><a href="0012-recovery-upgrade.html">Lesson 12</a></nav><button class="theme" data-theme-toggle type="button" disabled aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content"><p class="crumb"><a href="../index.html">SonarQube</a> / <a href="../learning-map/index.html#phase-6">Phase 06</a> / Lesson 12</p><p class="kicker">L12 / RECOVERY / UPGRADE & ROLLBACK</p>
+<h1>Pod 換回舊版，<br>為什麼資料庫不一定跟著回去？</h1>
+<p class="intro">在 Kubernetes 上讓 Pod 自動重啟很容易；<strong>真正的難題是 PostgreSQL 損毀、版本升級修改 Schema、ES 重新索引、CI Gate 無法提供結果時，如何讓品質平台可預期地復原。</strong>這堂從「哪裡有唯一資料」倒推出備份與回退設計。</p>
+<div class="meta"><span class="tag teal">Phase 06 · Lesson 12</span><span class="tag">約 20 分鐘</span><span class="tag">Restore Drill／Upgrade Plan</span></div>
+<div class="panel"><p class="eyebrow">學習目標</p><p>能分辨 Server Pod、ES Index、PostgreSQL 故障；能設計安全的備份與隔離還原演練，解釋為何 Helm Rollback 不是資料庫 Schema Rollback；並留下 RPO、RTO、Upgrade Path、Release Gate 維護策略的可驗證證據。</p></div>
+<h2>01 / 三種「壞掉」不能用同一招</h2>
+<table><thead><tr><th>失效元件</th><th>狀態</th><th>應該優先採取的策略</th></tr></thead><tbody>
+<tr><td>Pod／Node</td><td>DB 與資料仍完整</td><td>重新排程／重建 Pod，核對 DB Connection、Readiness、CE Task</td></tr>
+<tr><td>Elasticsearch Index</td><td>DB 仍完整，搜尋索引損毀／遺失</td><td>依官方程序重建 Index；可能延遲，但不必把 DB 還原到舊時間點</td></tr>
+<tr><td>PostgreSQL</td><td>權威資料損毀／遺失</td><td>從可驗證的 DB Backup 還原；不能靠重建 Pod 或 ES Index 找回遺失的資料</td></tr>
+</tbody></table>
+<div class="flowchart"><p class="diagram-title">Figure / 判斷資料是否仍有來源</p><div class="chain"><div class="flow-node"><strong>品質歷史／Issues 不見了</strong><small>先確認是 UI Index 問題還是 DB 資料問題</small></div><div class="chain-arrow">↓ <span>Database 完整，只有 ES 損壞</span></div><div class="flow-node"><strong>重新建立 Elasticsearch Index</strong><small>重建時間依資料量而異；不是資料庫還原</small></div><div class="chain-arrow">↓ <span>若 Database 自身已損壞</span></div><div class="flow-node teal-node"><strong>備份 → Database Restore</strong><small>決定 RPO／RTO；恢復後再索引</small></div></div><p class="caption">箭頭代表排障判斷路徑，不是無論出現什麼狀態都必須清除 ES PVC。重建／刪除之前應確認故障層級。</p></div>
+<h2 id="backup">02 / 備份到底要保什麼？</h2>
+<p>SonarQube Database 保存 Issues、Metrics、Quality Profiles／Gates、使用者及權限設定、分析任務等。官方支援資料庫<strong>Hot Backup</strong>，建議使用資料庫自己的工具。備份成功的定義不是「檔案存在」，而是<strong>能在隔離環境還原並查驗資料</strong>。<a href="https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/maintenance/backup-and-restore">官方 Backup / Restore</a>。</p>
+<div class="callout"><strong>建議設計三種保護範圍：</strong><p><strong>DB Backup：</strong>權威資料的回復點；<strong>IaC／Helm Values／Secret References：</strong>重建服務設定（機密本體由受控 Secret System 管理）；<strong>ES Index：</strong>大部分情況可重建，不能代替前兩者。同步保存使用過的 Chart／Image／Plugin 版本，以便回到相容的環境。</p></div>
+<h3>RPO 與 RTO 是兩個不同問題</h3>
+<table><thead><tr><th>指標</th><th>真正問的是</th><th>示例政策</th></tr></thead><tbody>
+<tr><td>RPO（Recovery Point Objective）</td><td>最多能接受失去多少時間的資料？</td><td>例如最多 24 小時；必須配合備份頻率與 WAL 策略驗證</td></tr>
+<tr><td>RTO（Recovery Time Objective）</td><td>服務故障後最多能停止多久？</td><td>例如 2 小時；要用實際 DB Restore + ES Reindex + Smoke Test 時間證明</td></tr>
+</tbody></table>
+<p class="small">上述 24 小時／2 小時純屬教學範例，<strong>不是官方或任何組織已定義的 SLA</strong>。若使用 PostgreSQL 邏輯備份，也需確認版本相容性、權限、物件所有權及是否還需要 WAL/PITR 才能滿足 RPO。</p>
+<h2 id="restore">03 / 隔離 Restore Drill 的正確順序</h2>
+<ol class="sequence"><li><strong>準備：</strong>核對目前 Server／DB 版本，記錄 Project Count、抽樣 Project Key、Issues、Quality Gate、Users／Profiles、最近 CE Task；建立受控的備份並驗證可讀。</li><li><strong>隔離：</strong>建立獨立 namespace 與獨立測試資料庫，不讓 Restore Drill 指向原始正式 DB；控制 Secrets、NetworkPolicy 與外部整合，避免兩套 Server 同時寫入同一 DB。</li><li><strong>還原：</strong>按照官方備份程序停止測試 Server、還原測試 Database，並在必要時清除<strong>測試</strong> ES Index 後重啟重建。對 Kubernetes 的 ES PVC，遵照官方 Reindex 指引；**不得盲目刪除正式 PVC**。</li><li><strong>驗證：</strong>比對原有抽樣 Issues／Metrics、Quality Gate、設定與登入；觀察 Index Rebuild 與 Background Tasks、Scanner 回報與 Gate 能否恢復。</li><li><strong>量測：</strong>記錄 Backup Timestamp、Restore Started／Ended、Reindex Ended、可供 CI 查詢的時間，與實際 RPO／RTO 差距。</li></ol>
+<p><strong>ES Reindex 不是 Database Restore。</strong>官方明確表示在 Kubernetes 若 <code>persistence.enabled=false</code>，因為沒有持久保存 ES Index，啟動時自然需要重新建索引；若已開啟 ES Persistence，重建程序涉及 Scale Down 和 PVC，不應未經核准直接操作生產資源。<a href="https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/maintenance/reindexing">官方 Reindexing</a>。</p>
+<h2 id="upgrade">04 / Upgrade 前先查更新路徑，而不是直接換 Image Tag</h2>
+<div class="flowchart"><p class="diagram-title">Figure / Upgrade 工作的必要依賴</p><div class="chain">
+<div class="flow-node"><strong>Current Build → Target Build</strong><small>核對 Release Notes、支援 DB／Java／K8s、Chart Values、Plugins</small></div>
+<div class="chain-arrow">↓ <span>先確認官方允許的中繼版本與 Upgrade Path</span></div>
+<div class="flow-node"><strong>Backup + Staging Restore</strong><small>在隔離環境完整演練，測量停機與 Migration 時間</small></div>
+<div class="chain-arrow">↓ <span>在正式環境鎖定版本及變更窗口</span></div>
+<div class="flow-node"><strong>Upgrade + DB Migration + ES Reindex</strong><small>觀察 Server／CE／UI 的健康與背景工作</small></div>
+<div class="chain-arrow">↓ <span>Smoke Test + Scanner + Gate 查驗</span></div>
+<div class="flow-node teal-node"><strong>Close Change / Reopen Gate</strong><small>驗證完成後恢復正常 CI 發布政策</small></div>
+</div></div>
+<p>官方 Community Build 的 Calendar Version 更新並非任意跨版本直升：<strong>同年版本通常可直接更新；跨年原則上要先到前一年的 December 版本</strong>，且有特定例外。必須查 <a href="https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/update/determine-path">官方 Update Path</a>，不能僅由 Helm Chart Version 推論 Server Schema 可相容。<a href="https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/update/pre-update-steps">Pre-update</a> 也提醒 Migration 可能使資料庫暫時接近<strong>平常使用量的兩倍</strong>。</p>
+<h2>05 / 為什麼 helm rollback 不等於整個系統回退？</h2>
+<p>想像從 <code>26.x</code> 升到之後某個新版時，新的 SonarQube 啟動並已修改 DB Schema。此時執行：</p>
+<pre><code># 概念：僅顯示 Helm Revision History
+helm history sonar -n sq-learning
+# 只回滾 chart resource/template 不等於回滾資料庫 Migration
+# 請勿直接對生產執行 helm rollback</code></pre>
+<p>Helm 可以把 Kubernetes Manifest／容器版本指回先前 Revision，但<strong>不能自動把 PostgreSQL Schema 與資料倒回舊版本</strong>。若舊版 Server 不相容於新 Schema，Pod 即使看似成功重建也可能無法啟動；真實回退須依版本相容性與<strong>事先可用的 DB Backup</strong>，將 Application、Schema、配置一起恢復到一致狀態。</p>
+<div class="callout warn"><strong>升級失敗時，先決定資料庫的狀態。</strong><p>如果 DB Migration 尚未開始，恢復舊版的方案與「Migration 已成功改變 DB Schema」的方案不同。後者不能把 <code>helm rollback</code> 當成保證安全的唯一指令；要依官方支援的回復程序，停用所有連到該資料庫的 Server，先在測試環境驗證還原與相容性。<a href="https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/update/update">官方 Update Procedure</a>。</p></div>
+<h2>06 / CI/CD Gate 遇到 SonarQube 故障怎麼辦？</h2>
+<p>備份與更新不只是 K8s 工作，還會影響 GitHub Actions。當 Server 暫停服務或重新索引時，Scanner 可能連線失敗、Gate Wait 逾時。這不等於程式碼 Quality Gate FAIL。正式政策應把結果分成 <strong>PASS／FAIL／UNKNOWN</strong>，分別交給既有的部署門禁、維護窗口與受控例外機制；不得默默把 UNKNOWN 當作 PASS。</p>
+<p>另外，官方文件提到 ES Reindex 期間部分 Project 功能會逐步恢復，且 Gate 計算可能等待 Index 完成而超時；這正是必須在 Upgrade Drill 觀察的<strong>實際 CI 副作用</strong>。<a href="https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/maintenance/reindexing">Reindex 時 Gate Timeout 行為</a>。</p>
+<h2 id="lab">07 / 完成這堂的驗收證據</h2>
+<table><thead><tr><th>實驗</th><th>需要保存的證據</th></tr></thead><tbody>
+<tr><td>PostgreSQL 備份還原</td><td>備份完成時間、測試 DB Restore、樣本 Issues／Profile／Gate 一致性</td></tr>
+<tr><td>ES Index 重建</td><td>Pod Recovery、Index 進度、Dashboard／Gate 恢復的實際時間</td></tr>
+<tr><td>Upgrade Staging Drill</td><td>Current／Target Build、Upgrade Path、Migration 觀察、兼容 Chart Values</td></tr>
+<tr><td>Recovery / Rollback Decision</td><td>RPO、RTO、變更與核准人、CI Gate 在服務中斷時的策略</td></tr>
+</tbody></table>
+<section class="quiz" data-quiz data-correct="c" data-explanation="Helm Rollback 只處理 Kubernetes Release 所管理的資源，不會自動復原資料庫 Schema Migration；必須核對 DB 狀態與備份相容性。"><p class="eyebrow">RETRIEVAL / 升級與回復</p><fieldset style="border:0;padding:0;margin:0"><legend>新版 SonarQube 已成功修改 DB Schema，現在要回到舊版。哪個判斷合理？</legend><label><input type="radio" name="l12q" value="a">只要重建之前的 Pod 就好</label><label><input type="radio" name="l12q" value="b">只需將 Chart 版本改回</label><label><input type="radio" name="l12q" value="c">需檢查資料庫回復與版本相容</label></fieldset><button class="check" type="button" data-check disabled>確認判斷</button><p class="feedback" data-feedback role="status"></p><noscript><details><summary>無 JavaScript 時展開解析</summary>正解 C：已改變的 Schema 不會因 Helm Rollback 自動還原。</details></noscript></section>
+<h2>08 / 一分鐘回顧</h2><ul><li>DB Backup 保障權威資料；ES Index 可以重建，但需要時間。</li><li>只有實際成功 Restore 的備份，才可作可靠的復原依據。</li><li>Upgrade 要先查合法路徑、Migration 容量、Plugins 和 Chart 相容性。</li><li>Helm Rollback 不包含 DB Schema Rollback。</li><li>SonarQube 故障是 UNKNOWN，不等於 PASS，也不是程式碼 Quality Gate 的 FAIL。</li></ul>
+<section class="sources"><strong>官方優先來源：</strong><a href="https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/maintenance/backup-and-restore">Backup and Restore</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/update/determine-path">Determine Update Path</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/update/pre-update-steps">Pre-update</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/maintenance/reindexing">Reindexing</a>。若不清楚真實故障原因，先保存 DB 狀態、CE Task、Pod Events 和 Revision，不直接刪除資源。</section>
+<p><a class="cta" href="../learning-map/index.html">返回學習地圖 →</a><a class="text-link" href="0011-kubernetes-architecture.html">上一堂 / 參考</a></p></div></main><footer><div class="shell">SONARQUBE / LEARNING · 2026-11-09 · <a href="../RESOURCES.md">來源索引</a> · <a href="../reference/0008-kubernetes-operations.html">K8s 維運速查</a></div></footer><script src="../assets/site.js" defer></script></body></html>
