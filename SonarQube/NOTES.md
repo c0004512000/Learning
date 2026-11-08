@@ -47,3 +47,11 @@
 - 明確需要橋接：New Code Definition 四種模式（Previous version、Number of days、Specific analysis、Reference branch）、Specific analysis 需透過 Web API 設定、Quality Gate 本身的 PASS/FAIL 與 CI Job/Deployment 阻擋是獨立決策；sonar.qualitygate.wait 預設 false、timeout 預設 300 秒，也可用獨立 Quality Gate Check Action。
 - 下一輪應要求使用者自行選擇「固定既往不咎基準 + New Code Gate + Non-blocking CI」的具體設定，確認能推導後才更新 Learning Records 和完成率。
 - 官方依據：https://docs.sonarsource.com/sonarqube-community-build/project-administration/adjusting-analysis/configuring-new-code-calculation ；https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/analysis-parameters/parameters-not-settable-in-ui ；https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow
+
+### L04 教學依賴與理解狀態（2026-11-09）
+- 會話中已有正確口頭判斷：停用 Rule 就不產生該 Rule 的新 Issues；Gate 是多個條件的集合、任一不過即 FAIL；Gate FAIL 不必然讓 GitHub Actions Fail。但尚未完成無提示的跨情境應用與實機驗收，不標為 Lesson 完成。
+- 需要明確拆解：官方 Rules 庫 vs 官方內建 Profile vs 自訂 Profile；Rule 的檢查邏輯 vs Metadata vs 註冊 vs 啟用；XPath Template vs Java Plugin vs External Analyzer 的 Issue 匯入。
+- Standard 的 Bug / Code Smell Type 與 MQR Software Quality（Security、Reliability、Maintainability）及對應 Severity 不能混用。UI 模板型 Custom Rule 的 Metadata 設定，與 Plugin 定義／Profile Override 並不相同。
+- 政策必須分成固定導入基準（New Code Definition）、每次 Commit 觸發分析（CI Trigger）與是否阻擋下個 Job（Quality Gate / CI）。固定導入基準可以與持續掃描共存；不應每次移到上一 Commit。
+- 對現行 Community Build 的 Specific analysis，官方要求透過 Web API 設定，不能在 Project UI 直接選取；不能把指定未來時間／Git SHA 說成既有分析。Coverage 缺失不是所有情況必然 Gate FAIL，需考慮適用指標與 Fudge Factor。
+- L04 已據此加入最小主線橋接、第二道理解題、Reference 0004 與官方 Evidence；保留目前學習完成數，直到有足夠的獨立驗收證據。
