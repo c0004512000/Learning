@@ -55,3 +55,10 @@
 - 政策必須分成固定導入基準（New Code Definition）、每次 Commit 觸發分析（CI Trigger）與是否阻擋下個 Job（Quality Gate / CI）。固定導入基準可以與持續掃描共存；不應每次移到上一 Commit。
 - 對現行 Community Build 的 Specific analysis，官方要求透過 Web API 設定，不能在 Project UI 直接選取；不能把指定未來時間／Git SHA 說成既有分析。Coverage 缺失不是所有情況必然 Gate FAIL，需考慮適用指標與 Fudge Factor。
 - L04 已據此加入最小主線橋接、第二道理解題、Reference 0004 與官方 Evidence；保留目前學習完成數，直到有足夠的獨立驗收證據。
+
+### Release Tag、Previous Version 與 Phase 04 跳讀需求（2026-11-09）
+- 使用者將 Git Tag 作為正式發布版本；每次 Release Tag Scan 傳入 sonar.projectVersion 合理，為的是 Activity／版本追蹤而非保證 git diff。版本更新事件與 New Code Definition 應拆開。
+- 重大教學修正：官方 Previous Version 起點為「目前版本首次分析的日期」；若只在 Release Tag 當天首次送新版本，不能宣稱已測到相鄰兩個 Release 的完整變更。Number of Days 起點為現在減 N 日，不該再宣稱一定選某一筆歷史分析當比對 Git Commit。
+- Edge Case：上一個 Release 未修 Issue 可能離開後續版本 New Code Period，但仍屬 Overall Code；固定 Specific Analysis 與每版重新起算的治理政策不同。
+- 新增 Reference 0005（完整 Release 時間線）／0006（Community 與付費版）；Phase 04 L07／08 已提供獨立教學與實驗流程。Phase 03 L05／06 只暫緩撰寫，尚無本次資料顯示已完成正式驗收。
+- 請勿把新寫完的實驗流程等同於已實測；Learning Records 的通過資格未改變。

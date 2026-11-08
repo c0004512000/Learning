@@ -10,8 +10,8 @@
 | L04 Rule、Profile、Issue、Gate 如何合作？ | https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates | 調整模擬器的 Rule 和 Gate，能預測各自對 Issue 與 Gate 的影響 | 已撰寫；未驗收 |
 | L05 Project / Project Key 與 POC 部署條件 | https://docs.sonarsource.com/sonarqube-community-build/project-administration/creating-project | 用合成 repo 寫出 Project Key、版本、Docker 與 H2 / DB 的選型證據 | 僅規劃；待實測 |
 | L06 完成第一次掃描並核對 Dashboard | https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/analysis-overview | 保存 Scanner log、Task 完成狀態、Issue 與 Quality Gate 的對應截圖／值 | 僅規劃；待實測 |
-| L07 Runner 如何連上 SonarQube | https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow | 在隔離 repo 跑成功一次掃描，證明 Runner → Server 的連線與授權 | 僅規劃；待實測 |
-| L08 Coverage 與 Quality Gate 失敗演練 | https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/overview | 用外部測試工具提供 Coverage；展示至少一個預期 Gate FAIL 案例 | 僅規劃；待實測 |
+| L07 Runner 如何連上 SonarQube | https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow | 在隔離 repo 跑成功一次掃描，證明 Runner → Server 的連線與授權 | 已撰寫；待實機驗收 |
+| L08 Coverage 與 Quality Gate 失敗演練 | https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/overview | 用外部測試工具提供 Coverage；展示至少一個預期 Gate FAIL 案例 | 已撰寫；待實機驗收 |
 | L09 PR／Merge／Release Tag 的適當整合點 | https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/introduction | 產出 main、PR、tag 觸發與支援能力矩陣，說明採用與放棄理由 | 僅規劃；待實測 |
 | L10 Non-blocking → Blocking 的導入門檻 | https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates | 設計升級、例外、回退及 SonarQube 不可用時的 CI 行為 | 僅規劃；待實測 |
 | L11 Helm、Database、PVC、Ingress 與網路 | https://docs.sonarsource.com/sonarqube-community-build/server-installation/on-kubernetes-or-openshift/customizing-helm-chart | 交付不含機敏資料的部署拓樸和資源／網路驗證清單 | 僅規劃；待實測 |
@@ -31,3 +31,10 @@
 - 目前僅對公開的官方文檔進行版本與概念確認；沒有公司私有部署／Runner 實測證據。
 - 未來當某一 Lesson 需要特定實作細節，先對該版本官方資料補證，再撰寫具體操作步驟。
 - 若學習者的回答暴露必要前置缺口，應先做最小 bridge，不能因此宣稱已完成之前的 Lesson。
+
+## 2026-11-09 教材擴充與來源
+- L03 原生版別邊界：`reference/0006-community-vs-commercial.html`，資料見 `sources/evidence/2026-11-09-new-code-and-editions.md`，官方 https://docs.sonarsource.com/sonarqube-community-build/feature-comparison-table
+- L04 Release／New Code 基準：`reference/0005-new-code-release-version.html`，官方 https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code
+- L07：已撰寫 Runner Checkout、TLS、Token、CE Task 與 Non-blocking CI 的教學及驗收步驟；需實測，官方 https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow
+- L08：已撰寫 LCOV 匯入、CE/Gate/CI Failure 邊界與 needs/wait 的實驗；需實測，官方 https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/overview
+- 學習進度仍 0/14；Phase 03 暫緩詳細撰寫不代表正式課程跳過驗收。
