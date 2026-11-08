@@ -50,7 +50,7 @@ sonar-scanner \
 <table><thead><tr><th>證據欄位</th><th>demo-java</th><th>demo-web</th></tr></thead><tbody><tr><td>Bytecode / Coverage Report</td><td>是否存在 JaCoCo XML</td><td>是否存在 LCOV</td></tr><tr><td>Profile / Gate</td><td>Java Profile 名稱、Gate 名稱</td><td>JS/TS Profile、Gate 名稱</td></tr><tr><td>品質偵測</td><td>已知違規是否產生 Issue</td><td>已知違規是否產生 Issue</td></tr><tr><td>分析效率</td><td>Scan、CE 耗時及失敗率</td><td>Scan、CE 耗時及失敗率</td></tr></tbody></table>
 <section class="quiz" data-quiz data-correct="b" data-explanation="Java 必須有編譯產物，並且各語言的 Coverage 檔案與規則集不同；只有 Scanner 綠燈不能證明兩個專案都有完整、可比較的品質資訊。"><p class="eyebrow">RETRIEVAL / 找出不可比較的根因</p><fieldset style="border:0;padding:0;margin:0"><legend>兩個 Repo 都顯示 Scanner SUCCESS，但 Java Coverage 沒資料。下一步先檢查什麼？</legend>
 <label><input type="radio" name="l13" value="a">直接調低 Java Quality Gate</label>
-<label><input type="radio" name="l13" value="b">確認 JaCoCo XML 是否存在</label>
+<label><input type="radio" name="l13" value="b">先確認 JaCoCo XML 報告有沒有存在</label>
 <label><input type="radio" name="l13" value="c">直接提高 Java Quality Gate</label>
 </fieldset><button class="check" type="button" data-check disabled>確認我的判斷</button><p class="feedback" data-feedback role="status"></p><noscript><details><summary>無 JavaScript 時展開解析</summary>正解 B。先核對外部測試報告及 Scanner 匯入路徑，再談 Gate 門檻；調整門檻不會產生 Coverage 資料。</details></noscript></section>
 <h2>06 / 本堂結論</h2><ul><li>相同的 Scanner 成功訊號，不代表語言前置資料都完整。</li><li>Java 需要適當 Bytecode；JaCoCo XML、LCOV 都由外部工具產生。</li><li>Quality Profile 按語言管理 Rules；跨語言不能直接比 Raw Issue Count。</li><li>Pilot 必須先有可追溯的輸入、配置與 CE Task，才有可解釋的結果。</li></ul>

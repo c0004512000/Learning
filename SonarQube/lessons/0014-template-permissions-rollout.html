@@ -64,7 +64,7 @@ jobs:
 <section class="quiz" data-quiz data-correct="c" data-explanation="標準化不是只讓 Scanner 能執行；若 Source SHA、Project Key、憑證權限或 Gate 失敗傳遞無法稽核，擴大部署可能同時放大治理風險。"><p class="eyebrow">RETRIEVAL / Rollout 決策</p><fieldset style="border:0;padding:0;margin:0"><legend>兩個 Repo 掃描成功，但無法證明 Gate 對應的 Release SHA。下一步最適合？</legend>
 <label><input type="radio" name="l14" value="a">立即將全部 Repo 強制阻擋</label>
 <label><input type="radio" name="l14" value="b">立即把所有 Gate 門檻放寬</label>
-<label><input type="radio" name="l14" value="c">先補齊版本對應驗證再推廣</label>
+<label><input type="radio" name="l14" value="c">先確認發布版本與掃描身分的對應</label>
 </fieldset><button class="check" type="button" data-check disabled>確認我的判斷</button><p class="feedback" data-feedback role="status"></p><noscript><details><summary>無 JavaScript 時展開解析</summary>正解 C。先證明 Gate 屬於真正要部署的 SHA，再考慮轉成阻擋政策並擴大。</details></noscript></section>
 <h2>07 / 一分鐘回顧</h2><ul><li>Repo 層準備語言特定資料；Shared Workflow 控制身份、執行、回報與政策。</li><li>Project Token 限縮授權；Profile、Gate 由獨立治理權限管理。</li><li>Scanner SUCCESS 不是 Coverage 完整、Gate PASS 或可正式推廣的證明。</li><li>Rollout 要有 Reliability、False Positive、成本、Owner、Exception、Canary 和 Rollback 的可觀察證據。</li></ul>
 <section class="sources"><strong>優先閱讀：</strong><a href="https://docs.sonarsource.com/sonarqube-community-build/user-guide/managing-tokens">SonarQube Tokens</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/instance-administration/user-management/user-permissions">Permissions</a> · <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations">GitHub Reusable Workflow</a> · <a href="../reference/0009-pilot-rollout-checklist.html#rollout">Pilot Decision Checklist</a>。若你要將流程變成正式 SRE 模板，應先帶匿名化的 Contract、例外和指標設計回對話逐項驗證。</section>
