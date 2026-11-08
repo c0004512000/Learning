@@ -34,7 +34,6 @@
 <tr><td><strong>Pull Request</strong><br><span class="small">例如 PR #128</span></td><td><span class="result-bad">不支援原生 PR Analysis</span></td><td>不能期待 PR Decoration 或原生差異 Issue 結果。</td></tr>
 <tr><td><strong>Release Tag</strong><br><span class="small">例如 v1.2.3</span></td><td><span class="result-bad">沒有獨立 tag 分析維度</span></td><td>若 SHA 來自既定追蹤分支，可研究品質結果對應，但仍需驗證 SHA。</td></tr>
 </tbody></table>
-<p class="small">這裡說的「Main Branch」
 <h3>一個具體的分析歸屬範例</h3>
 <p>分析歸屬不是由 <code>on: push</code> 或 <code>on: pull_request</code> 自動決定。Scanner 至少需要知道送到哪個 <strong>Project Key</strong>；而「是否要求獨立的 Branch／PR 結果」是另一組分析身分。這裡的<strong>分析模式</strong>是用來理解三類結果的說法，<strong>不是</strong> Server 有一個「分析模式」切換按鈕。</p>
 <table><thead><tr><th>Scanner 送出的分析身分</th><th>結果要保存在哪裡？</th><th>Community Build</th></tr></thead><tbody>
