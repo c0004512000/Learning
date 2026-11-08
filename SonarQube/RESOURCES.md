@@ -23,6 +23,14 @@
 - [New Code](https://docs.sonarsource.com/sonarqube-community-build/user-guide/about-new-code) — 新增程式碼定義不是 PR Analysis；適用 Lesson 03–04、09。
 - [Coverage overview](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/overview) — 外部測試工具先產生報告，再由 Scanner 匯入；適用 Lesson 08。
 
+### Custom Rules 與 New Code 基準
+- [Adding coding rules](https://docs.sonarsource.com/sonarqube-community-build/extension-guide/adding-coding-rules) — Java Plugin／XPath／External Issues 三條路線。
+- [Rule templates and metadata](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-rules/rules) — Rule Type、MQR 多品質、模板型 Custom Rule 設定。
+- [Project Quality Profiles](https://docs.sonarsource.com/sonarqube-community-build/project-administration/adjusting-analysis/changing-quality-profiles) — 按 Project 的語言指派 Profile。
+- [Specific analysis baseline](https://docs.sonarsource.com/sonarqube-community-build/project-administration/adjusting-analysis/configuring-new-code-calculation) — Community Build 的 Specific analysis 需經 Web API。
+- [External issues](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/importing-external-issues/about-external-issues) — 匯入 Issues 可參與 Gate，不等於匯入可在 Profile 啟停的 Rule。
+- [Scanner Quality Gate waiting](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/analysis-parameters/parameters-not-settable-in-ui) — sonar.qualitygate.wait 等候 Server 狀態。
+
 ### POC 與營運
 - [Docker setup](https://docs.sonarsource.com/sonarqube-community-build/server-installation/from-docker-image/set-up-and-start-container) — 隔離環境基本啟動與持久化掛載；適用 Lesson 05。
 - [Database requirements](https://docs.sonarsource.com/sonarqube-community-build/server-installation/installing-the-database) — H2 僅作試驗用途、正式環境持久化資料庫；適用 Lesson 05、11–12。
@@ -32,11 +40,13 @@
 
 ## Learner-facing Reference
 - [Scanner／分析身分／PR／測試報告速查](reference/0003-analysis-identity-and-test-data.html) — 補充 L03 的參數、Project 建立及測試資料適用性；可從 L03 返回。
+- [Rule／Profile／Gate／New Code 速查](reference/0004-rules-gates-new-code.html) — L04 的自訂 Rule 路線、Metadata、門禁和固定基準設定。
 
 ## Wisdom（實務交流）
 - [Sonar Community](https://community.sonarsource.com/) — 官方維護的使用者論壇；遇到版本特定的 Scanner／Quality Gate 行為時，可查對照案例。社群回答須與該版官方文件、實測結果交叉檢查。
 
 ## Evidence 與課程映射
+- [L04 Rules／Gates／New Code 官方核對](sources/evidence/2026-11-09-l04-governance.md) — 可追溯規則建立、Specific analysis API、CI 等待與 Coverage 邊界。
 - [L03 分析歸屬與測試資料核對](sources/evidence/2026-11-08-analysis-identity-and-test-data.md) — 依新版官方資料核對 Scanner、PR Checkout、免費版及報告格式。
 - [初始來源核對](sources/evidence/2026-11-official-baseline.md) — 初始分析模型與未驗證範圍。
 - [Phase 02 核對](sources/evidence/2026-11-phase2-baseline.md) — branch / PR 與 Rules、Profiles、Gates。
