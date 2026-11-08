@@ -21,3 +21,8 @@
 - 7 階段、14 堂主線規劃；截至 2026-11-07 已寫 Lesson 01–04，無任何一堂已完成理解或實作驗收。
 - 最近的研讀焦點在 Phase 02／Lesson 03；這代表學習位置，不代表 L01／L02 已掌握。
 - L03 / L04 之後視觀念驗收結果補最小 bridge，不以往返對話用字直接當 Lesson 標題。
+
+### SonarQube main vs. GitHub default branch（2026-11-08）
+- 使用者正確指出 SonarQube Main Branch 與 GitHub Default Branch 是不同層級概念；教材應避免把「免費版只支援主分支」寫成「只能掃 SCM Default Branch」。
+- 此訊息能顯示學習者已形成合理假設，但未有實際分析歸屬的操作證據；不將此記為正式 Lesson 驗收完成。
+- 在 Phase 03 教 Project 時，要以 CI Checkout → Scanner → Project Key → Main Branch 的模型逐層教學，示範重複 Project Key 掃不同 Branch 的覆寫風險。

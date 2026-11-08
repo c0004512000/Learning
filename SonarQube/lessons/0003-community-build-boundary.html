@@ -21,12 +21,24 @@
 
 <h2>02 / 用四種實際事件驗證</h2>
 <table><thead><tr><th>你希望分析什麼？</th><th>Community Build 原生能力</th><th>初期做法</th></tr></thead><tbody>
-<tr><td><strong>Main push</strong><br><span class="small">例如合併到 main</span></td><td><span class="result-good">支援</span></td><td>先用單一 Project 的主分支分析。</td></tr>
-<tr><td><strong>Feature Branch</strong><br><span class="small">例如 feature/payment</span></td><td><span class="result-bad">不支援多分支分析</span></td><td>不要假裝有獨立 branch history。</td></tr>
+<tr><td><strong>選定的追蹤分支 push</strong><br><span class="small">可以是 main 或 develop</span></td><td><span class="result-good">支援單一主分支結果</span></td><td>固定 Checkout 同一個分支，由同一個 Project 接收分析。</td></tr>
+<tr><td><strong>另一個 Branch</strong><br><span class="small">例如 feature/payment</span></td><td><span class="result-bad">不支援同 Project 多分支結果</span></td><td>可選為唯一追蹤來源，但不能與另一個 Branch 共享同一 Project 的獨立歷史。</td></tr>
 <tr><td><strong>Pull Request</strong><br><span class="small">例如 PR #128</span></td><td><span class="result-bad">不支援原生 PR Analysis</span></td><td>不能期待 PR Decoration 或原生差異 Issue 結果。</td></tr>
-<tr><td><strong>Release Tag</strong><br><span class="small">例如 release/TW/PROD/…</span></td><td><span class="result-bad">沒有獨立 tag 分析維度</span></td><td>若版本來自 main，可研究以主分支分析結果做版本治理，但需驗證 SHA 對應。</td></tr>
+<tr><td><strong>Release Tag</strong><br><span class="small">例如 release/TW/PROD/…</span></td><td><span class="result-bad">沒有獨立 tag 分析維度</span></td><td>若 SHA 來自既定追蹤分支，可研究品質結果對應，但仍需驗證 SHA。</td></tr>
 </tbody></table>
-<p class="small">主分支分析的「main」代表 SonarQube Project 所配置的主分支，不表示每個 repo 一定都必須叫 <code>main</code>。不要把不受支援的分支掃描直接上傳到同一 Project，並誤認為結果會自動分開。</p>
+<p class="small">這裡說的「Main Branch」是 SonarQube Project 的邏輯身分，<strong>不等同 GitHub Repository 的 Default Branch</strong>。它可以對應 <code>develop</code> 等任何你決定長期分析的分支。免費版限制的是<strong>同一 Project 僅管理一份主分支品質狀態</strong>，不是只能讀取名字叫 <code>main</code> 的原始碼。</p>
+<h3>真正決定程式碼來源的是 Checkout，而不是 Dashboard 上的名字</h3>
+<p>假設 GitHub 的 Default Branch 仍是 <code>main</code>，但你想讓 SonarQube 長期追蹤 <code>develop</code>：CI 就固定在 <code>develop</code> 執行 Scanner（不使用付費版分支參數），並使 SonarQube Project 的 Main Branch 身分與實際來源一致。</p>
+<div class="flowchart"><p class="diagram-title">Figure / 同一 Repository，不同的「主分支」概念</p>
+<div class="chain">
+<div class="flow-node"><strong>GitHub Repository</strong><small>Default Branch = main；另有 develop</small></div>
+<div class="chain-arrow">↓ <span>CI Checkout develop</span></div>
+<div class="flow-node"><strong>SonarScanner</strong><small>分析 develop 這份原始碼；sonar.projectKey=mes-backend</small></div>
+<div class="chain-arrow">↓ <span>將分析報告歸屬 Project</span></div>
+<div class="flow-node teal-node"><strong>SonarQube Project：mes-backend</strong><small>唯一的 Main Branch 分析狀態，來源對應 develop</small></div>
+</div><p class="caption">概念示例。SonarQube 不會因為你將 Main Branch 重新命名為 develop，就自行改去 GitHub 抓取 develop；必須讓 CI 實際 Checkout / 掃描對應分支。</p></div>
+<p>這是維運上最需要避免的風險：如果用<strong>相同 Project Key</strong> 先掃 <code>main</code>，又不帶獨立 Branch 身分掃 <code>develop</code>，後一次分析可能覆寫該 Project 原本的主分支品質狀態。若希望同一 Repo 的兩個 Branch 各自長期追蹤，技術上可用不同 Project Key 建立兩個 Project，但這不是原生 Multi-Branch Analysis，資料與歷史也不共享。</p>
+<p class="small">依據 <a href="https://community.sonarsource.com/t/what-is-main-branch-in-community-edition/110307">SonarSource 工程師對 Community 主分支的說明</a>以及 <a href="https://community.sonarsource.com/t/branch-analysis-develop-instead-of-main/148138">2025 年 develop 追蹤設定的官方社群回答</a>。若 Project 是透過 GitHub 整合匯入，初始 Main Branch 名稱可能跟 GitHub 預設分支一致；仍應檢查實際 Scanner 來源與版本設定。
 <h3>先補一個名詞：SonarQube Project</h3>
 <p>Project 是 SonarQube 裡<strong>保存某份程式碼品質資訊的邏輯對象</strong>。GitHub Repository 裡放的是原始碼與 Git 歷史；SonarQube Project 裡管理的是這份原始碼的分析結果、Issues、Metrics、Quality Profile 與 Quality Gate。它不是 Kubernetes Namespace，也不是 Runner 本身。</p>
 <p>例如 GitHub <code>mes-backend</code> 對應 SonarQube 的 Project Key <code>mes-backend</code>。Scanner 透過 <code>sonar.projectKey=mes-backend</code> 告訴 Server 報告要歸屬哪個 Project。入門階段採用<strong>一個 Repo 對應一個 Project</strong>最容易看懂，但並不是產品唯一允許的映射方式。</p>
@@ -42,7 +54,7 @@
 <div class="callout warn"><strong>GitHub 帳號整合不是 Scanner 的同義詞。</strong><p>使用 GitHub App 可協助匯入 repo、整合登入；但你可以先在 SonarQube 建立 Project，再由 CI 使用 URL、Project Key 與 Token 上傳。學習 POC 不必預設先建立完整企業級 GitHub App 整合。</p></div>
 
 <h2>04 / 免費版限制如何影響你們的 CI/CD？</h2>
-<p>你們目前主要從 <code>release/**</code> 標籤執行 build → deploy → E2E，也有 PR Merge 自動測試和 Production Release Gate。若想用免費版，<strong>我會先把 SonarQube 當「main branch 的持續品質監測」</strong>，而不是假設能在每個 PR 或 Release Tag 擁有獨立分析結果。</p>
+<p>你們目前主要從 <code>release/**</code> 標籤執行 build → deploy → E2E，也有 PR Merge 自動測試和 Production Release Gate。若想用免費版，<strong>先決定每個 Repo 哪個 Git Branch 值得持續追蹤</strong>（例如 default branch 或 develop），再由 CI 固定掃描它；不假設每個 PR 或 Release Tag 都能在同一 Project 形成獨立分析結果。</p>
 <div class="flowchart" aria-label="建議的第一版整合流程">
 <p class="diagram-title">Concept / 免費版優先整合位置</p>
 <div class="chain"><div class="flow-node">PR Merge to default branch<small>已有的合併事件</small></div><div class="chain-arrow">↓ <span>觸發</span></div><div class="flow-node teal-node">Main branch SonarQube Scan<small>獨立 job · 先觀察、不阻擋</small></div><div class="chain-arrow">↓ <span>報告提交／背景處理</span></div><div class="flow-node">SonarQube Quality Gate<small>在 Dashboard 與 API 查看狀態</small></div></div>
