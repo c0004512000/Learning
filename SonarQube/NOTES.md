@@ -68,3 +68,9 @@
 - L09 教學應先依因果關係拆開 Event、Checkout SHA、Project Key、Project Version、New Code；Community 沒有原生 PR／Tag 分支；選主分支或 Tag 唯一權威 Trigger，避免錯 SHA、重複掃描、較舊 Tag 覆寫 latest dashboard 造成誤判。
 - L10 治理需分 Gate FAIL、Scanner／TLS／Token Fail、CE FAILED／Timeout、錯版本資料。Observe 保留真實紅燈，Blocking 透過 wait/Quality Gate Check + needs/if 連接到 Deploy。例外必須核准且可追溯，不可永久全體 continue-on-error。
 - 新增 Reference 0007 事件、Status、失效與證據欄位；官方核對來源見 `sources/evidence/2026-11-09-phase5-governance.md`。正式驗收與實機 QA 仍未完成，0/14。
+
+### Phase 06 教學約束（2026-11-09）
+- 新 Lesson 先講 Compute Engine（CE）、Elasticsearch（ES）與 PostgreSQL 的資料所有權，再引入 Helm/PVC。使用者曾明確要求解釋 CE，縮寫必須先展開。
+- Official Community Helm Chart：26.2 移除 PostgreSQL dependency；`persistence.enabled` 主要是 ES Index，不是 DB Backup；ArgoCD-based deployment 官方未 fully supported／validated。
+- 重建 Pod、重建 ES、還原 DB、回退 Helm Chart 是不同操作；DB Schema Migration 不可只靠 Helm Rollback 回復。
+- Phase 05 與 06 已寫完，不表示使用者已通過；Phase 03 暫緩，進度 0/14。

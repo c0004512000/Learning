@@ -1,6 +1,6 @@
 # SonarQube Learning Resources
 
-資料檢視：2026-11-08。以目前 Community Build 官方文件為準；開始 POC 前應固定實際版本並重新確認變動功能。
+資料檢視：2026-11-09。以目前 Community Build 官方文件為準；開始 POC 前應固定實際版本並重新確認變動功能。
 
 ## Knowledge（權威技術依據）
 
@@ -34,6 +34,17 @@
 - [External issues](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/importing-external-issues/about-external-issues) — 匯入 Issues 可參與 Gate，不等於匯入可在 Profile 啟停的 Rule。
 - [Scanner Quality Gate waiting](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/analysis-parameters/parameters-not-settable-in-ui) — sonar.qualitygate.wait 等候 Server 狀態。
 
+### Kubernetes 與備份復原
+- [Server Components](https://docs.sonarsource.com/sonarqube-community-build/server-installation/server-components-overview) — Web／CE／ES／DB 的資料責任，適用 L11。
+- [Kubernetes prerequisites](https://docs.sonarsource.com/sonarqube-community-build/server-installation/on-kubernetes-or-openshift/before-you-start) — 26.2 DB Dependency、Argo CD 相容性限制、Probe。
+- [Helm customization](https://docs.sonarsource.com/sonarqube-community-build/server-installation/on-kubernetes-or-openshift/customizing-helm-chart) — JDBC、Restricted、ES Persistence、Secrets、Ingress。
+- [Server requirements](https://docs.sonarsource.com/sonarqube-community-build/server-installation/server-host-requirements) — Kernel、JVM Heap 與容量。
+- [Networking requirements](https://docs.sonarsource.com/sonarqube-community-build/server-installation/networking-requirements) — Runner → API、Server → DB、HTTPS。
+- [Database backup and restore](https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/maintenance/backup-and-restore) — Hot Backup 與 Restore。
+- [Elasticsearch reindexing](https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/maintenance/reindexing) — ES Index 可重建、Gate Wait 可能 Timeout。
+- [Update path](https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/update/determine-path) — Calendar Version 更新路徑。
+- [Pre-update steps](https://docs.sonarsource.com/sonarqube-community-build/server-update-and-maintenance/update/pre-update-steps) — DB Backup、容量與 Staging Drill。
+
 ### POC 與營運
 - [Docker setup](https://docs.sonarsource.com/sonarqube-community-build/server-installation/from-docker-image/set-up-and-start-container) — 隔離環境基本啟動與持久化掛載；適用 Lesson 05。
 - [Database requirements](https://docs.sonarsource.com/sonarqube-community-build/server-installation/installing-the-database) — H2 僅作試驗用途、正式環境持久化資料庫；適用 Lesson 05、11–12。
@@ -52,6 +63,7 @@
 - [Sonar Community](https://community.sonarsource.com/) — 官方維護的使用者論壇；遇到版本特定的 Scanner／Quality Gate 行為時，可查對照案例。社群回答須與該版官方文件、實測結果交叉檢查。
 
 ## Evidence 與課程映射
+- [Phase 06 Kubernetes／Restore／Upgrade 官方核對](sources/evidence/2026-11-09-phase6-kubernetes.md) — DB／ES／Helm／Argo CD 及復原規則；未實機驗證。
 - [Phase 05 Trigger／Gate 治理官方核對](sources/evidence/2026-11-09-phase5-governance.md) — 官方事件語意、Scanner 等候與 GitHub Job Dependency；**尚未實機驗證**。
 - [L04 Rules／Gates／New Code 官方核對](sources/evidence/2026-11-09-l04-governance.md) — 可追溯規則建立、Specific analysis API、CI 等待與 Coverage 邊界。
 - [L03 分析歸屬與測試資料核對](sources/evidence/2026-11-08-analysis-identity-and-test-data.md) — 依新版官方資料核對 Scanner、PR Checkout、免費版及報告格式。
@@ -63,7 +75,7 @@
 ## Gaps（待有證據才可宣稱完成）
 - 尚無公司私有 GitHub Workflows 的逐檔稽核、Runner 網路與 TLS 連線證據。
 - 公開課程尚未保存可供驗收的完整實機 POC 證據鏈（Checkout SHA、Scanner、CE Task、Gate、Deployment），因此不能據此宣稱 Phase 04／05 已通過。
-- 尚無正式 K8s / PostgreSQL 安裝、復原或升級實測。
+- 尚無可公開引用的正式 K8s、PostgreSQL Restore、ES Reindex 或升級演練證據。
 - 已有部分 L03 分析身分情境作答紀錄，但其餘 Lesson 尚未完成正式驗收；首頁的「已撰寫」不得當作學習完成率。
 
 這份清單是課程的參考依據，不表示所有後續階段的操作已經執行成功。

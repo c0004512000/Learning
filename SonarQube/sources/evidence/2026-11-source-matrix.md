@@ -14,8 +14,8 @@
 | L08 Coverage 與 Quality Gate 失敗演練 | https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/overview | 用外部測試工具提供 Coverage；展示至少一個預期 Gate FAIL 案例 | 已撰寫；待實機驗收 |
 | L09 PR／Merge／Release Tag 的適當整合點 | https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/introduction | 產出 main、PR、tag 觸發與支援能力矩陣，說明採用與放棄理由 | 已撰寫；待情境與實測驗收 |
 | L10 Non-blocking → Blocking 的導入門檻 | https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates | 設計升級、例外、回退及 SonarQube 不可用時的 CI 行為 | 已撰寫；待情境與實測驗收 |
-| L11 Helm、Database、PVC、Ingress 與網路 | https://docs.sonarsource.com/sonarqube-community-build/server-installation/on-kubernetes-or-openshift/customizing-helm-chart | 交付不含機敏資料的部署拓樸和資源／網路驗證清單 | 僅規劃；待實測 |
-| L12 Backup、Recovery、Upgrade 與維運 | https://docs.sonarsource.com/sonarqube-community-build/server-installation/installing-the-database | 至少設計並記錄一套備份復原與升級回退驗收方案 | 僅規劃；待實測 |
+| L11 Helm、Database、PVC、Ingress 與網路 | https://docs.sonarsource.com/sonarqube-community-build/server-installation/on-kubernetes-or-openshift/customizing-helm-chart | 交付不含機敏資料的部署拓樸和資源／網路驗證清單 | 已撰寫；待理解與實機驗收 |
+| L12 Backup、Recovery、Upgrade 與維運 | https://docs.sonarsource.com/sonarqube-community-build/server-installation/installing-the-database | 至少設計並記錄一套備份復原與升級回退驗收方案 | 已撰寫；待理解與實機驗收 |
 | L13 不同語言的掃描與規則落差 | https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-quality-profiles/understanding-quality-profiles | 完成兩種語言的分析比較，量測執行時間、Issue 噪音和誤報 | 僅規劃；待實測 |
 | L14 共用模板、權限與 Rollout 決策 | https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow | 根據實測產出採用／暫緩的 decision record 和 rollout checklist | 僅規劃；待實測 |
 
@@ -43,3 +43,8 @@
 - L09 已撰寫：main Push／PR Merge／Tag 觸發選擇、checkout SHA、Project Key、版本追溯與舊 Tag 重掃風險。Reference：`reference/0007-release-gate-decision.html`。來源核對：`sources/evidence/2026-11-09-phase5-governance.md`。
 - L10 已撰寫：Non-blocking／Warn／Enforce、Gate wait + CI needs、CE／Token／Timeout 不可用、例外與回退。來源同上。
 - 兩堂只具備教學材料和預期練習，**未完成理解驗收與實機失效注入**，正式完成仍為 0/14。
+
+## 2026-11-09 Phase 06 教材擴充
+- L11：Pod、Compute Engine、Elasticsearch、PostgreSQL 的資料責任，Chart、Pod Security、Argo CD 未完整驗證限制與網路／Probe；詳見 `lessons/0011-kubernetes-architecture.html`。
+- L12：DB Backup／Restore、ES Reindex、RPO／RTO、Calendar Update Path、Schema Migration 與 Helm Rollback；詳見 `lessons/0012-recovery-upgrade.html`。
+- 維運 Reference `reference/0008-kubernetes-operations.html` 與官方核對 `sources/evidence/2026-11-09-phase6-kubernetes.md`。詳細教材完成，實測與理解驗收仍未完成；課程正式完成 0/14。
