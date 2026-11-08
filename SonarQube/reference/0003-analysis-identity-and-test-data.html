@@ -1,0 +1,41 @@
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080d14"><meta name="description" content="SonarQube Scanner、分析歸屬、PR 分析與測試資料匯入速查。"><title>Scanner 與分析歸屬速查｜SonarQube Learning</title><link rel="stylesheet" href="../assets/site.css"></head><body><header class="sitebar"><div class="shell barinner"><a class="mark" href="../index.html">LEARNING <b>/ SONARQUBE</b></a><nav class="toplinks" aria-label="課程導航"><a href="../index.html">首頁</a><a href="../learning-map/index.html">學習地圖</a><a href="../lessons/0003-community-build-boundary.html">Lesson 03</a><a href="0002-glossary.html">術語速查</a></nav><button class="theme" type="button" disabled data-theme-toggle aria-label="切換配色">淺色模式</button></div></header><main class="shell lesson"><div class="content">
+<p class="crumb"><a href="../index.html">SonarQube</a> / <a href="../lessons/0003-community-build-boundary.html">Lesson 03</a> / Reference</p><p class="kicker">REFERENCE / ANALYSIS IDENTITY</p><h1>Scanner 與分析歸屬速查</h1>
+<p class="intro">同一份原始碼可由多種事件觸發掃描；真正決定結果在哪裡的，是 <strong>Checkout 的內容、Project Key、分析身分，以及 Server 版本能力</strong>。此頁是按問題查找的參考資料，不代表已完成實際 POC。</p>
+<h2>01 / 四個問題先分開</h2>
+<table><thead><tr><th>問題</th><th>由誰決定？</th></tr></thead><tbody>
+<tr><td>什麼時候掃？</td><td>GitHub Actions 的 <code>push</code>、<code>pull_request</code>、tag 或手動觸發；也可完全不經 GitHub Actions。</td></tr>
+<tr><td>實際掃什麼？</td><td>Runner 上 <code>actions/checkout</code> 取得的 Commit / 工作目錄檔案，不是 Dashboard 上的分支名稱。</td></tr>
+<tr><td>分析要放哪？</td><td><code>sonar.projectKey</code> 找到 Project；有無 branch/PR analysis 身分，決定是否要求獨立分支／PR 結果。</td></tr>
+<tr><td>結果何時可見？</td><td>Scanner 提交 Report → Server Compute Engine 完成 Background Task → Dashboard / Quality Gate 更新。</td></tr>
+</tbody></table>
+<h2>02 / 最小參數對照</h2><table><thead><tr><th>Scanner 參數</th><th>作用與限制</th></tr></thead><tbody>
+<tr><td><code>sonar.projectKey</code></td><td>指定 SonarQube Project；不表示來源 Git Branch。</td></tr>
+<tr><td>沒有 branch / PR 身分</td><td>一般主分支分析；Community Build 只有此原生儲存維度。<strong>同一 Key 反覆掃不同 Commit 會更動同一分析狀態。</strong></td></tr>
+<tr><td><code>sonar.branch.name</code></td><td>要求獨立 Branch Analysis，原生 Community Build 不支援。</td></tr>
+<tr><td><code>sonar.pullrequest.key</code><br><code>sonar.pullrequest.branch</code><br><code>sonar.pullrequest.base</code></td><td>要求獨立 PR Analysis，原生 Community Build 不支援。商業版可依 CI 自動辨識，但不等於 Community 也會自動處理。</td></tr>
+</tbody></table>
+<p class="small">這裡的「分析身分」是解釋用詞，不是 SonarQube UI 有一個名為 Analysis Mode 的切換鈕。錯誤訊息與處理階段應以該版本實測日誌為準。</p>
+<h3>同一 Repo，兩個 Project</h3><div class="flowchart"><p class="diagram-title">Figure / 兩份獨立追蹤不是原生多分支</p><div class="chain"><div class="flow-node"><strong>Repository：demo-web</strong><small>main 與 develop 兩個 Git Branch</small></div><div class="chain-arrow">↓ <span>各自 Checkout 與執行 Scanner</span></div><div class="flow-node"><strong>Project Key：demo-web-main</strong><small>維護 main 的一份主分支狀態</small></div><div class="flow-node"><strong>Project Key：demo-web-develop</strong><small>維護 develop 的另一份主分支狀態</small></div></div><p class="caption">兩個 Project 各有設定、Issues、Gate 與歷史；不是一個 Project 內可切換兩條 Branch。</p></div>
+<h2>03 / Scanner 是執行程式，不是 CI Pipeline</h2>
+<p>CI Workflow 決定步驟，Runner 提供執行環境，<strong>SonarScanner</strong> 讀取 Checkout 的程式碼並提交分析報告。可選擇下載／安裝 SonarScanner CLI、在容器中執行 CLI、使用官方 Scan GitHub Action，或選 Maven、Gradle、.NET、NPM 等建置系統對應的 Scanner。這些不是 Community 與商業版的主要差異。</p>
+<pre><code># 合成範例：執行環境已有 sonar-scanner
+sonar-scanner -Dsonar.projectKey=demo-web
+# 認證和 Server URL 由受保護的 CI 環境變數提供
+</code></pre>
+<p>Scanner 成功<strong>提交</strong>報告，不代表 Compute Engine 已經完成品質計算；可到 Background Tasks 觀察，再讀取 Quality Gate。Dashboard 與 API 由 SonarQube Server 提供，不需另外部署一個 Dashboard。</p>
+<h2>04 / GitHub PR Checkout 與 SonarQube PR Analysis 的差別</h2>
+<p>對開啟且可合併的 PR，GitHub Actions <code>pull_request</code> 的預設 <code>GITHUB_REF</code> 通常是 <code>refs/pull/N/merge</code>，因此預設 Checkout 取得的是 GitHub 產生的<strong>模擬合併 Commit</strong>；明確指定 PR 的 <code>head.sha</code> 才是直接取 Feature Branch HEAD。<strong>模擬合併 Checkout 只是 GitHub 的行為，不能據此宣稱 SonarQube 已完成原生 PR Analysis。</strong></p>
+<p>商業版 PR Analysis 要回答的是「此 PR 相對目標分支引入哪些 New Code 問題、New Code Quality Gate 是否通過？」它不是僅分析最後一個 Commit，而是依來源與目標分支的差異界定範圍。<strong>Branch Analysis</strong> 則是保存某分支的長期品質狀態，不等於有 PR 專屬的比較結果與門禁。</p>
+<div class="callout"><strong>兩邊都繼續前進時怎麼辦？</strong><p>Feature Branch 與 main 的 Commit 可能持續變動；PR 分析的品質結果代表該次分析所見的來源與目標基準，<strong>不等於永久保證未來合併版本無整合問題</strong>。要確保最新合併結果可運作，仍需依當前 base/head 重新執行建置、測試或 Merge Queue 驗證。SonarQube 官方亦要求 PR 分析前具備目標分支的歷史資料。</p></div>
+<h2>05 / Project 建立與主分支名稱</h2>
+<p>可以在 Server 建立 Local Project、從 DevOps 平台匯入、呼叫 Web API，或在有 Create Projects 權限時由第一次掃描建立。<strong>Project Key</strong> 決定歸屬；<strong>Main Branch 名稱</strong>是 Server 的分支標籤，並不指揮 Runner 去 Checkout。初始化名稱與重新命名 UI 隨版本與建立方式而異，不應假設「第一次掃描的 Git Branch 自動成為名稱」，也不應把商業版的 Branch UI 操作當成 Community 通用做法。</p>
+<h2>06 / 外部測試：可匯入與不可取代的資料</h2>
+<table><thead><tr><th>資料</th><th>SonarQube 的角色</th></tr></thead><tbody>
+<tr><td>Coverage（行／分支覆蓋率）</td><td>先由測試或 coverage 工具輸出相容報告；Scanner 匯入，例如 Generic Coverage 用 <code>sonar.coverageReportPaths</code>。</td></tr>
+<tr><td>Test Execution（測試數、失敗／略過、耗時）</td><td>外部報告需為支援格式。Generic Test Execution 使用 <code>sonar.testExecutionReportPaths</code>；<code>file path</code> 應能對應專案的<strong>測試檔</strong>。</td></tr>
+<tr><td>Playwright E2E</td><td>可評估將可對應的執行統計轉成 Generic 格式；這不會自動產生原始碼 Coverage，也不會提供完整 Allure 式逐步報表。</td></tr>
+<tr><td>k6／JMeter 壓力測試</td><td>RPS、p95 latency、吞吐量等不是 SonarQube 內建的負載測試趨勢介面；應保留於負載測試工具、Grafana 等合適系統。</td></tr>
+</tbody></table>
+<div class="callout"><strong>資料流要對時機：</strong><p>先執行測試產生報告 → Scanner 讀到相容檔案 → 上傳分析 → Compute Engine 處理 → Dashboard 查詢。不要把測試跑完後獨立產生的檔案，誤以為 SonarQube 會自動同步抓取。</p></div>
+<h2>07 / 只看這幾份官方來源就夠了</h2><p><a href="https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow">Community GitHub Actions 指引</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/feature-comparison-table">功能版別表</a> · <a href="https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request">GitHub PR 觸發與 Checkout</a> · <a href="https://docs.sonarsource.com/sonarqube-server/2025.1/analyzing-source-code/pull-request-analysis/introduction">商業版 PR 分析</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/project-administration/creating-project">Project 建立</a> · <a href="https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/generic-test-data">Generic Test Data</a></p>
+<p class="small">官方文獻確認於 2026-11-08；以上都是功能模型與範例，並非真實環境操作證明。</p><a class="cta" href="../lessons/0003-community-build-boundary.html">回到 Lesson 03 →</a></div></main><footer><div class="shell">SONARQUBE / LEARNING · Community Build　｜　<a href="../RESOURCES.md">來源索引</a>　·　<a href="0002-glossary.html">術語速查</a></div></footer><script src="../assets/site.js" defer></script></body></html>
