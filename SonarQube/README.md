@@ -7,6 +7,7 @@
 - [Lesson 01](lessons/0001-why-sonarqube.html) · [Lesson 02](lessons/0002-analysis-flow.html)
 - [Lesson 03](lessons/0003-community-build-boundary.html) · [Lesson 04](lessons/0004-rules-profiles-gates.html)
 - [POC 驗證參考](reference/0001-poc-playbook.html)
+- [L03 Scanner／PR／測試報告 Reference](reference/0003-analysis-identity-and-test-data.html)
 
 已撰寫 L01–L04；尚未有經使用者驗證的理解或實作完成紀錄。所有未來 Lessons 目前只列出目標與驗收規劃，不預先假裝完成。
 
