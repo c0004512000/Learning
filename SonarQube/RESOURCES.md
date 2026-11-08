@@ -1,6 +1,6 @@
 # SonarQube Learning Resources
 
-資料檢視：2026-11-07。以目前 Community Build 官方文件為準；開始 POC 前應固定實際版本並重新確認變動功能。
+資料檢視：2026-11-08。以目前 Community Build 官方文件為準；開始 POC 前應固定實際版本並重新確認變動功能。
 
 ## Knowledge（權威技術依據）
 
@@ -10,6 +10,11 @@
 - [GitHub integration](https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/introduction) — GitHub App、repo 匯入與免費版限制；適用 Lesson 03。
 - [GitHub Actions analysis](https://docs.sonarsource.com/sonarqube-community-build/devops-platform-integration/github-integration/adding-analysis-to-github-actions-workflow) — 僅掃描主分支的官方建議、Runner 準備與 Gate 回傳；適用 Lesson 03、07、09。
 - [Feature comparison](https://docs.sonarsource.com/sonarqube-community-build/feature-comparison-table) — Community Build 與其他產品的 branch / PR 功能邊界；適用 Lesson 03、09。
+
+- [SonarScanner CLI](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/scanners/sonarscanner) — Scanner 的 CLI、Docker 與執行方式；適用 Lesson 02–03。
+- [GitHub pull_request event](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request) — 觸發 PR 後的模擬合併 ref/SHA 與 checkout 差異；適用 Lesson 03。
+- [PR Analysis (Server 2025.1)](https://docs.sonarsource.com/sonarqube-server/2025.1/analyzing-source-code/pull-request-analysis/introduction) — 商業版 PR 的 New Code 範圍及 Gate；僅作對照。
+- [Generic Test Data](https://docs.sonarsource.com/sonarqube-community-build/analyzing-source-code/test-coverage/generic-test-data) — Generic Coverage / Test Execution 格式；適用 Reference 與後續測試整合。
 
 ### 規則與門檻
 - [Rules](https://docs.sonarsource.com/sonarqube-community-build/quality-standards-administration/managing-rules/rules) — 規則與 Issue 的關係；適用 Lesson 04、13。
@@ -25,10 +30,14 @@
 - [Official SonarQube Scan Action](https://github.com/SonarSource/sonarqube-scan-action) — GitHub Actions Scanner 整合、版本與限制；適用 Lesson 07。
 - [原始教材起點](sources/materials/starting-point.md) — 學習需求與示意架構圖的使用者描述；屬於需求素材而非技術權威。
 
+## Learner-facing Reference
+- [Scanner／分析身分／PR／測試報告速查](reference/0003-analysis-identity-and-test-data.html) — 補充 L03 的參數、Project 建立及測試資料適用性；可從 L03 返回。
+
 ## Wisdom（實務交流）
 - [Sonar Community](https://community.sonarsource.com/) — 官方維護的使用者論壇；遇到版本特定的 Scanner／Quality Gate 行為時，可查對照案例。社群回答須與該版官方文件、實測結果交叉檢查。
 
 ## Evidence 與課程映射
+- [L03 分析歸屬與測試資料核對](sources/evidence/2026-11-08-analysis-identity-and-test-data.md) — 依新版官方資料核對 Scanner、PR Checkout、免費版及報告格式。
 - [初始來源核對](sources/evidence/2026-11-official-baseline.md) — 初始分析模型與未驗證範圍。
 - [Phase 02 核對](sources/evidence/2026-11-phase2-baseline.md) — branch / PR 與 Rules、Profiles、Gates。
 - [課程來源與驗收矩陣](sources/evidence/2026-11-source-matrix.md) — 每堂來源及可觀察的驗收標準。
