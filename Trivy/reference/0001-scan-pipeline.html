@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Filesystem、Image、Lockfile 與漏掃界線的速查表。"><title>Reference 01｜Trivy 掃描流程速查 · Trivy Learning</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body>
+<nav aria-label="課程導覽"><a href="../index.html">Trivy 首頁</a>　/　<a href="../learning-map/index.html">學習地圖</a>　/　<a href="../reference/0001-scan-pipeline.html">掃描速查</a></nav>
+<main>
+<p class="subtitle">REFERENCE 01 / FIRST PRINCIPLES / 對照表</p><h1>Trivy 掃描流程速查</h1><p>這份 Reference 供第一章與後續 PoC 回頭查詢。不是新的必修課。</p>
+<h2 id="flow">一條完整的資料路徑</h2>
+<div class="diagram"><p class="diagram-title">INPUT → DISCOVERY → MATCH → REPORT → POLICY</p>
+<ol><li><strong>掃描目標</strong>：Repo / Folder / Lockfile，或 Container Image。</li><li><strong>辨識套件</strong>：從可支援的格式取得名稱、版本、平台與相依關係。</li><li><strong>漏洞比對</strong>：用偵測到的軟體版本比對已有的漏洞資料。</li><li><strong>輸出報告</strong>：呈現命中的漏洞、嚴重程度與可修補資訊等。</li><li><strong>CI Policy</strong>：由你們決定 report-only、何種條件 fail、是否阻擋部署。</li></ol><p class="cite">流程中每個箭頭是「將結果提供下一階段」；Scanner 並非執行應用程式找出所有可能漏洞。</p></div>
+<h2>最小掃描目標表</h2><div class="table-wrap"><table><thead><tr><th>輸入</th><th>適合回答</th><th>需要先確認</th></tr></thead><tbody>
+<tr><td><code>trivy fs --scanners vuln .</code></td><td>這個資料夾內可辨識的依賴資訊有何已知漏洞？</td><td>Lockfile 是否存在、精確版本及間接依賴是否完整</td></tr>
+<tr><td><code>trivy image --scanners vuln image:tag</code></td><td>這個封裝 Image 中可辨識的 OS/Application 套件有何已知漏洞？</td><td>確實掃到部署的 Image，tag 是否指向預期 digest</td></tr>
+<tr><td><code>python -m pip freeze</code></td><td>這個 Python 環境目前裝了哪些套件版本？</td><td>是否正在正確 venv；它本身不是掃描指令／lockfile</td></tr></tbody></table></div>
+<h2>三個容易混淆的「零」</h2><ul><li><strong>套件 0 個：</strong>先調查目標檔案、套件格式、套件辨識狀態。</li><li><strong>已辨識 N 個套件、漏洞 0 個：</strong>只是現有資料未命中；仍須確認 DB、平台、版本與掃描範圍。</li><li><strong>CLI exit code 0：</strong>要看 CLI 設定與執行是否成功，不能單靠此數字判斷安全政策達成。</li></ul>
+<h2>你之後在 CI 一定要證明的事</h2><ol><li>Runner 能使用指定且可維護的 Trivy 版本。</li><li>掃描輸入和真實部署產物對得起來。</li><li>結果被保存並且可供查核。</li><li>掃描失敗、資料不足、無漏洞不能混成同一種 PASS。</li><li>想阻擋時，失敗發生在真正的部署操作之前。</li></ol>
+<div class="box"><strong>回到課程</strong><p><a href="../lessons/0001-why-trivy.html">Lesson 01｜為什麼需要 Trivy</a> · <a href="../lessons/0002-how-trivy-scans.html">Lesson 02｜Trivy 怎麼掃？</a> · <a href="../learning-map/index.html">完整 Course Map</a></p></div>
+<p class="cite"><strong>來源：</strong><a href="https://trivy.dev/docs/latest/guide/target/filesystem/">Filesystem</a>、<a href="https://trivy.dev/docs/latest/guide/target/container_image/">Container Image</a>、<a href="https://trivy.dev/docs/latest/guide/coverage/language/python/">Python</a>、<a href="https://trivy.dev/docs/latest/guide/coverage/language/dotnet/">.NET</a>。</p>
+</main>
+<footer class="lesson-nav"><a href="../learning-map/index.html">← 學習地圖</a><a href="../RESOURCES.md">資料來源</a></footer>
+<script src="../assets/theme.js" defer></script>
+</body></html>
