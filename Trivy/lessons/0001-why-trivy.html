@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="從部署成功與套件安全的差異理解 Trivy 的必要性。"><title>Lesson 01｜為什麼需要 Trivy · Trivy Learning</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body>
+<nav aria-label="課程導覽"><a href="../index.html">Trivy 首頁</a>　/　<a href="../learning-map/index.html">學習地圖</a>　/　<a href="../reference/0001-scan-pipeline.html">掃描速查</a></nav>
+<main>
+<p class="subtitle">PHASE 01 / LESSON 01 · 第一性原理 · 只需理解既有 GitHub CI/CD</p>
+<h1>部署成功，<br>就代表相依套件安全嗎？</h1>
+<p>你已經有 GitHub Actions、Secret Scanning、E2E Test，也能順利將版本部署到 Kubernetes 或 IIS。這堂課先不安裝工具，只回答一個問題：<strong>這些檢查都通過，為什麼仍可能需要 Trivy？</strong></p>
+<div class="box"><strong>本堂目標</strong><ul><li>能說出「程式可以執行」與「使用的第三方套件沒有已知漏洞」的差別。</li><li>能解釋 Trivy 如何幫 CI 新增一種安全訊號，以及它無法保證什麼。</li><li>遇到掃描零筆結果時，不會直接下「安全」結論。</li></ul><p class="cite">先備：知道應用程式會引用 NuGet、npm 或 pip 套件即可。正式 CLI 操作安排在 Phase 02。</p></div>
+<h2>01 / 從你熟悉的部署情境開始</h2>
+<p>假設一個 WES 後端服務使用 NuGet 第三方套件。開發者打了 release tag，GitHub Actions 編譯成功；E2E Test 全部通過；Argo CD 將新版本部署到叢集。</p>
+<p>這只能證明：<strong>建置與受測的功能流程符合當時的檢查條件</strong>。它沒有回答「這次編譯進去的第三方套件版本，是否有公開通報的已知安全漏洞」。</p>
+<p>假設某個套件版本之後被公開通報有問題，應用程式可能仍然編譯成功、API 仍回應 200、E2E 仍通過。這不是測試工具失效，而是<strong>它們問的問題本來就不同</strong>。</p>
+<div class="box ask"><strong>建立第一個因果關係</strong><p>因為 CI 的 Build / E2E 並不一定比對套件的漏洞資料，所以我們需要另一種檢查：<strong>把實際使用的套件名稱與版本，拿去對照已知漏洞資訊。</strong>這類檢查稱為 Vulnerability Scanning；檢查軟體相依套件的風險時，常歸在 SCA（Software Composition Analysis）範疇。</p></div>
+<h2>02 / Trivy 是扮演什麼角色？</h2>
+<p><strong>Trivy</strong> 是開源安全掃描工具。就我們目前的導入 Mission，先聚焦它的<strong>套件漏洞掃描</strong>，而不是一開始就研究它所有功能。</p>
+<div class="diagram">
+<p class="diagram-title">Figure 01 · 這個問題需要四個資料環節</p>
+<ol>
+<li><strong>輸入</strong>：專案的套件清單／Lockfile，或建置完成的 Container Image。</li>
+<li><strong>辨識</strong>：Trivy 讀取輸入，取得它能辨識的套件名稱與版本。</li>
+<li><strong>比對</strong>：Trivy 利用漏洞資料，尋找這些套件版本是否對應已知問題。</li>
+<li><strong>輸出</strong>：把發現的漏洞、嚴重度及可用的修補版本等資訊整理成結果。</li>
+</ol>
+<p class="cite">箭頭語意是「前一階段提供資料給下一階段」，不是每一步都會執行你的程式。資料不足時，後續比對自然不完整。<a href="../reference/0001-scan-pipeline.html#flow">查看流程速查</a>。</p></div>
+<p>你之後可以讓 GitHub Actions 在部署前執行 Trivy，但要先記住：<strong>Trivy 負責產生風險訊號；是否停止部署，是我們另外訂的 CI Policy。</strong>掃描和阻擋不是同一件事。</p>
+<h2>03 / 它和現有工具在查什麼？</h2>
+<div class="table-wrap"><table><thead><tr><th>現有檢查</th><th>它主要回答</th><th>它不保證</th></tr></thead><tbody>
+<tr><td>Build</td><td>程式能否編譯／封裝？</td><td>套件版本沒有已知漏洞</td></tr>
+<tr><td>E2E</td><td>受測使用流程是否符合預期？</td><td>所有第三方套件安全</td></tr>
+<tr><td>Secret Scanning</td><td>是否暴露密碼、Token 等機密？</td><td>套件是否有公開漏洞</td></tr>
+<tr><td>Trivy 漏洞掃描</td><td>辨識到的套件版本是否命中已知漏洞？</td><td>程式邏輯沒有漏洞、功能正常</td></tr>
+</tbody></table></div>
+<p>Trivy 也能處理 Secrets、Misconfiguration、License 等議題；只是<strong>本次最小 PoC 先明確限定在 Vulnerability Scanning</strong>，避免同時測太多功能，弄不清結果代表什麼。</p>
+<h2>04 / 第一個容易誤判的地方</h2>
+<p>假設 GitHub CI 只把這份檔案交給 Scanner：</p>
+<pre><code># requirements.txt（教學情境，不代表有漏洞）
+requests&gt;=2.28</code></pre>
+<p>這行只是在要求安裝符合條件的套件；<strong>它沒有告訴你最終安裝的精確版本，也沒有列出安裝過程帶入的間接套件</strong>。因此，即使 Trivy 執行沒有錯誤，也不能據此宣稱部署環境的所有相依套件都被檢查。</p>
+<p>之後你會看到兩種不同問題：</p>
+<ul><li><strong>套件未被辨識</strong>：掃描輸入不足或格式不對，沒有完整套件資料可供比對。</li><li><strong>套件已辨識，但未發現已知漏洞</strong>：至少辨識階段有資料，但仍有資料庫、版本範圍和覆蓋範圍的限制。</li></ul>
+<div class="box warn"><strong>重要界線：</strong>「沒有發現漏洞」不等於「證明沒有漏洞」。尤其在 Lockfile 缺失、掃描目標選錯或資料庫更新失敗的情況下，零筆結果可能沒有實際安全意義。</div>
+<h2>05 / 檢查你是否建立了正確的理解</h2>
+<section class="quiz" data-quiz data-correct="b" data-hint="想想 E2E 需要什麼輸入才能看到第三方套件的已知 CVE。" data-explanation="E2E 只確認受測流程；套件的已知風險需要另一份套件版本資料與漏洞資訊來核對。">
+<p class="question">情境 A：某個 release 的 Build、E2E 與部署都成功。現在能說什麼？</p>
+<div class="choices"><label><input type="radio" name="q1" value="a">所有套件都安全</label><label><input type="radio" name="q1" value="b">功能流程有通過</label><label><input type="radio" name="q1" value="c">已經排除漏洞</label></div><p><button type="button" class="choice" data-check>確認我的判斷</button></p><p class="feedback" data-feedback role="status"></p>
+<noscript><details><summary>未啟用 JavaScript：查看本題解析</summary><p>Build/E2E 成功不能證明套件沒有已知漏洞。</p></details></noscript></section>
+<section class="quiz" data-quiz data-correct="c" data-hint="掃描工具沒有足夠的套件資料時，『零筆』不能被當作安全證明。" data-explanation="輸入若缺少必要的版本與間接依賴資訊，零筆結果只表示本次沒有找到，必須先查套件辨識覆蓋率。">
+<p class="question">情境 B：Trivy 輸出 0 個漏洞，但依賴清單只有一行範圍版本。下一步應先確認什麼？</p>
+<div class="choices"><label><input type="radio" name="q2" value="a">是否能直接上線</label><label><input type="radio" name="q2" value="b">是否能略過掃描</label><label><input type="radio" name="q2" value="c">是否有完整版本</label></div><p><button type="button" class="choice" data-check>確認我的判斷</button></p><p class="feedback" data-feedback role="status"></p>
+<noscript><details><summary>未啟用 JavaScript：查看本題解析</summary><p>先確認真實安裝的精確套件版本與間接依賴是否在掃描輸入中。</p></details></noscript></section>
+<h2>06 / 本堂最小結論</h2>
+<ul><li>Build、E2E、Secret Scanning 與套件漏洞掃描，回答不同問題。</li><li>Trivy 要先取得「套件名稱＋版本」，才有條件比對公開漏洞。</li><li>掃描成功、零筆漏洞與套件辨識完整，是三個不同概念。</li><li>Scanner 產生風險資訊；CI Gate 才決定是否停止部署。</li></ul>
+<p>如果不確定，回到 ChatGPT 用自己的話重述「為什麼 E2E 通過不夠」。閱讀完或答對單題不會自動記錄為理解通過。</p>
+<div class="lesson-nav"><a href="../reference/0001-scan-pipeline.html">掃描流程速查 ↗</a><a href="0002-how-trivy-scans.html">Lesson 02：Trivy 怎麼掃？ →</a></div>
+<p class="cite"><strong>來源：</strong><a href="https://trivy.dev/docs/latest/guide/target/filesystem/">Trivy Filesystem 官方文件</a>、<a href="https://trivy.dev/docs/latest/guide/target/container_image/">Trivy Image 官方文件</a>、<a href="https://trivy.dev/docs/latest/guide/coverage/language/python/">Trivy Python Coverage</a>；<a href="../sources/evidence/2026-11-18-source-baseline.md">查核基準</a>。</p>
+</main>
+<footer class="lesson-nav"><a href="../learning-map/index.html">← 學習地圖</a><a href="../RESOURCES.md">資料來源</a></footer>
+<script src="../assets/theme.js" defer></script><script src="../assets/quiz.js" defer></script>
+</body></html>
