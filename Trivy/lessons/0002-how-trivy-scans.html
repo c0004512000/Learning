@@ -42,7 +42,7 @@ trivy image --scanners vuln my-service:example-tag</code></pre>
 <h2>05 / 套到你的兩種部署管線</h2>
 <div class="box tip"><strong>Kubernetes / Harbor</strong><p>Docker build 後掃 Image，可以評估進入 Image 的 OS/Application packages；若想在 push 前擋，需要先確認目前 Workflow 的 build/push 是否可拆開。之後還要明確比對實際部署的 tag 或 digest。</p></div>
 <div class="box tip"><strong>Windows IIS</strong><p>因為通常沒有 Container Image，應該檢查 Restore/Install 完成後可取得的依賴清單及 publish output。更重要的是先確認 workflow 的 MSBuild 或 msdeploy 動作是否<strong>已經包含部署</strong>，不要到部署之後才設 Scan Gate。</p></div>
-<p class="cite">這是根據現有 Workflow 內容辨識的<strong>待實測整合點</strong>，不代表已在生產 Runner 上執行掃描。<a href="../RESOURCES.md">查看固定版本 Workflow 來源</a>。</p>
+<p class="cite">這是根據現有 Workflow 內容辨識的<strong>待實測整合點</strong>，不代表已在生產 Runner 上執行掃描。<a href="https://github.com/c0004512000/Learning/blob/main/Trivy/RESOURCES.md">查看固定版本 Workflow 來源</a>。</p>
 <h2>06 / 用一個判斷題鞏固</h2>
 <section class="quiz" data-quiz data-correct="a" data-hint="這個問題是在問『已封裝的 Image 裡面實際有什麼』。" data-explanation="如果目標是驗證已建置的 Image 中的 OS 和應用套件，Image Scan 是直接對應的掃描入口。">
 <p class="question">Kubernetes 服務剛 Docker build 完，你想確認 Image 裡的 OS packages 和 application packages，應優先測哪一種？</p>
@@ -55,8 +55,8 @@ trivy image --scanners vuln my-service:example-tag</code></pre>
 <div class="box ask"><strong>離開第一章前的自我檢查：</strong>不看答案，能否用 60 秒解釋「為什麼同一個 Repo 的 Filesystem Scan 和建好的 Image Scan，結果可能不同」？如果可以，再進 Phase 02 CLI PoC；如果卡住，回 <a href="../reference/0001-scan-pipeline.html">掃描流程 Reference</a>。</div>
 <p>回到 ChatGPT 描述你的推論，我會根據實際回答確認是否需要補前提；頁面不會把讀完視為通過。</p>
 <div class="lesson-nav"><a href="0001-why-trivy.html">← Lesson 01</a><a href="../learning-map/index.html#phase-2">Phase 02：CLI PoC（尚未撰寫）→</a></div>
-<p class="cite"><strong>來源：</strong><a href="https://trivy.dev/docs/latest/guide/target/filesystem/">Filesystem</a>、<a href="https://trivy.dev/docs/latest/guide/target/container_image/">Container Image</a>、<a href="https://trivy.dev/docs/latest/guide/coverage/language/python/">Python</a>、<a href="https://trivy.dev/docs/latest/guide/coverage/language/dotnet/">.NET</a>、<a href="../sources/evidence/2026-11-18-source-baseline.md">已驗證基準</a>。</p>
+<p class="cite"><strong>來源：</strong><a href="https://trivy.dev/docs/latest/guide/target/filesystem/">Filesystem</a>、<a href="https://trivy.dev/docs/latest/guide/target/container_image/">Container Image</a>、<a href="https://trivy.dev/docs/latest/guide/coverage/language/python/">Python</a>、<a href="https://trivy.dev/docs/latest/guide/coverage/language/dotnet/">.NET</a>、<a href="https://github.com/c0004512000/Learning/blob/main/Trivy/sources/evidence/2026-11-18-source-baseline.md">已驗證基準</a>。</p>
 </main>
-<footer class="lesson-nav"><a href="../learning-map/index.html">← 學習地圖</a><a href="../RESOURCES.md">資料來源</a></footer>
+<footer class="lesson-nav"><a href="../learning-map/index.html">← 學習地圖</a><a href="https://github.com/c0004512000/Learning/blob/main/Trivy/RESOURCES.md">資料來源</a></footer>
 <script src="../assets/theme.js" defer></script><script src="../assets/quiz.js" defer></script>
 </body></html>
