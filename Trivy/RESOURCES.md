@@ -23,3 +23,12 @@
 - 先前 ChatGPT Library 的 Trivy CLI PoC 報告：以 .NET、npm、pnpm、Python 測試套件辨識能力。該報告不是在公司 CI 或 Runner 上執行；先前樣本結果僅作為下一階段的假說與重測依據。
 
 可重用的查核結果見 [sources/evidence/2026-11-18-source-baseline.md](sources/evidence/2026-11-18-source-baseline.md)。
+
+## Phase 02：CLI 實驗與報告
+
+- [CLI filesystem](https://trivy.dev/docs/latest/guide/references/configuration/cli/trivy_filesystem/)
+- [CLI image](https://trivy.dev/docs/latest/guide/references/configuration/cli/trivy_image/)
+- [官方安裝文件](https://trivy.dev/docs/latest/getting-started/installation/)
+- [Exit code](https://trivy.dev/docs/v0.75/guide/configuration/others/)
+- [Requests CVE-2024-35195 公告](https://github.com/advisories/GHSA-9wx4-h78v-vm56)
+- [Phase 02 查核證據](sources/evidence/2026-11-19-cli-poc.md)
