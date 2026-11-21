@@ -54,7 +54,7 @@ trivy image --scanners vuln my-service:example-tag</code></pre>
 <ul><li>Trivy 不是執行功能測試；它要從輸入辨識套件並查已知漏洞。</li><li>Filesystem Scan 與 Image Scan 的<strong>輸入、觀測範圍不同</strong>。</li><li>Lockfile／freeze 是為了讓精確版本和間接依賴更可見；必須確認符合真實環境。</li><li>沒有發現漏洞 ≠ 所有套件都已辨識；沒有找到套件 ≠ 安全。</li><li>導入 CI 之前要知道哪個建置或部署步驟會真的改變環境。</li></ul>
 <div class="box ask"><strong>離開第一章前的自我檢查：</strong>不看答案，能否用 60 秒解釋「為什麼同一個 Repo 的 Filesystem Scan 和建好的 Image Scan，結果可能不同」？如果可以，再進 Phase 02 CLI PoC；如果卡住，回 <a href="../reference/0001-scan-pipeline.html">掃描流程 Reference</a>。</div>
 <p>回到 ChatGPT 描述你的推論，我會根據實際回答確認是否需要補前提；頁面不會把讀完視為通過。</p>
-<div class="lesson-nav"><a href="0001-why-trivy.html">← Lesson 01</a><a href="0003-repeatable-cli-poc.html">Phase 02：Lesson 03 CLI PoC →</a></div>
+<div class="lesson-nav"><a href="0001-why-trivy.html">← Lesson 01</a><a href="0002a-cli-fundamentals.html">Phase 02：先理解 Trivy CLI →</a></div>
 <p class="cite"><strong>來源：</strong><a href="https://trivy.dev/docs/latest/guide/target/filesystem/">Filesystem</a>、<a href="https://trivy.dev/docs/latest/guide/target/container_image/">Container Image</a>、<a href="https://trivy.dev/docs/latest/guide/coverage/language/python/">Python</a>、<a href="https://trivy.dev/docs/latest/guide/coverage/language/dotnet/">.NET</a>、<a href="https://github.com/c0004512000/Learning/blob/main/Trivy/sources/evidence/2026-11-18-source-baseline.md">已驗證基準</a>。</p>
 </main>
 <footer class="lesson-nav"><a href="../learning-map/index.html">← 學習地圖</a><a href="https://github.com/c0004512000/Learning/blob/main/Trivy/RESOURCES.md">資料來源</a></footer>
