@@ -5,10 +5,10 @@
 <div class="box"><strong>Mission</strong><p>理解 Trivy 的套件漏洞掃描與 Image 掃描，完成最小可重現 PoC，再證明它能接在既有公司的 CI/CD 流程中；最後才討論正式 Gate 和企業維運。<a href="https://github.com/c0004512000/Learning/blob/main/Trivy/MISSION.md">查看完整 Mission</a></p></div>
 <p><span class="tag">7 個能力階段</span><span class="tag">14 堂計畫課程</span><span class="tag">前兩章 4 堂已撰寫</span><span class="tag">0 堂正式驗收</span></p>
 <h2>目前從哪裡開始？</h2>
-<div class="course-item current"><strong>Phase 02 · 最小 CLI PoC 與結果解讀</strong><p>第一章已閱讀與補充說明，進入第二章；尚未完成正式理解與實驗驗收。</p>
+<div class="course-item current"><strong>Phase 02 · 最小 CLI PoC 與結果解讀</strong><p>第二章新增「CLI 基礎前導課」，先理解執行位置、掃描對象與方式，再進入 PoC；尚未完成正式驗收。</p>
 <div class="progress" aria-label="正式理解驗收 0 / 14"><span style="width:0%"></span></div>
-<p class="cite">正式學習進度：0 / 14　·　教材已撰寫：4 / 14</p>
-<p><a href="lessons/0003-repeatable-cli-poc.html">開始 Lesson 03：建立可重複的 CLI 掃描 →</a></p><p><a href="lessons/0004-reading-scan-results.html">Lesson 04：0 漏洞、失敗與報告差別在哪？ →</a></p><p><a href="reference/0002-cli-poc.html">CLI PoC 速查 →</a></p>
+<p class="cite">正式學習進度：0 / 14　·　教材已撰寫：4 / 14；另有 1 堂 CLI 前導課</p>
+<p><a href="lessons/0002a-cli-fundamentals.html"><strong>先閱讀 Phase 02 前導：Trivy CLI 是什麼、從哪裡掃、怎麼掃 →</strong></a></p><p><a href="lessons/0003-repeatable-cli-poc.html">再開始 Lesson 03：建立可重複的 CLI 掃描 →</a></p><p><a href="lessons/0004-reading-scan-results.html">Lesson 04：0 漏洞、失敗與報告差別在哪？ →</a></p><p><a href="reference/0002-cli-poc.html">CLI PoC 速查 →</a></p>
 <p><a href="lessons/0001-why-trivy.html">回顧 Lesson 01</a> · <a href="lessons/0002-how-trivy-scans.html">回顧 Lesson 02</a></p></div>
 <h2>第一章建立的基礎</h2>
 <ol><li>為什麼 E2E、Secret Scanning 都通過，仍無法回答套件版本的安全風險。</li><li>Trivy 取得「套件名稱 + 版本」後，如何與已知漏洞資料比對。</li><li>為什麼同一個 Repo 的 Filesystem Scan 和建好的 Image Scan 可能看到不同依賴。</li><li>為什麼 pip freeze 與 Lockfile 的資訊範圍會影響你信任掃描結果的程度。</li></ol>
