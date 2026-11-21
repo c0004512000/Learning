@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Docker Fundamentals：從 Linux Kernel、VM、Container 到 Kubernetes 的互動式學習文件"><title>Lesson 01 · 為何容器化？｜Docker Fundamentals</title>
+<link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/visuals.css"></head><body>
+<nav aria-label="課程導覽"><a href="../index.html">Docker 首頁</a>　/　<a href="../learning-map/index.html">學習地圖</a>　/　<a href="../reference/0001-vm-container-model.html">概念速查</a></nav>
+<main><p class="subtitle">SESSION 01 / LESSON 01 · 約 25–30 分鐘 · 從軟體交付問題走向 Linux Kernel</p>
+<h1>為什麼需要 Container？<br>從 VM 與 Kernel 的差異開始</h1>
+<p>同樣一個 API，能在開發者電腦執行，到了測試環境卻失敗。問題未必出在程式碼，而可能出在執行環境。這堂課先把問題說清楚，再比較兩種不同的隔離方式：<strong>Virtual Machine（虛擬機器）</strong>和<strong> Container（容器）</strong>。</p>
+<div class="box"><strong>本堂目標</strong><ul><li>能說出容器化的價值不只有「解決版本衝突」，還包括封裝與交付、隔離及工作負載密度。</li><li>能用架構圖比較 VM 的 Guest Kernel 與 Linux Container 的共享 Kernel。</li><li>能解釋一個檔案讀取請求，為什麼在兩種環境會經過不同的 Kernel 邊界。</li></ul><p class="cite">先備：知道應用程式需要 OS 提供檔案讀取、網路與 Process 管理；不需事先會 Docker CLI。</p></div>
+<h2>01 / 如果沒有 Container，我們是在部署什麼？</h2>
+<p>假設團隊維護三個 API：一個使用 Node.js 22、一個 Python 3.12、一個 Java 21。傳統方式常要在每台 Server 安裝 Runtime、系統函式庫、憑證、設定檔，然後把程式部署上去。這時<strong>程式碼版本</strong>和<strong>Server 當下的狀態</strong>共同決定結果。</p>
+<p>把問題拆成四類。點選情境，觀察容器化主要替哪個環節降低不確定性。</p>
+<section class="diagram" aria-label="部署問題互動比較">
+<p class="diagram-title">Figure 01 · 選一個部署問題</p>
+<div class="choice-tabs" role="group" aria-label="部署問題類型">
+<button type="button" class="model-tab selected" data-case-button="environment" aria-pressed="true">環境漂移</button>
+<button type="button" class="model-tab" data-case-button="dependency" aria-pressed="false">依賴衝突</button>
+<button type="button" class="model-tab" data-case-button="delivery" aria-pressed="false">交付困難</button>
+<button type="button" class="model-tab" data-case-button="density" aria-pressed="false">資源密度</button>
+</div>
+<div class="scenario-detail" aria-live="polite"><strong data-case-title>測試環境能跑，正式環境卻缺套件</strong>
+<p data-case-problem>兩台 Server 的 Runtime、Library、設定不完全相同；更新時間也不同。</p>
+<p><strong>Container 的價值：</strong><span data-case-answer>把程式及大量 User Space 依賴放入可版本化的 Image，讓環境更可重現，而不是每台機器手動安裝。</span></p>
+<p class="cite" data-case-limit>限制：Kernel、CPU 架構、外部服務、Secret 與環境設定仍可能不同。</p></div>
+<noscript><p>沒有 JavaScript 時，可先看完整概念：Container 幫助減少環境漂移、隔離依賴、標準化交付，並降低每個工作負載對 Guest Kernel 的需求；不能保證不同機器完全一樣。</p></noscript>
+</section>
+<p>注意：<strong>這些問題 VM 也能處理</strong>。真正的下一個問題不是「VM 能不能」，而是「為什麼 VM 與 Container 需要付出的成本不同」。</p>
+<h2>02 / VM 為什麼要啟動一個 Guest OS？</h2>
+<p>一般程式不能自己直接控制所有硬體。當它要讀檔、開 Socket、建立 Process，就需要透過<strong> System Call（系統呼叫）</strong>要求 Kernel（作業系統核心）提供服務。</p>
+<p>VM 的做法是：Hypervisor 提供一組<strong>虛擬硬體介面</strong>，讓每台 VM 像是在獨立機器上開機。Guest OS 在這些虛擬硬體上啟動自己的<strong> Guest Kernel</strong>。因此它能有自己的一套核心行為、驅動與 OS 生命週期。</p>
+<p>Linux Container 沒有替每個應用程式建立另一個虛擬硬體與 Guest Kernel。容器裡的程式仍是 Linux Host Kernel 管理的 Process，只是使用 Kernel 提供的隔離與權限機制，讓它看到不同的環境。</p>
+<div class="diagram">
+<p class="diagram-title">Figure 02 · 兩種架構：差別在 Kernel 邊界</p>
+<div class="arch-grid">
+<section class="arch-panel is-active" data-arch-panel="vm" aria-label="VM 結構">
+<h3>Virtual Machine</h3>
+<div class="arch-step app">Application + Libraries</div><div class="arch-arrow">system call ↓</div>
+<div class="arch-step guest">Guest OS / Guest Kernel</div><div class="arch-arrow">存取虛擬裝置 ↓</div>
+<div class="arch-step">Virtual Hardware</div><div class="arch-arrow">由 Hypervisor 提供 ↓</div>
+<div class="arch-step host">Hypervisor → Physical Hardware</div>
+<p class="cite">VM 有自己的 Kernel；這張圖以硬體虛擬化模型呈現，省略不同 Hypervisor 型態的差異。</p>
+</section>
+<section class="arch-panel" data-arch-panel="container" aria-label="Container 結構">
+<h3>Linux Container</h3>
+<div class="arch-step app">Application + Libraries / RootFS</div><div class="arch-arrow">system call ↓</div>
+<div class="arch-step host">Shared Host Linux Kernel</div><div class="arch-arrow">管理 Process 與硬體 ↓</div>
+<div class="arch-step">Host Hardware</div>
+<div class="arch-step subtle">Namespaces · cgroups · 權限機制</div>
+<p class="cite">Container 不含獨立的 Guest Kernel；隔離規則由共享的 Host Kernel 實施。</p>
+</section>
+</div><p class="cite">每支箭頭都表示上方元件如何向下方請求服務；不是 Docker Daemon 每次都參與 System Call。</p></div>
+<div class="box ask"><strong>第一個關鍵推論</strong><p>VM 必須初始化 Guest Kernel，是因為它把<strong>可執行獨立 OS 的虛擬機器</strong>當成隔離單位；Container 把<strong>共享 Kernel 的 Process</strong>當成隔離單位。兩者的隔離邊界不同，並不是說 VM 的做法比較落後。</p></div>
+<h2>03 / 點一下：同樣是讀取檔案，請求去哪裡？</h2>
+<p>下面將兩種路徑展開。切換後，請自己找出「哪一個 Kernel 真正收到程式的 System Call」。</p>
+<section class="diagram" aria-label="系統呼叫互動路徑">
+<div class="choice-tabs" role="group" aria-label="選擇執行模式">
+<button class="model-tab selected" type="button" data-arch-switch="vm" aria-pressed="true">VM 的讀檔路徑</button>
+<button class="model-tab" type="button" data-arch-switch="container" aria-pressed="false">Container 的讀檔路徑</button></div>
+<div class="path-readout" aria-live="polite">
+<p class="diagram-title" data-arch-title>VM：Application → Guest Kernel → 虛擬化 I/O → Host</p>
+<ol data-arch-steps><li>程式呼叫 read()。</li><li>Guest Kernel 檢查並處理該系統呼叫。</li><li>需要存取虛擬磁碟時，透過虛擬裝置／Hypervisor 與 Host 底層互動。</li></ol>
+<p class="cite" data-arch-note>不是每一次 read() 都真的走到實體磁碟，例如可能命中 Guest 的檔案快取。</p>
+</div><noscript><p>Container 路徑：Application → Host Kernel；隔離與檔案存取規則由 Host Kernel 套用。VM 路徑則由 Guest Kernel 接收程式的 System Call。</p></noscript>
+</section>
+<h2>04 / 那 Container 裡為什麼看起來有 Ubuntu？</h2>
+<p>因為「看起來有一整套 Linux 目錄」與「擁有自己的 Linux Kernel」是兩件不同的事。Container Image 可以提供 <code>/bin</code>、<code>/usr</code>、程式、函式庫、設定等<strong>User Space 檔案</strong>；Kernel 仍由 Host 提供。</p>
+<div class="diagram"><p class="diagram-title">Figure 03 · 檔案 ≠ Kernel</p><div class="rootfs-grid">
+<div><strong>Image / Root Filesystem</strong><ul><li>/bin、/usr、/lib</li><li>Node.js、Python</li><li>應用程式與設定</li></ul></div>
+<div><strong>Host Kernel</strong><ul><li>管理 Process</li><li>處理 System Call</li><li>控制隔離與資源</li></ul></div>
+</div><p class="cite">下堂課會拆解 Namespace、cgroups，以及 RootFS 怎麼組合出這個效果。</p></div>
+<h2>05 / 不要把「共享 Kernel」誤解成兩件事</h2>
+<div class="box warn"><strong>限制一：Container 不是一個完整 OS VM。</strong><p>它不能靠塞入 Windows 的系統檔案，就讓 Linux Kernel 原生實作 Windows Kernel 的 System Call。不同 OS Kernel 的應用程式執行要求不能這樣互換。</p></div>
+<div class="box warn"><strong>限制二：在 Windows 或 macOS 使用 Docker Desktop，不代表完全沒有 VM。</strong><p>Docker Desktop 執行 Linux Container 時，通常使用 Linux VM 或 WSL 2 提供 Linux Kernel。真正被所有 Linux Containers 共享的是<strong>該 Linux 環境的 Kernel</strong>，不是 Windows 或 macOS Kernel。</p></div>
+<p>Container 的啟動通常較輕量，也不代表所有 Container 都一定比較快或一定安全。工作負載、隔離設定與實作方式仍會影響結果。</p>
+<h2>06 / 用觀察而不是背定義</h2>
+<p>如果課堂現場有可用的 Linux Docker Engine，講者可以展示這個最小觀察：</p>
+<pre><code>docker run -d --name demo nginx:alpine
+docker ps
+docker top demo
+# Linux Host 上可再觀察對應的 Process
+ps -ef | grep nginx</code></pre>
+<p>看得到 Host 上的 Process，正是 Container 並非神祕小電腦的第一個線索。但<strong>這個 Demo 不能單獨證明所有隔離機制</strong>，只是建立下一堂課的觀察起點。</p>
+<h2>07 / 小測驗：用自己的推論作答</h2>
+<section class="quiz" data-quiz data-correct="c" data-hint="想想是哪一種架構讓每個執行單位各自啟動 Kernel。" data-explanation="Linux Container 內的 Process 共用 Host Kernel；VM 可執行獨立的 Guest Kernel。"><p class="question">為什麼一般 Linux Container 不需要自己啟動 Guest Kernel？</p><div class="choices"><label><input type="radio" name="q1" value="a">因為 Image 自帶核心</label><label><input type="radio" name="q1" value="b">因為 Docker 會模擬核心</label><label><input type="radio" name="q1" value="c">因為使用 Host 的核心</label></div><p><button type="button" class="choice" data-check>確認我的判斷</button></p><p class="feedback" data-feedback role="status"></p><noscript><details><summary>查看解析</summary><p>正解是共用 Host Kernel。</p></details></noscript></section>
+<section class="quiz" data-quiz data-correct="a" data-hint="想想 Linux Kernel 能否自動理解另一種 Kernel 的 API。" data-explanation="User Space 的檔案可以封裝到 Image，但不能因此更換 Host Kernel 的 System Call 實作。"><p class="question">在 Linux Container 中放入另一套 OS 的目錄，能否因此替換執行中的 Kernel？</p><div class="choices"><label><input type="radio" name="q2" value="a">不行，Kernel 仍由 Host 提供</label><label><input type="radio" name="q2" value="b">可以，目錄內有核心即可</label><label><input type="radio" name="q2" value="c">可以，Docker 會自動切換</label></div><p><button type="button" class="choice" data-check>確認我的判斷</button></p><p class="feedback" data-feedback role="status"></p><noscript><details><summary>查看解析</summary><p>Image 檔案不能改變 Host Kernel。</p></details></noscript></section>
+<h2>08 / 本堂重點回顧</h2><ul><li>Containerization 強化執行環境封裝、標準化交付與隔離，但不保證所有外部條件一致。</li><li>VM 對每個 Guest 提供虛擬硬體，能執行獨立 Guest Kernel。</li><li>Linux Container 的 Process 直接使用共享 Host Kernel，並受 Kernel 隔離機制管理。</li><li>Image 裡的 Ubuntu 或 Alpine 檔案是 User Space，不等於新啟動一個 Linux Kernel。</li><li>Docker Desktop 可以借助 VM 提供 Linux Kernel；這不會改變 Container 本身的原理。</li></ul>
+<p>若對 System Call、Host Kernel 或隔離邊界還有疑問，可以帶著圖回到 ChatGPT 討論。閱讀或答對題目不會自動被記錄為能力驗收通過。</p>
+<div class="lesson-nav"><a href="../reference/0001-vm-container-model.html">VM / Container 架構速查 ↗</a><a href="../learning-map/index.html#phase-2">下一階段：Container 如何隔離？ →</a></div>
+<p class="cite"><strong>來源核對：</strong><a href="https://docs.docker.com/get-started/docker-overview">Docker Overview</a> · <a href="https://docs.docker.com/learn/content/what-is-a-container/">Docker Container Basics</a> · <a href="https://man7.org/linux/man-pages/man7/namespaces.7.html">Linux Namespaces</a> · <a href="https://docs.docker.com/desktop/setup/install/windows-install/">Docker Desktop on Windows</a> · <a href="../sources/evidence/2026-11-22-source-baseline.md">課程來源查核</a></p>
+</main><footer class="lesson-nav"><a href="../learning-map/index.html">← 學習地圖</a><a href="https://github.com/c0004512000/Learning/blob/main/Docker/RESOURCES.md">官方資料來源</a></footer><script src="../assets/theme.js" defer></script><script src="../assets/quiz.js" defer></script><script src="../assets/visuals.js" defer></script></body></html>

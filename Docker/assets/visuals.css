@@ -1,0 +1,18 @@
+/* Reusable causal diagrams, comparison toggles and context panels for Docker learning */
+.arch-grid,.rootfs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem}
+.arch-panel{border:2px solid var(--line);border-radius:9px;padding:.8rem;transition:border-color .12s,background .12s}
+.arch-panel.is-active{border-color:var(--accent);background:var(--code-bg)}
+.arch-panel h3{font-size:1rem;margin:.1rem 0 .8rem;text-align:center}
+.arch-step{border:1px solid var(--line);padding:.6rem .45rem;border-radius:6px;text-align:center;font: .79rem/1.45 "SF Mono",Consolas,monospace;overflow-wrap:anywhere;background:var(--paper)}
+.arch-step.app{border-color:var(--info)}.arch-step.guest{border-color:#d58c3f}.arch-step.host{border-color:var(--success)}
+.arch-step.subtle{font-size:.7rem;margin-top:1rem;border-style:dashed;color:var(--muted)}
+.arch-arrow{padding:.3rem;text-align:center;color:var(--muted);font: .73rem/1.5 "SF Mono",Consolas,monospace}
+.choice-tabs{display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:1rem}
+.model-tab{border:1px solid var(--line);border-radius:6px;padding:.48rem .7rem;background:var(--paper);color:var(--ink);font:inherit;font-size:.82rem;cursor:pointer}
+.model-tab.selected,.model-tab[aria-pressed=true]{border-color:var(--accent);background:var(--code-bg);font-weight:700}
+.model-tab:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.scenario-detail,.path-readout,.rootfs-grid>div{border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:1rem}
+.scenario-detail p,.path-readout p{margin:.65rem 0}
+.path-readout ol{padding-left:1.35rem}.rootfs-grid ul{font-size:.85rem;padding-left:1.1rem}
+@media(max-width:620px){.arch-grid,.rootfs-grid{grid-template-columns:1fr}.arch-panel{padding:.7rem}.choice-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.model-tab{font-size:.8rem;padding:.48rem .3rem}.diagram{padding:.8rem}.arch-step{font-size:.78rem}}
+@media print{.choice-tabs{display:none}.arch-panel{border-color:var(--line)!important}.arch-grid{grid-template-columns:1fr 1fr}}
