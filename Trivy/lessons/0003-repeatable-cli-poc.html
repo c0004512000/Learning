@@ -4,8 +4,8 @@
 <main>
 <p class="subtitle">PHASE 02 / LESSON 03 · 最小可重現實驗</p>
 <h1>我們怎麼證明 Trivy 真的有掃到？</h1>
-<p>第一章已經建立一個概念：Trivy 要先辨識套件名稱與版本，才能查出已知漏洞。現在把這句話變成可以驗證的實驗。不必使用公司 Repo，也不需要先部署 Trivy Server。</p>
-<div class="box"><strong>本堂目標</strong><p>對一個最小樣本，比較舊版、修正版、空目錄與建好的 Image 的掃描結果，能說出每個案例驗證了什麼。</p><p class="cite">前置閱讀：<a href="0002-how-trivy-scans.html">Lesson 02</a>。本頁是可重現實驗教材，以下預期結果並非本次執行紀錄。</p></div>
+<p>先閱讀 <a href="0002a-cli-fundamentals.html">CLI 基礎前導課</a>：知道 Trivy 在哪裡執行、掃描目標從哪裡取得，以及 Target 與 Scanner 的差別。現在把「先辨識套件名稱與版本，再比對已知漏洞」這個模型變成可驗證的實驗。不必使用公司 Repo，也不需要先部署 Trivy Server。</p>
+<div class="box"><strong>本堂目標</strong><p>對一個最小樣本，比較舊版、修正版、空目錄與建好的 Image 的掃描結果，能說出每個案例驗證了什麼。</p><p class="cite">前置閱讀：<a href="0002a-cli-fundamentals.html">Phase 02 前導：Trivy CLI 的基本原理與使用方式</a>。本頁是可重現實驗教材，以下預期結果並非本次執行紀錄。</p></div>
 <h2>01 / 先設計實驗，再下指令</h2>
 <p>假設只拿一個完全陌生的專案掃描，Trivy 回報 0 個漏洞。我們無法判斷它是沒有找到漏洞，還是沒有讀到套件。因此先挑一個已知有漏洞的版本，及一個修正該漏洞的版本，作為對照。</p>
 <p>本次選 Python 的 requests：公開公告 <a href="https://github.com/advisories/GHSA-9wx4-h78v-vm56">CVE-2024-35195</a> 指出 2.32.0 之前版本受此問題影響。用 2.31.0 與 2.32.5 做對照，只驗證這一個 CVE 是否消失，不要求修正版完全沒有其他漏洞。過程不需要執行有漏洞的程式。</p>
@@ -77,5 +77,5 @@ trivy image --image-src docker --scanners vuln \
 <h2>08 / 回顧</h2><ul><li>用已知漏洞版本與修正版建立對照，而不是拿 0 筆報告猜測。</li><li>套件清單與漏洞命中必須分開驗證。</li><li>空目錄是負向輸入，不是安全證據。</li><li>Image scan 讀取已建置的 Image；比較時保留實際 Image 身分和資料庫版本。</li></ul>
 <p>有任何命令不符合預期，可以將去除機密的報告片段或錯誤貼回對話，我們一起定位問題。下一堂學會讀取報告與退出碼。</p>
 <p class="cite">主要來源：<a href="https://trivy.dev/docs/latest/guide/references/configuration/cli/trivy_filesystem/">Filesystem CLI</a>、<a href="https://trivy.dev/docs/latest/guide/references/configuration/cli/trivy_image/">Image CLI</a>、<a href="https://github.com/advisories/GHSA-9wx4-h78v-vm56">公開漏洞公告</a>。</p>
-<div class="lesson-nav"><a href="0002-how-trivy-scans.html">← Lesson 02</a><a href="0004-reading-scan-results.html">Lesson 04：如何判讀結果 →</a></div></main><footer class="lesson-nav"><a href="../learning-map/index.html#phase-2">← 學習地圖</a><a href="https://github.com/c0004512000/Learning/blob/main/Trivy/sources/evidence/2026-11-19-cli-poc.md">來源證據</a></footer>
+<div class="lesson-nav"><a href="0002a-cli-fundamentals.html">← CLI 基礎前導課</a><a href="0004-reading-scan-results.html">Lesson 04：如何判讀結果 →</a></div></main><footer class="lesson-nav"><a href="../learning-map/index.html#phase-2">← 學習地圖</a><a href="https://github.com/c0004512000/Learning/blob/main/Trivy/sources/evidence/2026-11-19-cli-poc.md">來源證據</a></footer>
 <script src="../assets/theme.js" defer></script><script src="../assets/quiz.js" defer></script></body></html>
