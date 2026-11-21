@@ -32,3 +32,13 @@
 - [Exit code](https://trivy.dev/docs/v0.75/guide/configuration/others/)
 - [Requests CVE-2024-35195 公告](https://github.com/advisories/GHSA-9wx4-h78v-vm56)
 - [Phase 02 查核證據](sources/evidence/2026-11-19-cli-poc.md)
+
+## Phase 02 前導：Trivy CLI 基礎概念
+
+- [Filesystem target](https://trivy.dev/docs/latest/guide/target/filesystem/)
+- [Code Repository target](https://trivy.dev/docs/latest/guide/target/repository/)
+- [Container Image target](https://trivy.dev/docs/latest/guide/target/container_image/)
+- [Vulnerability Scanner](https://trivy.dev/docs/latest/guide/scanner/vulnerability/)
+- [Database and update mechanism](https://trivy.dev/docs/latest/guide/configuration/db/)
+- [Standalone operation](https://trivy.dev/docs/latest/guide/references/modes/standalone/)
+- [已查核的前導課來源證據](sources/evidence/2026-11-22-cli-fundamentals.md)
