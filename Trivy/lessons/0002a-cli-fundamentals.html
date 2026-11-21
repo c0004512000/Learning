@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Trivy CLI 從零理解：在哪裡執行、掃描目標從哪裡來、掃描器如何辨識套件，以及 fs/repo/image 差異">
+<title>Phase 02 前導｜Trivy CLI 是什麼？怎麼掃？｜Trivy Learning</title>
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/cli-fundamentals.css">
+</head>
+<body>
+<nav aria-label="課程導覽"><a href="../index.html">Trivy 首頁</a>　/　<a href="../learning-map/index.html#phase-2">學習地圖</a>　/　<a href="../reference/0002-cli-poc.html">CLI 速查</a></nav>
+<main>
+<p class="subtitle">PHASE 02 / PREREQUISITE LESSON · CLI 基礎模型</p>
+<h1>先理解 Trivy CLI，<br>再開始掃描。</h1>
+<p>第一章知道 Trivy 會辨識套件、比對已知漏洞。但在下第一條指令之前，還有四個問題：<strong>Trivy 在哪裡執行？掃誰？怎麼拿到資料？可以做哪些掃描？</strong> 這堂課只建立這個操作模型，不要求先安裝 CLI。</p>
+<div class="box"><strong>本堂目標</strong><ul>
+<li>分得清「Trivy 執行位置」、「Target 掃描目標」、「Scanner 檢查項目」。</li>
+<li>解釋 Trivy 不執行應用程式，也能找出已知套件漏洞的原因。</li>
+<li>能針對 GitHub Checkout、Docker Image、Harbor Image 選擇適合的掃描入口。</li>
+</ul><p class="cite">前置：<a href="0002-how-trivy-scans.html">Lesson 02 — Filesystem 與 Image 的差異</a>。本頁依 <a href="https://trivy.dev/docs/latest/">官方 Trivy 文件</a> 說明，不代表已在公司 Runner 實測。</p></div>
+
+<h2>01 / CLI 先是「執行程式」，不是一個 Server</h2>
+<p>CLI 是 Command-Line Interface。你安裝或取得 Trivy 執行檔後，在 Terminal、PowerShell、CI Runner 中呼叫它。它接收參數、取得要掃描的目標、執行檢查、輸出報告並結束。</p>
+<p><strong>不需要先建立一台 Trivy Server。</strong>Trivy 有 Standalone 與 Client/Server 等運作模式；Phase 02 先用最容易理解的 Standalone。它也可以藉由 GitHub Action、容器化 CLI 或安裝在 Runner 的執行檔來觸發，這些是「怎樣啟動 Scanner」的不同包裝，和「掃誰」是兩個問題。</p>
+<div class="diagram" aria-label="從 Runner 執行到本地報告的資料流程">
+<p class="diagram-title">Figure 01 · 誰呼叫誰？每一條箭頭有明確意義</p>
+<div class="cli-flow">
+<div class="cli-node"><strong>GitHub Actions／Terminal</strong><small>執行 Trivy CLI，傳入參數</small></div>
+<div class="cli-arrow">↓ 呼叫程式並指定 Target／Scanner</div>
+<div class="cli-node"><strong>Trivy CLI（在 Runner 上）</strong><small>依目標類型取得資料：本機檔案、Docker Engine 或 Registry</small></div>
+<div class="cli-arrow">↓ 解析內容，辨識軟體、版本和適用平台</div>
+<div class="cli-node"><strong>套件辨識</strong><small>Lockfile／已安裝套件 metadata／OS 套件資料</small></div>
+<div class="cli-arrow">↓ 用已辨識的套件與版本比對漏洞資料</div>
+<div class="cli-node"><strong>漏洞資料庫（DB）</strong><small>提供已知 CVE、影響版本、修復資訊；Trivy 會依需求下載／更新並使用快取</small></div>
+<div class="cli-arrow">↓ 產生匹配結果與執行狀態</div>
+<div class="cli-node"><strong>結果</strong><small>Terminal 表格／JSON／SARIF／Exit Code</small></div>
+</div>
+<p class="cite">示意採「Vulnerability Scanner」範圍；其他 Scanner 會有不同的檢查邏輯。漏洞 DB 是比對資料來源，不是拿程式碼去遠端網站逐行執行。</p>
+</div>
+<p>Trivy 安裝檔提供掃描引擎，但漏洞資料是另外取得並更新的。**第一次使用可能需要下載 Vulnerability DB**；如果公司環境有 Proxy、CA 或 Registry 存取限制，就可能在這一步失敗。你能在 Runner 上正常呼叫 CLI，不代表 DB 就一定能下載成功。</p>
+<p class="cite">官方：<a href="https://trivy.dev/docs/latest/guide/references/modes/standalone/">Standalone Mode</a>、<a href="https://trivy.dev/docs/latest/guide/configuration/db/">Trivy Databases</a>。</p>
+
+<h2>02 / Target 與 Scanner 不要混在一起</h2>
+<p>想像你要做健康檢查，必須先決定「對象是誰」，再決定「要檢查什麼」。Trivy 一樣要作兩個決定。</p>
+<div class="table-wrap"><table><thead><tr><th>問題</th><th>你的選擇</th><th>實際含義</th></tr></thead><tbody>
+<tr><td><strong>掃誰？Target</strong></td><td>fs、repo、image、sbom 等</td><td>Scanner 到哪裡取得輸入資料</td></tr>
+<tr><td><strong>查什麼？Scanner</strong></td><td>vuln、secret、misconfig、license</td><td>對取得的內容執行哪種類型的檢查</td></tr>
+<tr><td><strong>怎麼呈現？Output</strong></td><td>table、json、sarif</td><td>結果要顯示在畫面還是產生報告檔案</td></tr>
+</tbody></table></div>
+<div class="box ask"><strong>容易搞混的地方</strong><p><code>trivy fs</code> 的 <code>fs</code> 不等於漏洞掃描方法；它只是告訴 Trivy「讀本機檔案」。<code>--scanners vuln</code> 才是在要求「只檢查已知漏洞」。<strong>同一份目標也可以改做 Secret、Misconfiguration 等檢查。</strong></p></div>
+
+<h2>03 / 掃描目標到底從哪裡來？</h2>
+<div class="table-wrap"><table><thead><tr><th>模式</th><th>讀取位置與內容</th><th>適用例子</th></tr></thead><tbody>
+<tr><td><strong>fs</strong><br>Filesystem</td><td>本機指定檔案或目錄；例如 Lockfile、套件清單</td><td>GitHub Actions checkout 完的 workspace</td></tr>
+<tr><td><strong>repo</strong><br>Repository</td><td>本機或遠端 Git repository；聚焦 Repo 內的可辨識清單與設定等</td><td>掃描特定 Git branch、commit、tag</td></tr>
+<tr><td><strong>image</strong><br>Container Image</td><td>本機 Docker／containerd／Podman，或遠端 Registry 的 Image</td><td>Docker build 後的 Image、Harbor Image</td></tr>
+<tr><td><strong>sbom</strong><br>SBOM</td><td>已存在的軟體組成清單（需受支援格式）</td><td>另一套流程先產 SBOM，Trivy 再檢查</td></tr>
+<tr><td><strong>其他目標</strong></td><td>rootfs、Kubernetes、VM Image 等</td><td>後續擴充，不列入本章最小 PoC</td></tr>
+</tbody></table></div>
+<p>特別注意：<strong><code>trivy repo</code> 與 <code>trivy image</code> 的「遠端」含義不同。</strong>前者是從 Git Repository 取得專案內容；後者是從 Container Registry 取得已建置的 Image。指定 GitHub Repo URL 不代表它會替你 Docker build。</p>
+<p>對私有 Git Repo 或私有 Harbor Image，還需要適當的認證與權限。你要掃遠端 Image，不代表 Runner 必須先自己執行 <code>docker pull</code>；Trivy 本身有 Registry 讀取能力。</p>
+<p class="cite">官方：<a href="https://trivy.dev/docs/latest/guide/target/filesystem/">Filesystem</a>、<a href="https://trivy.dev/docs/latest/guide/target/repository/">Code Repository</a>、<a href="https://trivy.dev/docs/latest/guide/target/container_image/">Container Image</a>。</p>
+
+<h2>04 / 用一個選擇器建立使用方式的直覺</h2>
+<p>以下情境只是在教你「要選哪個掃描入口」；不會真的連到 GitHub、Docker 或 Harbor，也不會發起掃描。</p>
+<div class="box cli-picker">
+<label for="target-choice"><strong>現在你手上有什麼？</strong></label>
+<select id="target-choice" aria-label="選擇掃描目標">
+<option value="checkout">Runner 已 Checkout 的專案</option>
+<option value="git">GitHub 上某個遠端 Repository</option>
+<option value="docker">Runner 剛 Docker build 完的 Image</option>
+<option value="harbor">Harbor 中已推送的 Image</option>
+<option value="sbom">另一套工具產出的 SBOM 檔案</option>
+</select>
+<div id="target-answer" class="cli-answer" role="status" aria-live="polite">
+<strong>適合從 trivy fs 開始。</strong><p>Trivy 在目前執行位置讀取已 Checkout 的檔案。這不需要再次連到 GitHub 才能讀取本機 workspace。</p><code>trivy fs --scanners vuln .</code>
+</div>
+<p class="cite">此互動只展示建議入口及原因，不宣稱任何掃描已成功。</p>
+</div>
+
+<h2>05 / 那它到底「怎麼掃到漏洞」？</h2>
+<p>以 Kubernetes Service 的 Image 為例：Image 裡可能同時存在 Linux 套件（例如由 apk、dpkg、rpm 安裝）與應用程式套件（例如 npm、pip、NuGet）。Trivy 先解析 Image 中<strong>可辨識的封裝內容、套件管理資訊及 metadata</strong>，取得這些套件和版本，再依套件生態系與 OS 版本選擇適用的漏洞資料來源比對。</p>
+<p>所以 Trivy 一般不是「試著入侵 Image」；它也不需要為了辨識已安裝套件而先啟動 Container。對於 OS 由發行版維護的套件，會考慮相應發行版的安全公告，而不只是看到某個上游版本號就直接定案。</p>
+<details><summary><strong>範例：為什麼同一個 Repo 會有兩份不同的掃描結果？</strong></summary>
+<p>Repo 只有 <code>requirements.txt</code>，宣告 requests 的版本；Docker build 階段真正安裝 requests 及間接依賴。Repo 掃描能取得宣告的資訊；Image 掃描可能看見已安裝的間接依賴以及 Linux OS 套件。反過來，如果 multi-stage build 沒把建置用工具放進最終 Image，Image Scan 也可能看不到那些工具。</p>
+<p>所以結論不是 Image 一定比較完整，而是<strong>觀察目標不同，能證明的範圍也不同。</strong></p></details>
+<p class="cite">官方：<a href="https://trivy.dev/docs/latest/guide/scanner/vulnerability/">Vulnerability Scanning</a>。</p>
+
+<h2>06 / 這四個指令，現在才有意義</h2>
+<p>先看結構，不必立刻執行。一般形式可以記成：<code>trivy [目標模式] [選項] [目標位置]</code>。</p>
+<div class="table-wrap"><table><thead><tr><th>指令示例</th><th>你在告訴 Trivy 什麼</th></tr></thead><tbody>
+<tr><td><code>trivy fs --scanners vuln .</code></td><td>讀目前資料夾，只檢查已知漏洞</td></tr>
+<tr><td><code>trivy repo --scanners vuln https://github.com/aquasecurity/trivy-ci-test</code></td><td>從這個公開 Git Repo 取得內容，再執行漏洞掃描</td></tr>
+<tr><td><code>trivy image --scanners vuln demo-app:1.0</code></td><td>從可用的 Image 來源尋找這個名稱並掃描</td></tr>
+<tr><td><code>trivy image --image-src remote --scanners vuln registry.example.com/team/app:1.0</code></td><td>只嘗試遠端 Registry，不使用本機 Docker Image；網址只是格式示例</td></tr>
+</tbody></table></div>
+<p>不要把 <code>.</code>、<code>demo-app:1.0</code> 和 Registry URL 當成一種通用的目標：<strong>前者是資料夾，後兩者是 Image 的識別名稱。</strong></p>
+<div class="box tip"><strong>放進公司 CI 前多看一層</strong><p>如果在 ARC Shell Runner 執行 <code>trivy image</code>，Trivy 是透過 Runner 可用的 Docker API／Registry 憑證取得 Image。這不要求 Trivy 安裝在每個 Pod 裡。未來 Harbor 掃描還要確認 Registry 認證、企業 CA、權限、可識別的 Image digest 與 DB 更新方式。</p></div>
+
+<h2>07 / 回想操作模型，再做最小練習</h2>
+<section class="quiz" data-quiz data-correct="b" data-hint="先問你是從 Git 取得原始專案，還是從 Registry 取得已建好的 Image。" data-explanation="Harbor 保存的是 Container Image。若目標是已推送版本，應使用 image 掃描入口（並提供 Registry 存取資訊）。"><p class="question">你要直接掃 Harbor 裡已推送的 Image，應選哪個目標模式？</p><div class="choices"><label><input type="radio" name="c01" value="a">repo 模式</label><label><input type="radio" name="c01" value="b">image 模式</label><label><input type="radio" name="c01" value="c">fs　模式</label></div><p><button type="button" class="choice" data-check>確認答案</button></p><p class="feedback" data-feedback role="status"></p></section>
+<section class="quiz" data-quiz data-correct="c" data-hint="Target 和 Scanner 是兩個獨立的選項。" data-explanation="fs 決定從哪裡取得資料，--scanners vuln 決定要對取得的資料執行漏洞檢查。"><p class="question">在 <code>trivy fs --scanners vuln .</code> 裡，哪一個參數決定檢查漏洞？</p><div class="choices"><label><input type="radio" name="c02" value="a">fs</label><label><input type="radio" name="c02" value="b">.</label><label><input type="radio" name="c02" value="c">--scanners vuln</label></div><p><button type="button" class="choice" data-check>確認答案</button></p><p class="feedback" data-feedback role="status"></p></section>
+<h2>08 / 這堂課應該留下的觀念</h2>
+<ul><li>Trivy CLI 是可以在本機或 Runner 執行的工具；基本 PoC 不需要先建立掃描 Server。</li>
+<li>掃描目標（fs／repo／image）決定從哪裡讀資料，Scanner（vuln／secret 等）決定檢查內容。</li>
+<li>Trivy 先辨識元件與版本，再用漏洞資料庫做比對，並輸出報告與執行狀態。</li>
+<li>本機 Image 和遠端 Registry Image 都能掃，但取得路徑和認證不同。</li>
+<li>讀不到套件不代表套件安全；CLI 退出成功也不代表漏洞數為零。</li></ul>
+<div class="box ask"><strong>離開本課的自我檢查：</strong>如果你在 ARC Shell Runner 上要掃「已 checkout 的 .NET 專案」與「剛推送 Harbor 的同一個服務」，你會選哪兩個 Target？它們各從哪裡取得資料？</div>
+<p>這題如果不確定，直接回到對話問我即可。能說清楚這個差異後，再用 <a href="0003-repeatable-cli-poc.html">Lesson 03 的實驗</a> 驗證工具實際行為。</p>
+<div class="lesson-nav"><a href="0002-how-trivy-scans.html">← Lesson 02</a><a href="0003-repeatable-cli-poc.html">進入實驗 Lesson 03 →</a></div>
+<p class="cite">本課主要來源：<a href="https://trivy.dev/docs/latest/guide/target/filesystem/">Filesystem</a>、<a href="https://trivy.dev/docs/latest/guide/target/repository/">Code Repository</a>、<a href="https://trivy.dev/docs/latest/guide/target/container_image/">Container Image</a>、<a href="https://trivy.dev/docs/latest/guide/scanner/vulnerability/">Vulnerability Scanner</a>、<a href="https://trivy.dev/docs/latest/guide/configuration/db/">Databases</a>、<a href="https://trivy.dev/docs/latest/guide/references/modes/standalone/">Standalone Mode</a>。</p>
+</main>
+<footer class="lesson-nav"><a href="../learning-map/index.html#phase-2">← 學習地圖</a><a href="../reference/0002-cli-poc.html">CLI Reference →</a></footer>
+<script src="../assets/theme.js" defer></script>
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/cli-mode.js" defer></script>
+</body></html>
