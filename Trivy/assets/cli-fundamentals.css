@@ -1,0 +1,12 @@
+/* Trivy CLI concepts — additive visualization styles, canonical style.css remains unchanged. */
+.cli-flow { display: grid; grid-template-columns: minmax(0,1fr); gap: .25rem; }
+.cli-node { background: var(--code-bg); border: 1px solid var(--line); border-radius: 7px; padding: .7rem .85rem; }
+.cli-node strong, .cli-node small { display: block; }
+.cli-node small { font-size: .82rem; line-height: 1.6; color: var(--muted); }
+.cli-arrow { color: var(--muted); font-size: .76rem; text-align: center; padding: .15rem 0; }
+.cli-picker select { display:block; width:100%; max-width:100%; min-height:2.5rem; border:1px solid var(--line); border-radius:6px; padding:.3rem .55rem; margin-top:.5rem; color:var(--ink); background:var(--paper); font:inherit; font-size:.9rem; }
+.cli-answer { margin-top:1.1rem; border-top:1px solid var(--line); padding-top:.75rem; }
+.cli-answer strong, .cli-answer code { display:block; overflow-wrap:anywhere; }
+.cli-answer p { margin:.5rem 0; }
+.cli-picker code { font-size:.78rem; white-space:normal; }
+@media(max-width:620px){ .cli-node{padding:.65rem .75rem;} .cli-arrow{font-size:.72rem} }
