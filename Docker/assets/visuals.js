@@ -58,6 +58,8 @@ document.addEventListener("DOMContentLoaded",()=>{
       fragment.append(item);
     });
     flowEl.replaceChildren(fragment);
+    const active=flowEl.querySelector(".flow-step.is-active");
+    if(active && typeof active.scrollIntoView==="function") active.scrollIntoView({block:"nearest",inline:"nearest",behavior:"instant"});
     document.getElementById("flow-index").textContent=(state.step+1)+" / "+steps.length;
     document.getElementById("flow-explanation").textContent=steps[state.step].why;
     document.getElementById("flow-prev").disabled=state.step===0;
