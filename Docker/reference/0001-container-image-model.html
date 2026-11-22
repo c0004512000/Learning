@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Docker 第一堂速查：Process、Container、Dockerfile、Image、Container Instance 的精確區分。"><title>Lesson 01 速查｜Docker Fundamentals</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/visuals.css"></head>
+<body>
+<nav class="topnav"><a href="../index.html">課程首頁</a><span>／</span><a href="../learning-map/index.html">學習地圖</a><span>／</span><a href="../lessons/0001-what-is-container-docker.html">Lesson 01</a></nav>
+<main>
+<p class="subtitle">REFERENCE 01 / CONTAINER · IMAGE · DOCKER</p>
+<h1>Container、Image、Docker<br>一頁建立正確關係</h1>
+<p class="lead">遇到任何 Docker 指令時，先判斷它在描述程式檔案、建構模板、建立實例，還是操作正在執行的 Process。</p>
+<figure class="schematic"><figcaption class="figtitle">FIGURE 01 ／ 四個名詞的建立順序</figcaption>
+<div class="vertical">
+<div class="node"><strong>Dockerfile + Source Code</strong><small>建構輸入；本身不會啟動服務</small></div>
+<div class="edge">docker build：建構 ↓</div>
+<div class="node active"><strong>Docker Image</strong><small>唯讀模板，包含檔案內容與啟動設定</small></div>
+<div class="edge">docker run：依模板建立並啟動 ↓</div>
+<div class="units"><div class="unit ct"><b>Container A</b><span>Process A</span><span>獨立可寫入層</span></div><div class="unit ct"><b>Container B</b><span>Process B</span><span>獨立可寫入層</span></div></div>
+</div>
+<p class="figcaption">同一個 Image 能啟動多個 Container。Container 本身可以處於 Running 或 Stopped 狀態；不是每個 Container 在任何時刻都有正在執行的主要 Process。</p>
+</figure>
+<h2>你應該能區分的名詞</h2>
+<dl class="glossary">
+<dt>Program / Source Code</dt><dd>儲存在檔案系統上的程式內容，存在不代表正在執行。</dd>
+<dt>Process</dt><dd>程式被啟動後的執行實例，由作業系統管理。</dd>
+<dt>Runtime / Libraries</dt><dd>程式執行時需要的執行工具、函式庫等依賴。</dd>
+<dt>Container</dt><dd>受隔離、受管理的執行環境，裡面可以有一個或多個 Process。</dd>
+<dt>Dockerfile</dt><dd>定義 Image 如何建構的指示文件。</dd>
+<dt>Image</dt><dd>用來建立 Container 的唯讀模板；不等於執行中的程式。</dd>
+<dt>Docker</dt><dd>協助建構、分發、執行與管理 Container 的平台及工具。</dd>
+<dt>Docker Engine</dt><dd>Docker 的核心管理系統，包括 Docker Daemon、API 等組件；第八堂會拆解 Runtime 架構。</dd>
+</dl>
+<h2>三個最常見的混淆</h2>
+<div class="box"><strong>Image = Container？</strong><p>不對。Image 是建立實例的模板；Container 是基於 Image 建立的實例。</p></div>
+<div class="box"><strong>Container = 一台獨立的 Linux VM？</strong><p>不對。典型 Linux Container 的 Process 使用所在 Linux 環境的 Host Kernel；不會為每個 Container 啟動獨立 Guest Kernel。</p></div>
+<div class="box"><strong>Container = 只有一個 Process？</strong><p>不完全正確。Container 常以一個主要 Process 管理生命週期，但實際上可以有多個 Process。</p></div>
+<h2>最小觀察實驗</h2>
+<pre><code>docker run -d --name l01-web-a -p 127.0.0.1:8080:80 nginx:alpine
+docker run -d --name l01-web-b -p 127.0.0.1:8081:80 nginx:alpine
+docker ps
+docker top l01-web-a
+docker top l01-web-b
+docker rm -f l01-web-a l01-web-b</code></pre>
+<p>實驗前需確認 Docker 可用、可取得 Image、Port 8080/8081 未占用。以上是教學範例與預期驗證方向，不是公司環境的實測紀錄。</p>
+<p class="cite">官方資料：<a href="https://docs.docker.com/learn/content/what-is-a-container/">Docker — What is a container?</a> · <a href="https://docs.docker.com/get-started/docker-overview/">Docker — What is Docker?</a></p>
+<div class="lesson-nav"><a href="../lessons/0001-what-is-container-docker.html">← 返回 Lesson 01</a><a href="../learning-map/index.html#session-2">查看 Lesson 02 規劃 →</a></div>
+</main><footer class="lesson-nav"><a href="../index.html">課程首頁</a><a href="https://github.com/c0004512000/Learning/tree/main/Docker">GitHub 原始碼</a></footer>
+<script src="../assets/theme.js" defer></script>
+</body></html>
