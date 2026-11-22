@@ -6,7 +6,19 @@
 >
 > **目前進度：**Session 01 — 已確認開場、部署取捨 Bridge、What Is a Container（結尾可微調），以及 What Is Docker 的開場 Bridge；Dockerfile / Image / Registry 細節尚未確認。
 >
+> **課程結構決議（2026-11-22）：**取消獨立的 Why Containerization，原八堂調整為七堂。Session 01 整合必要的 Why；Session 02 改為 How Containers Work。此決議不代表後續尚未確認的口頭講稿已完成。
+>
 > **確認日期：**2026-11-22
+
+---
+
+## 課程結構備註（已確認；非口頭逐字稿）
+
+- **新 Session 01 — What Is a Container & Docker?**：保留目前已確認的四段講稿；在後續 Dockerfile → Image → Container 的基礎講解與簡單 build/run 示範完成後，精簡帶出「同一份 Image 可用於不同部署環境」與 Build Once, Deploy Many 的概念。這段新口頭講述尚待討論確認，**不可直接當成已核准逐字稿**。Registry／Image Digest 的深入細節留待後續適合的 Image 課程。
+- **新 Session 02 — How Containers Work**：解釋 Linux Kernel、Namespaces、cgroups、Root Filesystem；正式比較 VM／Guest OS 與 Linux Container／共享 Kernel 的執行架構與隔離界線。
+- **後續堂次依序前移**：原 Session 04 → 新 03（Dockerfile & Image Layers）；原 05 → 新 04（Docker Build Cache & Best Practices）；原 06 → 新 05（Container Lifecycle & Storage）；原 07 → 新 06（Docker Networking）；原 08 → 新 07（From Docker to Kubernetes）。
+- 原獨立 Session 02「Why Containerization?」**取消作為獨立章節**；其 Environment Drift、跨環境部署一致性、Build Once 等有價值概念，整合進第一堂簡述與後續 Image／Build 教學，不再重複上一堂的隔離與依賴問題。
+- **文件同步範圍**：此檔保留已確認講課段落不變；對教材實作、舊版 HTML 頁面、連結、正式課程地圖與章次更新的工作指示，詳見 `Docker/LESSON_ADJUSTMENTS.md`。目前尚未套用新七堂架構到現有 HTML。
 
 ---
 
