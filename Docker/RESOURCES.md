@@ -4,13 +4,16 @@
 
 ### Session 01 — What Is a Container & Docker?
 - [Docker Learn: What is a container?](https://docs.docker.com/learn/content/what-is-a-container/) — Container、Image、隔離 Process、Linux VM 邊界。
-- [Docker: What is Docker?](https://docs.docker.com/get-started/docker-overview/) — Docker Client／Daemon／Image／Container。
+- [Docker Engine](https://docs.docker.com/engine/) — Docker Client／Daemon／Image／Container。
 - [Docker Learn: Run your first container](https://docs.docker.com/learn/content/run-your-first-container/) — docker run、docker exec、同一 Image 建立多個 Container。
 - [Docker container run CLI reference](https://docs.docker.com/reference/cli/docker/container/run/) — docker run 的參數與 Port Mapping。
 
 ### Session 02 — Why Containerization?
-- [Docker Learn: What is a container?](https://docs.docker.com/learn/content/what-is-a-container/) — Dependencies、Environment Consistency 與 VM 比較素材（VM 的完整比較留 Session 03）。
-- [Docker: Build and share an application](https://docs.docker.com/get-started/introduction/index.html) — 建構、版本化與分發。
+- [Docker Learn: What is a container?](https://docs.docker.com/learn/content/what-is-a-container/) — Runtime / Dependencies 差異與 Container 的封裝價值。
+- [Docker: Share your image](https://docs.docker.com/learn/content/share-your-image-on-docker-hub/) — Registry、Push/Pull、Tag 的可變性。
+- [Docker: Pull image by digest](https://docs.docker.com/reference/cli/docker/image/pull/) — Digest 能釘選特定 Image 內容。
+- [Docker: Building best practices](https://docs.docker.com/build/building/best-practices/) — Base Image、Tag 與供應鏈考量。
+- [Session 02 source evidence](sources/evidence/2026-11-22-session-02.md) — 本堂經核對的原理、來源與適用邊界。
 
 ### Session 03 — How Containers Work
 - [Linux namespaces(7)](https://man7.org/linux/man-pages/man7/namespaces.7.html) — PID、Mount、Network Namespace。
@@ -35,7 +38,7 @@
 - [Docker Port publishing](https://docs.docker.com/engine/network/port-publishing/) — -p、Loopback 與外部開放。
 
 ### Session 08 — From Docker to Kubernetes
-- [Docker: What is Docker?](https://docs.docker.com/get-started/docker-overview/) — Docker CLI、dockerd。
+- [Docker Engine](https://docs.docker.com/engine/) — Docker CLI、dockerd。
 - [Kubernetes CRI](https://kubernetes.io/docs/concepts/containers/cri/) — kubelet、CRI。
 - [Kubernetes Container Runtimes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/) — Container Runtime 與 Kubernetes。
 
