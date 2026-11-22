@@ -1,24 +1,31 @@
-# Docker learning — verified sources and boundaries
+# Docker learning — verified sources and explanation boundaries
 Date: 2026-11-22 Asia/Taipei
 
-## Official references and their scope
-1. https://docs.docker.com/learn/content/what-is-a-container/ — Container、Image 與 VM 的核心差異。Session 01。
-2. https://docs.docker.com/get-started/docker-overview/ — Docker Client／Daemon，Image、Container。Session 01／02／05。
-3. https://docs.docker.com/engine/containers/run/ — 在 Container 執行 Process。Session 01／02。
-4. https://docs.docker.com/desktop/setup/install/windows-install/ — Windows Linux Containers 與 WSL 2 / Linux kernel；邊界說明。
-5. https://man7.org/linux/man-pages/man7/namespaces.7.html — Linux Namespace、資源隔離。Session 02。
-6. https://docs.kernel.org/admin-guide/cgroup-v2.html — cgroup 資源控制。Session 02。
-7. https://docs.docker.com/reference/dockerfile/ — Dockerfile 指令。Session 03。
-8. https://docs.docker.com/build/cache/invalidation/ — Build Cache。Session 03。
-9. https://docs.docker.com/engine/network/drivers/bridge/ — Bridge Network。Session 04。
-10. https://docs.docker.com/engine/storage/ — Volume / Writable Layer。Session 04。
-11. https://kubernetes.io/docs/concepts/containers/cri/ — CRI。Session 05。
-12. https://kubernetes.io/docs/setup/production-environment/container-runtimes/ — K8s Runtime。Session 05。
+## Session 01 verified findings
+1. https://docs.docker.com/learn/content/what-is-a-container/ — 官方將 Container 介紹為具隔離環境的 Process（可有多個 Process），Image 是啟動用的封裝；Linux Container 使用 Linux Kernel；Windows/macOS Docker Desktop 可透過 Linux VM。
+2. https://docs.docker.com/get-started/docker-overview/ — Docker 採 Client/Server 模型，Docker CLI 對 Docker Daemon 發出請求；Image 是唯讀模板，Container 是可執行的 Image 實例。
+3. https://docs.docker.com/learn/content/run-your-first-container/ — docker run 建立及啟動 Container，可從同一個 Image 啟動多個實例，docker exec / docker ps 觀察。
+4. https://docs.docker.com/reference/cli/docker/container/run/ — -p 127.0.0.1:8080:80 為主機本機綁定 Port 8080 至 Container Port 80 的有效示範。
+
+## Future sessions — source basis
+5. https://man7.org/linux/man-pages/man7/namespaces.7.html — Linux Namespace。
+6. https://docs.kernel.org/admin-guide/cgroup-v2.html — Linux cgroups。
+7. https://docs.docker.com/reference/dockerfile/ — Dockerfile 指令規格。
+8. https://docs.docker.com/learn/content/how-image-layers-and-the-build-cache-work/ — Filesystem Layers、Writable Layer。
+9. https://docs.docker.com/build/cache/invalidation/ — Build Cache 失效。
+10. https://docs.docker.com/engine/network/drivers/bridge/ — Docker Bridge Network、網路隔離。
+11. https://docs.docker.com/engine/storage/ — Container Storage。
+12. https://kubernetes.io/docs/concepts/containers/cri/ — Kubernetes CRI。
+13. https://kubernetes.io/docs/setup/production-environment/container-runtimes/ — Kubernetes Container Runtimes。
 
 ## Explanation boundaries
-- VM 的 Guest Kernel 與 Linux Container 共用 Host Kernel 是架構核心；不同 Hypervisor 的 I/O 實作並不相同。
-- 不是每個 System Call 都造成 VM exit，read() 可被 Kernel 快取滿足。
-- Docker Desktop 可能以虛擬機提供 Linux kernel；Linux Container 不會因此改為使用 Windows/macOS Kernel。
-- Image 是程式與大量執行依賴的封裝，不保證外部資料、設定、硬體架構相同。
-- 任何公司環境的 Docker CLI 輸出都尚未實測，不能宣稱已驗證。
-- 把完整技術課綱規劃在 Course Map；第一堂只逐步教到 Kernel 邊界，其他名詞留待未來 Lesson。
+- 程式檔案不是 Process；同一份程式可啟動多個 Process。
+- Container 是受隔離與管理的執行環境，並非另一份 Linux Kernel，也不只是檔案系統。
+- Dockerfile 描述建構；Image 是唯讀模板；Container 是可以執行與停止的實例。
+- 一個 Container 可有一個或多個 Process；處於 Stopped 狀態則沒有正在執行的主要 Process。
+- 同一 Image 建立的不同 Container 一般具有各自可寫入層；Volume 可以另外導入共享資料。
+- Linux Container 可運行在 Linux VM 裡；Docker Desktop 的 Linux VM 不意味 Container 使用 Windows/macOS Kernel。
+- VM 架構、Namespace、cgroups 不應提早成為第一堂理解 Container 的必要前提。
+- Image 可以改善封裝內容的一致性，但不保證外部資料庫、Secrets、Environment Variables、Hardware Architecture 一致。
+- Network A/B 不具巢狀包含關係；雙網路 Proxy 是在兩個 Network 都有介面的 Container，不會自動開放其他容器相互直接連通。
+- 本課程的 Docker Lab 尚未在使用者公司測試環境執行；預期觀察不等於已實測。
