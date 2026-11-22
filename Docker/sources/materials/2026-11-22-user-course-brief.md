@@ -1,11 +1,13 @@
-# Learner-designated starting material
+# User-designated Docker course brief
 
-2026-11-22 初始課程設計，來自使用者在本次對話指定的教學需求（非外部網頁材料）。
+目標：5 堂 × 30 分鐘，面向有程式開發經驗的工程師；從 Docker 基礎建立通往 Kubernetes / CKA 的概念。
 
-- 目標：非 SRE 的同事可在後續學習 Kubernetes / CKA 時理解 Container、Docker 與底層運作。
-- 範圍：需要「為什麼 Container」的深層動機，VM / Container 架構與 Kernel 之別，Process、Filesystem、Namespace、cgroups。
-- 實作：Dockerfile Layers、CMD / ENTRYPOINT、ADD / COPY、Build Cache、Network A/B 隔離、跨網路 API、Volume。
-- 銜接：Docker CLI → dockerd → containerd → runc → Linux Kernel，以及 Kubernetes CRI 對照。
-- 形式：每次約 30 分鐘、可安排多堂；互動式 HTML、具因果意義的架構圖；遵循 @lfd 並發布到既有 Learning Repo 的 GitHub Pages。
+1. Why Containerization?：傳統部署、VM / Container、Kernel / System Call、輕量觀察。
+2. How Containers Work：Process、PID、Namespaces、cgroups、RootFS、Docker Engine。
+3. Docker Image & Dockerfile：Layers、Dockerfile、CMD/ENTRYPOINT、Build Cache、Multi-stage。
+4. Networking & Storage：Lifecycle、Bridge、IP/Port、Network A/B、雙網路 Container、Volumes。
+5. From Docker to Kubernetes：Docker CLI → dockerd → containerd → runc → Kernel；OCI/CRI 與 K8s。
 
-本來源為主題、教學深度與使用需求，不以它作為產品行為的技術權威；技術依據另見 evidence 與官方文件。
+教學限制：遵循 @lfd；每個新名詞首次出現要先建立前置知識；視覺呈現須真能促進理解，不要為使用互動而使用；整堂內容需實際支撐 30 分鐘。使用現有 Learning GitHub Pages/CSS。2026-11-22 使用者明確要求重寫，不以其他 Agent 修改的舊課文作為來源。
+
+本檔是需求，不作為 Docker 技術事實來源。

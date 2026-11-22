@@ -1,123 +1,68 @@
-<!doctype html>
-<html lang="zh-Hant" data-theme="dark">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="跟著一次 API 部署失敗，看懂 Docker Image 帶走什麼，以及 VM 和 Linux Container 怎麼執行同一支程式。">
-<title>Lesson 01｜為什麼需要 Container？ · Docker Fundamentals</title>
-<link rel="stylesheet" href="../assets/style.css">
-<link rel="stylesheet" href="../assets/visuals.css">
-</head>
-<body>
-<nav aria-label="課程導覽"><a href="../index.html">Docker 首頁</a>　/　<a href="../learning-map/index.html">學習地圖</a></nav>
-<main>
-<p class="subtitle">Docker Fundamentals · Session 01 · 30 分鐘</p>
-<h1>既然已經有 VM，為什麼還需要 Container？</h1>
-<p class="lead">今天要上線新版庫存 API。你手上有一台已經跑著舊版 API 的 Linux VM；新版得先和舊版並行，才能把流量切過去。同事提議：「再開一台 VM，新舊就分開了。」這個方案行得通。那麼，什麼情況下，你會選擇在原本的 VM 裡啟動兩個 Container？</p>
-<p>沿著一次上線來做這個決定。先看要交付什麼，再看兩種做法各自要啟動什麼。最後用一筆讀檔請求和一個 Linux 行程，檢查你畫出的架構是否說得通。</p>
-<section><h2>0–7 分鐘｜先試著部署第二份 API</h2>
-<p>開發者交給你 <code>server.js</code>。在測試機輸入 <code>node server.js</code> 就能啟動，正式機卻回報找不到 <code>node</code>。這行命令的第一個字就是要執行的程式；機器上少了 Node.js，連第一行 JavaScript 都還沒跑到。即使補裝 Node.js，程式引用的 Express 套件也得在場。這解釋了為什麼同一份原始碼會有兩種部署結果。</p>
-<p>再加上一個條件：舊版 API 只驗證過 Node.js 20，新版需要 Node.js 22。若兩個服務都用系統預設的 <code>/usr/bin/node</code>，直接升級會連舊服務下次重啟時用到的版本一起改掉。你可以分開安裝、指定路徑；只是每增加一台機器，都得把這套安排正確重做一次。幾次手動修補後，原先相同的測試機和正式機逐漸有了差異，這就是<strong>環境漂移</strong>。</p>
-<figure class="diagram"><div class="arch-compare"><div class="compare-column"><h3>每台 Server 各自準備</h3><div class="path-node">交付原始碼與安裝說明</div>
-<div class="compare-connection">部署時，在每台機器安裝 ↓</div>
-<div class="path-node">Node.js、套件、程式</div>
-<div class="compare-connection">各自啟動 ↓</div>
-<div class="path-node">執行結果受各機器的安裝狀態影響</div></div>
-<div class="compare-column"><h3>建置一次，交付同一份 Image</h3><div class="path-node">備齊程式、指定版本的 Node.js 與套件</div>
-<div class="compare-connection">建置成 ↓</div>
-<div class="path-node">可辨識版本的 Docker Image</div>
-<div class="compare-connection">測試通過後，交付同一份給正式環境 ↓</div>
-<div class="path-node">從相同檔案建立執行環境</div></div></div><figcaption>沿著兩欄找「安裝依賴」發生在哪裡。右欄把這份工作移到建置階段，下一台主機可直接重用測過的成品。</figcaption></figure>
-<p><strong>Image</strong> 保存這組檔案和啟動設定。Docker 可以從它建立獨立的執行環境，稱為 <strong>Container</strong>。舊版和新版各用自己的 Image，各自看到適合自己的 Node.js。若新版出問題，上一份 Image 也能重新部署；資料庫變更、密碼和網路仍需另外處理。</p>
-<div class="classroom-prompt"><p><strong>如果把已裝好新版 API 的 VM 做成範本，也能避免逐台安裝嗎？</strong></p><details><summary>對照你的推理</summary><p>可以。交付測過的 VM 範本，同樣能提高部署一致性。現在請把問題縮小：如果兩個版本只需要不同的 Node.js，為了隔開這兩個執行檔，是否值得為每份服務準備一整套可開機的系統？</p></details></div>
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lesson 01 — Why Containers?｜Docker Fundamentals</title><meta name="description" content="從第一性原理學習 Docker 的繁體中文課程"><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/visuals.css"></head><body><nav class="topnav"><a href="../index.html">課程首頁</a> <span>／</span> <a href="../learning-map/index.html">學習地圖</a> <span>／</span> <a href="../reference/0001-vm-container-model.html">概念速查</a></nav><main><p class="subtitle">SESSION 01 / 30-MINUTE SHARING WITH DIAGRAMS</p>
+<header class="intro"><span class="eyebrow">SESSION 01 / WHY CONTAINERS?</span><h1>既然已經有 VM，<br>為什麼還需要 Container？</h1><p class="lead">先不要背 Docker 名詞。這堂課從「同一份程式換台 Server 就不能執行」開始，先理解程式需要什麼、OS 做什麼，最後再推導 VM 和 Container 的架構差異。</p><p class="quiet">先備：只需要知道程式與 API 是什麼；不假設你已懂 Linux、Kernel、虛擬化。</p></header>
+<div class="box"><strong>本堂學會後，應能解釋：</strong><ol><li>程式碼以外，還需要哪些條件才能成功部署？</li><li>一台 VM 和一個 Container 的隔離範圍有何不同？</li><li>為什麼 Linux Container 不需要替每個服務再啟動自己的 Kernel？</li></ol></div>
+<div class="agenda"><div><b>00–07′</b><span>部署問題</span></div><div><b>07–14′</b><span>OS 與 Kernel</span></div><div><b>14–22′</b><span>VM / Container</span></div><div><b>22–27′</b><span>啟動／執行路徑</span></div><div><b>27–30′</b><span>Demo 與檢查</span></div></div><p class="quiet">時間包含講者說明、看圖推理、提問與 Demo；自行閱讀不一定需要 30 分鐘。</p>
+<section id="deployment"><h2><small>01 / 00–07′</small>同一份程式碼，為什麼會因為 Server 不同而失敗？</h2>
+<p>假設你寫了一個 Python API，自己的電腦能執行，部署到測試環境卻顯示缺少 Python 套件。<strong>程式碼沒改，變的是程式執行所依賴的環境。</strong></p>
+<figure class="schematic"><figcaption class="figtitle">Figure 01 ／ 一個 API 成功執行需要什麼？</figcaption><div class="fourparts"><div><b>① 程式碼</b><span><code>app.py</code></span></div><div><b>② 執行工具</b><span>Python 3.12</span></div><div><b>③ 套件</b><span>FastAPI</span></div><div><b>④ 設定</b><span>例如監聽 Port</span></div></div><div class="edge">準備好執行條件，才交由作業系統協助執行 ↓</div><div class="node active">執行中的 Python API</div><p class="figcaption">上面四項是理解部署差異的簡化模型；程式能否正常運作仍取決於其他條件。</p></figure>
+<p><strong>Runtime（執行工具／執行環境）</strong>是讓程式能被執行的軟體，例如 Python 直譯器。<strong>Library（函式庫）</strong>是程式引用的現成功能，例如 FastAPI 套件。<strong>設定</strong>決定程式在特定環境使用什麼 Port、連向哪個服務。</p>
+<p>以前常把程式碼複製到 Server，再讓每台 Server 分別安裝和維護其他依賴。當兩台 Server 的 Runtime 或套件版本變得不一樣，就可能出現<strong>環境漂移</strong>。</p>
+<p>為了減少這類差異，我們可以先把程式與大量執行依賴<strong>封裝成一個可保存、可交付的版本</strong>。Docker 把這種封裝稱為 <strong>Image（映像檔）</strong>；以它建立、執行的實例稱為 <strong>Container（容器）</strong>。Image 好比同一份已經準備好的執行內容，而 Container 是用它真正啟動的服務。</p>
+<figure class="schematic"><figcaption class="figtitle">Figure 02 ／ 當交付單位從 Source Code 變成 Image</figcaption><div class="twocol"><section class="lane"><h3>只交付程式碼</h3><div class="node ">Source Code</div><div class="edge">在每台 Server 分別安裝工具與套件 ↓</div><div class="node ">Test：一套執行環境</div><div class="edge">可能不同於 ↓</div><div class="node warning">Prod：另一套執行環境</div></section><section class="lane"><h3>先封裝，再交付</h3><div class="node ">程式碼＋大量執行依賴</div><div class="edge">建立可版本化的封裝 ↓</div><div class="node active">Container Image</div><div class="edge">用相同封裝啟動 ↓</div><div class="node ">Test / Prod 的執行實例</div></section></div><p class="figcaption">Image 不是整台 Server 的複製品。它不能保證外部資料庫、Kernel、網路、環境設定完全一樣。</p></figure>
+<p>Image 提供更一致的起點，但外部資料庫、設定、硬體架構和作業系統核心仍可能不同。更重要的是：<strong>VM 也能封裝環境。Container 的意義不在於 VM 完全做不到，而是採用了不同的執行與隔離方式。</strong></p>
+<aside class="ask"><strong>現場思考題</strong><p>Test 與 Prod 取用同一份 Image，是否一定產生完全相同的結果？</p><details><summary>查看推理</summary><p>不一定。Image 使程式與大量依賴更一致，但外部 DB、設定和 Host 條件仍可能不同。</p></details></aside>
 </section>
-<section><h2>7–15 分鐘｜畫出「隔開」的邊界</h2>
-<p>先想像只有一台 Linux 主機。磁碟上可以存很多個版本的 Node.js；當其中一個開始執行，它就成了 <strong>Process（行程）</strong>。替行程安排 CPU 時間、管理記憶體、處理檔案存取，是作業系統核心 <strong>Kernel</strong> 的工作。Node.js 可以換版本，負責執行這些工作的 Kernel 仍可以是同一個。</p>
-<p>VM 把邊界畫在硬體介面。<strong>Hypervisor</strong>（虛擬機器管理程式）提供虛擬 CPU、記憶體與裝置，讓每台 VM 像一台可開機的電腦。VM 裡安裝的作業系統叫 <strong>Guest OS</strong>，包含它自己的 <strong>Guest Kernel</strong>，以及工具、函式庫等檔案。這叫<strong>硬體虛擬化</strong>。即使兩台 VM 使用同版 Linux，開機後也是兩份獨立運作的 Kernel。</p>
-<p>一般 Linux Container 把邊界畫在行程可以看見和使用的環境。執行 Docker 的 Linux 作業系統叫 <strong>Host OS</strong>；它正在運作的 <strong>Host Kernel</strong> 可以讓兩組行程看到不同的檔案，也能分別限制資源。兩個 API 可以各自看到一個 <code>/usr/bin/node</code>，路徑相同，檔案內容和版本卻不同。這叫<strong>作業系統層級虛擬化（OS-level virtualization）</strong>。</p>
-<p>從圖頂端各挑一個 API，往下找替它管理記憶體的 Kernel。再從另一個 API 出發：兩條路徑在哪一欄會合？</p>
-<figure class="diagram" aria-label="兩台 VM 與兩個 Linux Container 的行程管理對照">
-<div class="arch-compare">
-<div class="compare-column">
-<h3>兩台 VM</h3>
-<div class="compare-host">
-<span class="compare-host-heading">同一台實體主機</span>
-<div class="compare-guests">
-<div class="guest-unit"><span class="unit-title">VM A</span><div class="compare-block">庫存 API A</div><div class="compare-connection">交由 ↓ 管理</div><div class="compare-block kernel">Guest Kernel A</div></div>
-<div class="guest-unit"><span class="unit-title">VM B</span><div class="compare-block">庫存 API B</div><div class="compare-connection">交由 ↓ 管理</div><div class="compare-block kernel">Guest Kernel B</div></div>
-</div>
-<div class="compare-base">虛擬化層提供各自的虛擬硬體</div>
-</div>
-</div>
-<div class="compare-column">
-<h3>兩個 Linux Container</h3>
-<div class="compare-host">
-<span class="compare-host-heading">同一個 Linux 環境，可以是一台 VM</span>
-<div class="compare-guests">
-<div class="container-unit"><span class="unit-title">Container A</span><div class="compare-block">庫存 API A</div><div class="compare-block">自己的 Node.js 與套件檔案</div></div>
-<div class="container-unit"><span class="unit-title">Container B</span><div class="compare-block">庫存 API B</div><div class="compare-block">自己的 Node.js 與套件檔案</div></div>
-</div>
-<div class="compare-connection">兩個 API Process 都交由 ↓ 管理</div>
-<div class="compare-block shared">同一個 Host Linux Kernel</div>
-</div>
-</div>
-</div>
-<figcaption>左邊每台 VM 先啟動自己的 Kernel，再跑服務。右邊的 Linux Kernel 已在運作，啟動 Container 時只需準備它的檔案與隔離環境，再執行服務。 <a href="https://docs.docker.com/learn/content/what-is-a-container/">Docker 官方架構說明</a></figcaption>
-</figure>
-<p>這個差異也帶來成本取捨。每服務一台 VM，除了 API 的記憶體，還要容納各自的 Guest Kernel 和系統服務。若兩份 API 可共用 Kernel，同一台 VM 就能用兩個 Container 分開交付，增加副本時少了一套 Guest OS 的開銷。若新版必須使用另一種 Kernel，獨立 VM 則能直接滿足需求。實際可容納幾份 API，仍取決於服務消耗的 CPU 和記憶體。</p>
+<section id="os"><h2><small>02 / 07–14′</small>先弄懂 OS 與 Kernel，才能比較 VM</h2>
+<p><strong>Operating System（OS，作業系統）</strong>是管理電腦資源、提供程式運行環境的系統軟體。它最核心的一部分是 <strong>Kernel（核心）</strong>，負責管理執行中的程式、CPU 時間、記憶體、檔案及網路等。</p>
+<p>還需要分清楚<strong>程式</strong>與 <strong>Process（行程／程序）</strong>。程式可以只是一份存放在硬碟的檔案；當它被啟動，作業系統開始安排它執行，這個正在執行的實例就是 Process。一份程式可以啟動多個 Process。</p>
+<figure class="schematic"><figcaption class="figtitle">Figure 03 ／ 程式到底向誰要求資源？</figcaption><div class="vertical"><div class="node "><strong>執行中的 API</strong><small>已啟動的一個程式實例</small></div><div class="edge">要求讀檔或網路服務 ↓</div><div class="node kernel"><strong>作業系統核心（Kernel）</strong><small>管理程式執行、記憶體、檔案與網路</small></div><div class="edge">管理與使用 ↓</div><div class="node ">CPU、Memory、Storage、Network</div></div><p class="figcaption">此圖是概念性的責任關係：不是每一次讀檔都會真的碰到硬碟。</p></figure>
+<p>當程式需要讀檔、傳資料，實際上都是透過 OS 提供的服務完成。先只記住這個關係：<strong>Process 需要 Kernel 才能使用底層資源。</strong></p>
+<aside class="ask"><strong>現場思考題</strong><p>把同一份 Python 程式複製成兩份檔案，就等於已經有兩個 Process 嗎？</p><details><summary>查看推理</summary><p>不是。檔案可以存在卻沒有被執行。只有啟動程式後，Kernel 才會管理相應的 Process。</p></details></aside>
 </section>
-<section><h2>15–21 分鐘｜再啟動一份服務，誰需要開機？</h2>
-<p>假設 Image 與 VM 範本都已下載，Linux 主機已開機。把起點設為「新增一個可服務的實例」，終點設為「API 開始接單」。先猜哪幾步是雙方都得做的，再看兩欄。</p>
-<figure class="diagram"><div class="arch-compare"><div class="compare-column"><h3>從關機的 VM 範本啟動</h3><div class="path-node">準備虛擬 CPU、記憶體、開機磁碟</div>
-<div class="compare-connection">從虛擬磁碟開機，載入 ↓</div>
-<div class="path-node">Guest Kernel</div>
-<div class="compare-connection">核心初始化裝置，啟動使用者空間 ↓</div>
-<div class="path-node">系統的啟動程序叫起 API</div>
-<div class="compare-connection">應用程式載入設定、開始監聽 ↓</div>
-<div class="path-node">API 可以接單</div></div>
-<div class="compare-column"><h3>從 Image 建立 Container</h3><div class="path-node">準備 API 可見的檔案系統</div>
-<div class="compare-connection">執行環境設定行程的 ↓</div>
-<div class="path-node">隔離範圍、權限與資源限制</div>
-<div class="compare-connection">透過已在運作的 Host Kernel 啟動 ↓</div>
-<div class="path-node">Image 指定的 API 行程</div>
-<div class="compare-connection">應用程式載入設定、開始監聽 ↓</div>
-<div class="path-node">API 可以接單</div></div></div><figcaption>比較的是新增 VM 與新增 Container。若只在已開機的 VM 裡重啟 API，也只需要重新啟動應用行程。</figcaption></figure>
-<div class="classroom-prompt"><p><strong>如果 API 啟動時得花 25 秒載入商品資料，改成 Container 後，那 25 秒會消失嗎？</strong></p><details><summary>對照你的推理</summary><p>仍然要載入。Container 省下的是再啟動一個 Guest Kernel 和必要系統服務的工作。畫出兩欄共有的末段，就能區分環境的啟動成本與 API 本身的啟動成本。</p></details></div>
+<section id="vm-container"><h2><small>03 / 14–22′</small>VM 與 Container：兩種不同的隔離邊界</h2>
+<p>如果同一台 Server 要同時運行 Service A 和 Service B，我們會希望兩者不會隨意影響彼此。這就是<strong>隔離</strong>的需求。但隔離到什麼程度，有不同選擇。</p>
+<p>一種方法是 <strong>VM（Virtual Machine，虛擬機器）</strong>。使用 <strong>Hypervisor（虛擬機器管理程式）</strong>提供虛擬 CPU、記憶體與硬體介面，讓 VM 像一台獨立電腦一樣啟動自己的作業系統。VM 裡的 OS 稱為 <strong>Guest OS（客體作業系統）</strong>，它的 Kernel 叫 <strong>Guest Kernel</strong>。</p>
+<p>另一種方法是 <strong>Linux Container</strong>。它不需要替每個 Container 建立一台完整的虛擬電腦；Container 裡執行的程式仍使用所在 Linux 環境已經啟動的 Kernel，也就是 <strong>Host Kernel（主機核心）</strong>。</p>
+<figure class="schematic"><figcaption class="figtitle">Figure 04 ／ 比較兩套架構：Kernel 到底有幾份？</figcaption><div class="twocol"><section class="lane"><h3>VM（虛擬機器）</h3><div class="units"><div class="unit vm"><b>VM A</b><span>Service A</span><span>Guest OS</span><span class="guest">Guest Kernel A</span></div><div class="unit vm"><b>VM B</b><span>Service B</span><span>Guest OS</span><span class="guest">Guest Kernel B</span></div></div><div class="edge">每台 VM 透過自己的虛擬硬體 ↓</div><div class="node ">Hypervisor（虛擬機器管理程式）</div><div class="edge">管理虛擬硬體與資源 ↓</div><div class="node ">實體 Server</div></section><section class="lane"><h3>Linux Containers</h3><div class="units"><div class="unit ct"><b>Container A</b><span>Service A</span><span>程式／套件檔案</span></div><div class="unit ct"><b>Container B</b><span>Service B</span><span>程式／套件檔案</span></div></div><div class="edge">兩個服務都向同一個核心請求 OS 功能 ↓</div><div class="node kernel">Host Linux Kernel</div><div class="edge">管理程式與硬體資源 ↓</div><div class="node ">實體／虛擬 Server</div></section></div><p class="figcaption">左邊每台 VM 有自己的 Guest Kernel；右邊兩個 Linux Containers 共用 Host Kernel。箭頭表示資源請求／管理關係，不代表每次 System Call 都經過 Hypervisor。</p></figure>
+<p>從圖上可以直接看出：VM A 和 VM B 有<strong>各自的 Guest Kernel</strong>；Container A 和 Container B 則是<strong>共用同一個 Host Linux Kernel</strong>。這就是兩種架構最重要的差異，並不是單純比較哪個 Image 檔案比較小。</p>
+<p>那為什麼 Container 看起來像有自己的 Linux 目錄？因為它可以使用自己的一套程式、函式庫、設定與檔案。這些屬於 <strong>User Space（使用者空間）</strong>，不代表又啟動另一個 Kernel。</p>
+<figure class="schematic"><figcaption class="figtitle">Figure 05 ／ 有自己的檔案，不代表有自己的 Kernel</figcaption><div class="twocol"><div class="node"><b>Container A 的檔案</b><small>程式 A／Python／套件</small></div><div class="node"><b>Container B 的檔案</b><small>程式 B／Java／套件</small></div></div><div class="edge">兩邊的程式都使用 ↓</div><div class="node kernel">同一個 Host Linux Kernel</div><p class="figcaption">可看到不同檔案與目錄，是 Linux 隔離機制配合不同檔案內容產生的效果；實作方法會在第二堂介紹。</p></figure>
+<aside class="ask"><strong>現場思考題</strong><p>Container A 使用 Ubuntu 的程式檔案，Container B 使用 Alpine 的程式檔案，是否就有兩個 Linux Kernel？</p><details><summary>查看推理</summary><p>沒有。不同 Image 可以提供不同程式與使用者空間檔案；兩個一般 Linux Containers 仍共用同一個 Host Linux Kernel。</p></details></aside>
 </section>
-<section><h2>21–26 分鐘｜API 讀設定檔時，哪個 Kernel 收到請求？</h2>
-<p>服務已經啟動，現在要讀已開啟的 <code>/app/config.json</code>。程式透過 <strong>System Call（系統呼叫）</strong>要求 Kernel 提供服務；這次的請求叫 <code>read()</code>，意思是把檔案的一段資料讀進程式的記憶體。用這個動作就能檢驗剛才的圖：兩邊的程式碼一樣，接到請求的 Kernel 會是哪一個？</p>
-<figure class="diagram"><div class="arch-compare"><div class="compare-column"><h3>在 VM 裡讀檔</h3><div class="path-node">庫存 API</div>
-<div class="compare-connection">發出 read() 請求給 ↓</div>
-<div class="path-node">這台 VM 的 Guest Kernel</div>
-<div class="compare-connection">若需讀取磁碟，經客體檔案系統送出 ↓</div>
-<div class="path-node">虛擬磁碟 I/O → 虛擬化儲存後端</div>
-<div class="compare-connection">資料經 Guest Kernel 回到 ↓</div>
-<div class="path-node">庫存 API 的記憶體</div></div>
-<div class="compare-column"><h3>在 Container 裡讀檔</h3><div class="path-node">庫存 API</div>
-<div class="compare-connection">發出 read() 請求給 ↓</div>
-<div class="path-node">執行容器的 Host Linux Kernel</div>
-<div class="compare-connection">若需讀取磁碟，依行程已開啟的檔案存取 ↓</div>
-<div class="path-node">對應的檔案系統與儲存裝置</div>
-<div class="compare-connection">資料經 Host Kernel 回到 ↓</div>
-<div class="path-node">庫存 API 的記憶體</div></div></div><figcaption>圖中假設設定檔放在磁碟支援的檔案系統。若所需資料在核心快取中，Kernel 就能直接回傳。右欄的 Linux 主機若本身是 VM，底下仍可能使用虛擬磁碟。 <a href="https://man7.org/linux/man-pages/man2/read.2.html">Linux read(2)</a></figcaption></figure>
-<p>讀圖時，把手指停在第一個收到請求的 Kernel。左欄由 Guest Kernel 處理系統呼叫，之後才可能產生虛擬磁碟請求；右欄的 API 本來就是 Host Kernel 管理的行程。Docker 負責建立與管理它的執行環境，API 每次讀檔可以直接向這個 Kernel 請求服務。</p>
+<section id="running"><h2><small>04 / 22–27′</small>為什麼 VM 與 Container 的啟動方式不同？</h2>
+<p>VM 要先讓一套 Guest OS 能開機、初始化，才能在裡面執行服務。Container 的 Host Kernel 已經在運作，因此可以準備好隔離環境與程式檔案後，啟動新的 Process。</p>
+<figure class="schematic"><figcaption class="figtitle">Figure 06 ／ VM 開機和 Container 啟動，需要做的工作不同</figcaption><div class="twocol"><section class="lane"><h3>VM 的典型啟動</h3><div class="node ">準備虛擬硬體</div><div class="edge">提供一台虛擬機器 ↓</div><div class="node guest">啟動 Guest Kernel</div><div class="edge">初始化 Guest OS ↓</div><div class="node ">執行 Service A</div></section><section class="lane"><h3>Linux Container 的典型啟動</h3><div class="node ">Host Kernel 已在運作</div><div class="edge">準備檔案與隔離環境 ↓</div><div class="node kernel">啟動新的 Process</div><div class="edge">執行服務 ↓</div><div class="node ">執行 Service A</div></section></div><p class="figcaption">Container 通常少了為每個實例啟動一套 Guest Kernel 的額外工作，但實際啟動時間仍取決於程式及環境。</p></figure>
+<p>這也是 Container 往往比較輕量的原因：不必替每個實例額外啟動 Guest Kernel。但仍不能據此斷言 Container 在所有工作負載都更快、更安全；兩種架構各自適合不同的隔離需求。</p>
+<p>最後看一個程式如何向 Kernel 要求功能。當程式要讀取已開啟檔案時，可以使用 <code>read()</code>。程式正式向 Kernel 請求 OS 服務的動作，稱為 <strong>System Call（系統呼叫）</strong>。現在再看完整流程：</p>
+<figure class="schematic"><figcaption class="figtitle">Figure 07 ／ 同樣一次 read()，誰首先接收程式的要求？</figcaption><div class="twocol"><section class="lane"><h3>在 VM 裡讀檔</h3><div class="node ">Application：read()</div><div class="edge">向 OS 發出 System Call ↓</div><div class="node guest">Guest Kernel</div><div class="edge">需要後端資料時，才經由虛擬裝置 ↓</div><div class="node ">虛擬 I/O → Storage</div></section><section class="lane"><h3>在 Container 裡讀檔</h3><div class="node ">Application：read()</div><div class="edge">向 OS 發出 System Call ↓</div><div class="node kernel">Host Linux Kernel</div><div class="edge">需要後端資料時，經由檔案系統 ↓</div><div class="node ">Filesystem → Storage</div></section></div><p class="figcaption">若資料已被 Kernel 快取，兩邊可能都不需要實際讀取 Storage。Docker Daemon 不會在每次 read() 路徑中替程式轉送請求。</p></figure>
+<p>你不必記住所有 I/O 細節；本堂只要能指出<strong>誰首先接到程式的 System Call</strong>。VM 是 Guest Kernel，Linux Container 是 Host Kernel。Docker 的管理工具不會替每次讀檔充當中介。</p>
 </section>
-<section><h2>26–30 分鐘｜從 Linux 主機找出容器裡的行程</h2>
-<p>最後驗證一個預測：如果 Container 使用這台 Linux 主機的 Kernel，那麼用主機的行程工具，應該能找到裡面的程式。請在 <strong>Docker Engine 所在的 Linux 主機</strong>執行，分享前先下載 <code>alpine:3.22</code>。Docker Desktop 的 Linux 主機位於其 Linux 後端，外層 Windows 或 macOS 的行程清單有不同的觀察範圍。</p>
-<pre><code># 讓一個容易辨認的程式保持執行 300 秒
-cid=$(docker run -d alpine:3.22 sleep 300)
-docker top "$cid" -eo pid,comm,args
-
-# 請 Docker 指出主行程在 Linux 主機的 PID，再用主機工具查它
-pid=$(docker inspect --format '{{.State.Pid}}' "$cid")
-ps -p "$pid" -o pid,comm,args
-
-docker rm -f "$cid"</code></pre>
-<p><strong>看哪裡？</strong> PID 是 Kernel 用來辨認行程的編號。在 <code>docker top</code> 找到 <code>sleep 300</code> 那列，再和主機 <code>ps</code> 的 PID 與命令比對。預期兩邊指到同一個行程，實際編號由現場主機分配。這項觀察說明 Linux 主機看得到容器行程；下一堂再進入容器，觀察同一個行程在裡面看到的編號。 <a href="https://docs.docker.com/reference/cli/docker/container/top/">Docker CLI 操作說明</a></p>
-<div class="classroom-prompt"><p><strong>回到開頭。新版只要求不同的 Node.js，或改成要求不同的 Linux Kernel，這兩種情況你各會怎麼部署？請同事追問：新增實例要啟動什麼？讀設定檔時誰接到請求？</strong></p><details><summary>對照你的推理</summary><p>只換 Node.js，可以在現有 Linux VM 上啟動第二個 Container。新版 Image 提供自己的 Node.js 與套件，既有 Kernel 建立並管理 API 行程，也接收它的讀檔請求。若必須換 Kernel，可另開一台 VM，讓新版 API 由那台 VM 開機載入的 Guest Kernel 服務。這個選擇取決於需要獨立的是執行檔還是核心。</p></details></div>
-<p>複習時，把紙分成兩欄，每欄畫出兩個 API，標出它們使用的 Kernel，再畫出其中一個 API 的讀檔箭頭。如果有一個方塊不知道該放在哪裡，可以帶著那張圖提問。</p>
+<section id="demo"><h2><small>05 / 27–30′</small>用一個 Demo 觀察程式真的在執行</h2>
+<p><strong>CLI（Command-Line Interface）</strong>是透過終端機輸入指令的工具。<strong>Docker Engine</strong>是管理 Image、建立與執行 Container 的軟體；Docker CLI 可以向它送出要求。這堂只先知道它們的角色，內部實作留到後面的課。</p>
+<figure class="schematic"><figcaption class="figtitle">Figure 08 ／ 這個 Demo 要觀察的控制流程</figcaption><div class="vertical"><div class="node ">Docker CLI：輸入啟動指令</div><div class="edge">將管理要求交給 Docker Engine ↓</div><div class="node active">Docker Engine：建立執行實例</div><div class="edge">在 Linux 上啟動程式 ↓</div><div class="node kernel">nginx Process 由 Linux Kernel 管理</div></div><p class="figcaption">這裡是『建立 Container』的管理流程，和 Figure 07 已執行程式發出 read() 的路徑不同。</p></figure>
+<p>若現場有可用的測試用 Docker Engine，可以輸入：</p>
+<pre><code>docker run -d --name demo nginx:alpine
+docker ps
+docker top demo
+docker rm -f demo</code></pre>
+<p><code>docker run</code> 啟動實例；<code>-d</code> 代表背景執行；<code>--name demo</code> 指定名稱；<code>nginx:alpine</code> 是範例 Image 名稱與標籤。<code>docker ps</code> 顯示執行中的 Container，<code>docker top demo</code> 列出它的 Process，<code>docker rm -f demo</code> 清理實例。</p>
+<p class="quiet">預期可以看到 nginx 的 Process。這個觀察支援「Container 裡跑的是實際 Process」，但單獨執行這些指令不能證明所有隔離細節；下一堂才會繼續驗證。這不是公司環境已執行的聲明。</p>
 </section>
-<nav class="lesson-nav"><a href="../reference/0001-vm-container-model.html">VM／Container 架構速查</a><a href="../learning-map/index.html#phase-2">Session 02 課程規劃</a></nav>
-<p class="cite">延伸閱讀：<a href="https://docs.docker.com/learn/content/what-is-a-container/">Docker 官方 Container 入門</a> · <a href="../sources/evidence/2026-11-22-source-baseline.md">課程資料與查核依據</a></p>
-</main><script src="../assets/theme.js" defer></script>
-</body></html>
+<section id="selfcheck"><h2>不看答案，你能自己判斷嗎？</h2>
+<section class="quiz" data-quiz data-correct="b" data-hint="看 Figure 04：Container 下方有幾個 Host Kernel？" data-explanation="普通 Linux Containers 共用所在 Linux 環境的 Host Kernel。"><p class="question">同一個 Linux Host 上，兩個一般 Containers 的 Kernel 關係是什麼？</p><div class="choices"><label><input type="radio" name="q1" value="a"> 各自另外啟動核心</label><label><input type="radio" name="q1" value="b"> 共同使用主機核心</label><label><input type="radio" name="q1" value="c"> 完全不需要系統核心</label></div><p><button type="button" class="choice" data-check>檢查答案</button></p><p class="feedback" data-feedback role="status"></p><noscript><details><summary>顯示解析</summary><p>普通 Linux Containers 共用所在 Linux 環境的 Host Kernel。</p></details></noscript></section>
+<section class="quiz" data-quiz data-correct="a" data-hint="Image 封裝哪些東西？還有哪些環境條件不在其中？" data-explanation="同一 Image 能改善程式及大量依賴的版本一致性，但不能保證外部環境完全一致。"><p class="question">Test 和 Prod 使用同一份 Image，最合理的說法是什麼？</p><div class="choices"><label><input type="radio" name="q2" value="a"> 封裝內容版本較一致</label><label><input type="radio" name="q2" value="b"> 外部資料庫必然一致</label><label><input type="radio" name="q2" value="c"> 所有機器條件都一致</label></div><p><button type="button" class="choice" data-check>檢查答案</button></p><p class="feedback" data-feedback role="status"></p><noscript><details><summary>顯示解析</summary><p>同一 Image 能改善程式及大量依賴的版本一致性，但不能保證外部環境完全一致。</p></details></noscript></section>
+<section class="quiz" data-quiz data-correct="c" data-hint="找出 Figure 07 VM 那一側，應用程式的下一格。" data-explanation="VM 裡的程式呼叫 read() 時由 Guest Kernel 接收 System Call。"><p class="question">VM 裡的程式呼叫 read()，哪個 Kernel 首先處理？</p><div class="choices"><label><input type="radio" name="q3" value="a"> 實體主機管理核心</label><label><input type="radio" name="q3" value="b"> 容器管理程式核心</label><label><input type="radio" name="q3" value="c"> 虛擬機器客體核心</label></div><p><button type="button" class="choice" data-check>檢查答案</button></p><p class="feedback" data-feedback role="status"></p><noscript><details><summary>顯示解析</summary><p>VM 裡的程式呼叫 read() 時由 Guest Kernel 接收 System Call。</p></details></noscript></section>
+<p class="quiet">再試著用 60 秒、不看圖解釋：為什麼 VM 需要 Guest Kernel，而 Container 使用共享的 Host Kernel？遇到無法理解的地方，可以回到 ChatGPT 問這張圖的某一個箭頭，而不是硬背名詞。</p>
+</section>
+<section id="recap"><h2>最後用七句話整理本堂</h2><ol class="recap">
+<li><strong>執行條件：</strong>程式需要 Runtime、Library、設定與 OS 提供的功能。</li>
+<li><strong>Image：</strong>把程式與大量依賴封裝成可版本化的交付單位。</li>
+<li><strong>Process：</strong>已啟動、正在執行的程式實例。</li>
+<li><strong>Kernel：</strong>作業系統中負責管理 Process 與資源的核心。</li>
+<li><strong>VM：</strong>透過虛擬硬體啟動獨立 Guest OS 和 Guest Kernel。</li>
+<li><strong>Container：</strong>Linux 上受隔離的程式執行環境，共用 Host Kernel。</li>
+<li><strong>System Call：</strong>程式向 Kernel 請求系統服務的方式。</li></ol>
+<div class="lesson-nav"><a href="../reference/0001-vm-container-model.html">課程一頁速查 ↗</a><a href="../learning-map/index.html#phase-2">下一堂：Container 如何隔離？ →</a></div>
+<p class="cite">技術來源：<a href="https://docs.docker.com/learn/content/what-is-a-container/">Docker — What is a container?</a> · <a href="https://docs.docker.com/get-started/docker-overview/">Docker Overview</a> · <a href="https://docs.docker.com/engine/containers/run/">Running containers</a> · <a href="../sources/evidence/2026-11-22-source-baseline.md">查核記錄</a>。</p>
+</section>
+</main><footer class="lesson-nav"><a href="../learning-map/index.html">← 學習地圖</a><a href="https://github.com/c0004512000/Learning/tree/main/Docker">教材原始碼</a></footer><script src="../assets/theme.js" defer></script><script src="../assets/quiz.js" defer></script></body></html>

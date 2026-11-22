@@ -1,22 +1,21 @@
-# Docker Fundamentals — Resources
+# Docker Fundamentals Resources
 
 ## Knowledge
-
-- [Docker: What is Docker?](https://docs.docker.com/get-started/docker-overview) — CLI / Daemon、Image、Container 及 Client/Server Architecture；用於 Session 01–02、05。
-- [Docker: What is a Container?](https://docs.docker.com/learn/content/what-is-a-container/) — Image / Container、唯讀層與可寫層、VM 對比；用於 Session 01–03。
-- [Docker Desktop on Windows](https://docs.docker.com/desktop/setup/install/windows-install/) — WSL 2 / Hyper-V 等 Linux Container 執行環境；用於區分 Host Kernel 的範圍。
-- [Linux Manual: namespaces(7)](https://man7.org/linux/man-pages/man7/namespaces.7.html) — Namespace 的隔離機制與類型；用於 Session 02。
-- [Linux Kernel: cgroup v2](https://docs.kernel.org/admin-guide/cgroup-v2.html) — CPU、Memory 等控制器；用於 Session 02。
-- [Docker: Dockerfile reference](https://docs.docker.com/reference/dockerfile/) — Instruction 語意與差異；用於 Session 03。
-- [Docker: Cache invalidation](https://docs.docker.com/build/cache/invalidation/) — COPY / ADD 與 RUN 的 Cache 邊界；用於 Session 03。
-- [Docker: Optimize Cache](https://docs.docker.com/build/cache/optimize/) — 依相依關係排序、縮小變更影響；用於 Session 03。
-- [Docker: Bridge network driver](https://docs.docker.com/engine/network/drivers/bridge/) — User-defined Bridge 隔離、同網路可連線；用於 Session 04。
-- [Docker: Storage](https://docs.docker.com/engine/storage/) — Writable Layer、Mount、Volume；用於 Session 04。
-- [Kubernetes: CRI](https://kubernetes.io/docs/concepts/containers/cri/) — kubelet 與 Container Runtime 介面；用於 Session 05。
-- [Kubernetes: Container Runtimes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/) — containerd、CRI-O 與 Docker Engine adapter；用於 Session 05。
+- [Docker: What is a container?](https://docs.docker.com/learn/content/what-is-a-container/) — Image、Container、VM 對照；Session 01 主來源。
+- [Docker Overview](https://docs.docker.com/get-started/docker-overview/) — Client、Daemon、Image、Container；Session 01、02、05。
+- [Docker Running Containers](https://docs.docker.com/engine/containers/run/) — Process 與 Container 執行；Session 01、02。
+- [Docker Desktop on Windows](https://docs.docker.com/desktop/setup/install/windows-install/) — WSL 2 / Linux 環境；跨平台疑問。
+- [Linux namespaces(7)](https://man7.org/linux/man-pages/man7/namespaces.7.html) — 隔離的 PID、Mount、Network；Session 02。
+- [Linux Kernel cgroup v2](https://docs.kernel.org/admin-guide/cgroup-v2.html) — CPU / Memory 控制；Session 02。
+- [Dockerfile reference](https://docs.docker.com/reference/dockerfile/) — RUN、COPY、ADD、CMD、ENTRYPOINT；Session 03。
+- [Docker Build Cache](https://docs.docker.com/build/cache/invalidation/) — Cache 失效；Session 03。
+- [Docker Bridge network](https://docs.docker.com/engine/network/drivers/bridge/) — 容器網路；Session 04。
+- [Docker Storage](https://docs.docker.com/engine/storage/) — Volume / Writable Layer；Session 04。
+- [Kubernetes CRI](https://kubernetes.io/docs/concepts/containers/cri/) — kubelet 與 Runtime；Session 05。
+- [Kubernetes Container Runtimes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/) — 支援的 Runtime；Session 05。
 
 ## Wisdom
-- 正式練習以講者現場可控制的測試用 Linux Docker Engine 為主；保留每個 Demo 的期望狀態與實際輸出，不以模擬輸出當驗證。
+- 以可控制的測試環境執行 Docker CLI Lab，透過觀察驗證架構假設，避免把模擬資料誤認成實測。
 
 ## Gaps
-- Docker CLI / Network / Volume 的現場實驗尚未於本教材環境實際執行；後續 Lab 應在測試環境產生觀察證據。
+- 尚未在使用者公司的測試環境執行 Docker CLI Lab，後續實作教材應保留環境與輸出證據。

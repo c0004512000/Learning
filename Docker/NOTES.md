@@ -1,10 +1,9 @@
 # Notes — Docker Learning
 
-- 目標讀者：非 SRE 專業，但有一般軟體開發背景的同事。以可理解的深度談原理，避免內容表層化。
-- 對 VM vs Container 的 Guest OS / Kernel / System Call 比較有較高教學優先權。
-- 使用原生 HTML/CSS/JS 展示可理解的切換比較與架構路徑；不是為互動而互動。
-- Dockerfile 中 Layer、Build Cache、CMD/ENTRYPOINT、ADD/COPY 與 Multi-stage 都應在課綱內。
-- Network A/B 隔離與雙 Network 的 API/Proxy 實驗應明確區分「加入多網路」與「自動路由」。
-- Container Runtime 路徑於後段介紹：Docker CLI → dockerd → containerd → runc → Kernel；K8s 對比 kubelet → CRI → containerd。
-- 每個 Learning HTML Lesson 一個聚焦成果，5 次分享可安排 8 堂短 Lesson；逐堂產出。
-- 第一堂教材已撰寫但未獲學員正式驗收；不要因此將進度標為完成。
+- 受眾具備一般程式開發經驗，但不要假設已熟悉 Kernel、Process、Hypervisor、Namespace、cgroups 等名詞。
+- 必須從已知事實開始：程式執行依賴 → OS/Kernel/Process → VM/Container → 隔離機制 → Image/Build → Networking/Storage → Runtime/Kubernetes。
+- 一堂 30 分鐘要有足夠實例、圖解、推理與練習；不能靠冗長描述或一直點「下一步」湊時間。
+- 真正的比較直接用完整圖呈現；箭頭必須說明 calls / provides / runs on 等具體語意。
+- 歷史修稿批評是教學限制，不應直接寫成學員頁面標題或內容。
+- Session 01 不先介紹詳細 Namespace、cgroups、RootFS、OCI、CRI、runc 等機制；後續再逐項推導。
+- Lesson 01 已撰寫，尚無正式理解驗收；需要保留真實進度。
