@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Docker Session 02 速查：傳統部署、Container Artifact、Registry、Tag 與 Digest、同 Image 的邊界。"><title>部署模型一頁速查｜Docker Fundamentals</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/visuals.css"></head>
+<body>
+<nav class="topnav"><a href="../index.html">課程首頁</a><span>／</span><a href="../learning-map/index.html">學習地圖</a><span>／</span><a href="../lessons/0002-why-containerization.html">Lesson 02</a></nav>
+<main>
+<p class="subtitle">REFERENCE 02 / WHY CONTAINERIZATION?</p>
+<h1>Containerization 的價值，<br>到底固定了什麼？</h1>
+<p class="lead">不要把 Container 想成「任何環境都會自動相同」。它主要改變的是<strong>應用程式與依賴的交付方式</strong>：先建構可識別的 Image Artifact，再讓各環境使用它。</p>
+<h2>三種常見部署問題</h2>
+<dl class="glossary">
+<dt>Dependency Conflict（相依衝突）</dt><dd>不同服務依賴同一台主機全域 Runtime／System Libraries，升級其中一個可能影響另一個。Container 能封裝許多 User-space 依賴；Python venv 等工具也可解決其中部分需求。</dd>
+<dt>Environment Drift（環境漂移）</dt><dd>開發、CI、Stage、Production 的套件、Runtime、設定逐漸不同；即使使用相同 Source Code，重裝結果仍可能不同。</dd>
+<dt>Artifact Traceability（產物追溯）</dt><dd>若只有 Git Commit，卻不知道實際執行的建構結果或相依內容，故障時很難確定「當時在跑哪一份」。</dd>
+</dl>
+<h2>Build Once, Deploy the Artifact</h2>
+<figure class="schematic">
+<figcaption class="figtitle">FIGURE 01 ／ 保留一次建構後的具體結果</figcaption>
+<div class="vertical">
+<div class="node"><strong>Git Commit + 建構輸入</strong><small>Dockerfile / Source / Dependencies</small></div>
+<div class="edge">CI：Build / Test ↓</div>
+<div class="node active"><strong>Docker Image</strong><small>以 Digest 識別特定內容</small></div>
+<div class="edge">Push：發佈至 Registry ↓</div>
+<div class="node"><strong>Registry（例如 Harbor）</strong><small>保存並供其他環境 Pull</small></div>
+<div class="edge">Stage / Prod：依預期 Digest Pull ↓</div>
+<div class="units"><div class="unit ct"><b>Stage</b><span>建立 Container</span></div><div class="unit ct"><b>Production</b><span>建立 Container</span></div></div>
+</div>
+<p class="figcaption">箭頭表示建構、發佈與下載操作。Stage、Production 不需要重新執行 Dockerfile 才能取得已建構的 Image；實際運作仍有各自的環境設定與外部資源。</p>
+</figure>
+<h2>Tag、Digest、Image：最容易混淆的三個東西</h2>
+<div class="box"><strong>Image</strong><p>已建構、可用來建立 Container 的模板，包含檔案與 Image Configuration。</p></div>
+<div class="box"><strong>Tag：orders-api:1.2.3</strong><p>方便人類辨識的名稱，但 Registry 若允許重新指派，<code>1.2.3</code> 仍可能指向新的 Image。</p></div>
+<div class="box"><strong>Digest：sha256:…</strong><p>依內容產生的摘要識別，能在部署時鎖定預期 Image 內容。跨 CPU 架構時還需理解 Image Index / 平台對應，但不影響「Tag 可變、Digest 識別內容」的基礎規則。</p></div>
+<h2>哪些跟 Image 走？哪些不跟？</h2>
+<div class="twocol">
+<section class="lane">
+<h3>通常由 Image 固定</h3>
+<div class="node active">應用程式檔案</div><div class="edge">封裝內容</div>
+<div class="node active">Runtime / Libraries</div><div class="edge">封裝內容</div>
+<div class="node active">Image Configuration</div>
+</section>
+<section class="lane">
+<h3>仍受部署環境影響</h3>
+<div class="node">環境變數／Secrets</div><div class="edge">執行時注入</div>
+<div class="node">Database／外部 API</div><div class="edge">服務與資料狀態</div>
+<div class="node warning">Host Kernel／平台／資源</div>
+</section>
+</div>
+<h2>排查問題：先確認哪個邊界不同</h2>
+<ol>
+<li><strong>Expected state：</strong>Stage 與 Prod 應使用同一個經 CI 測試的 Image 內容。</li>
+<li><strong>Observed state：</strong>Prod 報錯，先核對 Image Digest，再核對 Runtime 設定與外部依賴。</li>
+<li><strong>Failure path：</strong>Digest 不同 → 查建構／發佈／Tag 指向；Digest 相同 → 再查 Environment Variables、Secrets、DB Schema、Network、Host 條件以及非環境相關的程式問題。</li>
+</ol>
+<p>注意：Digest 相同不代表所有問題都來自外部環境，也不能推出程式本身沒有 Bug；它只是縮小了要調查的差異範圍。</p>
+<div class="box tip"><strong>不適合直接當成 Container 的功勞</strong><p>自動修復資料庫、保證安全隔離、跨所有 OS／CPU 架構無條件執行、確保每次 Build 同樣結果、保證 Rollback 成功：這些都需要額外設計或驗證。</p></div>
+<p class="cite">官方參考：<a href="https://docs.docker.com/learn/content/what-is-a-container/">What is a container?</a> · <a href="https://docs.docker.com/learn/content/share-your-image-on-docker-hub/">Share your image</a> · <a href="https://docs.docker.com/reference/cli/docker/image/pull/">Pull by digest</a> · <a href="https://docs.docker.com/build/building/best-practices/">Building best practices</a></p>
+<div class="lesson-nav"><a href="../lessons/0002-why-containerization.html">← 返回 Lesson 02</a><a href="../learning-map/index.html#session-3">Session 03 規劃 →</a></div>
+</main><footer class="lesson-nav"><a href="../index.html">課程首頁</a><a href="https://github.com/c0004512000/Learning/tree/main/Docker">教材原始碼</a></footer>
+<script src="../assets/theme.js" defer></script>
+</body></html>
