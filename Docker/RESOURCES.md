@@ -1,21 +1,45 @@
-# Docker Fundamentals Resources
+# Docker Fundamentals — Sources
 
-## Knowledge
-- [Docker: What is a container?](https://docs.docker.com/learn/content/what-is-a-container/) — Image、Container、VM 對照；Session 01 主來源。
-- [Docker Overview](https://docs.docker.com/get-started/docker-overview/) — Client、Daemon、Image、Container；Session 01、02、05。
-- [Docker Running Containers](https://docs.docker.com/engine/containers/run/) — Process 與 Container 執行；Session 01、02。
-- [Docker Desktop on Windows](https://docs.docker.com/desktop/setup/install/windows-install/) — WSL 2 / Linux 環境；跨平台疑問。
-- [Linux namespaces(7)](https://man7.org/linux/man-pages/man7/namespaces.7.html) — 隔離的 PID、Mount、Network；Session 02。
-- [Linux Kernel cgroup v2](https://docs.kernel.org/admin-guide/cgroup-v2.html) — CPU / Memory 控制；Session 02。
-- [Dockerfile reference](https://docs.docker.com/reference/dockerfile/) — RUN、COPY、ADD、CMD、ENTRYPOINT；Session 03。
-- [Docker Build Cache](https://docs.docker.com/build/cache/invalidation/) — Cache 失效；Session 03。
-- [Docker Bridge network](https://docs.docker.com/engine/network/drivers/bridge/) — 容器網路；Session 04。
-- [Docker Storage](https://docs.docker.com/engine/storage/) — Volume / Writable Layer；Session 04。
-- [Kubernetes CRI](https://kubernetes.io/docs/concepts/containers/cri/) — kubelet 與 Runtime；Session 05。
-- [Kubernetes Container Runtimes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/) — 支援的 Runtime；Session 05。
+## Primary official sources
 
-## Wisdom
-- 以可控制的測試環境執行 Docker CLI Lab，透過觀察驗證架構假設，避免把模擬資料誤認成實測。
+### Session 01 — What Is a Container & Docker?
+- [Docker Learn: What is a container?](https://docs.docker.com/learn/content/what-is-a-container/) — Container、Image、隔離 Process、Linux VM 邊界。
+- [Docker: What is Docker?](https://docs.docker.com/get-started/docker-overview/) — Docker Client／Daemon／Image／Container。
+- [Docker Learn: Run your first container](https://docs.docker.com/learn/content/run-your-first-container/) — docker run、docker exec、同一 Image 建立多個 Container。
+- [Docker container run CLI reference](https://docs.docker.com/reference/cli/docker/container/run/) — docker run 的參數與 Port Mapping。
 
-## Gaps
-- 尚未在使用者公司的測試環境執行 Docker CLI Lab，後續實作教材應保留環境與輸出證據。
+### Session 02 — Why Containerization?
+- [Docker Learn: What is a container?](https://docs.docker.com/learn/content/what-is-a-container/) — Dependencies、Environment Consistency 與 VM 比較素材（VM 的完整比較留 Session 03）。
+- [Docker: Build and share an application](https://docs.docker.com/get-started/introduction/index.html) — 建構、版本化與分發。
+
+### Session 03 — How Containers Work
+- [Linux namespaces(7)](https://man7.org/linux/man-pages/man7/namespaces.7.html) — PID、Mount、Network Namespace。
+- [Linux Kernel cgroup v2](https://docs.kernel.org/admin-guide/cgroup-v2.html) — CPU、Memory 等資源管理。
+- [Docker Desktop on Windows](https://docs.docker.com/desktop/setup/install/windows-install/) — Windows Docker Desktop 的 Linux VM 邊界。
+
+### Session 04 — Dockerfile & Image Layers
+- [Dockerfile reference](https://docs.docker.com/reference/dockerfile/) — FROM、RUN、COPY、ADD、ENV 等指令。
+- [Docker Learn: Image layers and build cache](https://docs.docker.com/learn/content/how-image-layers-and-the-build-cache-work/) — Image 層與 Writable Layer。
+
+### Session 05 — Docker Build Cache & Best Practices
+- [Docker Build Cache](https://docs.docker.com/build/cache/invalidation/) — Cache 失效條件。
+- [Dockerfile reference](https://docs.docker.com/reference/dockerfile/) — CMD、ENTRYPOINT、ADD、COPY、Multi-stage。
+
+### Session 06 — Container Lifecycle & Storage
+- [Docker Running Containers](https://docs.docker.com/engine/containers/run/) — Runtime 與主要 Process。
+- [Docker Storage](https://docs.docker.com/engine/storage/) — Volume、Bind Mount、Writable Layer。
+
+### Session 07 — Docker Networking
+- [Docker Networking overview](https://docs.docker.com/engine/network/) — Network Driver、Container 連線。
+- [Docker Bridge network](https://docs.docker.com/engine/network/drivers/bridge/) — User-defined Bridge、DNS 與不同 Network 的隔離。
+- [Docker Port publishing](https://docs.docker.com/engine/network/port-publishing/) — -p、Loopback 與外部開放。
+
+### Session 08 — From Docker to Kubernetes
+- [Docker: What is Docker?](https://docs.docker.com/get-started/docker-overview/) — Docker CLI、dockerd。
+- [Kubernetes CRI](https://kubernetes.io/docs/concepts/containers/cri/) — kubelet、CRI。
+- [Kubernetes Container Runtimes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/) — Container Runtime 與 Kubernetes。
+
+## Evidence rules
+- 技術資料以官方文件或明確驗證為準。由範例預測的行為不得冒充在公司環境實測成功。
+- 內部分享的 Lab 應在可控測試機執行，記錄預期／實際觀察與差異。
+- 每堂 Lesson 將對應的官方資料直接附在教材末尾，並透過 Course Map 保留來源映射。
