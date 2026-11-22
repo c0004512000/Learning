@@ -10,13 +10,13 @@
 
 ## 1. 變更背景與已確認的決策
 
-目前 Session 01 由 Program/Process 直接跳到 Container，缺少部署情境至 Container 的因果橋樑。使用者已確認兩段口頭講稿：① Program/Process → 執行環境與傳統部署；② 多服務部署時共用 VM 與各自使用 VM 的取捨，最後提出「不同服務要各自的執行環境，是否一定需要各自的 Guest OS／Kernel？」。兩段均以 `Docker/TEACHING_SCRIPT.md` 為準，Container 的正式定義與後續講述仍未確認。
+目前 Session 01 由 Program/Process 直接跳到 Container，缺少部署情境至 Container 的因果橋樑。使用者已確認前兩段口頭講稿：① Program/Process → 執行環境與傳統部署；② 多服務部署時共用 VM 與分開 VM 的取捨，最後提出「不同服務要各自的執行環境，是否一定需要各自的 Guest OS／Kernel？」。目前也已同意寫入第③段 What Is a Container：從隔離性（Isolation）承接 Bridge，解釋 Linux Kernel 可為 Process 提供隔離執行環境，結尾強調 Container 不是圖中的實體小盒子，本質上仍是一個或一組受隔離機制約束的 Linux Process。第三段**已入稿但結尾措辭可繼續精簡**；尚未確認 What Is Docker 的口頭講稿。三段皆以 `Docker/TEACHING_SCRIPT.md` 為準。
 
 核心決策：
 
-1. **Session 01 的順序調整為**：Program → Process → Execution Environment（Runtime / Dependencies / Configuration）→ 傳統部署的基本情境 → 多服務擴大時的部署選擇（共用 VM／分開 VM）→ 各方案的環境管理與維運成本取捨 → 是否一定需要獨立 Guest OS 的提問（已確認 Bridge）→ What Is a Container?（待確認）→ What Is Docker? → Dockerfile / Image / Container → 示範與理解驗收。
+1. **Session 01 的順序調整為**：Program → Process → Execution Environment（Runtime / Dependencies / Configuration）→ 傳統部署的基本情境 → 多服務擴大時的部署選擇（共用 VM／分開 VM）→ 各方案的環境管理與維運成本取捨 → 是否一定需要獨立 Guest OS 的提問（已確認 Bridge）→ 隔離性 Isolation → What Is a Container?（已入稿、結尾可微調）→ What Is Docker?（待確認） → Dockerfile / Image / Container → 示範與理解驗收。
 2. 先讓學員知道傳統部署如何在 Linux Server／VM 上準備執行條件；再以**共用 VM 需管理多個服務的執行環境／一服務一 VM 需維護更多 Guest OS** 這項取捨推進。VM 是合理的實務方案，並非預設每個服務一定各有一台 VM。**第一堂只用 Guest OS 數量與維護成本支撐提問，不要求學員先懂 Hypervisor，也不全面比較 VM／Container 架構**。
-3. Container 的引入必須承接**已核准的部署取捨 Bridge**：服務需求不同 → 共用 VM 的環境管理取捨 → 分開 VM 的 Guest OS 維護成本 → 提問是否存在不需每組 Process 都使用獨立 Kernel 的其他方式。**不能先替學員預設「我們希望不要 Guest OS」或突然轉向 CPU／Memory／Network 隔離**；先讓取捨與成本有依據，再提出問題。**不要把「解決 Python Dependency 問題」描述成 Container 技術誕生的歷史原因**，也不要把「Image 封裝能力」誤當成 Container 的定義。
+3. Container 的引入必須承接**已核准的部署取捨 Bridge**：服務需求不同 → 共用 VM 的環境管理取捨 → 分開 VM 的 Guest OS 維護成本 → 提問是否存在不需每組 Process 都使用獨立 Kernel 的其他方式 → 解釋真正重視的是隔離性（Isolation）→ Linux Kernel 可約束一個或一組 Process 的資源視圖／使用 → Container 定義。**不能先替學員預設「我們希望不要 Guest OS」或突然轉向 CPU／Memory／Network 隔離**；先讓取捨與成本有依據，再提出問題。結尾**才**用網路架構圖的方框破除「Container 是獨立小盒子」的錯覺，簡短強調本質上是一個或一組受到隔離機制約束的 Linux Process，避免堆疊「不是什麼、也不是什麼」的冗長尾段。**不要把「解決 Python Dependency 問題」描述成 Container 技術誕生的歷史原因**，也不要把「Image 封裝能力」誤當成 Container 的定義。
 4. **先 Container，後 Docker**：前者是具有隔離邊界的執行環境；Docker 是協助建構 Image、建立與管理 Container 的工具／平台。不是所有 Container 都必須透過 Docker 建立。
 5. **Session 02 保留深入部署面的 Why**：Environment Drift、相依衝突、建構／部署重複組裝、CI 建構同一份 Image Artifact、Registry、Tag/Digest、部署設定與執行環境仍可能不同，以及限制與替代方案。第一堂只建立基本情境，避免提前講完整套 Why。
 6. **Session 03 保留架構面的 How**：Linux Kernel、Namespaces、cgroups、Root Filesystem，正式比較 VM／Guest OS 與 Container／共享 Host Kernel 的隔離架構；不要把底層實作解釋／驗收塞入第一堂。
@@ -24,10 +24,10 @@
 
 ## 2. 已確認內容的唯一來源
 
-- `Docker/TEACHING_SCRIPT.md`：**已確認的口頭教學講稿**。目前只記錄 Session 01 從開場到「What Is a Container?」前的段落。
-- 目前有**兩段已確認內容**：`01. 開場` 與 `02. Bridge：從傳統部署的取捨提出問題`。改寫第一堂時應忠實保留其因果順序、例子及語氣，不得擅自把它縮成「搬檔案會失敗」或「多個 Process 需要隔離」兩句話。Bridge 應停在問題，下一節 Container 定義仍待使用者核准。
+- `Docker/TEACHING_SCRIPT.md`：**已確認並同意入稿的口頭教學講稿**。目前記錄 Session 01 的開場、Bridge、What Is a Container；第三段的結尾措辭仍可微調。
+- 目前有**三段已同意入稿內容**：`01. 開場`、`02. Bridge：從傳統部署的取捨提出問題`、`03. What Is a Container? — 隔離性與 Process 的本質`。改寫時忠實保留因果順序、例子及語氣：Bridge 停在問題；第三段先說 Isolation 與 Linux 隔離能力、再定義 Container、最後強調「方框只是示意，本質上仍是一個或一組 Process」。不得將 Container 誤說成只有單一 Process，也不得把結尾寫得冗長。第三段結尾用語仍可再修。
 - 後續由口頭討論產生的新稿，**只有使用者明確確認後**，才可追加至 `TEACHING_SCRIPT.md`，且不可改動已確認段落。
-- 目前使用者**尚未確認** Container、Docker、Dockerfile、Image 等後續段落的最終逐字稿。這份調整規格不構成對那些後續逐字稿的核准。
+- 目前使用者已同意把 Container 介紹寫入 Script（**可再調整結尾**）；**尚未確認** Docker、Dockerfile、Image 等後續段落的口頭逐字稿。這份調整規格不構成對未討論段落的核准。
 
 ## 3. 對現有檔案的具體編修要求
 
@@ -45,7 +45,7 @@
 
 **Section 02（現行「Container：讓程式在有邊界的環境裡執行」）**
 
-- 從前段已確認的 **「共用 VM／分開 VM 的部署取捨 → 是否必須各自使用 Guest OS／Kernel」** 提問承接，再規劃 Container 與一般 Process 的關係與隔離執行環境的定義。**此 Section 的口頭講述尚未核准，Agent 不得自行認定已定稿**；不可省略部署取捨，直接跳到資源隔離。
+- 從前段已確認的 **「共用 VM／分開 VM 的部署取捨 → 是否必須各自使用 Guest OS／Kernel」** 提問承接，按照已同意入稿的第三段，先點明本來想要的是服務間的 Isolation，再說明 Linux Kernel 可對一個或一組 Process 提供檔案系統視圖、網路與資源控制等隔離，最後定義 Container。段落**結尾**再說明架構圖上的方框不代表實體小盒子；容器中的執行活動本質上仍是 Linux Process。此段已准許寫入 Script，但結尾文字仍可調整，不要以 Agent 的推測自行定稿新內容。
 - 可以用兩個服務使用不同 Runtime 作為**現象／例子**，但不可把不同 Python 版本歸因於 Namespace/cgroups 本身；其檔案來源／Root Filesystem／Image 準備的機制留在後面。
 - 此節不要求學員解釋 Namespace、cgroups、PID namespace、Network namespace、Filesystem 掛載的機制；如果圖示標出 Kernel，僅用於建立「不是另一套完整 OS」的基本概念，不深挖架構對照。
 - 不要把 Container 簡化為「把程式與套件包起來」；封裝成可交付的 Image 是另一層概念。
@@ -99,7 +99,7 @@
 ## 5. 執行次序與驗收門檻
 
 1. 先閱讀 `TEACHING_SCRIPT.md`、`MISSION.md`、`NOTES.md`、Session 01/02 HTML 與 Learning Map，確認沒有新版本或後續已核准稿。
-2. 先依已確認的開場**及 Bridge** 提出 Session 01 改寫草案。**Bridge 已核准、What Is a Container 的講述未核准**；若要整體重寫，應區分「已確認逐字稿」與「Agent 建議的待核准內容」，不得替未核准內容標記為確認。
+2. 先依已確認的**開場、Bridge、What Is a Container** 三段提出 Session 01 改寫草案。第三段已准許入稿，**結尾可微調**；What Is Docker 與後續講述尚待確認。若要整體重寫，應區分「已同意入稿」與「Agent 建議的待核准內容」，不得替未核准內容標記為確認。
 3. 對照第一堂新增的**部署取捨橋樑**，檢查第二堂是否重複、第三堂保留何種比較；同步維護 Course Map/Notes/Mission。Section 01/02 的教材過渡必須能從部署情境推導出問題，避免跳接。
 4. 檢查技術正確性、互動功能、連結、手機版排版、CSS 與可讀性；若實際變更 HTML，才在測試與驗證後更新對外教材的完成狀態。
 5. **本檔案本身的建立，不代表已經修改或發佈 HTML、也不代表 Session 01 已正式理解驗收。** 原課程目前記載「已撰寫 Session 01–02，正式驗收 0/8」，不可擅自提升狀態。
@@ -107,6 +107,6 @@
 ## 6. 後續維護方式
 
 - 已獲使用者確認的**講課逐字稿**：追加到 `Docker/TEACHING_SCRIPT.md`。
-- 因討論而確認的**教材結構／內容變更**：同步更新本檔案，註明影響章節、修正原因與具體驗收準則。本次（2026-11-22）新增的 Bridge 為已確認內容，不應只更新逐字稿而讓 Agent 指示沿用舊的隔離切入點。
+- 因討論而確認的**教材結構／內容變更**：同步更新本檔案，註明影響章節、修正原因與具體驗收準則。本次（2026-11-22）已確認 Bridge 並同意加入 What Is a Container；不得只更新逐字稿而讓 Agent 指示沿用舊的隔離切入點，也不可忽略第三段結尾需精簡的回饋。
 - 未經確認的教學建議，應明確標示「提案／待確認」，不可寫成既定決策。
 - 當使用者明確要求更新現有 GitHub Pages 教材時，再依本檔案實作 HTML/課程地圖/必要參考頁，並核對實際 commit/頁面狀態。
