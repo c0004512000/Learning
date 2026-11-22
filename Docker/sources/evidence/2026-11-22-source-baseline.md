@@ -3,7 +3,7 @@ Date: 2026-11-22 Asia/Taipei
 
 ## Session 01 verified findings
 1. https://docs.docker.com/learn/content/what-is-a-container/ — 官方將 Container 介紹為具隔離環境的 Process（可有多個 Process），Image 是啟動用的封裝；Linux Container 使用 Linux Kernel；Windows/macOS Docker Desktop 可透過 Linux VM。
-2. https://docs.docker.com/get-started/docker-overview/ — Docker 採 Client/Server 模型，Docker CLI 對 Docker Daemon 發出請求；Image 是唯讀模板，Container 是可執行的 Image 實例。
+2. https://docs.docker.com/engine/ — Docker 採 Client/Server 模型，Docker CLI 對 Docker Daemon 發出請求；Image 是唯讀模板，Container 是可執行的 Image 實例。
 3. https://docs.docker.com/learn/content/run-your-first-container/ — docker run 建立及啟動 Container，可從同一個 Image 啟動多個實例，docker exec / docker ps 觀察。
 4. https://docs.docker.com/reference/cli/docker/container/run/ — -p 127.0.0.1:8080:80 為主機本機綁定 Port 8080 至 Container Port 80 的有效示範。
 
