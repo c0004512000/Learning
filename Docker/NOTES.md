@@ -6,4 +6,4 @@
 - 深度要足：用案例、實際指令驗證、預測／觀察／解釋建立理解，並包含 Image Layer、Build Cache、CMD/ENTRYPOINT、ADD/COPY、Networks A/B 和 Proxy、Volumes、dockerd/containerd/runc/CRI。
 - 不以 Docker CLI 指令數量衡量教學品質；CLI 是驗證模型的工具。
 - 全站使用現有 @lfd CSS；手機優先、深色優先、保留真正可工作的 Quiz 和導航。
-- 逐堂撰寫：目前 Session 01 已寫完，後續 02～08 在 Course Map 規劃中；正式驗收進度仍為 0/8。
+- 逐堂撰寫：目前 Session 01–02 已完成 HTML 教材，後續 03～08 在 Course Map 規劃中；正式驗收進度仍為 0/8。
