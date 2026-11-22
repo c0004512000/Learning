@@ -4,7 +4,7 @@
 >
 > **對象：**具備基本程式開發經驗的工程師。
 >
-> **目前進度：**Session 01 — 已確認開場、部署取捨 Bridge、What Is a Container（結尾可微調），以及 What Is Docker 的開場 Bridge；Dockerfile / Image / Registry 細節尚未確認。
+> **目前進度：**Session 01 — 已確認開場、部署取捨 Bridge、What Is a Container（結尾可微調）、What Is Docker 的開場 Bridge，**以及第一堂收尾**。中間的 Dockerfile／Image／Container 詳細講述、build/run 示範仍待確認；Registry／Image Digest 的深入內容留在後續課程。
 >
 > **課程結構決議（2026-11-22）：**取消獨立的 Why Containerization，原八堂調整為七堂。Session 01 整合必要的 Why；Session 02 改為 How Containers Work。此決議不代表後續尚未確認的口頭講稿已完成。
 >
@@ -14,7 +14,7 @@
 
 ## 課程結構備註（已確認；非口頭逐字稿）
 
-- **新 Session 01 — What Is a Container & Docker?**：保留目前已確認的四段講稿；在後續 Dockerfile → Image → Container 的基礎講解與簡單 build/run 示範完成後，精簡帶出「同一份 Image 可用於不同部署環境」與 Build Once, Deploy Many 的概念。這段新口頭講述尚待討論確認，**不可直接當成已核准逐字稿**。Registry／Image Digest 的深入細節留待後續適合的 Image 課程。
+- **新 Session 01 — What Is a Container & Docker?**：保留目前已確認的開場、兩段 Bridge、What Is a Container，以及**已確認的第一堂收尾**（下方 Section 05）。課程正式編排時，必須先補足尚待確認的 Dockerfile → Image → Container 基本講解與簡單 build/run 示範，**再接到已確認的收尾**。收尾包含 Program／Process 類比、一份 Image 建立多個 Container、同一份 Image 可跨環境使用及 Build Once, Deploy Many 的初步意義。**不可把收尾獲准視為中間講述或實作也獲准**；Registry／Image Digest 的深入細節留待後續 Image 課程。
 - **新 Session 02 — How Containers Work**：解釋 Linux Kernel、Namespaces、cgroups、Root Filesystem；正式比較 VM／Guest OS 與 Linux Container／共享 Kernel 的執行架構與隔離界線。
 - **後續堂次依序前移**：原 Session 04 → 新 03（Dockerfile & Image Layers）；原 05 → 新 04（Docker Build Cache & Best Practices）；原 06 → 新 05（Container Lifecycle & Storage）；原 07 → 新 06（Docker Networking）；原 08 → 新 07（From Docker to Kubernetes）。
 - 原獨立 Session 02「Why Containerization?」**取消作為獨立章節**；其 Environment Drift、跨環境部署一致性、Build Once 等有價值概念，整合進第一堂簡述與後續 Image／Build 教學，不再重複上一堂的隔離與依賴問題。
@@ -161,6 +161,56 @@ Docker 並沒有重新發明 Container 的隔離機制，而是整合既有的�
 接下來，我們就來看看 Docker 究竟透過哪些機制，實現這件事情。
 
 > **教學範圍：**本段已確認的是從 Container 過渡到 Docker 的因果橋樑。先延續**同一台 Linux Server** 上多個服務的情境，說明隔離已可做到但 Runtime / Dependencies / Configuration 仍需準備。**不要在此處突然跳到其他 Server 的交付與部署**；跨主機分享、Image / Registry 的詳細解釋，留待後續逐段確認。
+
+---
+
+### 05. 第一堂收尾：一份 Image、多個 Container，以及第二堂的提問
+
+**狀態：已確認（2026-11-22；應放在尚待確認的 Dockerfile／Image／Container 講述與實作示範之後）**
+
+好，那我們最後把第一堂課的觀念串起來。
+
+我們一開始從 Program 和 Process 出發，知道同一份 Program 可以被執行很多次，產生不同的 Process。
+
+現在回頭想想，我們剛剛也說過，**Container 本質上仍然是一個或一組受到隔離機制約束的 Linux Process**。
+
+所以這裡其實可以用一個很相似的方式來理解。
+
+就像同一份 Program 可以啟動多個 Process 一樣，**同一份 Docker Image，也可以拿來建立並啟動多個 Container**。
+
+例如，剛剛那支 Python API，我們只需要先建構好一份 Image，就可以根據同一份 Image 建立 Container A、Container B，讓它們各自執行。
+
+不需要為了每建立一個 Container，就重新執行一次安裝 Python 和 Dependencies 的建構步驟。
+
+不過，這個類比是為了理解「一份內容可以建立多個執行實例」，不是說 Image 完全等於 Program，或 Container 完全等於單一 Process。
+
+Image 還包含建構好的檔案系統內容與執行設定；Container 也有自己的生命週期和可寫入層，而且一個 Container 裡面可以有不只一個 Process。
+
+那麼，同一份 Image 除了能在同一台主機建立多個 Container，也可以交付到不同的部署環境使用。
+
+例如 Development、Stage、Production，可以使用同一份經過建構與測試的 Image，而不需要每個環境再重新組裝一遍相同的 Runtime 和 Dependencies。
+
+這就是 **Build Once, Deploy Many** 想表達的核心概念。
+
+當然，使用同一份 Image，不代表不同環境的所有執行條件都完全相同。環境變數、外部服務，以及 Host 的系統條件，都還可能造成差異。至於 Image 的 Layer、Registry 和更深入的交付方式，後面會再談。
+
+所以現在我們可以把三者的關係整理清楚：
+
+**Dockerfile 描述如何建構，Image 保存建構成果，Container 則是根據 Image 建立的執行實例。**
+
+到這裡，我們不只是知道 `docker build`、`docker run` 這些指令的名稱，而是能理解一支應用程式如何從程式碼和執行條件，變成真正運作的 Container。
+
+不過，第一堂其實還留下一個很重要的問題。
+
+我們知道 Container 裡面執行的依然是 Linux Process，而且它們共用同一個 Linux Kernel。
+
+**那為什麼這些 Process，卻能看到不同的檔案系統、不同的網路環境，甚至受到不同的資源限制？**
+
+Linux Kernel 究竟是怎麼做到這件事情的？
+
+這就是第二堂 **How Containers Work** 要深入回答的問題。
+
+> **編排註記（非講課內容）：**本段收尾已獲確認，但 Section 04 到本段之間的 Dockerfile／Image／Container 正式教學與 build/run 示範尚未定稿。正式教材須補齊中間段落，再使用此收尾，不可直接從 Docker 的開場 Bridge 跳到「剛剛已經 build/run」的回顧。
 
 ---
 
