@@ -1,1 +1,37 @@
-<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>課程首頁｜Docker Fundamentals</title><meta name="description" content="從第一性原理學習 Docker 的繁體中文課程"><link rel="stylesheet" href="assets/style.css"><link rel="stylesheet" href="assets/visuals.css"></head><body><nav class="topnav"><a href="index.html">課程首頁</a> <span>／</span> <a href="learning-map/index.html">學習地圖</a> <span>／</span> <a href="reference/0001-vm-container-model.html">概念速查</a></nav><main><p class="subtitle">DOCKER FUNDAMENTALS / PREPARATION FOR CKA</p><h1>Docker，先懂原理，<br>再學指令。</h1><p class="lead">五次各 30 分鐘的工程師內部分享。從部署差異開始，逐步理解 Container 隔離、Image 建置、網路、儲存，最後銜接 Kubernetes／CKA。</p><div class="box"><strong>本課程的成功標準</strong><p>遇到問題時，可以用正確的底層模型推論，而不是死記 Docker 指令。首堂不要求事先懂 Kernel 或虛擬化。</p><p><span class="tag">5 次 × 30 分鐘</span><span class="tag">8 個聚焦 Lesson</span></p></div><div class="course-item current"><span class="tag">LESSON 01 · 已撰寫／未驗收</span><h2><a href="lessons/0001-why-containers.html">既然有 VM，為何還需要 Container？</a></h2><p>從 API 的程式碼和執行條件開始，一步步推導 Kernel、VM 與 Container 的差異，包含架構圖、實例與問題回饋。</p><p><a href="lessons/0001-why-containers.html">開始學習 →</a>　<a href="reference/0001-vm-container-model.html">一頁速查 →</a></p></div><div class="box"><strong>正式學習進度</strong><div class="progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="8" aria-label="正式驗收 0 / 8"><span style="width:0%"></span></div><p class="quiet">已撰寫 1 / 8，正式驗收 0 / 8。閱讀不等於理解通過。</p></div><h2>完整學習方向</h2><div class="course-map"><section class="course-item"><a href="learning-map/index.html#phase-1"><strong>Session 01 · Why Containerization?</strong></a><p>從部署差異出發理解 Image、Process、OS、VM 與 Container 的 Kernel 邊界</p></section><section class="course-item"><a href="learning-map/index.html#phase-2"><strong>Session 02 · How Containers Work</strong></a><p>知道 Container 裡的程式如何獲得不同資源視角與限制</p></section><section class="course-item"><a href="learning-map/index.html#phase-3"><strong>Session 03 · Docker Images & Dockerfile</strong></a><p>理解 Image 如何建構以及指令順序對建置的影響</p></section><section class="course-item"><a href="learning-map/index.html#phase-4"><strong>Session 04 · Networking & Storage</strong></a><p>能用 Docker CLI 實際測試不同網路的連線及資料存續</p></section><section class="course-item"><a href="learning-map/index.html#phase-5"><strong>Session 05 · Docker Architecture to Kubernetes</strong></a><p>分辨管理命令、Container Runtime、Kernel 與 Kubernetes 的職責</p></section></div><p><a href="learning-map/index.html">完整學習地圖與每堂目標 →</a></p></main><footer class="lesson-nav"><a href="learning-map/index.html">← 學習地圖</a><a href="https://github.com/c0004512000/Learning/tree/main/Docker">教材原始碼</a></footer><script src="assets/theme.js" defer></script><script src="assets/quiz.js" defer></script></body></html>
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Docker Fundamentals：8 堂 × 30 分鐘，從 What、Why、How 到 Dockerfile、Lifecycle、Networking 與 Kubernetes。"><title>Docker Fundamentals｜課程首頁</title><link rel="stylesheet" href="assets/style.css"><link rel="stylesheet" href="assets/visuals.css"></head>
+<body><nav class="topnav" aria-label="主要導航"><a href="index.html">課程首頁</a><span>／</span><a href="learning-map/index.html">學習地圖</a><span>／</span><a href="reference/0001-container-image-model.html">第一堂速查</a></nav>
+<main>
+<p class="subtitle">DOCKER FUNDAMENTALS / FIRST PRINCIPLES / PREPARATION FOR CKA</p>
+<h1>從 Container 是什麼開始，<br>理解 Docker 如何運作。</h1>
+<p class="lead">8 堂、每堂約 30 分鐘的工程師內部分享。從一般程式如何執行出發，先建立 What，再完整討論 Why，最後理解底層機制、Dockerfile、Build Cache、Network、Storage，以及如何銜接 Kubernetes／CKA。</p>
+<div class="box">
+<strong>Mission：能理解原理、推論現象，而不只會複製指令</strong>
+<p>學員應能說明 Docker／Container／Image 的關係；解釋 Container 的隔離；預測 Dockerfile 與 Cache 行為；驗證資料與網路邊界；理解 Runtime 如何連接 Kubernetes。</p>
+<p><span class="tag">8 Sessions × 30 分鐘</span><span class="tag">總計 4 小時</span><span class="tag">Lesson 01 已撰寫</span><span class="tag">其餘逐堂編寫</span></p>
+</div>
+<section class="course-item current">
+<p class="eyebrow">START HERE / SESSION 01 · WHAT</p>
+<h2><a href="lessons/0001-what-is-container-docker.html">Container 是什麼？Docker 又在做什麼？</a></h2>
+<p>從 Program 和 Process 開始，理解 Container 的隔離執行環境；接著認識 Dockerfile、Image、Container 與 Docker Engine，最後透過兩個從同一 Image 啟動的 Container 驗證。</p>
+<p><a href="lessons/0001-what-is-container-docker.html"><strong>開始閱讀完整 Lesson 01 →</strong></a>　<a href="reference/0001-container-image-model.html">第一堂概念速查 ↗</a></p>
+</section>
+<div class="box">
+<strong>正式學習進度</strong>
+<div class="progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="8" aria-label="正式驗收 0 / 8"><span style="width:0%"></span></div>
+<p class="quiet">已撰寫：1 / 8 Session。正式理解驗收：0 / 8。提供教材不代表學員已完成學習，也不代表公司環境已執行實驗。</p>
+</div>
+<h2>完整課程安排</h2>
+<div class="course-map">
+<section class="course-item current"><a href="learning-map/index.html#session-1"><strong>01 · What Is a Container &amp; Docker?</strong></a><p>從程式與 Process 開始，建立 Container、Dockerfile、Image、Container 的關係。</p></section>
+<section class="course-item future"><a href="learning-map/index.html#session-2"><strong>02 · Why Containerization?</strong></a><p>傳統部署、環境漂移、依賴衝突、版本化 Artifact 與容器化的取捨。</p></section>
+<section class="course-item future"><a href="learning-map/index.html#session-3"><strong>03 · How Containers Work</strong></a><p>Linux Kernel、Namespaces、cgroups、Root Filesystem，最後再比較 VM。</p></section>
+<section class="course-item future"><a href="learning-map/index.html#session-4"><strong>04 · Dockerfile &amp; Image Layers</strong></a><p>建構上下文、Dockerfile 指令、Filesystem Layer 與 Image Metadata。</p></section>
+<section class="course-item future"><a href="learning-map/index.html#session-5"><strong>05 · Docker Build Cache &amp; Best Practices</strong></a><p>Cache 命中與失效、指令排序、CMD／ENTRYPOINT、COPY／ADD、Multi-stage。</p></section>
+<section class="course-item future"><a href="learning-map/index.html#session-6"><strong>06 · Container Lifecycle &amp; Storage</strong></a><p>主要 Process、啟停、Container 可寫入層、Volume 與 Bind Mount。</p></section>
+<section class="course-item future"><a href="learning-map/index.html#session-7"><strong>07 · Docker Networking</strong></a><p>Bridge、DNS、Port Mapping 與 Frontend／Backend 雙網路代理實驗。</p></section>
+<section class="course-item future"><a href="learning-map/index.html#session-8"><strong>08 · From Docker to Kubernetes</strong></a><p>dockerd、containerd、runc、OCI、CRI 與 Kubernetes 管理需求。</p></section>
+</div>
+<p><a href="learning-map/index.html">查看每堂的教學目標、來源與章節順序 →</a></p>
+<div class="box tip"><strong>教學方式：@lfd</strong><p>先規劃完整 Course Map，但只逐堂寫完整 Lesson。每堂從具體事實建立概念，搭配驗證實驗、理解練習與官方來源。未寫好的 Lesson 不放假連結。</p></div>
+</main><footer class="lesson-nav"><a href="https://github.com/c0004512000/Learning/tree/main/Docker">GitHub 教材原始碼</a><a href="RESOURCES.md">官方來源索引</a></footer><script src="assets/theme.js" defer></script></body></html>
