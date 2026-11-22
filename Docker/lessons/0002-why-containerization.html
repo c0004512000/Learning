@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Docker Fundamentals Session 02：從傳統部署的相依衝突、環境漂移、Artifact 交付，推導為什麼 Containerization 有價值，以及它不能解決什麼。">
+<title>Lesson 02｜Why Containerization?｜Docker Fundamentals</title>
+<link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/visuals.css">
+</head>
+<body>
+<nav class="topnav" aria-label="主要導覽"><a href="../index.html">課程首頁</a><span>／</span><a href="../learning-map/index.html">學習地圖</a><span>／</span><a href="../reference/0002-container-delivery-model.html">部署模型速查</a></nav>
+<main>
+<header class="intro">
+<p class="eyebrow">SESSION 02 / WHY · 30 MINUTES</p>
+<h1>我們為什麼需要<br>Containerization？</h1>
+<p class="lead">第一堂已經知道 Container 是隔離的執行環境，Image 是建立它的模板。這堂不再重複名詞定義，而是從一個團隊反覆部署服務的過程出發，找出真正需要改善的環節，理解為什麼要把「建構環境」和「在環境執行」分開。</p>
+<p class="quiet">先備：分得清 Dockerfile、Image、Container、Process 即可。不需懂 Namespace、cgroups、VM 架構或 Kubernetes。</p>
+</header>
+<div class="box">
+<strong>本堂能力目標</strong>
+<ol>
+<li>能指出傳統部署中「程式碼相同、執行結果不同」的至少三種原因。</li>
+<li>能說明 Container 如何減少服務間相依衝突，以及它與 Python venv、VM 等替代方案的不同。</li>
+<li>能推導「CI 建構 Image → Registry 保存 → 各環境部署同一份 Artifact」為什麼重要。</li>
+<li>能區分 Image 中固定的內容，與部署時仍會改變的設定、資料和執行條件。</li>
+<li>能判斷何時 Containerization 有幫助、何時還需要其他措施。</li>
+</ol>
+</div>
+<div class="agenda" aria-label="30 分鐘課程安排">
+<div><b>00–05′</b><span>一個部署案例</span></div>
+<div><b>05–13′</b><span>三種根因</span></div>
+<div><b>13–21′</b><span>交付模型轉變</span></div>
+<div><b>21–27′</b><span>價值與邊界</span></div>
+<div><b>27–30′</b><span>情境驗收</span></div>
+</div>
+<p class="quiet">講者可在每個推理題停下來問學員，讓大家先預測結果再展開解析。閱讀時間不等於教學時間。</p>
+
+<section id="case">
+<h2><small>01 / 00–05′ · ONE APPLICATION, THREE ENVIRONMENTS</small>程式碼都沒改，為什麼部署卻失敗？</h2>
+<p>想像一個團隊維護 <strong>orders-api</strong>。開發者在自己的機器完成測試，GitHub Actions 也順利通過單元測試，但部署至 Stage 後卻出現匯入套件錯誤；改好之後，Production 又遇到其他函式庫版本問題。</p>
+<p>這不必然表示程式碼有 Bug。真正的問題可能是：<strong>同一份 Source Code，在不同機器上被組合成不同的執行環境。</strong></p>
+<figure class="schematic">
+<figcaption class="figtitle">FIGURE 01 ／ 相同 Git Commit，不必然代表相同執行條件</figcaption>
+<div class="node active"><strong>orders-api · Git Commit abc123</strong><small>三個環境使用同一份 Source Code</small></div>
+<div class="edge">分別部署到不同環境；每個環境自行提供 Runtime / Packages ↓</div>
+<div class="fourparts">
+<div><b>Developer</b><span>Python 3.12<br>library X 1.2</span></div>
+<div><b>CI</b><span>Python 3.12<br>library X 1.2</span></div>
+<div><b>Stage</b><span>Python 3.11<br>library X 1.1</span></div>
+<div><b>Prod</b><span>Python 3.12<br>library X 1.0</span></div>
+</div>
+<p class="figcaption">這是教學用的假設情境，不是公司環境的實測版本。箭頭表示「相同 Source Code 分別進入不同執行環境」，並不代表套件差異一定造成失敗。</p>
+</figure>
+<p>我們先把「執行環境」當作一組需要協調的條件：Runtime 版本、系統函式庫、第三方套件、執行設定，以及外部服務。<strong>只要其中某項與程式的假設不相容，就可能失敗。</strong></p>
+<aside class="ask"><strong>先預測</strong><p>假設 Stage 的 <code>library X 1.1</code> 完全相容，Production 的 <code>library X 1.0</code> 卻缺少程式用到的函式：你應該先調整 Source Code，還是調查部署後的依賴版本？</p>
+<details><summary>查看推理</summary><p>先查 Production 實際使用的依賴，並與 CI 成功時的版本比較。程式碼未改不代表執行環境未改；是否需要修改程式，要看確認後的相容性需求。</p></details></aside>
+</section>
+
+<section id="problems">
+<h2><small>02 / 05–13′ · THREE ROOT CAUSES</small>傳統部署真正困難的，不是「複製檔案」</h2>
+<h3>問題 A：多個服務共享主機的執行條件</h3>
+<p>例如某台部署主機同時執行 Service A 與 Service B。A 需要 Python 3.10 和一組系統函式庫，B 需要 Python 3.13 和另一組版本。如果部署流程都依賴主機預先安裝的全域環境，更新 B 所需的套件，就可能影響 A。</p>
+<p>這不是說一台 Linux 主機不能安裝多個 Python 版本。事實上可以，而且 Python <strong>virtual environment（venv）</strong> 能隔離很多 Python 套件。問題是：venv 主要處理 Python 的套件環境，並不是一個完整的 Process／檔案系統／網路隔離邊界，對 OS 層級函式庫和其他語言的依賴也不是通用解答。</p>
+<figure class="schematic">
+<figcaption class="figtitle">FIGURE 02 ／ 誰負責維護服務需要的執行內容？</figcaption>
+<div class="twocol">
+<section class="lane">
+<h3>共用 Host 上的全域環境</h3>
+<div class="units"><div class="unit vm"><b>Service A</b><span>需要版本 A</span></div><div class="unit vm"><b>Service B</b><span>需要版本 B</span></div></div>
+<div class="edge">兩者可能依賴同一套主機層級安裝與設定 ↓</div>
+<div class="node warning"><strong>Host Runtime / System Libraries</strong><small>更新時需協調多個服務</small></div>
+</section>
+<section class="lane">
+<h3>各自封裝為 Container Image</h3>
+<div class="units"><div class="unit ct"><b>Service A</b><span>Runtime / Deps A</span></div><div class="unit ct"><b>Service B</b><span>Runtime / Deps B</span></div></div>
+<div class="edge">各自封裝常用的 User-space 依賴 ↓</div>
+<div class="node kernel"><strong>共享 Linux Kernel</strong><small>底層並非完全彼此獨立</small></div>
+</section>
+</div>
+<p class="figcaption">示意的是「相依管理的邊界」，不是完整隔離技術圖。Container 降低依賴 Host 全域套件的程度，但 Linux Kernel、主機配置與某些資源仍然共享。底層機制留第三堂。</p>
+</figure>
+<p><strong>Container 改善了什麼？</strong> 讓每個服務能帶著自己需要的 Runtime、套件和應用程式檔案交付，而不必把所有依賴都要求安裝在 Host 的全域環境中。</p>
+
+<h3>問題 B：每個部署環境都在「重新組裝」服務</h3>
+<p>假設 CI 用 <code>pip install -r requirements.txt</code> 裝了套件，Stage 部署時又重新安裝一遍，Production 再裝第三遍。就算三次使用相同的需求宣告，仍可能因為未鎖定的相依版本、系統套件差異、套件來源變化或平台差異而得到不同結果。</p>
+<p>這種環境內容隨時間改變的現象通常稱為 <strong>Environment Drift（環境漂移）</strong>。它不只會發生在不同環境之間：同一台主機隨著更新與人工修改，也會逐漸偏離最初狀態。</p>
+<p><strong>Container 的解法不是把安裝指令換成另一種寫法。</strong> 關鍵是把安裝與建構集中到較可控的建構階段，然後交付已建好的 Image，而不是要求每個環境重新做同一套安裝。</p>
+
+<h3>問題 C：難以回答「正式環境到底在跑哪一份東西？」</h3>
+<p>當交付內容散落在程式碼、部署腳本、主機已安裝的套件與人工作業之中，事故發生時，可能只能知道「Git Commit 是 abc123」，卻無法立即確定當時用了哪一版 Python 套件、哪個建構輸出、哪份設定。</p>
+<p>一個明確、可保存、可識別的 <strong>Artifact（交付產物）</strong> 可以改善追蹤。Artifact 不必然是 Container Image：JAR、編譯後的 Binary、安裝包也可以是 Artifact。但 Docker Image 可以連同大量 User-space 執行依賴一起封裝，並交由 Registry 分發。</p>
+<div class="box tip"><strong>到這裡先建立的因果關係</strong><p>問題不是「主機上不能直接執行程式」，而是當服務數量、環境數量、版本數量增加時，<strong>要維持每次組裝結果的一致性，會變得愈來愈困難</strong>。Containerization 提供的是另一種管理交付和執行環境的方式。</p></div>
+</section>
+
+<section id="delivery">
+<h2><small>03 / 13–21′ · BUILD ONCE, DEPLOY THE ARTIFACT</small>真正重要的轉變：從「部署程式碼」到「交付 Image」</h2>
+<p>回到 <strong>orders-api</strong>。如果每個環境都拿原始碼重新安裝相依套件，實際上是把「建構」這件事重做了很多次。</p>
+<p>現在我們改成以下流程。先提醒：<strong>Dockerfile 是建構的說明書；Docker Image 才是已建好的產物。</strong> 正式部署應優先使用 CI 已驗證的產物，而不是在不同環境重新執行 Dockerfile。</p>
+<figure class="schematic">
+<figcaption class="figtitle">FIGURE 03 ／ 兩種交付模型：差別不在是否使用 Git，而在「組裝幾次」</figcaption>
+<div class="twocol">
+<section class="lane">
+<h3>每個環境各自組裝</h3>
+<div class="node">同一份 Source Code</div>
+<div class="edge">各環境各自安裝與 Build ↓</div>
+<div class="node">Stage Artifact A</div>
+<div class="edge">Production 另外重新 Build ↓</div>
+<div class="node warning">Prod Artifact B</div>
+<p class="figcaption">如果建構輸入不完全相同，A、B 可能不一樣。即使程式碼相同也不能推論 Artifact 完全相同。</p>
+</section>
+<section class="lane">
+<h3>CI 建構一次，部署同一產物</h3>
+<div class="node">Source Code + 建構輸入</div>
+<div class="edge">GitHub Actions / CI 建構並測試 ↓</div>
+<div class="node active"><strong>Image Artifact</strong><small>以內容 Digest 識別</small></div>
+<div class="edge">Push 保存到 Registry（例如 Harbor） ↓</div>
+<div class="node">Stage / Prod 依相同 Digest Pull 並 Run</div>
+<p class="figcaption">不同環境可以使用相同的 Image Artifact；部署設定與外部服務仍各自存在。</p>
+</section>
+</div>
+</figure>
+<p>這裡出現一個新名詞：<strong>Registry（映像檔倉庫）</strong>。它是儲存、提供 Image 的服務，常見的例子有 Docker Hub 與 Harbor。CI 可以將建好的 Image <strong>Push</strong> 到 Registry；Stage、Production 再將 Image <strong>Pull</strong> 下來執行。</p>
+<p>這不表示「CI、Stage、Production 使用同一台主機」。恰好相反：它們可以在不同主機上，只要執行平台相容、能取得同一份 Image，就能避免各環境自行重新建立大量 User-space 依賴。</p>
+
+<h3>一個版本名稱，就一定代表同一份 Image 嗎？</h3>
+<p>看似合理的做法是讓 Stage 和 Production 都部署：</p>
+<pre><code>registry.example.com/team/orders-api:1.2.3</code></pre>
+<p>但 <code>1.2.3</code> 是一個 <strong>Tag</strong>，它通常只是指向 Image 的名稱；若 Registry 沒有禁止改寫，Tag 可以在不同時間指向不同的 Image。<strong>相同 Tag 字串 ≠ 一定是相同的 Image 內容。</strong></p>
+<p>Docker Image 還有依內容識別的 <strong>Digest</strong>，常見格式是 <code>sha256:...</code>。實務上可記錄 Build／Push 後的 Image Digest，並確保測試與部署使用預期的相同內容識別。這比只相信可變動的 Tag 更嚴謹。</p>
+<figure class="schematic">
+<figcaption class="figtitle">FIGURE 04 ／ Tag 與 Digest：名稱和內容識別不同</figcaption>
+<div class="twocol">
+<section class="lane"><h3>Tag（方便辨識）</h3><div class="node active">orders-api:1.2.3</div><div class="edge">指向 →（若允許覆寫，可改變）</div><div class="node warning">Image X 或 Image Y</div></section>
+<section class="lane"><h3>Digest（鎖定內容）</h3><div class="node active">orders-api@sha256:…</div><div class="edge">以內容摘要識別 →</div><div class="node kernel">特定 Image 內容</div></section>
+</div>
+<p class="figcaption">圖中省略多架構 Image Index / Platform Manifest 細節；在跨不同 CPU 架構的部署中，還需檢查對應平台的 Image 內容。這裡先建立 Tag 可變、Digest 依內容識別的核心觀念。</p>
+</figure>
+<p>你不必在第二堂學會每一種 Image 命名方式，但要理解：<strong>「建構一次、測試這個產物、部署這個產物」比「每次從同一份 Source Code 重新建構」更容易追蹤與驗證。</strong></p>
+<p>如果 Production 更新失敗，也能選擇重新部署先前保留、驗證過的 Image Artifact。這改善了應用程式產物的 Rollback 操作，但<strong>不會自動復原資料庫狀態、資料格式或外部設定</strong>。</p>
+<div class="box tip"><strong>對應 SRE / CI/CD 的實際架構</strong>
+<p>GitHub Actions 負責 Build / Test；Harbor 保存 Image；部署流程指定 Image，交由執行環境啟動 Container。這是一個通用架構示意，不表示本頁已讀取或驗證你們公司目前所有 Workflow 的實作細節。</p></div>
+<aside class="ask"><strong>用 30 秒回答</strong><p>為什麼「CI 和 Prod 都 checkout 同一個 Git SHA」還不等於「Prod 跑的是 CI 測過的 Artifact」？</p>
+<details><summary>查看解析</summary><p>因為兩邊如果各自重建，就有兩次建構過程，Runtime、外部相依、Base Image、套件來源等輸入可能不同。若 CI 已建構並驗證一份 Image，Prod 後續部署相同 Digest，就能避免重新組裝造成的差異；但外部執行環境仍需另外確認。</p></details></aside>
+</section>
+
+<section id="boundaries">
+<h2><small>04 / 21–27′ · WHAT IT DOES AND DOES NOT SOLVE</small>Containerization 的價值，與它的適用邊界</h2>
+<p>把 Container 稱為「環境一致性的解答」很容易造成誤會。實際上，它固定的是 <strong>Image 封裝的內容</strong>，而不是把整個世界複製進去。</p>
+<figure class="schematic">
+<figcaption class="figtitle">FIGURE 05 ／ 部署同一份 Image，哪些東西相同？</figcaption>
+<div class="twocol">
+<section class="lane">
+<h3>隨 Image 交付</h3>
+<div class="node active">Application Files</div>
+<div class="edge">打包在 Image 中</div>
+<div class="node active">Runtime / Libraries</div>
+<div class="edge">打包在 Image 中</div>
+<div class="node active">Image Configuration</div>
+<p class="figcaption">前提：Image 確實包含這些依賴，而且各環境選用相容、預期的相同 Image 內容。</p>
+</section>
+<section class="lane">
+<h3>仍由部署環境決定</h3>
+<div class="node">環境變數 / Secrets</div>
+<div class="edge">由部署配置注入</div>
+<div class="node">Database / 外部 API</div>
+<div class="edge">由網路與外部服務提供</div>
+<div class="node warning">Host Kernel / CPU 架構 / 資源</div>
+<p class="figcaption">即使用同一份 Image，這些仍可能不同；因此「同 Image」不能推出「一定同結果」。</p>
+</section>
+</div>
+</figure>
+<p>例如同一份 API Image 可以在 Stage 使用測試資料庫、在 Production 使用正式資料庫。這是我們<strong>刻意保留的差異</strong>，不是 Containerization 失敗。真正重要的是清楚劃出「Image 固定了哪些內容，部署環境又負責哪些條件」。</p>
+<p>所以這項技術帶來的價值至少有四個層次：</p>
+<ol>
+<li><strong>相依封裝：</strong>降低不同服務對 Host 全域 Runtime 與函式庫的互相牽制。</li>
+<li><strong>一致的交付起點：</strong>讓 Stage／Prod 使用同一份已建構 Image，而不是分別重建。</li>
+<li><strong>版本與追溯：</strong>將 Source Revision、CI Build、Image Digest 與部署版本關聯起來。</li>
+<li><strong>部署替換：</strong>更容易以新的 Image 替換舊版本，或重新部署先前保留的版本。</li>
+</ol>
+<h3>但不要把它當成萬能解法</h3>
+<p><strong>Container 不能自動解決：</strong>程式邏輯錯誤、資料庫 Schema 不相容、外部服務故障、缺少 Secrets、CPU 架構不相容、Host Kernel 問題，或未妥善設定的權限與網路安全。Image 也需要持續更新有漏洞的 Runtime、OS 套件與 Base Image。</p>
+<p><strong>Container 不保證具有 VM 等級的隔離。</strong> 典型 Linux Container 共享 Host Kernel；隔離效果取決於執行設定與權限，對安全敏感工作負載仍要做額外評估。第三堂才會深入理解隔離機制及 VM 的架構差別。</p>
+<p><strong>不是每個服務都非 Container 不可。</strong> Python venv、Node 版本管理、可重現建構、VM Image、Configuration Management、封裝成 Binary 或 JAR，都能處理其中部分問題。採用 Container 還會引入建構、Registry、Image 更新、漏洞管理和 Runtime 管理成本。</p>
+<div class="box warn"><strong>重要：不要把「可攜」理解成「任何機器都能直接跑」</strong><p>例如為 Linux amd64 建立的 Image，不能直接假定能在任何 Windows Host 或不同 CPU 架構上原樣執行。執行平台、CPU 架構和 Kernel 的相容性仍是前提；Multi-platform Image 可以改善跨 CPU 架構分發，但不是讓一份 Binary 自動跨平台。</p></div>
+</section>
+
+<section id="retrieval">
+<h2><small>05 / 27–30′ · APPLY THE MODEL</small>面對部署問題，應該選擇什麼解法？</h2>
+<p>先獨立判斷，不要只找「哪一題的答案是 Docker」。選項設計包含 Container 能改善的問題、需要其他措施的問題，以及仍需判斷前提的情境。</p>
+<section class="quiz" data-quiz data-correct="c" data-hint="回想部署時是否又重新裝了一套相依套件。" data-explanation="各環境都重新組裝相依環境，會增加 Drift 風險；以 CI 已建好的 Image 交付，能減少這類差異。">
+<p class="question">01｜CI 測試成功，但 Production 重新安裝的套件版本不同。最直接能改善哪個環節？</p>
+<div class="choices">
+<label><input type="radio" name="l02-q1" value="a"> 只調整程式記錄的 Log</label>
+<label><input type="radio" name="l02-q1" value="b"> 只提高正式主機的 Memory</label>
+<label><input type="radio" name="l02-q1" value="c"> 改為部署 CI 建好的 Image</label>
+</div><p><button type="button" class="choice" data-check>檢查答案</button></p><p class="feedback" data-feedback role="status"></p>
+<noscript><details><summary>無 JavaScript：顯示解析</summary><p>部署相同的已建構 Image，比各環境重新安裝套件更容易控制執行依賴差異。</p></details></noscript>
+</section>
+<section class="quiz" data-quiz data-correct="a" data-hint="分清 Image 內容與部署環境提供的資源。" data-explanation="同一份 Image 並不代表外部資料庫的 Schema、內容、狀態或權限相同。">
+<p class="question">02｜Stage 與 Production 使用相同 Image Digest，但 Production 的資料庫欄位缺失，Container 會自動修復嗎？</p>
+<div class="choices">
+<label><input type="radio" name="l02-q2" value="a"> 不會，資料庫需另外處理</label>
+<label><input type="radio" name="l02-q2" value="b"> 會，Image 自帶資料庫結構</label>
+<label><input type="radio" name="l02-q2" value="c"> 會，Digest 負責同步欄位</label>
+</div><p><button type="button" class="choice" data-check>檢查答案</button></p><p class="feedback" data-feedback role="status"></p>
+<noscript><details><summary>無 JavaScript：顯示解析</summary><p>外部資料庫不是 Image 封裝的一部分；Schema Migration 仍需管理。</p></details></noscript>
+</section>
+<section class="quiz" data-quiz data-correct="b" data-hint="Tag 是名稱，Digest 才是內容識別。" data-explanation="Registry 若允許重新指派 Tag，相同的 :1.2.3 可能在不同時間指到不同 Image；需驗證 Digest 才能確認內容。">
+<p class="question">03｜Stage 和 Production 都寫 orders-api:1.2.3，就能保證兩邊一定是同一份 Image 內容嗎？</p>
+<div class="choices">
+<label><input type="radio" name="l02-q3" value="a"> 可以，版本名稱永遠不可改</label>
+<label><input type="radio" name="l02-q3" value="b"> 不行，必須確認內容 Digest</label>
+<label><input type="radio" name="l02-q3" value="c"> 可以，正式環境會自動驗證</label>
+</div><p><button type="button" class="choice" data-check>檢查答案</button></p><p class="feedback" data-feedback role="status"></p>
+<noscript><details><summary>無 JavaScript：顯示解析</summary><p>Tag 可能被覆寫；Digest 是更可靠的內容識別。</p></details></noscript>
+</section>
+<div class="box tip"><strong>60 秒口述練習：講給另一位工程師聽</strong>
+<p>一個團隊已經會用 GitHub Actions 測試、也有版本控制。為什麼還值得把 API 封裝成 Image 並存入 Registry？請依序回答：</p>
+<ol><li>傳統部署實際有哪些可能改變的條件？</li><li>Build Once 的「Once」指的是什麼？</li><li>同 Image Digest 哪些差異被消除、哪些仍會存在？</li></ol>
+<p>能清楚解釋這三點，比記住 Docker 會「輕量、可攜、一致」更有價值。若卡住，可從 <a href="../reference/0002-container-delivery-model.html">部署模型速查</a> 重新畫一次流程，或把不確定的環節帶回 ChatGPT 討論。</p>
+</div>
+<h2>本堂整理：五句真正重要的結論</h2>
+<ol class="recap">
+<li><strong>相同 Source Code</strong> 不代表相同 Runtime、Library、設定與外部條件。</li>
+<li><strong>Containerization</strong> 把大量應用程式依賴封裝為 Image，降低對 Host 全域環境的依賴。</li>
+<li><strong>Build once, deploy the artifact</strong> 指的是盡可能部署 CI 已建構與驗證的產物，而不是各環境重建。</li>
+<li><strong>Registry / Tag / Digest</strong> 分別是分發位置、方便命名的指標、內容識別；Tag 可能移動。</li>
+<li><strong>Image 的一致性有邊界</strong>：外部資料、Secrets、Host、CPU 架構及安全仍需獨立管理。</li>
+</ol>
+<div class="box"><strong>第三堂：How Containers Work</strong><p>既然 Container 可以隔離不同服務，又共享 Host Linux Kernel：<strong>Linux 怎麼做到一組 Process 看見自己的檔案、程序與網路？</strong> 下一堂才會正式介紹 Namespaces、cgroups、Root Filesystem，並在建立底層模型後與 VM 比較。</p></div>
+<div class="lesson-nav"><a href="0001-what-is-container-docker.html">← Lesson 01 / What</a><a href="../learning-map/index.html#session-3">Session 03 / How →</a></div>
+<p class="cite">官方來源：<a href="https://docs.docker.com/learn/content/what-is-a-container/">Docker — What is a container?</a> · <a href="https://docs.docker.com/learn/content/share-your-image-on-docker-hub/">Docker — Share your image</a> · <a href="https://docs.docker.com/reference/cli/docker/image/pull/">Docker — Pull by digest</a> · <a href="https://docs.docker.com/build/building/best-practices/">Docker — Building best practices</a> · <a href="../sources/evidence/2026-11-22-session-02.md">本堂來源核對</a>。</p>
+</section>
+</main>
+<footer class="lesson-nav"><a href="../learning-map/index.html">← 學習地圖</a><a href="../reference/0002-container-delivery-model.html">部署模型速查 ↗</a></footer>
+<script src="../assets/theme.js" defer></script><script src="../assets/quiz.js" defer></script>
+</body>
+</html>
