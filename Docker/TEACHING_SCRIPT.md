@@ -4,21 +4,21 @@
 >
 > **對象：**具備基本程式開發經驗的工程師。
 >
-> **目前進度：**Session 01 — 已確認開場、部署取捨 Bridge、What Is a Container（結尾可微調）、What Is Docker 的開場 Bridge，**以及第一堂收尾**。中間的 Dockerfile／Image／Container 詳細講述、build/run 示範仍待確認；Registry／Image Digest 的深入內容留在後續課程。
+> **目前進度：**Session 01 — 已確認開場、部署取捨 Bridge、What Is a Container、**VM vs Container 基本比較**、What Is Docker 開場 Bridge，以及第一堂收尾。Dockerfile／Image／Container 的正式詳細講述與 build/run 示範仍待確認。
 >
 > **課程結構決議（2026-11-22）：**取消獨立的 Why Containerization，原八堂調整為七堂。Session 01 整合必要的 Why；Session 02 改為 How Containers Work。此決議不代表後續尚未確認的口頭講稿已完成。
 >
-> **確認日期：**2026-11-22
+> **最近修訂：**2026-11-24（新增 VM／Container 比較，通盤調整段落銜接；講述不依賴固定堂次）
 
 ---
 
 ## 課程結構備註（已確認；非口頭逐字稿）
 
-- **新 Session 01 — What Is a Container & Docker?**：保留目前已確認的開場、兩段 Bridge、What Is a Container，以及**已確認的第一堂收尾**（下方 Section 05）。課程正式編排時，必須先補足尚待確認的 Dockerfile → Image → Container 基本講解與簡單 build/run 示範，**再接到已確認的收尾**。收尾包含 Program／Process 類比、一份 Image 建立多個 Container、同一份 Image 可跨環境使用及 Build Once, Deploy Many 的初步意義。**不可把收尾獲准視為中間講述或實作也獲准**；Registry／Image Digest 的深入細節留待後續 Image 課程。
-- **新 Session 02 — How Containers Work**：解釋 Linux Kernel、Namespaces、cgroups、Root Filesystem；正式比較 VM／Guest OS 與 Linux Container／共享 Kernel 的執行架構與隔離界線。
+- **新 Session 01 — What Is a Container & Docker?**：保留目前已確認的開場、兩段 Bridge、What Is a Container、VM vs Container 基本比較，以及**已確認的第一堂收尾**（下方 Section 06）。課程正式編排時，必須先補足尚待確認的 Dockerfile → Image → Container 基本講解與簡單 build/run 示範，**再接到已確認的收尾**。收尾包含 Program／Process 類比、一份 Image 建立多個 Container、同一份 Image 可跨環境使用及 Build Once, Deploy Many 的初步意義。**不可把收尾獲准視為中間講述或實作也獲准**；Registry／Image Digest 的深入細節留待後續 Image 課程。
+- **課程規劃中的 How Containers Work**：深入 Linux Kernel、Namespaces、cgroups、Root Filesystem，以及 VM 與 Linux Container 的隔離機制。此處僅記錄規劃；講稿不得以「下一堂／後面某章會講」作為收尾。
 - **後續堂次依序前移**：原 Session 04 → 新 03（Dockerfile & Image Layers）；原 05 → 新 04（Docker Build Cache & Best Practices）；原 06 → 新 05（Container Lifecycle & Storage）；原 07 → 新 06（Docker Networking）；原 08 → 新 07（From Docker to Kubernetes）。
 - 原獨立 Session 02「Why Containerization?」**取消作為獨立章節**；其 Environment Drift、跨環境部署一致性、Build Once 等有價值概念，整合進第一堂簡述與後續 Image／Build 教學，不再重複上一堂的隔離與依賴問題。
-- **文件同步範圍**：此檔保留已確認講課段落不變；對教材實作、舊版 HTML 頁面、連結、正式課程地圖與章次更新的工作指示，詳見 `Docker/LESSON_ADJUSTMENTS.md`。目前尚未套用新七堂架構到現有 HTML。
+- **文件同步範圍**：本次依確認的方向加入 VM／Container 比較，並只修整既有講述的過渡與收尾，不改變核心論證。教材實作與公開頁面是否同步，另以實際 GitHub 狀態核對；編修指示詳見 `Docker/LESSON_ADJUSTMENTS.md`。
 
 ---
 
@@ -36,7 +36,7 @@
 
 假設你打開 Terminal，輸入 `python app.py`，這時候作業系統會啟動 Python Interpreter，載入並執行這份程式碼，於是一個正在執行的實例出現了，這個叫做 Process。
 
-同一個 Program 可以同時跑很多個 Process，每一個都有自己的 PID 跟記憶體空間。這裡我們先停一下，記住 Program 是內容，Process 是正在跑的實例。
+同一個 Program 可以同時跑很多個 Process，每一個都有自己的 PID 跟記憶體空間。記住這個差別：Program 是程式內容，Process 是它正在執行的實例。
 
 好，接下來把情境拉回大家熟悉的工作：你在自己電腦上把一支 FastAPI 寫好，跑起來沒問題，現在公司要你把它放到一台 Linux Server，你會怎麼做？
 
@@ -46,7 +46,7 @@
 
 如果同一台主機上要放多個服務，而且版本跟需求不同，我們還得思考怎麼管理它們各自的執行環境，以及怎麼避免彼此影響。
 
-先停在這裡，這就是我們等一下要正式認識 Container 的切入點。
+所以，服務能不能跑是一回事；當服務變多，該怎麼安排它們各自的執行環境，又是另一個需要考慮的問題。
 
 ---
 
@@ -54,9 +54,7 @@
 
 **狀態：已確認（本節為進入 What Is a Container 前的橋樑）**
 
-我們剛剛講了傳統部署：把一支 API 放到一台 VM，裝好 Runtime、Dependencies，就能讓它執行。
-
-只有一個服務的時候，事情相對單純。但假設公司今天有十個服務，而且每個服務需要的版本都不一樣，這些服務要怎麼部署？
+假設公司今天不只有一支 API，而是有十個服務，而且每個服務需要的版本都不一樣。這些服務要怎麼部署？
 
 我們可以把它們全部放在同一台 VM，也可以選擇一個服務使用一台 VM。
 
@@ -76,7 +74,6 @@
 
 **還是作業系統本身就有辦法，讓不同的 Process 擁有相對獨立的執行環境，而不需要為每一組 Process 都啟動一套新的 Kernel？**
 
-> **教學銜接：**此段停在提問，下一段由隔離性（Isolation）承接，才正式定義 Container。
 
 ---
 
@@ -84,13 +81,9 @@
 
 **狀態：已同意納入逐字稿，結尾措辭仍可再微調**
 
-好，我們剛才提到，多個服務放在同一台 VM，要處理不同服務之間的環境衝突；如果每個服務各自使用一台 VM，雖然能獲得更明確的隔離，卻也得維護更多套 Guest OS。
+要回答剛才那個問題，我們先想清楚：為什麼會考慮把服務分到不同 VM？
 
-所以我們才問：**為了讓服務彼此隔離，一定需要各自獨立的作業系統嗎？**
-
-我們仔細想一下，前面為什麼會考慮一個服務一台 VM？
-
-其實不是因為我們特別需要那麼多套作業系統，而是希望每個服務能在自己的環境中運作，不會因為其他服務修改了系統設定、更新了某些套件，就直接受到影響。
+其實不是因為每個服務都特別需要一整套作業系統，而是希望它們有各自的執行環境，不會因為其他服務修改設定或更新套件，就直接受到影響。
 
 換句話說，我們真正關心的，是服務之間的**隔離性，Isolation**。
 
@@ -116,23 +109,37 @@ VM 是實現隔離的一種方式，但不是唯一的方式。
 
 它們不是另一套獨立的作業系統，仍然由 Host 的 Linux Kernel 負責執行。
 
-這個觀念先記住就好。至於隔離背後如何實現，我們會在後面的章節再深入介紹。
+---
 
-> **後續微調註記：**使用者已同意先寫入本段，並指出結尾「但不是……」之後不宜堆疊太多否定或比喻，後續可繼續精簡措辭。技術表述需維持「一個或一組 Process」，不得誤導為每個 Container 必定只有一個 Process。
+### 04. VM vs Container：最核心的架構差異
+
+**狀態：已確認納入（2026-11-24；基礎對照，不深入 Hypervisor／Namespace／cgroups 實作）**
+
+這裡可以順著剛才的情境，回頭比較一下 VM 跟 Container 到底差在哪裡。
+
+前面說過，如果服務分別部署到不同 VM，就可能需要維護多套 Guest OS。為什麼換成 Container，就不需要為每個服務再準備一套？
+
+先看 VM。一般的 VM 是透過 Hypervisor 提供虛擬化的硬體環境，讓每台 VM 都能執行自己的 Guest OS，包括自己的 Kernel。兩個服務如果分別執行在兩台 Linux VM 裡，背後就有兩套獨立的 Linux Kernel。
+
+Container 則不同。在同一台 Linux 主機上，即使兩個 Container 能看到不同的檔案系統、使用各自的網路環境，裡面執行的仍然是 Host Kernel 管理的 Process。**它們共用同一個 Linux Kernel，而不是各自啟動一套新的 Guest OS。**
+
+這就是兩者最核心的架構差異：**VM 透過各自的 Guest OS 與 Kernel 建立執行環境；Container 則是在共用 Kernel 的前提下，為 Process 建立隔離邊界。**
+
+也因為不必為每個 Container 額外啟動 Guest OS，Container 通常更輕量，啟動也通常比較快。不過，兩者的隔離邊界不同；VM 通常能提供更強的隔離，但實際安全性仍取決於設定與使用情境。
+
+所以 Container 並不是縮小版的 VM，而是另一種讓不同服務擁有隔離執行環境的方式。
 
 ---
 
-### 04. Bridge：從 Container 的隔離能力帶出 Docker
+### 05. Bridge：從 Container 的隔離能力帶出 Docker
 
 **狀態：已確認（What Is Docker 的開場橋樑；Dockerfile / Image / Registry 細節尚未確認）**
 
-我們剛剛知道，Linux 其實已經具備建立 Container 的能力。
+從剛才的比較可以發現，Container 讓我們不一定需要為每個服務都準備獨立的 VM，也能建立隔離的執行環境。
 
-也就是說，即使只有一套 Linux Kernel，我們還是可以讓不同服務在具有隔離邊界的執行環境中運作。
+但有了隔離，應用程式就能直接執行了嗎？
 
-這的確改善了我們前面提到的問題：不一定需要為每個服務都準備一台獨立的 VM。
-
-但大家還記得我們一開始部署 Python API 的情境嗎？
+回到我們一開始部署 Python API 的情境。
 
 即使現在可以建立 Container，**我們的應用程式依然需要 Python Runtime、Dependencies，以及必要的設定，才能正常執行。**
 
@@ -158,17 +165,17 @@ VM 是實現隔離的一種方式，但不是唯一的方式。
 
 Docker 並沒有重新發明 Container 的隔離機制，而是整合既有的容器技術，並提供 Image 建構、Container 管理等工具，讓工程師能更方便地準備與重複使用應用程式的執行環境。
 
-接下來，我們就來看看 Docker 究竟透過哪些機制，實現這件事情。
+而最直接能看出 Docker 如何做到這件事的，就是 Dockerfile、Image 和 Container 之間的關係。
 
 > **教學範圍：**本段已確認的是從 Container 過渡到 Docker 的因果橋樑。先延續**同一台 Linux Server** 上多個服務的情境，說明隔離已可做到但 Runtime / Dependencies / Configuration 仍需準備。**不要在此處突然跳到其他 Server 的交付與部署**；跨主機分享、Image / Registry 的詳細解釋，留待後續逐段確認。
 
 ---
 
-### 05. 第一堂收尾：一份 Image、多個 Container，以及第二堂的提問
+### 06. 第一堂收尾：從 Program／Process 到 Image／Container
 
 **狀態：已確認（2026-11-22；應放在尚待確認的 Dockerfile／Image／Container 講述與實作示範之後）**
 
-好，那我們最後把第一堂課的觀念串起來。
+最後，我們把剛才一路建立的幾個觀念串起來。
 
 我們一開始從 Program 和 Process 出發，知道同一份 Program 可以被執行很多次，產生不同的 Process。
 
@@ -192,7 +199,7 @@ Image 還包含建構好的檔案系統內容與執行設定；Container 也有�
 
 這就是 **Build Once, Deploy Many** 想表達的核心概念。
 
-當然，使用同一份 Image，不代表不同環境的所有執行條件都完全相同。環境變數、外部服務，以及 Host 的系統條件，都還可能造成差異。至於 Image 的 Layer、Registry 和更深入的交付方式，後面會再談。
+當然，使用同一份 Image，不代表不同環境的所有執行條件都完全相同。環境變數、外部服務，以及 Host 的系統條件，都還可能造成差異。Image 能讓建構成果重複使用，但不會自動讓所有部署條件變得一致。
 
 所以現在我們可以把三者的關係整理清楚：
 
@@ -200,17 +207,13 @@ Image 還包含建構好的檔案系統內容與執行設定；Container 也有�
 
 到這裡，我們不只是知道 `docker build`、`docker run` 這些指令的名稱，而是能理解一支應用程式如何從程式碼和執行條件，變成真正運作的 Container。
 
-不過，第一堂其實還留下一個很重要的問題。
+最後再回到 Container 的本質：裡面執行的依然是 Linux Process，而且它們共用 Host 的 Linux Kernel。不同 Container 卻能擁有各自的檔案系統視圖、網路環境與資源限制，靠的正是 Linux 提供的隔離與資源控制能力。
 
-我們知道 Container 裡面執行的依然是 Linux Process，而且它們共用同一個 Linux Kernel。
+**所以，Container 讓 Process 在共用 Kernel 的前提下擁有隔離邊界；Docker 則讓這些執行環境更容易被建構、重複使用與管理。**
 
-**那為什麼這些 Process，卻能看到不同的檔案系統、不同的網路環境，甚至受到不同的資源限制？**
+這就是從 Program、Process 一路理解到 Container 與 Docker，最重要的整體觀念。
 
-Linux Kernel 究竟是怎麼做到這件事情的？
-
-這就是第二堂 **How Containers Work** 要深入回答的問題。
-
-> **編排註記（非講課內容）：**本段收尾已獲確認，但 Section 04 到本段之間的 Dockerfile／Image／Container 正式教學與 build/run 示範尚未定稿。正式教材須補齊中間段落，再使用此收尾，不可直接從 Docker 的開場 Bridge 跳到「剛剛已經 build/run」的回顧。
+> **編排註記（非講課內容）：**本段收尾已獲確認；Section 05 與本段之間的 Dockerfile／Image／Container 正式教學與 build/run 示範尚未定稿。正式教材必須補齊中間內容才能接上收尾。講課文字以本節知識結論結束，不預告固定堂次或章節順序。
 
 ---
 
