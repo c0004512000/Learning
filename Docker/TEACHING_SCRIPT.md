@@ -133,7 +133,7 @@ Container 則不同。在同一台 Linux 主機上，即使兩個 Container 能�
 
 ### 05. Bridge：從 Container 的隔離能力帶出 Docker
 
-**狀態：已確認（What Is Docker 的開場橋樑；Dockerfile / Image / Registry 細節尚未確認）**
+**狀態：已確認（What Is Docker 開場橋樑；Dockerfile／Image／Container 的基本介紹已接續於 Section 06；Registry 等深入細節不在本段）**
 
 從剛才的比較可以發現，Container 讓我們不一定需要為每個服務都準備獨立的 VM，也能建立隔離的執行環境。
 
@@ -167,7 +167,7 @@ Docker 並沒有重新發明 Container 的隔離機制，而是整合既有的�
 
 而最直接能看出 Docker 如何做到這件事的，就是 Dockerfile、Image 和 Container 之間的關係。
 
-> **教學範圍：**本段已確認的是從 Container 過渡到 Docker 的因果橋樑。先延續**同一台 Linux Server** 上多個服務的情境，說明隔離已可做到但 Runtime / Dependencies / Configuration 仍需準備。**不要在此處突然跳到其他 Server 的交付與部署**；跨主機分享、Image / Registry 的詳細解釋，留待後續逐段確認。
+> **教學範圍：**本段已確認的是從 Container 過渡到 Docker 的因果橋樑。先延續**同一台 Linux Server** 上多個服務的情境，說明隔離已可做到但 Runtime / Dependencies / Configuration 仍需準備。**不要在此處突然跳到其他 Server 的交付與部署**；跨主機交付及 Registry 的深入細節不在這段 Bridge 展開。
 
 ---
 
