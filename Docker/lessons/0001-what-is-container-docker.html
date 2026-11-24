@@ -11,50 +11,23 @@
 <body>
 <nav class="topnav" aria-label="課程導覽"><a href="../index.html">課程首頁</a><span>／</span><a href="../learning-map/index.html">學習地圖</a><span>／</span><a href="../reference/0001-container-image-model.html">本堂速查</a></nav>
 <main>
-<header class="intro">
-  <p class="eyebrow">SESSION 01 / WHAT · 30 MINUTES</p>
-  <h1>Container 是什麼？<br>Docker 又在做什麼？</h1>
-  <p class="lead">先從你每天都在執行的程式開始。當你知道一個程式如何變成正在運作的 Process，就能理解 Container 並不是「迷你 VM」；接著才有辦法正確區分 Dockerfile、Image 與 Container。</p>
-  <p class="quiet">對象：具備基本開發經驗的工程師。不預設你懂 Linux Namespace、cgroups、Hypervisor 或 Docker 指令。</p>
-</header>
-<div class="box">
-  <strong>這堂結束後，你應該能夠</strong>
-  <ol>
-    <li>用一般應用程式說明「程式檔案」與「正在執行的 Process」的差別。</li>
-    <li>描述 Container 的基本樣貌：程式在一個受隔離的執行環境中運作。</li>
-    <li>清楚區分 Docker、Dockerfile、Docker Image 與 Docker Container。</li>
-    <li>預測從同一個 Image 啟動兩個 Container，會產生什麼執行關係。</li>
-  </ol>
-  <p class="quiet">成功標準不是背定義，而是看到陌生的 Docker 指令時，知道它在建立檔案模板、建立實例，還是操作正在執行的程序。</p>
-</div>
-<div class="agenda" aria-label="30 分鐘教學安排">
-  <div><b>00–07′</b><span>程式如何運作</span></div>
-  <div><b>07–14′</b><span>認識 Container</span></div>
-  <div><b>14–22′</b><span>認識 Docker</span></div>
-  <div><b>22–27′</b><span>動手觀察</span></div>
-  <div><b>27–30′</b><span>理解驗收</span></div>
-</div>
-<p class="quiet">時間包含講者提問、推理、示範與反饋，不是要求逐字默讀滿 30 分鐘。</p>
-
-<section id="process">
-  <h2><small>01 / 00–07′ · FROM CODE TO PROCESS</small>先別急著談 Docker：一個程式是怎麼跑起來的？</h2>
-  <p>假設你寫了一支 Python 程式，內容只有一行：</p>
-  <pre><code># app.py
-print("Hello, World!")</code></pre>
-  <p>這時 <code>app.py</code> 只是儲存在磁碟上的檔案，<strong>尚未有任何程式正在執行</strong>。直到你在 Terminal 輸入：</p>
-  <pre><code>python app.py</code></pre>
-  <p>作業系統才會啟動 Python 直譯器，讓它載入並執行 <code>app.py</code>。被啟動、正在執行的程式實例，就叫做 <strong>Process（行程）</strong>。程式檔案和 Process 不是同一個東西：一份程式檔案可以被執行很多次，產生不同的 Process。</p>
-  <figure class="schematic">
+<p class="subtitle">Docker Fundamentals · 第一堂</p>
+<h1>從一支 Python API 認識 Container 和 Docker</h1>
+<h2>一份程式可以執行幾次？</h2>
+<p>磁碟上的 <code>app.py</code> 存著程式內容，這就是 Program。在終端機輸入 <code>python app.py</code>，作業系統啟動 Python 直譯器來執行它，這次執行就有了一個 Process（行程）。在兩個終端機各執行一次，你會得到兩個行程，各有自己的識別編號（PID）與記憶體空間。</p>
+<figure class="schematic">
     <figcaption class="figtitle">FIGURE 01 ／ 程式檔案不是 Process</figcaption>
     <div class="vertical">
       <div class="node"><strong>app.py</strong><small>磁碟上的程式檔案，尚未執行</small></div>
       <div class="edge">Python 直譯器讀取並執行程式 ↓</div>
       <div class="units"><div class="unit ct"><b>Process A</b><span>python app.py</span></div><div class="unit ct"><b>Process B</b><span>python app.py</span></div></div>
     </div>
-    <p class="figcaption">你可以在不同時間或不同 Terminal 執行同一份程式。圖中兩個 Process 是兩次獨立執行的概念示意；這支只印一行文字的程式通常會迅速結束。</p>
+    <p class="figcaption">你可以在不同時間或不同 Terminal 執行同一份程式。圖中兩個 Process 是兩次獨立執行的概念示意；每個行程都有自己的 PID 與記憶體空間。</p>
   </figure>
-  <p>而且執行並不只有「程式碼」：Python 直譯器是 <strong>Runtime</strong>，匯入的第三方套件屬於 <strong>Dependencies</strong>；Process 還需要讀取檔案、使用記憶體、存取網路等功能，這些資源由作業系統管理。</p>
-  <figure class="schematic">
+<details><summary>如果只把 app.py 複製三份，會有幾個新行程？</summary><p>零個。複製增加了檔案數量，執行程式才會產生行程。</p></details>
+<h2>把 FastAPI 搬到 Linux Server，需要一起準備什麼？</h2>
+<p>你在自己的電腦上啟動 FastAPI 成功。接著把程式放到一台既有或新建的 Linux 虛擬機器（VM）。在這台機器上，誰來執行 Python 語法？程式執行到 <code>from fastapi import FastAPI</code> 時去哪裡找套件？服務又從哪裡取得資料庫位址？</p>
+<figure class="schematic">
     <figcaption class="figtitle">FIGURE 02 ／ 一支 API 在執行時涉及哪些條件？</figcaption>
     <div class="fourparts">
       <div><b>程式碼</b><span>app.py</span></div>
@@ -64,17 +37,14 @@ print("Hello, World!")</code></pre>
     </div>
     <div class="edge">這些條件配合 → 程式被啟動成一個或多個 Process ↓</div>
     <div class="node active"><strong>Running Application Process</strong><small>由作業系統管理執行與資源存取</small></div>
-    <p class="figcaption">這是一個理解執行條件的基本模型；實際應用也可能需要資料庫、憑證與其他外部資源。為什麼這些條件會帶來部署問題，下一堂再深入討論。</p>
-  </figure>
-  <aside class="ask"><strong>現場思考（先猜再展開）</strong><p>如果硬碟有三份 <code>app.py</code>，但沒有任何人執行它，現在有三個 Python Process 嗎？</p><details><summary>查看解析</summary><p>沒有。檔案數量不等於 Process 數量；Process 必須在程式被啟動後才存在。</p></details></aside>
-</section>
-
-<section id="container">
-  <h2><small>02 / 07–14′ · EXECUTION ENVIRONMENT</small>Container：讓程式在有邊界的環境裡執行</h2>
-  <p>我們剛剛看到：一般的 Python 程式被啟動後，會成為 Process，並使用作業系統提供的功能。</p>
-  <p>現在換個方式：<strong>如果希望這個 Process 看到的是一套特定的檔案、程式庫與網路環境，而不是直接依賴 Host 上所有共用的內容呢？</strong></p>
-  <p>Container 就提供這種執行方式。你可以先把它理解成：<strong>一組受管理的 Process，運作在具有隔離邊界的執行環境裡</strong>。其中的程式依然是一般 Process，沒有被變成一種新的「Container 程式語言」。</p>
-  <figure class="schematic">
+    <p class="figcaption">Python 直譯器提供 Runtime，FastAPI 是相依套件，資料庫位址則可以在部署時透過環境變數提供。這些條件備齊，同一份程式碼才能在新主機正常提供服務。</p></figure>
+<p>工程師可以用部署腳本或組態管理工具準備這些條件。現在把規模放大到十個服務：庫存 API 要新版 Python，報表服務還得使用舊版套件。你會把它們放在哪裡？</p>
+<div class="twocol"><div class="lane"><h3>共用一台 VM</h3><p>只需維護一套作業系統。可以用 venv 分開 Python 套件，但仍要管理各服務使用的直譯器、系統函式庫與設定；升級共用元件時，也要確認哪些服務會受影響。</p></div><div class="lane"><h3>每個服務各一台 VM</h3><p>可以各自安裝、升級與重開機。代價是可能多出十套要配置、更新與修補的 Guest OS，也就是安裝在各台 VM 裡的作業系統。</p></div></div>
+<p><strong>若服務需要的是彼此獨立的執行環境，每組行程都需要一整套 Guest OS 嗎？</strong></p>
+<h2>共用一個 Linux 核心，讓行程各自看見不同的環境</h2>
+<p>我們希望更新庫存服務的套件時，報表服務仍能使用它原本的版本。這種把服務相互影響的範圍分開的能力，就是隔離（Isolation）。Linux 的核心（Kernel）管理行程、檔案與網路。它能限制一組行程看到哪些檔案、使用哪些網路介面，以及能用多少資源。</p>
+<p>在這樣的邊界內執行一個或一組行程，就形成了 Linux Container。看圖時先找 Python 行程，再沿箭頭找管理它的核心。</p>
+<figure class="schematic">
     <figcaption class="figtitle">FIGURE 03 ／ 同一台 Linux Host 上的兩種執行視角</figcaption>
     <div class="twocol">
       <section class="lane">
@@ -90,33 +60,11 @@ print("Hello, World!")</code></pre>
         <div class="node kernel"><strong>Linux Kernel</strong><small>仍然管理這些 Process</small></div>
       </section>
     </div>
-    <p class="figcaption">兩邊都在 Linux 上執行 Process；右邊多了隔離的執行環境。這不是兩份 Kernel。圖只描述典型 Linux Container；Windows/macOS 上的 Docker Desktop 可能透過 Linux VM 提供 Kernel。</p>
-  </figure>
-  <p>所以，<strong>Container 不是一台縮小版的完整電腦，也不是另一套獨立 Kernel</strong>。但它也不只是「一個檔案系統」：裡面可以有多個 Process，還涉及檔案、網路、程序視圖和資源管理。</p>
-  <p>你可能會追問：「Linux 究竟怎麼讓這些 Process 看到不同的環境？」很好，這正是第三堂的主題：到時會從 Linux Kernel 延伸到 Namespaces、cgroups 與 Root Filesystem。第一堂只需要把 Container 的位置放對。</p>
-  <aside class="ask"><strong>用自己的話回答</strong><p>Container 裡執行的 Python，跟直接在 Linux Host 上執行的 Python，哪個才是真正的 Process？</p><details><summary>查看解析</summary><p>兩者都是真正的 Process。差別在於 Container 中的 Process 受到特定執行環境與隔離機制管理。</p></details></aside>
-</section>
-
-<section id="docker">
-  <h2><small>03 / 14–22′ · PACKAGE / BUILD / RUN</small>Docker 是什麼？它跟 Container 有什麼差別？</h2>
-  <p>Container 是一種<strong>執行環境的概念與技術</strong>，不是 Docker 獨有的發明。Docker 則提供一套實用工具，協助你定義應用程式的執行內容、將內容建成 Image，並由 Image 建立與管理 Container。</p>
-  <p>先認識四個在文件與工作流程裡最常出現的詞：</p>
-  <div class="table-wrap"><table>
-    <thead><tr><th>名詞</th><th>它是什麼</th><th>最簡單的判斷方式</th></tr></thead>
-    <tbody>
-      <tr><td><strong>Dockerfile</strong></td><td>一份用來建構 Image 的指示文件。</td><td>描述「要準備什麼」。</td></tr>
-      <tr><td><strong>Image</strong></td><td>唯讀的建構產物，包含檔案與啟動設定，用來建立 Container。</td><td>描述「準備好的模板」。</td></tr>
-      <tr><td><strong>Container</strong></td><td>從 Image 建立的執行實例；可以啟動、停止、刪除。</td><td>描述「建立出的實例」。</td></tr>
-      <tr><td><strong>Docker Engine</strong></td><td>處理 Image、Container、Network、Volume 等資源管理的系統。</td><td>描述「誰負責管理」。</td></tr>
-    </tbody>
-  </table></div>
-  <p>下面不是要求你現在學會寫 Dockerfile，而是先看懂整個流程的意思：</p>
-  <pre><code>FROM python:3.12-slim
-WORKDIR /app
-COPY app.py .
-CMD ["python", "app.py"]</code></pre>
-  <p>這份文件描述如何準備 Python 環境、放入程式檔案，以及執行實例啟動時預設要跑的命令。<code>FROM</code>、<code>COPY</code> 與 <code>CMD</code> 的精確行為，第四、五堂會完整解釋。</p>
-  <figure class="schematic">
+    <p class="figcaption">兩欄使用同一個 Linux Kernel。右欄方框標示行程的隔離邊界；在裡面工作的，仍是一個或多個 Linux 行程。</p></figure>
+<h2>隔離環境準備好了，Python 從哪裡來？</h2>
+<p>回到同一台 Server。即使十個服務已經各有隔離環境，Python、FastAPI、設定和啟動命令仍需要有人準備。你可以用 Shell 腳本或 LXC 範本自動化。若想把準備好的檔案和啟動設定保存起來，讓下一個實例直接重用，就需要一致的建構與管理方式。</p>
+<p>Docker 提供這套工具。Dockerfile 描述建構步驟，Image 保存建構好的檔案及預設設定，Docker Engine 依 Image 建立、啟動及管理 Container。Linux 的行程隔離能力也能由其他容器工具使用。</p>
+<figure class="schematic">
     <figcaption class="figtitle">FIGURE 04 ／ Dockerfile、Image 與 Container 的建立關係</figcaption>
     <div class="vertical">
       <div class="node"><strong>Dockerfile + 程式檔案</strong><small>建構的輸入</small></div>
@@ -127,35 +75,31 @@ CMD ["python", "app.py"]</code></pre>
     </div>
     <p class="figcaption">兩個 Container 可以來自同一份 Image，卻是不同執行實例。一般情況下，各自的可寫入層彼此獨立；如果另外掛載共享 Volume，資料關係就可能不同，這會在 Storage 章節介紹。</p>
   </figure>
-  <p>特別注意：<strong>Image 不是正在執行的程式</strong>。Image 可以存在卻沒有 Container；Container 也可以處於 Stopped 狀態、沒有正在執行的主要 Process。這就是為什麼「Image 是模板、Container 是實例」比「Image 等於壓縮檔、Container 等於 VM」更準確。</p>
-  <p>Docker CLI（你輸入的 <code>docker ...</code> 指令）只是操作介面之一。背後還有接收 API 請求的 Docker Daemon（<code>dockerd</code>），完整的 Engine 與 Runtime 架構會在第八堂介紹。</p>
-  <aside class="ask"><strong>預測結果</strong><p>如果團隊只有一份 <code>nginx:alpine</code> Image，可不可以啟動兩個各自運作的 Nginx Container？</p><details><summary>查看解析</summary><p>可以。同一份 Image 可以建立多個 Container；它們有不同的執行實例、名稱與生命週期。</p></details></aside>
-</section>
+<h2>建構一次，啟動兩個 API</h2>
+<p>在有 Docker 的主機建立一個空目錄，在裡面放入下列兩個檔案。這支 API 只有一個路由，讓我們可以直接觀察兩個實例的回應。</p>
+<h3>app.py</h3><pre><code>from fastapi import FastAPI
 
-<section id="observe">
-  <h2><small>04 / 22–27′ · OBSERVE, NOT MEMORIZE</small>用最少指令驗證：Image 不是 Container</h2>
-  <p>以下 Demo 在有 Docker Engine 的測試環境執行。目標只是觀察「一份 Image → 兩個實例」，不是要求學員背 CLI。請勿在正式環境直接操作。</p>
-  <p><strong>步驟 1：啟動第一個 Container。</strong></p>
-  <pre><code>docker run -d --name l01-web-a -p 127.0.0.1:8080:80 nginx:alpine</code></pre>
-  <p>這裡先知道 <code>nginx:alpine</code> 是 Image 名稱，<code>l01-web-a</code> 是 Container 名稱；<code>-d</code> 讓服務留在背景執行，<code>127.0.0.1:8080:80</code> 是把 Host 本機 Port 8080 對應至 Container Port 80。完整的 Port Mapping 機制會留到 Networking 堂。</p>
-  <p><strong>步驟 2：用相同 Image 啟動第二個 Container。</strong></p>
-  <pre><code>docker run -d --name l01-web-b -p 127.0.0.1:8081:80 nginx:alpine</code></pre>
-  <p>因為 Host 的 8080 已被第一個 Container 使用，第二個選 8081。這裡並沒有重新定義另一份 Image。</p>
-  <p><strong>步驟 3：觀察實例與程序。</strong></p>
-  <pre><code>docker ps
-docker top l01-web-a
-docker top l01-web-b</code></pre>
-  <p>預期 <code>docker ps</code> 顯示兩個不同名稱、不同 Container ID 的執行實例；兩次 <code>docker top</code> 分別呈現各自 Container 內的程序資訊。你也可以在執行 Docker 的那台機器上開啟 <code>http://127.0.0.1:8080</code> 與 <code>http://127.0.0.1:8081</code>，觀察兩個服務。</p>
-  <p><strong>步驟 4：清理資源。</strong></p>
-  <pre><code>docker rm -f l01-web-a l01-web-b</code></pre>
-  <p class="quiet">驗證前提：Docker Daemon 可連線、環境可取得 nginx:alpine、Host 的 8080/8081 未被占用。這裡提供可執行的實驗與預期觀察，<strong>不是已在公司 Runner 或 Kubernetes Node 上實測的結果</strong>。</p>
-  <div class="box tip"><strong>講師可以追問的兩個問題</strong><p>（1）刪除 A，B 應不應該停止？（2）刪除兩個 Container 後，原本的 Image 還在不在？</p><p>先讓大家預測，再執行驗證。這會為後續的 Container Lifecycle 與 Image Storage 課程建立問題意識。</p></div>
-</section>
+app = FastAPI()
 
-<section id="check">
-  <h2><small>05 / 27–30′ · RETRIEVAL PRACTICE</small>離開第一堂前，確認不是只記住名詞</h2>
-  <p>不回頭看上文，先依自己的判斷回答，再按「檢查答案」。</p>
-  <section class="quiz" data-quiz data-correct="b" data-hint="請回到 Figure 04，想想 build 產生的是什麼、run 又建立什麼。" data-explanation="Image 是建立 Container 的唯讀模板，不是正在執行的 Process。">
+@app.get("/")
+def hello():
+    return {"message": "hello"}</code></pre>
+<h3>Dockerfile</h3><pre><code>FROM python:3.12-slim
+WORKDIR /app
+RUN pip install --no-cache-dir fastapi uvicorn
+COPY app.py .
+CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]</code></pre>
+<p>第一行提供 Python，接著安裝 API 與伺服器套件，再把程式放進 Image。最後一行保存啟動命令。到這個目錄執行：</p>
+<pre><code>docker build -t lesson-api:1 .
+docker run -d --name lesson-api-a -p 127.0.0.1:8080:8000 lesson-api:1
+docker run -d --name lesson-api-b -p 127.0.0.1:8081:8000 lesson-api:1
+docker ps --filter ancestor=lesson-api:1</code></pre>
+<p>找出兩列的 IMAGE 與 CONTAINER ID：前者相同，後者不同。主機的 8080 連到 A，8081 連到 B。用瀏覽器分別開啟 <code>http://127.0.0.1:8080</code> 與 <code>http://127.0.0.1:8081</code>，兩個實例都應回傳 hello。</p>
+<details><summary>停止 A，B 的網址還能用嗎？</summary><p>執行 <code>docker stop lesson-api-a</code>，再重新整理兩頁。8081 仍由 B 回應。A 處於停止狀態，兩個 Container 的生命週期各自獨立。完成後以 <code>docker rm -f lesson-api-a lesson-api-b</code> 清理兩個實例。</p></details>
+<h2>一份 Image，多個執行實例</h2>
+<p>一份 Python Program 可以啟動多個 Process。同樣地，一份 Image 可以建立多個 Container，每個 Container 都能啟動自己的行程。這個類比說明的是「一份內容，多次執行」：Image 還包含執行環境與預設設定，而每個 Container 有自己的可寫入層，停止後仍保有實例身分。</p>
+<p>同一份測過的 Image 也可以交付給 Development、Stage 和 Production，省去在每個環境重裝 Python 與套件的工作。這就是 <strong>Build Once, Deploy Many</strong>。各環境提供的變數、資料庫和主機 Kernel 仍可能不同。</p>
+<h2>理解練習</h2>  <section class="quiz" data-quiz data-correct="b" data-hint="請回到 Figure 04，想想 build 產生的是什麼、run 又建立什麼。" data-explanation="Image 是建立 Container 的唯讀模板，不是正在執行的 Process。">
     <p class="question">01｜Docker Image 扮演什麼角色？</p>
     <div class="choices">
       <label><input type="radio" name="l01-q1" value="a"> 正在運作的程序實例</label>
@@ -178,26 +122,11 @@ docker top l01-web-b</code></pre>
     <div class="choices">
       <label><input type="radio" name="l01-q3" value="a"> Docker 就是一份 Linux 核心</label>
       <label><input type="radio" name="l01-q3" value="b"> Container 就是 Docker 指令</label>
-      <label><input type="radio" name="l01-q3" value="c"> Docker 用來建構管理容器</label>
+      <label><input type="radio" name="l01-q3" value="c"> Docker 建構 Image 並管理 Container</label>
     </div><p><button class="choice" type="button" data-check>檢查答案</button></p><p class="feedback" data-feedback role="status"></p>
     <noscript><details><summary>無 JavaScript：顯示解析</summary><p>Docker 提供建構、分發與管理 Container 的平台與工具。</p></details></noscript>
   </section>
-  <p><strong>60 秒口述挑戰：</strong>假設一位同事問你「我們既然有 <code>Dockerfile</code>，是不是就等於有一個正在跑的 Container？」試著用 <em>Dockerfile → Image → Container → Process</em> 的順序解釋。若還卡住，回到 <a href="#docker">Figure 04</a>；也可以將你卡住的那個概念帶回 ChatGPT 討論。</p>
-  <h2>本堂核心模型</h2>
-  <ol class="recap">
-    <li><strong>程式檔案</strong>不等於 Process；程式被啟動才有執行實例。</li>
-    <li><strong>Process</strong>由作業系統管理，使用 Runtime、Library 等執行條件。</li>
-    <li><strong>Container</strong>是受隔離、受管理的執行環境，裡面跑的仍是真正的 Process。</li>
-    <li><strong>Dockerfile</strong>描述如何建構 Image。</li>
-    <li><strong>Image</strong>是唯讀模板；<strong>Container</strong>是根據 Image 建立的實例。</li>
-    <li><strong>Docker</strong>提供建構、交付、執行與管理 Container 的工具。</li>
-  </ol>
-  <div class="box"><strong>下一堂：Why Containerization?</strong><p>現在已經知道 Docker、Image、Container 是什麼。下一堂才來解答：為什麼團隊要把「交付原始碼與部署步驟」轉換成「交付版本化 Image」？它改善了哪些問題，又有哪些限制？</p></div>
-  <div class="lesson-nav"><a href="../reference/0001-container-image-model.html">開啟概念速查 ↗</a><a href="0002-why-containerization.html">Lesson 02：Why Containerization? →</a></div>
-  <p class="cite">官方延伸閱讀：<a href="https://docs.docker.com/learn/content/what-is-a-container/">Docker — What is a container?</a> · <a href="https://docs.docker.com/engine/">Docker — Docker Engine</a> · <a href="https://docs.docker.com/learn/content/run-your-first-container/">Docker — Run your first container</a> · <a href="../sources/evidence/2026-11-22-source-baseline.md">來源核對</a>。</p>
-</section>
-</main>
-<footer class="lesson-nav"><a href="../learning-map/index.html">← 學習地圖</a><a href="https://github.com/c0004512000/Learning/tree/main/Docker">GitHub 教材原始碼</a></footer>
-<script src="../assets/theme.js" defer></script>
-<script src="../assets/quiz.js" defer></script>
-</body></html>
+<p>兩個 Container 共用同一個 Linux Kernel，為什麼各自的行程卻能看到不同的檔案與網路，甚至有不同的記憶體上限？</p>
+<nav class="lesson-nav"><a href="../reference/0001-container-image-model.html">本堂速查</a><a href="../learning-map/index.html#session-2">第二堂 · How Containers Work</a></nav>
+<p class="cite"><a href="https://docs.docker.com/get-started/docker-overview/">Docker 官方文件</a></p>
+</main><script src="../assets/theme.js" defer></script><script src="../assets/quiz.js" defer></script></body></html>

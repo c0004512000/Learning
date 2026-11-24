@@ -13,15 +13,15 @@
 - 能說明 Docker CLI → dockerd → containerd → runc，以及 kubelet → CRI → Container Runtime，理解 Kubernetes 的需求。
 
 ## Constraints
-- 8 個 Session × 約 30 分鐘；時間以理解與吸收為優先，不限制日後加長或拆分。
-- 依 @lfd：What → Why → How，先已知事實再術語，從因果與觀察建立模型；不可在尚未解釋 Container 前突然討論 VM。
+- 7 個 Session × 約 30 分鐘；時間以理解與吸收為優先，不限制日後加長或拆分。
+- 依 @lfd：What → Why → How，先已知事實再術語，從因果與觀察建立模型；第一堂可以使用 VM 作為部署情境，第二堂才比較隔離架構。
 - 完整 Course Map 先規劃，正式 Lesson 逐堂寫作；每堂包含具體案例、必要示意圖、理解練習與官方來源。
 - 繁體中文（臺灣用語）、沿用 Docker/assets/style.css 等共用資產，Dark-first、手機可讀。
 - 不假設大家已有 Kernel／Namespace／Hypervisor／OCI／CRI 知識；不要把指令清單當成教學。
 - 已撰寫與正式驗收分開紀錄；若尚未在公司環境實驗，須明示是預期結果。
 
 ## Learning order
-01 What Is a Container & Docker? → 02 Why Containerization? → 03 How Containers Work → 04 Dockerfile & Image Layers → 05 Docker Build Cache & Best Practices → 06 Container Lifecycle & Storage → 07 Docker Networking → 08 From Docker to Kubernetes.
+What Is a Container & Docker? → How Containers Work → Dockerfile & Image Layers → Docker Build Cache & Best Practices → Container Lifecycle & Storage → Docker Networking → From Docker to Kubernetes。
 
 ## Out of scope
 Kernel Source Code 深挖、完整 CLI 指令手冊、正式多節點 Kubernetes 架構實作及企業生產環境動手修改。
