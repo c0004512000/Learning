@@ -177,7 +177,7 @@ Docker 並沒有重新發明 Container 的隔離機制，而是整合既有的�
 
 好，那 Docker 究竟是怎麼幫我們準備應用程式的執行環境呢？
 
-我們再回到一開始那支 Python API。假設今天已經寫好一個 \`app.py\`，另外有一份 \`requirements.txt\`，記錄程式需要的 Python 套件。
+我們再回到一開始那支 Python API。假設今天已經寫好一個 `app.py`，另外有一份 `requirements.txt`，記錄程式需要的 Python 套件。
 
 還記得前面部署到 VM 時，需要先準備 Python Runtime、安裝 Dependencies，最後才能啟動應用程式嗎？
 
@@ -187,7 +187,7 @@ Docker 並沒有重新發明 Container 的隔離機制，而是整合既有的�
 
 大家看一下畫面上的 Dockerfile：
 
-\`\`\`dockerfile
+```dockerfile
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -198,13 +198,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
-\`\`\`
+```
 
-第一行 \`FROM python:3.12-slim\`，代表我們選擇一份已經包含 Python 3.12 執行環境的 **Base Image** 作為建構起點，不需要從零開始準備 Python。
+第一行 `FROM python:3.12-slim`，代表我們選擇一份已經包含 Python 3.12 執行環境的 **Base Image** 作為建構起點，不需要從零開始準備 Python。
 
-接下來用 \`WORKDIR\` 指定工作目錄，透過 \`COPY\` 把 \`requirements.txt\` 複製進去，再由 \`RUN pip install\` 安裝 FastAPI、Uvicorn 等 Dependencies。
+接下來用 `WORKDIR` 指定工作目錄，透過 `COPY` 把 `requirements.txt` 複製進去，再由 `RUN pip install` 安裝 FastAPI、Uvicorn 等 Dependencies。
 
-安裝完成後，我們再把自己的 \`app.py\` 複製進去；最後，\`CMD\` 描述這份 Image 被用來啟動 Container 時，預設要執行哪個指令。以這支 API 為例，就是啟動 Uvicorn。
+安裝完成後，我們再把自己的 `app.py` 複製進去；最後，`CMD` 描述這份 Image 被用來啟動 Container 時，預設要執行哪個指令。以這支 API 為例，就是啟動 Uvicorn。
 
 大家有沒有發現？**這些內容其實就是以前部署程式時，為了讓程式能夠執行而需要準備的事情。** 現在我們把它們寫成 Dockerfile，建構步驟就有了一份明確的描述。
 
@@ -214,7 +214,7 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
 #### 6.2 Docker Image：已經準備好的檔案與執行設定
 
-接下來我們執行 \`docker build\`。Docker 會根據 Dockerfile 的指示，以 Python 3.12 的 Base Image 為基礎，安裝 Dependencies，再放入自己的程式碼。
+接下來我們執行 `docker build`。Docker 會根據 Dockerfile 的指示，以 Python 3.12 的 Base Image 為基礎，安裝 Dependencies，再放入自己的程式碼。
 
 這些內容建構完成後，得到的成果就叫做 **Docker Image**。
 
@@ -222,7 +222,7 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
 你可以先把 Docker Image 理解成**一份唯讀、可以重複使用的執行環境範本**。它包含應用程式需要的檔案系統內容，以及相關的執行設定。
 
-以這支 Python API 來說，Image 可以包含 Python 3.12 的執行檔、系統 Libraries、FastAPI、Uvicorn、\`app.py\`，以及預設啟動指令等設定。
+以這支 Python API 來說，Image 可以包含 Python 3.12 的執行檔、系統 Libraries、FastAPI、Uvicorn、`app.py`，以及預設啟動指令等設定。
 
 所以 Image 已經把應用程式需要的內容準備好了；但這時候，API 已經開始提供服務了嗎？
 
@@ -232,11 +232,11 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
 #### 6.3 Docker Container：讓應用程式真正開始執行
 
-當我們執行 \`docker run\`，Docker 就會根據指定的 Image 建立並啟動 Container，使用 Image 裡面的檔案與設定，執行預設的 Uvicorn 啟動指令。
+當我們執行 `docker run`，Docker 就會根據指定的 Image 建立並啟動 Container，使用 Image 裡面的檔案與設定，執行預設的 Uvicorn 啟動指令。
 
 這個時候，Python API 才真正開始執行，形成 Linux Process，並在 Container 的隔離執行環境中運作。
 
-這裡還有一個很重要的差別：Dockerfile 裡面的 \`RUN pip install\` **是在建構 Image 時執行**；\`CMD\` 則是定義 Container 啟動時預設要執行的指令。
+這裡還有一個很重要的差別：Dockerfile 裡面的 `RUN pip install` **是在建構 Image 時執行**；`CMD` 則是定義 Container 啟動時預設要執行的指令。
 
 因此，**我們不需要每次啟動 Container，就重新安裝一次 Python 套件。** 這些檔案已經在建構 Image 時準備好了，可以用來建立不只一個 Container。
 
@@ -248,11 +248,11 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
 **狀態：已確認納入（2026-11-24；下列為可操作的示範規格與預期觀察，尚未在本次 GitHub 更新中實際啟動 Docker 驗證）**
 
-**示範前提（講者準備；非口頭講稿）：**執行環境可使用 Docker CLI、連接到 Docker Engine、能取得 \`python:3.12-slim\` Base Image；\`8000\`、\`8001\` 兩個 Host Port 未被占用。以下指令在包含三個檔案的同一個目錄執行。
+**示範前提（講者準備；非口頭講稿）：**執行環境可使用 Docker CLI、連接到 Docker Engine、能取得 `python:3.12-slim` Base Image；`8000`、`8001` 兩個 Host Port 未被占用。以下指令在包含三個檔案的同一個目錄執行。
 
 **app.py**
 
-\`\`\`python
+```python
 from fastapi import FastAPI
 
 app = FastAPI()
@@ -260,18 +260,18 @@ app = FastAPI()
 @app.get("/")
 def hello():
     return {"message": "Hello Docker"}
-\`\`\`
+```
 
 **requirements.txt**
 
-\`\`\`text
+```text
 fastapi
 uvicorn
-\`\`\`
+```
 
 **Dockerfile**
 
-\`\`\`dockerfile
+```dockerfile
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -282,66 +282,66 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
-\`\`\`
+```
 
 #### 7.1 建構 Image
 
 我們先執行：
 
-\`\`\`bash
+```bash
 docker build -t demo-api:1.0 .
-\`\`\`
+```
 
-這個指令會使用目前目錄當作 Build Context，依照裡面的 Dockerfile 建構出 \`demo-api:1.0\`。其中 \`-t\` 是替建構成果加上 Name／Tag，最後的 \`.\` 是目前目錄。
+這個指令會使用目前目錄當作 Build Context，依照裡面的 Dockerfile 建構出 `demo-api:1.0`。其中 `-t` 是替建構成果加上 Name／Tag，最後的 `.` 是目前目錄。
 
 建構完成後，我們可以檢查 Image：
 
-\`\`\`bash
+```bash
 docker image ls demo-api
-\`\`\`
+```
 
-**預期觀察：**可以找到 \`demo-api\`、Tag 為 \`1.0\` 的 Image；此時應用程式還沒有因為 \`docker build\` 而開始提供 HTTP 服務。
+**預期觀察：**可以找到 `demo-api`、Tag 為 `1.0` 的 Image；此時應用程式還沒有因為 `docker build` 而開始提供 HTTP 服務。
 
 #### 7.2 根據 Image 啟動第一個 Container
 
 接著執行：
 
-\`\`\`bash
+```bash
 docker run -d --name api-a -p 8000:8000 demo-api:1.0
-\`\`\`
+```
 
-\`-d\` 表示在背景執行；\`--name\` 替 Container 命名；\`-p 8000:8000\` 表示把 Host 的 \`8000\` Port 對應到 Container 內的 \`8000\` Port。
+`-d` 表示在背景執行；`--name` 替 Container 命名；`-p 8000:8000` 表示把 Host 的 `8000` Port 對應到 Container 內的 `8000` Port。
 
-用瀏覽器開啟 \`http://localhost:8000/\`。
+用瀏覽器開啟 `http://localhost:8000/`。
 
-**預期觀察：**HTTP 回傳 \`{"message":"Hello Docker"}\`。這證明應用程式已在 Container 內啟動，而不只是完成了 Image Build。
+**預期觀察：**HTTP 回傳 `{"message":"Hello Docker"}`。這證明應用程式已在 Container 內啟動，而不只是完成了 Image Build。
 
 #### 7.3 同一份 Image，再建立第二個 Container
 
 我們不修改 Dockerfile，也不重新 Build，直接再執行：
 
-\`\`\`bash
+```bash
 docker run -d --name api-b -p 8001:8000 demo-api:1.0
 docker ps
-\`\`\`
+```
 
-第二個 Container 的內部服務仍使用 \`8000\`，但對外映射到 Host 的 \`8001\`，避免與第一個 Container 的 Host Port 衝突。
+第二個 Container 的內部服務仍使用 `8000`，但對外映射到 Host 的 `8001`，避免與第一個 Container 的 Host Port 衝突。
 
-用瀏覽器開啟 \`http://localhost:8001/\`。
+用瀏覽器開啟 `http://localhost:8001/`。
 
-**預期觀察：**同樣回傳 \`{"message":"Hello Docker"}\`；\`docker ps\` 可以看到 \`api-a\`、\`api-b\` 兩個正在執行的 Container，且 IMAGE 欄位都對應 \`demo-api:1.0\`。
+**預期觀察：**同樣回傳 `{"message":"Hello Docker"}`；`docker ps` 可以看到 `api-a`、`api-b` 兩個正在執行的 Container，且 IMAGE 欄位都對應 `demo-api:1.0`。
 
-**講者提問：**我們剛剛有重新執行 \`docker build\`，或重新安裝一次 FastAPI 嗎？沒有。兩個 Container 是以同一份 Image 為基礎，分別建立的執行實例。
+**講者提問：**我們剛剛有重新執行 `docker build`，或重新安裝一次 FastAPI 嗎？沒有。兩個 Container 是以同一份 Image 為基礎，分別建立的執行實例。
 
 #### 7.4 清理示範環境
 
-\`\`\`bash
+```bash
 docker rm -f api-a api-b
-\`\`\`
+```
 
-這會停止並移除示範建立的兩個 Container；若需要連 Image 一起清理，可另外執行 \`docker image rm demo-api:1.0\`。
+這會停止並移除示範建立的兩個 Container；若需要連 Image 一起清理，可另外執行 `docker image rm demo-api:1.0`。
 
-**教學邊界（非口頭講稿）：**只簡介本示範使用的基本 Flags，不提前講 Docker API／Daemon、BuildKit、Image Layer 實作、Network Namespace 或詳細 Lifecycle。示範的 \`requirements.txt\` 未固定套件版本，足夠展示基本機制，但不同時間重新 Build 可能解析到不同版本；若用於可重複性要求較高的正式環境，需另外固定 Dependencies 與 Base Image 版本／Digest。
+**教學邊界（非口頭講稿）：**只簡介本示範使用的基本 Flags，不提前講 Docker API／Daemon、BuildKit、Image Layer 實作、Network Namespace 或詳細 Lifecycle。示範的 `requirements.txt` 未固定套件版本，足夠展示基本機制，但不同時間重新 Build 可能解析到不同版本；若用於可重複性要求較高的正式環境，需另外固定 Dependencies 與 Base Image 版本／Digest。
 
 **銜接口語：**「我們剛才實際用一份 Image 建立了兩個 Container。現在回頭看最一開始的 Program 與 Process，兩者之間就有一個很容易理解的類比。」
 
