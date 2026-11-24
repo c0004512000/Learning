@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="950" viewBox="0 0 1600 950"><defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#cbd5e1"/></marker></defs><style>
+.title { font: 700 26px 'Arial', sans-serif; fill: #e2e8f0; }
+.subtitle { font: 600 18px 'Arial', sans-serif; fill: #f8fafc; }
+.text { font: 15px 'Arial', sans-serif; fill: #cbd5e1; }
+.small { font: 13px 'Arial', sans-serif; fill: #94a3b8; }
+.label { font: 600 15px 'Arial', sans-serif; fill: #f8fafc; }
+.box { fill: #111827; stroke: #64748b; stroke-width: 2; rx: 14; ry: 14; }
+.soft { fill: #0f172a; stroke: #334155; stroke-width: 2; rx: 14; ry: 14; }
+.accent { fill: #0b1220; stroke: #60a5fa; stroke-width: 2; rx: 14; ry: 14; }
+.green { fill: #071913; stroke: #34d399; stroke-width: 2; rx: 14; ry: 14; }
+.yellow { fill: #1a1406; stroke: #fbbf24; stroke-width: 2; rx: 14; ry: 14; }
+.purple { fill: #120d1f; stroke: #a78bfa; stroke-width: 2; rx: 14; ry: 14; }
+.arrow { stroke: #cbd5e1; stroke-width: 2.5; fill: none; marker-end: url(#arrowhead); }
+</style>
+<rect width="100%" height="100%" fill="#020617"/>
+<text x="70" y="70" class="title">多服務部署的兩種選擇</text>
+<text x="70" y="105" class="text">先看到部署取捨，聽者才比較能理解後面為什麼會需要隔離。</text>
+<rect x="90" y="160" width="620" height="650" class="accent"/>
+<text x="120" y="210" class="subtitle">方案 A：多個服務共用同一台 VM</text>
+<rect x="150" y="260" width="500" height="440" class="soft"/>
+<text x="180" y="305" class="label">VM A</text>
+<rect x="190" y="345" width="420" height="75" class="box"/><text x="220" y="390" class="text">Service 1　Python 3.10</text>
+<rect x="190" y="445" width="420" height="75" class="box"/><text x="220" y="490" class="text">Service 2　Python 3.12</text>
+<rect x="190" y="545" width="420" height="75" class="box"/><text x="220" y="590" class="text">Service 3　Node.js 20</text>
+<text x="160" y="740" class="label">優點</text><text x="160" y="770" class="small">• Guest OS 比較少，維護數量較低</text>
+<text x="160" y="795" class="label">代價</text><text x="160" y="825" class="small">• 版本衝突、設定互相影響、維護作業容易互相干擾</text>
+<rect x="880" y="160" width="620" height="650" class="purple"/>
+<text x="910" y="210" class="subtitle">方案 B：每個服務各自使用一台 VM</text>
+<rect x="930" y="270" width="160" height="300" class="soft"/><text x="970" y="320" class="label">VM 1</text><text x="962" y="360" class="small">Service 1</text><text x="960" y="390" class="small">Python 3.10</text><text x="952" y="435" class="small">Guest OS</text>
+<rect x="1120" y="270" width="160" height="300" class="soft"/><text x="1160" y="320" class="label">VM 2</text><text x="1152" y="360" class="small">Service 2</text><text x="1150" y="390" class="small">Python 3.12</text><text x="1142" y="435" class="small">Guest OS</text>
+<rect x="1310" y="270" width="160" height="300" class="soft"/><text x="1350" y="320" class="label">VM 3</text><text x="1342" y="360" class="small">Service 3</text><text x="1344" y="390" class="small">Node.js 20</text><text x="1332" y="435" class="small">Guest OS</text>
+<text x="910" y="740" class="label">優點</text><text x="910" y="770" class="small">• 隔離更明確，服務彼此影響較少</text>
+<text x="910" y="795" class="label">代價</text><text x="910" y="825" class="small">• 要維護更多 Guest OS：更新、修補、資源配置、監控</text>
+<rect x="230" y="850" width="1140" height="50" class="yellow"/>
+<text x="800" y="882" class="subtitle" text-anchor="middle">關鍵提問：有沒有一種方式，不需要每個服務各自帶一套 Guest OS，卻仍能保有隔離性？</text></svg>
