@@ -4,27 +4,37 @@
 >
 > **對象：**具備基本程式開發經驗的工程師。
 >
-> **目前進度：**Session 01 — 已確認開場、部署取捨 Bridge、What Is a Container、VM vs Container 基本比較、Docker Bridge、**Dockerfile → Image → Container 教學、完整最小實作示範，以及第一堂收尾**。目前逐字稿內容已串接；仍需正式演練驗證示範與整堂時間。
+> **目前進度：**Lesson 01 逐字稿已完成、已確認並依四個 Chapter／十三個 Section 重整；Dockerfile／Image／Container 基本教學及最小實作示範均已納入，尚待實機驗證與正式教材排版。
 >
 > **課程結構決議（2026-11-22）：**取消獨立的 Why Containerization，原八堂調整為七堂。Session 01 整合必要的 Why；Session 02 改為 How Containers Work。此決議不代表後續尚未確認的口頭講稿已完成。
 >
-> **最近修訂：**2026-11-24（補齊 Dockerfile／Image／Container 講稿與 build/run 最小實作，保留自然段落銜接）
+> **最近修訂：**2026-11-24（Lesson 01 四 Chapter／十三 Section 重新編排；加入五張 dark-mode 圖資放置規劃）
 
 ---
 
-## 課程結構備註（已確認；非口頭逐字稿）
+## 教材結構與視覺資源備註（非口頭逐字稿）
 
-- **Session 01 — What Is a Container & Docker?**：已確認開場、部署取捨、Container 與 VM 核心差異、Docker Bridge、**Dockerfile → Image → Container（Section 06）**、**最小實作示範（Section 07）**與第一堂收尾（Section 08）。示範以同一支 Python API 為主線，包含環境準備、建構、啟動兩個 Container、預期觀察及清理。收尾包含 Program／Process 類比、一份 Image 多個 Container、Build Once, Deploy Many。講稿已獲准入稿，實際執行驗證及完整時長評估仍須另做；Registry／Digest／Layer 底層原理不在此展開。
-- **課程規劃中的 How Containers Work**：深入 Linux Kernel、Namespaces、cgroups、Root Filesystem，以及 VM 與 Linux Container 的隔離機制。此處僅記錄規劃；講稿不得以「下一堂／後面某章會講」作為收尾。
-- **後續堂次依序前移**：原 Session 04 → 新 03（Dockerfile & Image Layers）；原 05 → 新 04（Docker Build Cache & Best Practices）；原 06 → 新 05（Container Lifecycle & Storage）；原 07 → 新 06（Docker Networking）；原 08 → 新 07（From Docker to Kubernetes）。
-- 原獨立 Session 02「Why Containerization?」**取消作為獨立章節**；其 Environment Drift、跨環境部署一致性、Build Once 等有價值概念，整合進第一堂簡述與後續 Image／Build 教學，不再重複上一堂的隔離與依賴問題。
-- **文件同步範圍**：本檔記錄已確認的口語稿與可重現的示範步驟；給 Agent 的製作、驗收要求詳見 `Docker/LESSON_ADJUSTMENTS.md`。本次未直接修改公開 HTML 或 Learning Map。
+- **整套課程：Docker Fundamentals**，規劃共七堂 Lesson；Lesson 是一堂完整教學，不等於 Chapter。**Lesson 01 — Introduction to Containers & Docker**，內含四個 Chapter，每章可有多個 Section，以章內編號（如 1.1、1.2、2.1）標識，不再在 Section 下增加第三層教學標題。
+- **Chapter 1 — From Program to Deployment**：1.1 Program vs Process → 1.2 Application Execution Environment → 1.3 Traditional Deployment & VM Trade-offs。從執行的基本單位帶出 Runtime／Dependencies，再說明共用 VM 和多 VM 的部署取捨。
+- **Chapter 2 — Understanding Containers**：2.1 Why Isolation Matters → 2.2 What Is a Container? → 2.3 VM vs Container。先建立隔離需求，再定義 Container 是一個或一組受隔離的 Process，最後比較 VM 獨立 Guest Kernel 與 Container 共用 Host Kernel。
+- **Chapter 3 — Understanding Docker**：3.1 Why Docker? → 3.2 Dockerfile — Defining the Environment → 3.3 Docker Image — The Build Artifact → 3.4 Docker Container — Running the Application。從環境準備仍存在的需求引出 Docker，再依序理解建構指示、靜態成果、執行實例。
+- **Chapter 4 — Hands-on & Key Takeaways**：4.1 Building a Docker Image → 4.2 Running Multiple Containers → 4.3 Putting It All Together。先展示三個實作檔案與 Image Build，再啟動兩個 Container 並清理，最後呼應 Program／Process 類比與 Build Once, Deploy Many。
+- **講稿原則**：Chapter／Section 標題是講稿及教材導覽層級，不硬塞「現在進入第二章／下堂再談」進口語。此次僅重編已確認段落、將原本的 Section 06／07 內容依主題歸類，保留先前核准的敘述、示範指令及自然 Bridge。課程章次與順序日後可以調整，口語稿不得依賴預告下堂才能完成收尾。
+- **圖資放置規劃（已製作 dark-mode SVG 版本；尚未新增至 GitHub Repo）**：圖 01 Program vs Process → 1.1；圖 02 Shared VM vs Multiple VMs → 1.3；圖 03 VM vs Container Architecture → 2.3；圖 04 Dockerfile → Image → Container → 3.4 完成三者解釋之後；圖 05 Build Once, Run Many / Deploy Many → 4.3。深色底、維持原本藍／綠／紫／黃配色；學員版圖面不應包含講師備註、編排理由、無關的描述，且應檢查繁體中文顯示、箭頭方向、元件比例與可讀性。
+- **其他 Lesson 仍依原本七堂大綱規劃**：Lesson 02 — How Containers Work；Lesson 03 — Dockerfile & Image Internals；Lesson 04 — Docker Builds & Best Practices；Lesson 05 — Container Lifecycle & Storage；Lesson 06 — Docker Networking；Lesson 07 — From Docker to Kubernetes。Lesson 01 的核心比較不提前深入 Namespaces／cgroups／OCI／BuildKit 等實作。
+- **完成狀態**：本檔已確認講述內容與最小實作流程；尚未完成 Docker 實測、整堂試講時間評估，也未因本次 Markdown 更新而同步修改正式 HTML 教材或上傳圖資。
 
 ---
 
-## Session 01 — What Is a Container & Docker?
+## Lesson 01 — Introduction to Containers & Docker
 
-### 01. 開場：從 Program、Process 到部署情境
+---
+
+### Chapter 1 — From Program to Deployment
+
+
+#### 1.1 Program vs Process
+
 
 **狀態：已確認**
 
@@ -38,6 +48,8 @@
 
 同一個 Program 可以同時跑很多個 Process，每一個都有自己的 PID 跟記憶體空間。記住這個差別：Program 是程式內容，Process 是它正在執行的實例。
 
+
+#### 1.2 Application Execution Environment
 好，接下來把情境拉回大家熟悉的工作：你在自己電腦上把一支 FastAPI 寫好，跑起來沒問題，現在公司要你把它放到一台 Linux Server，你會怎麼做？
 
 傳統作法可能是在一台 VM 上準備好正確版本的 Python、安裝需要的套件、設定環境變數，最後把程式啟動。
@@ -48,9 +60,9 @@
 
 所以，服務能不能跑是一回事；當服務變多，該怎麼安排它們各自的執行環境，又是另一個需要考慮的問題。
 
----
 
-### 02. Bridge：從傳統部署的取捨提出問題
+#### 1.3 Traditional Deployment & VM Trade-offs
+
 
 **狀態：已確認（本節為進入 What Is a Container 前的橋樑）**
 
@@ -77,7 +89,11 @@
 
 ---
 
-### 03. What Is a Container? — 隔離性與 Process 的本質
+### Chapter 2 — Understanding Containers
+
+
+#### 2.1 Why Isolation Matters
+
 
 **狀態：已同意納入逐字稿，結尾措辭仍可再微調**
 
@@ -87,6 +103,8 @@
 
 換句話說，我們真正關心的，是服務之間的**隔離性，Isolation**。
 
+
+#### 2.2 What Is a Container?
 VM 是實現隔離的一種方式，但不是唯一的方式。
 
 還記得一開始介紹的 Process 嗎？
@@ -109,9 +127,9 @@ VM 是實現隔離的一種方式，但不是唯一的方式。
 
 它們不是另一套獨立的作業系統，仍然由 Host 的 Linux Kernel 負責執行。
 
----
 
-### 04. VM vs Container：最核心的架構差異
+#### 2.3 VM vs Container
+
 
 **狀態：已確認納入（2026-11-24；基礎對照，不深入 Hypervisor／Namespace／cgroups 實作）**
 
@@ -129,9 +147,14 @@ Container 則不同。在同一台 Linux 主機上，即使兩個 Container 能�
 
 所以 Container 並不是縮小版的 VM，而是另一種讓不同服務擁有隔離執行環境的方式。
 
+
 ---
 
-### 05. Bridge：從 Container 的隔離能力帶出 Docker
+### Chapter 3 — Understanding Docker
+
+
+#### 3.1 Why Docker?
+
 
 **狀態：已確認（What Is Docker 開場橋樑；Dockerfile／Image／Container 的基本介紹已接續於 Section 06；Registry 等深入細節不在本段）**
 
@@ -169,9 +192,9 @@ Docker 並沒有重新發明 Container 的隔離機制，而是整合既有的�
 
 > **教學範圍：**本段已確認的是從 Container 過渡到 Docker 的因果橋樑。先延續**同一台 Linux Server** 上多個服務的情境，說明隔離已可做到但 Runtime / Dependencies / Configuration 仍需準備。**不要在此處突然跳到其他 Server 的交付與部署**；跨主機交付及 Registry 的深入細節不在這段 Bridge 展開。
 
----
 
-### 06. Dockerfile → Image → Container：把環境準備變成可重複使用的成果
+#### 3.2 Dockerfile — Defining the Environment
+
 
 **狀態：已確認納入（2026-11-24；第一堂的概念教學，不深入 Image Layers、OCI、BuildKit）**
 
@@ -182,8 +205,6 @@ Docker 並沒有重新發明 Container 的隔離機制，而是整合既有的�
 還記得前面部署到 VM 時，需要先準備 Python Runtime、安裝 Dependencies，最後才能啟動應用程式嗎？
 
 使用 Docker 之後，這些事情其實沒有消失。**我們只是多了一種可以明確描述、重複執行環境準備工作的方式：Dockerfile。**
-
-#### 6.1 Dockerfile：描述如何準備執行環境
 
 大家看一下畫面上的 Dockerfile：
 
@@ -212,7 +233,9 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
 那要怎麼把這份指示變成可以使用的東西？
 
-#### 6.2 Docker Image：已經準備好的檔案與執行設定
+
+#### 3.3 Docker Image — The Build Artifact
+
 
 接下來我們執行 `docker build`。Docker 會根據 Dockerfile 的指示，以 Python 3.12 的 Base Image 為基礎，安裝 Dependencies，再放入自己的程式碼。
 
@@ -230,7 +253,9 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
 真正執行應用程式時，仍然由 Host 的 Linux Kernel 管理對應的 Process。這就能連回我們前面介紹的 Container：**Image 提供檔案與設定，Container 才是讓應用程式實際執行的實例。**
 
-#### 6.3 Docker Container：讓應用程式真正開始執行
+
+#### 3.4 Docker Container — Running the Application
+
 
 當我們執行 `docker run`，Docker 就會根據指定的 Image 建立並啟動 Container，使用 Image 裡面的檔案與設定，執行預設的 Uvicorn 啟動指令。
 
@@ -242,9 +267,14 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
 從「描述環境」到「建構成果」，再到「實際執行」，整個過程現在已經串起來了。我們直接用 Terminal 驗證一次。
 
+
 ---
 
-### 07. 實作示範：從 Dockerfile 到兩個 Container
+### Chapter 4 — Hands-on & Key Takeaways
+
+
+#### 4.1 Building a Docker Image
+
 
 **狀態：已確認納入（2026-11-24；下列為可操作的示範規格與預期觀察，尚未在本次 GitHub 更新中實際啟動 Docker 驗證）**
 
@@ -284,8 +314,6 @@ COPY app.py .
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-#### 7.1 建構 Image
-
 我們先執行：
 
 ```bash
@@ -302,7 +330,9 @@ docker image ls demo-api
 
 **預期觀察：**可以找到 `demo-api`、Tag 為 `1.0` 的 Image；此時應用程式還沒有因為 `docker build` 而開始提供 HTTP 服務。
 
-#### 7.2 根據 Image 啟動第一個 Container
+
+#### 4.2 Running Multiple Containers
+
 
 接著執行：
 
@@ -316,7 +346,7 @@ docker run -d --name api-a -p 8000:8000 demo-api:1.0
 
 **預期觀察：**HTTP 回傳 `{"message":"Hello Docker"}`。這證明應用程式已在 Container 內啟動，而不只是完成了 Image Build。
 
-#### 7.3 同一份 Image，再建立第二個 Container
+**同一份 Image，再建立第二個 Container**
 
 我們不修改 Dockerfile，也不重新 Build，直接再執行：
 
@@ -333,7 +363,7 @@ docker ps
 
 **講者提問：**我們剛剛有重新執行 `docker build`，或重新安裝一次 FastAPI 嗎？沒有。兩個 Container 是以同一份 Image 為基礎，分別建立的執行實例。
 
-#### 7.4 清理示範環境
+**清理示範環境**
 
 ```bash
 docker rm -f api-a api-b
@@ -345,9 +375,9 @@ docker rm -f api-a api-b
 
 **銜接口語：**「我們剛才實際用一份 Image 建立了兩個 Container。現在回頭看最一開始的 Program 與 Process，兩者之間就有一個很容易理解的類比。」
 
----
 
-### 08. 第一堂收尾：從 Program／Process 到 Image／Container
+#### 4.3 Putting It All Together
+
 
 **狀態：已確認（2026-11-22；2026-11-24 已補入完整概念講述與示範，以下接續 Section 07）**
 
@@ -392,5 +422,6 @@ Image 還包含建構好的檔案系統內容與執行設定；Container 也有�
 > **編排註記（非講課內容）：**本段收尾已與 Section 06 基礎講述及 Section 07 實作接續；講課文字以知識結論結束，不預告固定堂次。後續仍須實際演練 Docker 示範、估算全堂時間，再製作正式 HTML 教材。
 
 ---
+
 
 <!-- 後續僅於口頭教學段落獲得確認後，在此新增內容。 -->
