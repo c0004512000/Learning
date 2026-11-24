@@ -1,12 +1,54 @@
 # Docker Fundamentals — 教材調整指示（供 Agent 執行）
 
-> 狀態：**七堂架構已套用至第一堂、首頁與課程地圖；第二至七堂規劃中。逐字稿核准範圍仍以 TEACHING_SCRIPT.md 為準**
+> 狀態：**Lesson 01 已依四個 Chapter／十三個 Section 更新逐字稿。全套規劃七堂 Lesson；正式 HTML、Learning Map 與圖資仍須另行驗證／更新。**
 >
 > 最近修訂：2026-11-24
 >
 > Repository：`c0004512000/Learning`，主要目錄：`Docker/`
 >
 > 本文件是後續教材編修的工作規格，**不是給學員閱讀的講義**。不得直接把討論歷程、糾錯紀錄或 Agent 指令插入公開教材。
+
+## 2026-11-24 — Lesson／Chapter／Section 與視覺化規格（優先適用）
+
+### 命名與標題層級
+- **Course：Docker Fundamentals**。全套規劃七個 Lesson。**Lesson 01：Introduction to Containers & Docker**。
+- 一個 **Lesson** 可以包含多個 **Chapter**；每個 Chapter 底下再有若干 **Section**，編號為 `1.1`、`1.2`、`2.1` 等。**Section 下不得再有教學用的第三層小標題**。
+- Markdown 對應：`# Course` → `## Lesson` → `### Chapter` → `#### Section`。課程概念是 Lesson → Chapter → Section，並非「一個 Lesson 等於一個 Chapter」。
+- 本次已將 `Docker/TEACHING_SCRIPT.md` 從舊 01–08 **八段連號**重整為以下 **四個 Chapter、十三個 Section**；原先核准的講述內容、Dockerfile、CLI 示範與結尾均保留，僅重整標題及段落歸屬。
+
+### Lesson 01 正式編排
+
+| Chapter | Section | Title | 對應實際內容、銜接目標 |
+|---|---|---|---|
+| **1 — From Program to Deployment** | 1.1 | Program vs Process | 靜態 Program → 執行中的 Process；為 Image／Container 類比打底 |
+| | 1.2 | Application Execution Environment | FastAPI 的 Runtime、Dependencies、Configuration；從執行到部署 |
+| | 1.3 | Traditional Deployment & VM Trade-offs | 共用 VM vs 分開 VM 的取捨；引出獨立 Guest OS 是否必要 |
+| **2 — Understanding Containers** | 2.1 | Why Isolation Matters | 回答上節問題：真正想要的是服務之間的隔離 |
+| | 2.2 | What Is a Container? | Linux Kernel 的隔離能力；Container 仍是一個或一組 Process |
+| | 2.3 | VM vs Container | VM 各自 Guest OS／Kernel vs Container 共用 Host Kernel；不深入實作 |
+| **3 — Understanding Docker** | 3.1 | Why Docker? | 隔離不能自動準備 Runtime／Dependencies；帶出 Docker |
+| | 3.2 | Dockerfile — Defining the Environment | Dockerfile 描述建構環境；`FROM`、`COPY`、`RUN`、`CMD` 等基本用途 |
+| | 3.3 | Docker Image — The Build Artifact | Build 產出含檔案系統內容／執行設定的唯讀 Image，非執行中 Process |
+| | 3.4 | Docker Container — Running the Application | Run 以 Image 建立 Container；對照 Build 階段與啟動階段 |
+| **4 — Hands-on & Key Takeaways** | 4.1 | Building a Docker Image | 完整三份範例檔案，`docker build`、`docker image ls` |
+| | 4.2 | Running Multiple Containers | 同 Image 啟動 api-a／api-b、Port Mapping、HTTP 驗證、`docker ps` 與清理 |
+| | 4.3 | Putting It All Together | Program／Process 類比、多 Container、Build Once, Deploy Many 與自然總結 |
+
+### 視覺化資源插入規劃
+
+| 圖資（dark mode SVG） | Section | 插入時機 |
+|---|---|---|
+| `01_program_vs_process_dark.svg` | 1.1 | 說明一份 Program 可產生多個 Process |
+| `02_shared_vm_vs_many_vms_dark.svg` | 1.3 | 比較共用一台 VM／一服務一台 VM 的維運取捨 |
+| `03_vm_vs_container_architecture_dark.svg` | 2.3 | 定義 Container 之後，對照 Guest Kernel 與共享 Host Kernel |
+| `04_dockerfile_image_container_flow_dark.svg` | 3.4 | Dockerfile／Image／Container 全部介紹完成後，總覽 Build → Run |
+| `05_build_once_run_many_deploy_many_dark.svg` | 4.3 | 兩個 Container 的示範結束後，呼應收尾概念 |
+
+- **視覺要求**：維持既有的藍、綠、紫、黃意義與配色，改用深色底／高對比，支援投影與桌面閱讀；圖面避免出現「本圖適合放在哪裡」「聽者容易卡住」等講者備註。檢查中文字型、箭頭方向，以及 VM／Container／Image 的技術正確性。
+- **資產狀態**：這五張 dark-mode SVG 曾在對話中生成，**但未因此次修改寫入 GitHub Repository**。公開 HTML 引用之前必須先確認實際檔案位置，不得假設圖資已經發佈。
+- **語意驗收**：每一個 Chapter 都應有獨立學習目的；每一個 Section 的 Title 必須與實際內容相符。按「問題 → 回答 → 下一個必要問題」編排，而非平均切分字數；不硬加「現在進入第二章」「下一堂會談」等口頭預告。
+- **深度界線**：Image 的靜態本質可在第一堂簡介；Image Layers、OCI、Namespaces／cgroups、BuildKit 等底層細節留給適合的主題。不得為了新標題重寫或刪除已確認講稿。
+- **進度區分**：已完成本次兩份 Markdown 的結構規格與逐字稿調整；尚未因 MD 更新而修改 HTML、Learning Map、上傳圖資或完成 Docker 實機驗證及全堂試講。
 
 ## 2026-11-24 補充決議：第一堂 Dockerfile／Image／Container 講稿及實作已核准（優先適用）
 
@@ -44,7 +86,7 @@
 
 ## 2. 已確認內容的唯一來源
 
-- `Docker/TEACHING_SCRIPT.md`：**目前第一堂八段教學逐字稿已同意入稿**，依序為：01 Program／Process、02 傳統部署 Bridge、03 Container 本質、04 VM vs Container、05 Docker Bridge、06 Dockerfile → Image → Container、07 build/run 最小實作、08 第一堂收尾。開場到實作到結尾的因果順序必須完整保留。逐字稿包括 `app.py`／`requirements.txt`／`Dockerfile` 三份示範原始內容、CLI 指令、預期結果與清理步驟；細部原文以此檔為準。
+- `Docker/TEACHING_SCRIPT.md`：**Lesson 01 現已依四個 Chapter／十三個 Section 編排已確認的口頭稿**，仍完整保留 `app.py`／`requirements.txt`／`Dockerfile`、build/run 示範與收尾。最新編號與內容請以上方規格為準。
 - **新核准範圍**：已允許在第一堂基本介紹 Image 的本質（檔案系統內容＋執行設定、靜態唯讀、無獨立 Kernel），並完整示範同一份 Image 建立兩個 Container。未核准替學員講授完整 Image Layers、OCI 與 BuildKit 的底層機制。口語收尾不得固定預告其他堂次。
 - 後續由口頭討論產生的新稿，**只有使用者明確確認後**，才可追加至 `TEACHING_SCRIPT.md`，除非使用者明確要求修整原段落銜接、措辭或技術正確性；此類修訂須維持已確認的核心論證。
 - 目前第一堂所需基本介紹與最小示範均已確認入稿。Registry／Digest／完整 Image Layers／BuildKit／Docker Engine 架構等深入內容仍待安排，不應以此入稿範圍推定它們已完成。
@@ -91,7 +133,7 @@
 - 明確區分 Image（不在執行的建構產物）、Container（依 Image 建立的執行實例）、Process（Linux Kernel 排程的執行單位），不能說「一份 Image 直接同時啟動多個 Process 而不經 Container」；示範多個 Container 彼此隔離，仍共享基礎 Image。
 - 在同一 Image 多個 Container 的概念後，**簡短**延伸相同 Image 可跨 Development／Stage／Production 使用，點到 Build Once, Deploy Many；說明這無法保證外部環境、Configuration、Kernel 全部相同，Registry／Digest 深入細節留後續。
 - **收尾方式**：以「共用 Linux Kernel 的 Process 能擁有不同檔案系統視圖／網路／資源限制，是 Linux 隔離與資源控制能力的結果」作最小解釋，最後總結 **Container 建立隔離邊界、Docker 協助標準化建構與管理**。不得以「這就是第二堂要回答的問題」或其他課程預告作為結尾。
-- **順序與核准狀態**：Section 05 是 Docker Bridge，Section 06 是 Dockerfile／Image／Container 基本講稿，Section 07 是完整最小示範，Section 08 是已確認收尾。以上均已核准入稿；仍須完成 Docker 實機驗證及正式 HTML 教材整理，不能混淆不同完成狀態。
+- **順序與核准狀態**：Docker Bridge 位於 3.1，Dockerfile／Image／Container 位於 3.2–3.4，實作位於 4.1–4.2，收尾位於 4.3；均已核准入稿，但仍須實機驗證與編修 HTML。
 
 **Section 04–05（示範與理解驗收；既有 HTML 的舊章節標籤，須依新內容重新編排）**
 
@@ -143,7 +185,7 @@
 ## 5. 執行次序與驗收門檻
 
 1. 先閱讀 `TEACHING_SCRIPT.md`、`MISSION.md`、`NOTES.md`、Session 01/02 HTML 與 Learning Map，確認沒有新版本或後續已核准稿。
-2. 先依已確認的**八段教學及實作**校對 Session 01 教材：第四段 VM／Container、第五段 Docker Bridge、第六段 Dockerfile／Image／Container、第七段最小操作示範、第八段收尾。不得漏掉第六、七段，也不可將結尾提早接在 Docker Bridge 後面。將『已核准講稿』、『已實測指令』與『已編修 HTML』分開驗收。
+2. 先依**四 Chapter／十三 Section** 校對 Lesson 01：1.1–1.3、2.1–2.3、3.1–3.4、4.1–4.3。保留 3.2–3.4 基本教學、4.1–4.2 完整實作，4.3 才進入收尾；將已核准講稿、已實測指令、已更新 HTML、已上傳圖資分開驗收。
 3. 對照第一堂新增的**部署取捨橋樑**與七堂新結構，確認沒有獨立 Why 專章；How Containers Work 仍規劃深入 Linux 隔離與 VM／Container 架構（第一堂已新增最小比較）；新第三堂起再深入 Dockerfile／Image Layers／交付相關技術。同步規劃 Course Map、Notes、Mission 與所有導覽連結的更新；保持從已知部署情境到新概念的因果順序。
 4. 檢查技術正確性、互動功能、連結、手機版排版、CSS 與可讀性；若實際變更 HTML，才在測試與驗證後更新對外教材的完成狀態。
 5. **本檔案改為七堂課調整規格，不代表已經修改或發佈 HTML，也不代表 Session 01 已正式理解驗收。** 既有網站目前仍可能記載舊八堂「已撰寫 Session 01–02／正式驗收 0/8」，那是**尚待遷移的舊版狀態**，不得把舊 HTML 的完成數直接算成新七堂已完成／已驗收；正式變更後需重算並提供真實狀態。
