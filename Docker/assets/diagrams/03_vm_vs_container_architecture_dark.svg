@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="950" viewBox="0 0 1600 950"><defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#cbd5e1"/></marker></defs><style>
+.title { font: 700 26px 'Arial', sans-serif; fill: #e2e8f0; }
+.subtitle { font: 600 18px 'Arial', sans-serif; fill: #f8fafc; }
+.text { font: 15px 'Arial', sans-serif; fill: #cbd5e1; }
+.small { font: 13px 'Arial', sans-serif; fill: #94a3b8; }
+.label { font: 600 15px 'Arial', sans-serif; fill: #f8fafc; }
+.box { fill: #111827; stroke: #64748b; stroke-width: 2; rx: 14; ry: 14; }
+.soft { fill: #0f172a; stroke: #334155; stroke-width: 2; rx: 14; ry: 14; }
+.accent { fill: #0b1220; stroke: #60a5fa; stroke-width: 2; rx: 14; ry: 14; }
+.green { fill: #071913; stroke: #34d399; stroke-width: 2; rx: 14; ry: 14; }
+.yellow { fill: #1a1406; stroke: #fbbf24; stroke-width: 2; rx: 14; ry: 14; }
+.purple { fill: #120d1f; stroke: #a78bfa; stroke-width: 2; rx: 14; ry: 14; }
+.arrow { stroke: #cbd5e1; stroke-width: 2.5; fill: none; marker-end: url(#arrowhead); }
+</style>
+<rect width="100%" height="100%" fill="#020617"/>
+<text x="70" y="70" class="title">VM vs Container：最核心的架構差異</text>
+<text x="70" y="105" class="text">定義完 Container 之後，這張圖最能幫助聽者建立「不是縮小版 VM」的正確認知。</text>
+<rect x="90" y="160" width="650" height="650" class="purple"/>
+<text x="120" y="210" class="subtitle">Virtual Machines</text>
+<rect x="140" y="260" width="550" height="110" class="yellow"/><text x="340" y="325" class="label" text-anchor="middle">Host Machine</text>
+<rect x="140" y="390" width="250" height="320" class="soft"/>
+<text x="265" y="430" class="label" text-anchor="middle">VM 1</text><rect x="165" y="460" width="200" height="70" class="box"/><text x="265" y="503" class="small" text-anchor="middle">App A</text><rect x="165" y="545" width="200" height="85" class="box"/><text x="265" y="590" class="small" text-anchor="middle">Guest OS + Kernel</text>
+<rect x="440" y="390" width="250" height="320" class="soft"/>
+<text x="565" y="430" class="label" text-anchor="middle">VM 2</text><rect x="465" y="460" width="200" height="70" class="box"/><text x="565" y="503" class="small" text-anchor="middle">App B</text><rect x="465" y="545" width="200" height="85" class="box"/><text x="565" y="590" class="small" text-anchor="middle">Guest OS + Kernel</text>
+<text x="140" y="760" class="small">重點：每台 VM 都有自己的 Guest OS 與 Kernel</text>
+<rect x="860" y="160" width="650" height="650" class="accent"/>
+<text x="890" y="210" class="subtitle">Containers</text>
+<rect x="910" y="260" width="550" height="90" class="yellow"/><text x="1185" y="315" class="label" text-anchor="middle">Host Linux Kernel</text>
+<rect x="910" y="370" width="250" height="280" class="green"/><text x="1035" y="415" class="label" text-anchor="middle">Container A</text><rect x="935" y="450" width="200" height="70" class="box"/><text x="1035" y="493" class="small" text-anchor="middle">App A Process</text><rect x="935" y="535" width="200" height="65" class="box"/><text x="1035" y="575" class="small" text-anchor="middle">Own filesystem / network view</text>
+<rect x="1210" y="370" width="250" height="280" class="green"/><text x="1335" y="415" class="label" text-anchor="middle">Container B</text><rect x="1235" y="450" width="200" height="70" class="box"/><text x="1335" y="493" class="small" text-anchor="middle">App B Process</text><rect x="1235" y="535" width="200" height="65" class="box"/><text x="1335" y="575" class="small" text-anchor="middle">Own filesystem / network view</text>
+<text x="910" y="760" class="small">重點：不同 Container 共用同一個 Host Kernel，只隔離 Process 的執行環境</text>
+<rect x="240" y="835" width="1120" height="60" class="soft"/>
+<text x="800" y="872" class="subtitle" text-anchor="middle">一句話版本：VM = 每個環境各自帶 OS / Kernel；Container = 共用 Kernel，但讓 Process 擁有隔離邊界</text></svg>
