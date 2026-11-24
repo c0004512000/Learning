@@ -2,11 +2,18 @@
 
 > 狀態：**Lesson 01 已依四個 Chapter／十三個 Section 更新逐字稿。全套規劃七堂 Lesson；正式 HTML、Learning Map 與圖資仍須另行驗證／更新。**
 >
-> 最近修訂：2026-11-25（修正 Program／Process 及部署 → Isolation 的教學銜接；圖片全部改英文、移除旁白）
+> 最近修訂：2026-11-25（2.1 新增 Container 示意圖；3.4 改為 One Image → Multiple Containers，共六張圖）
 >
 > Repository：`c0004512000/Learning`，主要目錄：`Docker/`
 >
 > 本文件是後續教材編修的工作規格，**不是給學員閱讀的講義**。不得直接把討論歷程、糾錯紀錄或 Agent 指令插入公開教材。
+
+## 2026-11-25 — 2.1 新圖與 3.4 One Image → Multiple Containers（優先適用）
+
+- **2.1 新圖 `02b_container_execution_environment_dark.svg`**：參考使用者提供 Code／Configuration／Dependencies／Runtime 匯入盒子的圖，改成 Dark Mode 英文技術示意；盒子標示 **Container**、內容 **Isolated Process(es)**。將模糊的 Runtime Engine 改成 **Language Runtime (Python)**，避免暗示 Docker Engine 被打包在 Container 裡。插入 2.1 最後一句定義 Isolation 後、2.2 標題前，無須額外插入講課旁白。
+- **3.4 現有圖 `04_dockerfile_image_container_flow_dark.svg`**：一份 Dockerfile Build 一份唯讀 Image，同一 Image 分叉建立 **Container A／B／C**，每個 Container 有自己的 **Main Process A／B／C**。箭頭須真正連接每個 Container；不暗示每個 Container 只能有單一 Process，或各有獨立 Linux Kernel。
+- **視覺規格**：沿用深色底、藍色 Dockerfile、綠色 Image、紫色 Container；圖片內只用英文技術標籤，不加教學旁白。SVG 位於 `Docker/assets/diagrams/`，以 Markdown 相對路徑嵌入 `TEACHING_SCRIPT.md`；HTML 尚未修改。
+- **實際狀態**：兩張 SVG 已在 GitHub 提交；Teaching Script 已新增 2.1 圖片並沿用 3.4 原圖片路徑。兩份 MD 會持續記錄圖資規格與核准狀態。
 
 ## 2026-11-25 — 講稿自然銜接與圖片去噪修正（最高優先級）
 
@@ -50,16 +57,17 @@
 |---|---|---|
 | [`01_program_vs_process_dark.svg`](assets/diagrams/01_program_vs_process_dark.svg) | 1.1 | 說明一份 Program 可產生多個 Process |
 | [`02_shared_vm_vs_many_vms_dark.svg`](assets/diagrams/02_shared_vm_vs_many_vms_dark.svg) | 1.3 | 比較共用一台 VM／一服務一台 VM 的維運取捨 |
+| [`02b_container_execution_environment_dark.svg`](assets/diagrams/02b_container_execution_environment_dark.svg) | **2.1 結尾** | Code／Dependencies／Language Runtime／Configuration → Container（Isolated Process(es)）；避免將 Docker Engine 畫成 Container 內部 Runtime |
 | [`03_vm_vs_container_architecture_dark.svg`](assets/diagrams/03_vm_vs_container_architecture_dark.svg) | 2.3 | 定義 Container 之後，對照 Guest Kernel 與共享 Host Kernel |
-| [`04_dockerfile_image_container_flow_dark.svg`](assets/diagrams/04_dockerfile_image_container_flow_dark.svg) | 3.4 | Dockerfile／Image／Container 全部介紹完成後，總覽 Build → Run |
+| [`04_dockerfile_image_container_flow_dark.svg`](assets/diagrams/04_dockerfile_image_container_flow_dark.svg) | 3.4 | Dockerfile → one Image → Container A／B／C；各有獨立 Main Process，不代表容器僅能有單一 Process |
 | [`05_build_once_run_many_deploy_many_dark.svg`](assets/diagrams/05_build_once_run_many_deploy_many_dark.svg) | 4.3 | 兩個 Container 的示範結束後，呼應收尾概念 |
 
 - **Teaching Script 圖片標記規格**：在正文的對應段落插入 `<!-- 圖 XX｜Section X.X｜Dark Mode｜插入時機：... -->` 註解，緊接著使用 `![替代文字](assets/diagrams/檔名.svg)`，讓 GitHub 閱讀模式可直接看圖、原始碼仍可辨識教學插入點。註解不是講者要唸出的口語內容。
 - **視覺要求**：維持既有的藍、綠、紫、黃意義與配色，改用深色底／高對比，支援投影與桌面閱讀；**圖面只用英文技術標籤，不得出現中文或講者旁白**。不得包含「聽者容易卡住」「此圖放在哪裡」「一句話版本」等非技術內容；檢查文字大小、線路箭頭及 VM／Container／Image 的技術正確性。
-- **資產狀態（2026-11-25 已上傳）**：五張 Dark Mode SVG 已存在 GitHub `main` 的 `Docker/assets/diagrams/`，且 `Docker/TEACHING_SCRIPT.md` 在 1.1／1.3／2.3／3.4／4.3 的講稿正文直接嵌入圖片。若要放進不同目錄的正式 HTML，須調整相對 URL 並實測渲染；不代表 HTML 已完成。
+- **資產狀態（2026-11-25 已上傳）**：六張 Dark Mode SVG 已存在 GitHub `main` 的 `Docker/assets/diagrams/`，且 `Docker/TEACHING_SCRIPT.md` 在 1.1／1.3／2.1／2.3／3.4／4.3 的講稿正文直接嵌入圖片。若要放進不同目錄的正式 HTML，須調整相對 URL 並實測渲染；不代表 HTML 已完成。
 - **語意驗收**：每一個 Chapter 都應有獨立學習目的；每一個 Section 的 Title 必須與實際內容相符。按「問題 → 回答 → 下一個必要問題」編排，而非平均切分字數；不硬加「現在進入第二章」「下一堂會談」等口頭預告。
 - **深度界線**：Image 的靜態本質可在第一堂簡介；Image Layers、OCI、Namespaces／cgroups、BuildKit 等底層細節留給適合的主題。不得為了新標題重寫或刪除已確認講稿。
-- **進度區分**：兩份 Markdown、五張 Dark Mode SVG 的 GitHub 上傳與 Teaching Script 圖片嵌入均已完成；正式 HTML／Learning Map、Docker 實機驗證及全堂試講仍未完成。
+- **進度區分**：兩份 Markdown、六張 Dark Mode SVG 的 GitHub 上傳與 Teaching Script 圖片嵌入均已完成；正式 HTML／Learning Map、Docker 實機驗證及全堂試講仍未完成。
 
 ## 2026-11-24 補充決議：第一堂 Dockerfile／Image／Container 講稿及實作已核准（優先適用）
 
