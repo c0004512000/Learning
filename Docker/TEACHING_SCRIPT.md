@@ -8,7 +8,7 @@
 >
 > **課程結構決議（2026-11-22）：**取消獨立的 Why Containerization，原八堂調整為七堂。Session 01 整合必要的 Why；Session 02 改為 How Containers Work。此決議不代表後續尚未確認的口頭講稿已完成。
 >
-> **最近修訂：**2026-11-24（Lesson 01 四 Chapter／十三 Section 重新編排；加入五張 dark-mode 圖資放置規劃）
+> **最近修訂：**2026-11-25（五張 Dark Mode SVG 已上傳並插入 1.1／1.3／2.3／3.4／4.3；Lesson 01 四 Chapter／十三 Section 不變）
 
 ---
 
@@ -20,9 +20,9 @@
 - **Chapter 3 — Understanding Docker**：3.1 Why Docker? → 3.2 Dockerfile — Defining the Environment → 3.3 Docker Image — The Build Artifact → 3.4 Docker Container — Running the Application。從環境準備仍存在的需求引出 Docker，再依序理解建構指示、靜態成果、執行實例。
 - **Chapter 4 — Hands-on & Key Takeaways**：4.1 Building a Docker Image → 4.2 Running Multiple Containers → 4.3 Putting It All Together。先展示三個實作檔案與 Image Build，再啟動兩個 Container 並清理，最後呼應 Program／Process 類比與 Build Once, Deploy Many。
 - **講稿原則**：Chapter／Section 標題是講稿及教材導覽層級，不硬塞「現在進入第二章／下堂再談」進口語。此次僅重編已確認段落、將原本的 Docker 概念教學與最小實作依主題歸類，保留先前核准的敘述、示範指令及自然 Bridge。課程章次與順序日後可以調整，口語稿不得依賴預告下堂才能完成收尾。
-- **圖資放置規劃（已製作 dark-mode SVG 版本；尚未新增至 GitHub Repo）**：圖 01 Program vs Process → 1.1；圖 02 Shared VM vs Multiple VMs → 1.3；圖 03 VM vs Container Architecture → 2.3；圖 04 Dockerfile → Image → Container → 3.4 完成三者解釋之後；圖 05 Build Once, Run Many / Deploy Many → 4.3。深色底、維持原本藍／綠／紫／黃配色；學員版圖面不應包含講師備註、編排理由、無關的描述，且應檢查繁體中文顯示、箭頭方向、元件比例與可讀性。
+- **圖資已上傳並實際嵌入逐字稿（Dark Mode SVG）**：圖 01 Program vs Process → 1.1；圖 02 Shared VM vs Multiple VMs → 1.3；圖 03 VM vs Container Architecture → 2.3；圖 04 Dockerfile → Image → Container → 3.4 完成三者解釋之後；圖 05 Build Once, Run Many / Deploy Many → 4.3。深色底、維持原本藍／綠／紫／黃配色；學員版圖面不應包含講師備註、編排理由、無關的描述，且應檢查繁體中文顯示、箭頭方向、元件比例與可讀性。
 - **其他 Lesson 仍依原本七堂大綱規劃**：Lesson 02 — How Containers Work；Lesson 03 — Dockerfile & Image Internals；Lesson 04 — Docker Builds & Best Practices；Lesson 05 — Container Lifecycle & Storage；Lesson 06 — Docker Networking；Lesson 07 — From Docker to Kubernetes。Lesson 01 的核心比較不提前深入 Namespaces／cgroups／OCI／BuildKit 等實作。
-- **完成狀態**：本檔已確認講述內容與最小實作流程；尚未完成 Docker 實測、整堂試講時間評估，也未因本次 Markdown 更新而同步修改正式 HTML 教材或上傳圖資。
+- **完成狀態**：本檔已確認講述內容與最小實作流程；尚未完成 Docker 實測、整堂試講時間評估，正式 HTML 教材仍未更新；但五張 Dark Mode SVG 已上傳至 `Docker/assets/diagrams/`，並以相對路徑嵌入對應的逐字稿 Section。
 
 ---
 
@@ -47,6 +47,10 @@
 假設你打開 Terminal，輸入 `python app.py`，這時候作業系統會啟動 Python Interpreter，載入並執行這份程式碼，於是一個正在執行的實例出現了，這個叫做 Process。
 
 同一個 Program 可以同時跑很多個 Process，每一個都有自己的 PID 跟記憶體空間。記住這個差別：Program 是程式內容，Process 是它正在執行的實例。
+
+<!-- 圖 01｜Section 1.1｜Dark Mode｜插入時機：介紹 Program 與 Process 的差異後，進入部署情境之前 -->
+
+![Dark Mode 圖解：一份 Program 可啟動多個 Process](assets/diagrams/01_program_vs_process_dark.svg)
 
 
 #### 1.2 Application Execution Environment
@@ -79,6 +83,10 @@
 所以你會發現，不管選哪一種做法，都有取捨。
 
 把服務放在一起，可以減少需要管理的作業系統數量，但要處理環境互相干擾的問題；把服務分開，可以取得更明確的隔離，卻可能需要維護更多套 Guest OS。
+
+<!-- 圖 02｜Section 1.3｜Dark Mode｜插入時機：講完兩種部署方案的成本與隔離取捨後，提出 Guest OS 必要性問題之前 -->
+
+![Dark Mode 比較圖：多服務共用一台 VM 與每個服務一台 VM 的取捨](assets/diagrams/02_shared_vm_vs_many_vms_dark.svg)
 
 到這裡，我們就可以進一步思考：
 
@@ -142,6 +150,10 @@ VM 是實現隔離的一種方式，但不是唯一的方式。
 Container 則不同。在同一台 Linux 主機上，即使兩個 Container 能看到不同的檔案系統、使用各自的網路環境，裡面執行的仍然是 Host Kernel 管理的 Process。**它們共用同一個 Linux Kernel，而不是各自啟動一套新的 Guest OS。**
 
 這就是兩者最核心的架構差異：**VM 透過各自的 Guest OS 與 Kernel 建立執行環境；Container 則是在共用 Kernel 的前提下，為 Process 建立隔離邊界。**
+
+<!-- 圖 03｜Section 2.3｜Dark Mode｜插入時機：VM 與 Container 的 Kernel 差異說明完畢後 -->
+
+![Dark Mode 架構圖：VM 各自具有 Guest OS 和 Kernel，Container 共用 Host Linux Kernel](assets/diagrams/03_vm_vs_container_architecture_dark.svg)
 
 也因為不必為每個 Container 額外啟動 Guest OS，Container 通常更輕量，啟動也通常比較快。不過，兩者的隔離邊界不同；VM 通常能提供更強的隔離，但實際安全性仍取決於設定與使用情境。
 
@@ -264,6 +276,10 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 這裡還有一個很重要的差別：Dockerfile 裡面的 `RUN pip install` **是在建構 Image 時執行**；`CMD` 則是定義 Container 啟動時預設要執行的指令。
 
 因此，**我們不需要每次啟動 Container，就重新安裝一次 Python 套件。** 這些檔案已經在建構 Image 時準備好了，可以用來建立不只一個 Container。
+
+<!-- 圖 04｜Section 3.4｜Dark Mode｜插入時機：完成 Dockerfile、Image、Container 的介紹之後，開始 CLI 操作之前 -->
+
+![Dark Mode 流程圖：Dockerfile 經 docker build 產生 Image，再透過 docker run 啟動 Container](assets/diagrams/04_dockerfile_image_container_flow_dark.svg)
 
 從「描述環境」到「建構成果」，再到「實際執行」，整個過程現在已經串起來了。我們直接用 Terminal 驗證一次。
 
@@ -404,6 +420,10 @@ Image 還包含建構好的檔案系統內容與執行設定；Container 也有�
 例如 Development、Stage、Production，可以使用同一份經過建構與測試的 Image，而不需要每個環境再重新組裝一遍相同的 Runtime 和 Dependencies。
 
 這就是 **Build Once, Deploy Many** 想表達的核心概念。
+
+<!-- 圖 05｜Section 4.3｜Dark Mode｜插入時機：講完同一份 Image 的多 Container 與多環境交付用途後、補充環境差異限制之前 -->
+
+![Dark Mode 總結圖：同一份 Image 可建立多個 Container 並交付到不同部署環境](assets/diagrams/05_build_once_run_many_deploy_many_dark.svg)
 
 當然，使用同一份 Image，不代表不同環境的所有執行條件都完全相同。環境變數、外部服務，以及 Host 的系統條件，都還可能造成差異。Image 能讓建構成果重複使用，但不會自動讓所有部署條件變得一致。
 
