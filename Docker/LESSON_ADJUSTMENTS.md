@@ -2,11 +2,21 @@
 
 > 狀態：**Lesson 01 已依四個 Chapter／十三個 Section 更新逐字稿。全套規劃七堂 Lesson；正式 HTML、Learning Map 與圖資仍須另行驗證／更新。**
 >
-> 最近修訂：2026-11-25（同步五張已上傳的 Dark Mode SVG 與 Teaching Script 插圖標記）
+> 最近修訂：2026-11-25（修正 Program／Process 及部署 → Isolation 的教學銜接；圖片全部改英文、移除旁白）
 >
 > Repository：`c0004512000/Learning`，主要目錄：`Docker/`
 >
 > 本文件是後續教材編修的工作規格，**不是給學員閱讀的講義**。不得直接把討論歷程、糾錯紀錄或 Agent 指令插入公開教材。
+
+## 2026-11-25 — 講稿自然銜接與圖片去噪修正（最高優先級）
+
+- **Section 1.1（Program → Process）**：直接從 `app.py` 是靜態程式內容，到使用 `python app.py` 產生 Process，接著以「同一份程式可以再次執行，形成不同執行實例」自然帶出多個 Process。**不可突然補一句『每個 Process 有各自的 PID／記憶體空間』當作知識跳躍；若沒有對應教學需求，就不在此處加 PID／Memory 的細節。**
+- **Section 1.3（VM Trade-offs）**：共用 VM vs 各自 VM 的成本與風險比較完成後，僅提出一個**以問題為中心**的過渡：「為了讓服務互不干擾，是否一定要為每個服務維護獨立 Guest OS？」**不提前提到 Kernel**，不在此處要求學員理解共享 Kernel 或隔離實作。
+- **Section 2.1（Why Isolation Matters）**：**直接回答 1.3 的問題**，用服務更新套件／改設定／消耗資源等具體例子引出「避免彼此干擾」的隔離需求，然後定義 Isolation。禁止再重複「我們先想想為什麼需要各自 VM」或再次回溯上一章已經講完的部署取捨。
+- **Section 2.2（What Is a Container?）**：為了解釋同一台 Linux Host 如何做到隔離，才先介紹 Kernel：「Linux 作業系統的核心，負責管理 Process 與系統資源」。此時才講 Kernel 可以透過 Linux 機制隔離 Process 的資源視圖／使用，並定義 Container。**不能在 Chapter 1 先提未定義的 Kernel 再拖到 Chapter 2 解釋**。
+- **五張圖片（全面修訂）**：保留 Dark Mode、藍／綠／紫／黃的色調邏輯；圖片內的可見文字 **一律使用英文（English only）**，不放繁體中文或簡體中文。只畫必要的程式與實例關係、部署選擇、VM／Container 架構、Dockerfile → Image → Container 與 Image 重複使用；**一律移除講師旁白、觀眾提醒、圖示插入說明、對圖本身的評語、長篇 takeaway 文字**。例如「聽者容易卡住的點」「這張圖適合放在哪裡」「一句話版本」都不可出現在圖片內。
+- **GitHub 目前實際狀態**：已直接更新 `Docker/TEACHING_SCRIPT.md` 的 1.1／1.3／2.1／2.2；五張 English-only Dark Mode SVG 已覆寫至 `Docker/assets/diagrams/` 原路徑。Markdown 的相對圖片連結保持不變。正式 HTML、Learning Map 與 Docker 實機驗證不在本次更新範圍。
+- **驗收規則**：講稿逐章檢查問題與答案是否在相鄰小節順暢銜接；圖片驗收要確認可見文字只有英文技術標籤、沒有課程旁白，而且沒有因為精簡而畫錯 Kernel／Guest OS／Image／Container 的技術層級。
 
 ## 2026-11-24 — Lesson／Chapter／Section 與視覺化規格（優先適用）
 
@@ -22,9 +32,9 @@
 |---|---|---|---|
 | **1 — From Program to Deployment** | 1.1 | Program vs Process | 靜態 Program → 執行中的 Process；為 Image／Container 類比打底 |
 | | 1.2 | Application Execution Environment | FastAPI 的 Runtime、Dependencies、Configuration；從執行到部署 |
-| | 1.3 | Traditional Deployment & VM Trade-offs | 共用 VM vs 分開 VM 的取捨；引出獨立 Guest OS 是否必要 |
-| **2 — Understanding Containers** | 2.1 | Why Isolation Matters | 回答上節問題：真正想要的是服務之間的隔離 |
-| | 2.2 | What Is a Container? | Linux Kernel 的隔離能力；Container 仍是一個或一組 Process |
+| | 1.3 | Traditional Deployment & VM Trade-offs | 共用 VM vs 分開 VM 的取捨；只問服務互不干擾是否一定要維護獨立 Guest OS，不預告 Kernel |
+| **2 — Understanding Containers** | 2.1 | Why Isolation Matters | 直接回答上節，不重新回顧 VM 取捨；用環境變更／資源競爭例子定義 Isolation |
+| | 2.2 | What Is a Container? | 首次解釋 Kernel 是管理 Process／資源的作業系統核心，再說明隔離能力及 Container 的 Process 本質 |
 | | 2.3 | VM vs Container | VM 各自 Guest OS／Kernel vs Container 共用 Host Kernel；不深入實作 |
 | **3 — Understanding Docker** | 3.1 | Why Docker? | 隔離不能自動準備 Runtime／Dependencies；帶出 Docker |
 | | 3.2 | Dockerfile — Defining the Environment | Dockerfile 描述建構環境；`FROM`、`COPY`、`RUN`、`CMD` 等基本用途 |
@@ -45,7 +55,7 @@
 | [`05_build_once_run_many_deploy_many_dark.svg`](assets/diagrams/05_build_once_run_many_deploy_many_dark.svg) | 4.3 | 兩個 Container 的示範結束後，呼應收尾概念 |
 
 - **Teaching Script 圖片標記規格**：在正文的對應段落插入 `<!-- 圖 XX｜Section X.X｜Dark Mode｜插入時機：... -->` 註解，緊接著使用 `![替代文字](assets/diagrams/檔名.svg)`，讓 GitHub 閱讀模式可直接看圖、原始碼仍可辨識教學插入點。註解不是講者要唸出的口語內容。
-- **視覺要求**：維持既有的藍、綠、紫、黃意義與配色，改用深色底／高對比，支援投影與桌面閱讀；圖面避免出現「本圖適合放在哪裡」「聽者容易卡住」等講者備註。檢查中文字型、箭頭方向，以及 VM／Container／Image 的技術正確性。
+- **視覺要求**：維持既有的藍、綠、紫、黃意義與配色，改用深色底／高對比，支援投影與桌面閱讀；**圖面只用英文技術標籤，不得出現中文或講者旁白**。不得包含「聽者容易卡住」「此圖放在哪裡」「一句話版本」等非技術內容；檢查文字大小、線路箭頭及 VM／Container／Image 的技術正確性。
 - **資產狀態（2026-11-25 已上傳）**：五張 Dark Mode SVG 已存在 GitHub `main` 的 `Docker/assets/diagrams/`，且 `Docker/TEACHING_SCRIPT.md` 在 1.1／1.3／2.3／3.4／4.3 的講稿正文直接嵌入圖片。若要放進不同目錄的正式 HTML，須調整相對 URL 並實測渲染；不代表 HTML 已完成。
 - **語意驗收**：每一個 Chapter 都應有獨立學習目的；每一個 Section 的 Title 必須與實際內容相符。按「問題 → 回答 → 下一個必要問題」編排，而非平均切分字數；不硬加「現在進入第二章」「下一堂會談」等口頭預告。
 - **深度界線**：Image 的靜態本質可在第一堂簡介；Image Layers、OCI、Namespaces／cgroups、BuildKit 等底層細節留給適合的主題。不得為了新標題重寫或刪除已確認講稿。
@@ -64,7 +74,7 @@
 
 ## 1. 變更背景與已確認的決策
 
-舊版 Session 01 曾由 Program/Process 直接跳到 Container，缺少部署情境至 Container 的因果橋樑；新逐字稿已補齊部署取捨與隔離需求的因果脈絡。使用者已確認前兩段口頭講稿：① Program/Process → 執行環境與傳統部署；② 多服務部署時共用 VM 與分開 VM 的取捨，最後提出「不同服務要各自的執行環境，是否一定需要各自的 Guest OS／Kernel？」。目前也已同意寫入第③段 What Is a Container：從隔離性（Isolation）承接 Bridge，解釋 Linux Kernel 可為 Process 提供隔離執行環境，結尾強調 Container 不是圖中的實體小盒子，本質上仍是一個或一組受隔離機制約束的 Linux Process。第三段已入稿，並於 2026-11-24 將結尾改為自然連接 VM／Container 比較。**新增第四段「VM vs Container：最核心的架構差異」**，只比較每台 VM 的 Guest OS／Kernel 與 Container 共用 Host Kernel、通常更輕量以及隔離邊界差異，不講隔離技術如何實作。第五段「What Is Docker 的開場 Bridge」也已獲確認：Container 解決隔離，但 Runtime / Dependencies / Configuration 的準備工作仍存在，進一步帶出方便、標準化的環境建構與重複使用需求，以及 Docker 的價值。**Dockerfile／Image／Container 的基礎教學與示範已確認；Registry／Digest／Layer 細節尚未納入**。目前另已確認**第一堂收尾**，重點包括 Program／Process 與 Image／Container 的有限類比、一份 Image 建立多個 Container、初步說明 Build Once, Deploy Many，以及以 Container 和 Docker 的職責分工作為完整的知識收束，不以固定後續堂次作為講課結尾。**該收尾與中間 Dockerfile／Image／Container 及實作均已獲核准入稿**。已確認的八個講述段落皆以 `Docker/TEACHING_SCRIPT.md` 為準。
+舊版 Session 01 曾由 Program/Process 直接跳到 Container，缺少部署情境至 Container 的因果橋樑；新逐字稿已補齊部署取捨與隔離需求的因果脈絡。使用者已確認前兩段口頭講稿：① Program/Process → 執行環境與傳統部署；② 多服務部署時共用 VM 與分開 VM 的取捨，最後提出「服務要互不干擾，是否一定需要每個服務各自的 Guest OS？」。目前也已同意寫入第③段 What Is a Container：從隔離性（Isolation）承接 Bridge，解釋 Linux Kernel 可為 Process 提供隔離執行環境，結尾強調 Container 不是圖中的實體小盒子，本質上仍是一個或一組受隔離機制約束的 Linux Process。第三段已入稿，並於 2026-11-24 將結尾改為自然連接 VM／Container 比較。**新增第四段「VM vs Container：最核心的架構差異」**，只比較每台 VM 的 Guest OS／Kernel 與 Container 共用 Host Kernel、通常更輕量以及隔離邊界差異，不講隔離技術如何實作。第五段「What Is Docker 的開場 Bridge」也已獲確認：Container 解決隔離，但 Runtime / Dependencies / Configuration 的準備工作仍存在，進一步帶出方便、標準化的環境建構與重複使用需求，以及 Docker 的價值。**Dockerfile／Image／Container 的基礎教學與示範已確認；Registry／Digest／Layer 細節尚未納入**。目前另已確認**第一堂收尾**，重點包括 Program／Process 與 Image／Container 的有限類比、一份 Image 建立多個 Container、初步說明 Build Once, Deploy Many，以及以 Container 和 Docker 的職責分工作為完整的知識收束，不以固定後續堂次作為講課結尾。**該收尾與中間 Dockerfile／Image／Container 及實作均已獲核准入稿**。已確認的八個講述段落皆以 `Docker/TEACHING_SCRIPT.md` 為準。
 
 **新確認的課程結構決策（2026-11-22）**：原有八堂取消獨立的 Session 02「Why Containerization?」，改為**七堂**；原 Session 03「How Containers Work」提前為新 Session 02，後續原 Session 04–08 依序前移一堂。第一堂已從傳統部署到隔離需求、再到 Docker 的動機說明基本的 Why，因此不再為 Environment Drift／Dependencies 重複安排一整堂。原 Session 02 有價值的跨環境交付概念保留但分流：第一堂介紹完 Dockerfile → Image → Container 與簡單 build/run 後，**簡短**說明同一份 Image 可用於多環境、Build Once, Deploy Many；Image Registry、Digest、細部交付差異／限制應放在後續 Image／Build 相關課程適當位置。這個**第一堂收尾現已獲確認並寫入逐字稿**；而中間 Dockerfile／Image／Container 的基本講述與示範也已獲准。
 
@@ -72,7 +82,7 @@
 
 1. **Session 01 的順序調整為**：Program → Process → Execution Environment（Runtime / Dependencies / Configuration）→ 傳統部署情境 → 共用 VM／分開 VM 的取捨 → 是否一定需要獨立 Guest OS 的問題 → Isolation → What Is a Container?（先說本質為一個或一組 Process）→ **VM vs Container 最小架構對照（已確認，約 2–3 分鐘）** → What Is Docker? Bridge（隔離已做到，但環境仍需準備）→ Dockerfile / Image / Container（3.2–3.4 已確認）→ 簡單 build/run 示範（4.1–4.2 已確認、待實際驗證）→ **已確認的收尾**（Program／Process 類比 → 一份 Image 多個 Container → Build Once, Deploy Many → Container 與 Docker 的分工總結）→ 理解驗收。
 2. 先讓學員知道傳統部署如何在 Linux Server／VM 上準備執行條件；再以**共用 VM 需管理多個服務的執行環境／一服務一 VM 需維護更多 Guest OS** 這項取捨推進。VM 是合理的實務方案，並非預設每個服務一定各有一台 VM。**在介紹 Container 之前，只用 Guest OS 數量與維護成本支撐提問；完成 Container 定義後，才加入 2–3 分鐘的基礎 VM／Container 對照。** 不要求學員理解 Hypervisor 實作，也不深入隔離架構。
-3. Container 的引入必須承接**已核准的部署取捨 Bridge**：服務需求不同 → 共用 VM 的環境管理取捨 → 分開 VM 的 Guest OS 維護成本 → 提問是否存在不需每組 Process 都使用獨立 Kernel 的其他方式 → 解釋真正重視的是隔離性（Isolation）→ Linux Kernel 可約束一個或一組 Process 的資源視圖／使用 → Container 定義。**不能先替學員預設「我們希望不要 Guest OS」或突然轉向 CPU／Memory／Network 隔離**；先讓取捨與成本有依據，再提出問題。結尾**才**用網路架構圖的方框破除「Container 是獨立小盒子」的錯覺，簡短強調本質上是一個或一組受到隔離機制約束的 Linux Process，避免堆疊「不是什麼、也不是什麼」的冗長尾段。**不要把「解決 Python Dependency 問題」描述成 Container 技術誕生的歷史原因**，也不要把「Image 封裝能力」誤當成 Container 的定義。
+3. Container 的引入必須承接**已核准的部署取捨 Bridge**：服務需求不同 → 共用 VM 的環境管理取捨 → 分開 VM 的 Guest OS 維護成本 → 提出「服務互不干擾，是否一定需要獨立 Guest OS？」的問題，並將 Kernel 首次介紹安排到 2.2 → 解釋真正重視的是隔離性（Isolation）→ Linux Kernel 可約束一個或一組 Process 的資源視圖／使用 → Container 定義。**不能先替學員預設「我們希望不要 Guest OS」或突然轉向 CPU／Memory／Network 隔離**；先讓取捨與成本有依據，再提出問題。結尾**才**用網路架構圖的方框破除「Container 是獨立小盒子」的錯覺，簡短強調本質上是一個或一組受到隔離機制約束的 Linux Process，避免堆疊「不是什麼、也不是什麼」的冗長尾段。**不要把「解決 Python Dependency 問題」描述成 Container 技術誕生的歷史原因**，也不要把「Image 封裝能力」誤當成 Container 的定義。
 4. **先 Container，後 Docker**：前者是具有隔離邊界的執行環境；Docker 是協助建構 Image、建立與管理 Container 的工具／平台。不是所有 Container 都必須透過 Docker 建立。**已確認的 Docker 開場因果**：Linux 已能為多個服務建立 Container → 仍需準備 Runtime、Dependencies 與 Configuration → 和傳統 VM 部署一樣，環境準備及管理工作沒有自動消失 → 腳本與既有工具雖可自動化，仍有整合、標準化與重複使用的需求 → Docker 提供一致的 Image 建構與 Container 管理方式。**不得跳過這條因果鏈，直接用「要部署到另一台 Server」引出 Docker**。
 5. **取消獨立 Why Containerization 堂次**：不再將 Environment Drift、Dependencies 相依衝突及 Containerization 優勢包裝成新 Session 02，避免與第一堂已完成的因果敘事重複。第一堂在 Image 基本概念之後，以**短篇幅**說明「Image 可重複交付／Build Once, Deploy Many」，不展開 Registry／Digest 或跨環境所有細節；後續 Image／Build 課再深入這些概念及限制（相同 Image 不等於所有 Runtime/Configuration/Kernel 環境相同）。
 6. **How Containers Work 的預定範圍**：Linux Kernel、Namespaces、cgroups、Root Filesystem，以及 VM／Container 隔離邊界的深入原理。第一堂**已包含最小架構對照**（獨立 Guest Kernel vs 共享 Host Kernel），但不講 Hypervisor、Namespace、cgroups 的底層操作與實作細節。課綱仍可調整；口頭講稿不能以預告「第二堂／後續某章」代替自然收尾。
@@ -102,13 +112,13 @@
 - 參照 `TEACHING_SCRIPT.md`，延伸具體情境：本機 FastAPI 可以運作 → 要部署到 Linux Server／既有或新建 VM → 準備 Python Runtime、套件 Dependencies、環境變數與設定 → 才能啟動服務。
 - 強調：「Application Code 不等於完整的 Execution Environment」；這是對執行條件的認識，不是宣稱傳統部署一定失敗。
 - 清楚說明：VM 可正常部署應用程式；工程師也能使用部署腳本或 Configuration Management 自動化，不要寫成「傳統部署每次都重建 VM」或「VM 做不到」。
-- **新增已確認的 Bridge（須參照逐字稿完整保留推進順序）**：一支 API 在 VM 上正常部署 → 十個不同需求的服務 → 可以共用一台 VM，也可以分開部署到不同 VM → 共用方式要管理版本與環境相互影響，分開方式有更多 Guest OS 要更新、修補、配置與維護 → 兩種方案各有取捨 → 才問「為了各自的執行環境，是否每次都需要完整 Guest OS？有無共用 Kernel 但提供相對獨立環境的方式？」。不可把這段縮成突兀的資源隔離提問。
+- **新增已確認的 Bridge（須參照逐字稿完整保留推進順序）**：一支 API 在 VM 上正常部署 → 十個不同需求的服務 → 可以共用一台 VM，也可以分開部署到不同 VM → 共用方式要管理版本與環境相互影響，分開方式有更多 Guest OS 要更新、修補、配置與維護 → 兩種方案各有取捨 → 才問「為了各自的執行環境，是否每次都需要完整 Guest OS？服務互不干擾，是否一定要各自一套 Guest OS？」。不可把這段縮成突兀的資源隔離提問。
 - 現有程式／示意圖可保留或調整，但須與新的講述順序一致；如果改圖，圖上要能區分 Code、Runtime、Dependencies、Configuration、Process。
 - 原 Section 01 結尾只問「三份 app.py 是否對應三個 Process」過於單薄；保留該題作初階檢查，另可增加「程式碼相同是否保證兩台主機執行條件相同？」的情境推理題，答案由前文可推得，不要求後續技術知識。
 
 **Section 02（現行「Container：讓程式在有邊界的環境裡執行」）**
 
-- 從前段已確認的 **「共用 VM／分開 VM 的部署取捨 → 是否必須各自使用 Guest OS／Kernel」** 提問承接，按照已同意入稿的第三段，先點明本來想要的是服務間的 Isolation，再說明 Linux Kernel 可對一個或一組 Process 提供檔案系統視圖、網路與資源控制等隔離，最後定義 Container。段落**結尾**再說明架構圖上的方框不代表實體小盒子；容器中的執行活動本質上仍是 Linux Process。**直接結束在這個已解釋的技術事實，然後銜接 VM／Container 對照**，不要再加「後面的課程會詳細介紹」等編排性句子。
+- 從前段已確認的 **「共用 VM／分開 VM 的部署取捨 → 服務互不干擾是否必須各自使用 Guest OS」** 提問承接，按照已同意入稿的第三段，先點明本來想要的是服務間的 Isolation，再說明 Linux Kernel 可對一個或一組 Process 提供檔案系統視圖、網路與資源控制等隔離，最後定義 Container。段落**結尾**再說明架構圖上的方框不代表實體小盒子；容器中的執行活動本質上仍是 Linux Process。**直接結束在這個已解釋的技術事實，然後銜接 VM／Container 對照**，不要再加「後面的課程會詳細介紹」等編排性句子。
 - 可以用兩個服務使用不同 Runtime 作為**現象／例子**，但不可把不同 Python 版本歸因於 Namespace/cgroups 本身；其檔案來源／Root Filesystem／Image 準備的機制留在後面。
 - 此節不要求學員解釋 Namespace、cgroups、PID namespace、Network namespace、Filesystem 掛載的機制；如果圖示標出 Kernel，僅用於建立「不是另一套完整 OS」的基本概念，不深挖架構對照。
 - 不要把 Container 簡化為「把程式與套件包起來」；封裝成可交付的 Image 是另一層概念。
