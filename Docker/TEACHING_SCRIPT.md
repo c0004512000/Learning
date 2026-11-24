@@ -8,11 +8,13 @@
 >
 > **課程結構決議（2026-11-22）：**取消獨立的 Why Containerization，原八堂調整為七堂。Session 01 整合必要的 Why；Session 02 改為 How Containers Work。此決議不代表後續尚未確認的口頭講稿已完成。
 >
-> **最近修訂：**2026-11-25（五張 Dark Mode SVG 已上傳並插入 1.1／1.3／2.3／3.4／4.3；Lesson 01 四 Chapter／十三 Section 不變）
+> **最近修訂：**2026-11-25（調整 1.1／1.3／2.1／2.2 因果銜接；五張 Dark Mode 圖改為英文、簡化為純技術架構）
 
 ---
 
 ## 教材結構與視覺資源備註（非口頭逐字稿）
+
+- **2026-11-25 連貫性修訂（已依使用者回饋套用）**：1.1 從程式內容如何成為執行實例帶出同一 Program 可被多次執行，不突然插入 PID／記憶體術語；1.3 只留下「服務互不干擾是否一定要各自 Guest OS？」的需求問題，不提尚未說明的 Kernel；2.1 直接承接問題並定義 Isolation，不重新追問為何要分 VM；2.2 才首次以「作業系統核心」介紹 Kernel。五張 Dark Mode SVG 全部改為英文、僅顯示實際技術關係，沒有講者提示語。
 
 - **整套課程：Docker Fundamentals**，規劃共七堂 Lesson；Lesson 是一堂完整教學，不等於 Chapter。**Lesson 01 — Introduction to Containers & Docker**，內含四個 Chapter，每章可有多個 Section，以章內編號（如 1.1、1.2、2.1）標識，不再在 Section 下增加第三層教學標題。
 - **Chapter 1 — From Program to Deployment**：1.1 Program vs Process → 1.2 Application Execution Environment → 1.3 Traditional Deployment & VM Trade-offs。從執行的基本單位帶出 Runtime／Dependencies，再說明共用 VM 和多 VM 的部署取捨。
@@ -44,9 +46,11 @@
 
 那什麼時候它才真的動起來呢？
 
-假設你打開 Terminal，輸入 `python app.py`，這時候作業系統會啟動 Python Interpreter，載入並執行這份程式碼，於是一個正在執行的實例出現了，這個叫做 Process。
+當你打開 Terminal，輸入 `python app.py`，作業系統就會啟動 Python Interpreter 來執行這份程式。這個時候，出現的不是另一份 `app.py` 檔案，而是一個由作業系統管理的執行實例，也就是 **Process**。
 
-同一個 Program 可以同時跑很多個 Process，每一個都有自己的 PID 跟記憶體空間。記住這個差別：Program 是程式內容，Process 是它正在執行的實例。
+如果這支程式會持續運作，我們也可以再啟動一次。同一份程式內容，就能對應到兩個不同的執行實例；增加的是執行中的 Process，而不是多出另一份程式檔案。
+
+所以這裡先記住兩者的差別：**Program 是程式內容，Process 是程式被執行時的實例。**
 
 <!-- 圖 01｜Section 1.1｜Dark Mode｜插入時機：介紹 Program 與 Process 的差異後，進入部署情境之前 -->
 
@@ -88,11 +92,9 @@
 
 ![Dark Mode 比較圖：多服務共用一台 VM 與每個服務一台 VM 的取捨](assets/diagrams/02_shared_vm_vs_many_vms_dark.svg)
 
-到這裡，我們就可以進一步思考：
+這兩種選擇，其實都圍繞著同一個需求：我們希望不同服務能各自運作，盡量不要因為其他服務調整環境而受到影響。
 
-**為了讓每個服務擁有自己的執行環境，我們真的每次都需要準備一整套 Guest OS 嗎？**
-
-**還是作業系統本身就有辦法，讓不同的 Process 擁有相對獨立的執行環境，而不需要為每一組 Process 都啟動一套新的 Kernel？**
+**那麼，要達到這種彼此不干擾的效果，真的一定要為每個服務準備一套獨立的 Guest OS 嗎？**
 
 
 ---
@@ -105,19 +107,21 @@
 
 **狀態：已同意納入逐字稿，結尾措辭仍可再微調**
 
-要回答剛才那個問題，我們先想清楚：為什麼會考慮把服務分到不同 VM？
+不一定。VM 是隔開服務的一種方法，但剛才看到的維護成本，也正是我們希望尋找其他做法的原因。
 
-其實不是因為每個服務都特別需要一整套作業系統，而是希望它們有各自的執行環境，不會因為其他服務修改設定或更新套件，就直接受到影響。
+先想想，所謂「服務之間不要互相影響」，具體是什麼意思？
 
-換句話說，我們真正關心的，是服務之間的**隔離性，Isolation**。
+例如，A 服務更新套件或調整設定時，不應直接改變 B 服務的執行環境；其中一個服務占用大量資源，也不應毫無限制地影響其他服務。
+
+**讓不同服務在各自的執行邊界內運作，降低彼此干擾，這個需求就叫做隔離性（Isolation）。**
 
 
 #### 2.2 What Is a Container?
-VM 是實現隔離的一種方式，但不是唯一的方式。
+那麼，除了讓每個服務使用不同 VM，還有沒有其他方式能建立這樣的隔離邊界？
 
-還記得一開始介紹的 Process 嗎？
+我們先回到一開始介紹的 Process。
 
-在 Linux 裡，Kernel 提供了一些機制，可以控制不同 Process 能夠看到、存取和使用哪些系統資源。
+在 Linux 裡，負責管理 Process 與系統資源的作業系統核心，稱為 **Kernel**。Linux 本身也提供一些機制，可以控制不同 Process 能夠看到、存取和使用哪些系統資源。
 
 例如，可以讓某一群 Process 看到特定的檔案系統環境，使用自己的網路環境，或限制它們能夠使用的運算資源。
 
