@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
+<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#cbd5e1"/></marker></defs>
+<style>
+    .title { font: 700 26px 'Arial', sans-serif; fill: #e2e8f0; }
+    .subtitle { font: 600 18px 'Arial', sans-serif; fill: #f8fafc; }
+    .text { font: 15px 'Arial', sans-serif; fill: #cbd5e1; }
+    .small { font: 13px 'Arial', sans-serif; fill: #94a3b8; }
+    .label { font: 600 15px 'Arial', sans-serif; fill: #f8fafc; }
+    .box { fill: #111827; stroke: #64748b; stroke-width: 2; rx: 14; ry: 14; }
+    .soft { fill: #0f172a; stroke: #334155; stroke-width: 2; rx: 14; ry: 14; }
+    .accent { fill: #0b1220; stroke: #60a5fa; stroke-width: 2; rx: 14; ry: 14; }
+    .green { fill: #071913; stroke: #34d399; stroke-width: 2; rx: 14; ry: 14; }
+    .yellow { fill: #1a1406; stroke: #fbbf24; stroke-width: 2; rx: 14; ry: 14; }
+    .purple { fill: #120d1f; stroke: #a78bfa; stroke-width: 2; rx: 14; ry: 14; }
+    .arrow { stroke: #cbd5e1; stroke-width: 2.5; fill: none; marker-end: url(#arrowhead); }
+</style>
+<rect width="100%" height="100%" fill="#020617"/>
+<text x="70" y="70" class="title">Program vs Process</text>
+<text x="70" y="105" class="text">同一份程式內容，可以被執行多次，產生多個正在執行的實例。</text>
+<rect x="80" y="160" width="360" height="210" class="accent"/>
+<text x="110" y="210" class="subtitle">Program</text>
+<text x="110" y="245" class="text">例如：app.py</text>
+<rect x="110" y="270" width="300" height="65" class="soft"/><text x="130" y="310" class="small">靜態內容：程式碼存在硬碟裡，還沒有在跑</text>
+<line x1="450" y1="265" x2="620" y2="265" class="arrow"/><text x="490" y="240" class="small">python app.py</text>
+<line x1="450" y1="325" x2="620" y2="325" class="arrow"/><text x="490" y="300" class="small">再執行一次</text>
+<rect x="670" y="150" width="600" height="510" class="box"/>
+<text x="700" y="200" class="subtitle">Processes</text>
+<rect x="720" y="240" width="490" height="110" class="green"/><text x="750" y="285" class="label">Process A</text><text x="750" y="320" class="text">PID: 1001　Memory: own space　State: running</text>
+<rect x="720" y="390" width="490" height="110" class="green"/><text x="750" y="435" class="label">Process B</text><text x="750" y="470" class="text">PID: 1002　Memory: own space　State: running</text>
+<rect x="720" y="540" width="490" height="80" class="yellow"/><text x="750" y="585" class="small">重點：Program 是內容；Process 是正在執行的實例</text>
+<rect x="80" y="430" width="360" height="170" class="yellow"/>
+<text x="110" y="480" class="label">聽者容易卡住的點</text>
+<text x="110" y="515" class="text">「同一個 app.py，怎麼會有兩個？」</text>
+<text x="110" y="545" class="small">→ 這張圖很適合用來打底，後面才能順著類比到</text>
+<text x="110" y="570" class="small">同一份 Image 可以建立多個 Container</text>
+</svg>
