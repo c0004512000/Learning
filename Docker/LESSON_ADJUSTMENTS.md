@@ -52,14 +52,14 @@
 
 ## 2026-11-24 補充決議：第一堂 Dockerfile／Image／Container 講稿及實作已核准（優先適用）
 
-- 使用者確認納入完整 **Dockerfile → Image → Container** 基本教學（逐字稿 Section 06），以及可複製操作的 **build/run 最小實作示範**（Section 07）。原第一堂收尾已順移為 **Section 08**。目前逐字稿共 **八段已確認**。
+- 使用者確認納入完整 **Dockerfile → Image → Container** 基本教學（逐字稿 3.2–3.4），以及可複製操作的 **build/run 最小實作示範**（4.1–4.2）。原第一堂收尾位於 **4.3**；原八段內容已整理為四個 Chapter／十三個 Section。
 - 此次新段落不是只有 Command List，而是延續一開始的 Python API：準備 Runtime／Dependencies → 用 Dockerfile 描述環境 → `docker build` 產生 Image → Image 的本質是唯讀、可重用的檔案系統內容與執行設定（不執行 Process、不包含獨立 Kernel）→ `docker run` 建立及啟動 Container → 程式真正以 Linux Process 運作。
-- 必須呈現最小範例三個檔案：`app.py`（FastAPI `GET /` 回傳 `{"message":"Hello Docker"}`）、`requirements.txt`（`fastapi`／`uvicorn`）、`Dockerfile`（`FROM python:3.12-slim`、`WORKDIR /app`、`COPY`、`RUN pip install`、`CMD` 使用 Uvicorn 監聽 `0.0.0.0:8000`）。以上均以逐字稿 Section 07 的**實際完整內容**為準，不得自行改寫成不可執行的簡化版。
+- 必須呈現最小範例三個檔案：`app.py`（FastAPI `GET /` 回傳 `{"message":"Hello Docker"}`）、`requirements.txt`（`fastapi`／`uvicorn`）、`Dockerfile`（`FROM python:3.12-slim`、`WORKDIR /app`、`COPY`、`RUN pip install`、`CMD` 使用 Uvicorn 監聽 `0.0.0.0:8000`）。以上均以逐字稿 4.1–4.2 的**實際完整內容**為準，不得自行改寫成不可執行的簡化版。
 - 實作指令順序及作用：`docker build -t demo-api:1.0 .` → `docker image ls demo-api` → `docker run -d --name api-a -p 8000:8000 demo-api:1.0` → 瀏覽 `http://localhost:8000/` → `docker run -d --name api-b -p 8001:8000 demo-api:1.0` → `docker ps` → 瀏覽 `http://localhost:8001/` → `docker rm -f api-a api-b`。實作時須解釋兩個 Container 使用同一份 Image，**未重複 Build／pip install**，並說明不同的 Host Port Mapping。
 - **預期結果（尚非實測結論）**：Image Build 成功但不會直接啟動 API；兩個網址分別回傳 `{"message":"Hello Docker"}`；`docker ps` 顯示兩個 Running Container，IMAGE 均為 `demo-api:1.0`。示範需先確保 Docker CLI／Engine 可用、能拉取 Base Image，且 Host 8000／8001 未被佔用。
 - **核准狀態與驗證狀態要分開**：逐字稿＋實作步驟已獲使用者核准並更新 GitHub；本次**尚未實際執行 Docker 指令**，也未完成整堂試講時長驗證；**HTML／Learning Map 未因這次 MD 更新而自動完成**。不准將預期輸出冒充已驗證結果。
 - **深度邊界**：第一堂只講 Dockerfile 基本用途、Image 內容／靜態本質、`RUN`（Build 階段）與 `CMD`（Container 啟動階段）之別、Image→Container。Layer／OCI Manifest／Registry／Digest／BuildKit／Engine API 等較深入的架構留給後續適當單元；講者不需口頭預告固定章節。示範中的 `requirements.txt` 未釘選套件版本，跨時間重新 Build 的實際套件版本不保證完全一樣。
-- **閱讀順序與指示優先級**：若本檔下方任何歷史敘述仍提「Dockerfile／Image／Container 或 build/run 尚未確認」「逐字稿 Section 06 是收尾」等，均以本決議及目前 `Docker/TEACHING_SCRIPT.md` 的八段為準。
+- **閱讀順序與指示優先級**：若本檔下方任何歷史敘述仍提「Dockerfile／Image／Container 或 build/run 尚未確認」「舊版 Section 06 是收尾」等，均以本決議及目前 `Docker/TEACHING_SCRIPT.md` 的四章十三節為準。
 
 ## 1. 變更背景與已確認的決策
 
@@ -69,7 +69,7 @@
 
 核心決策：
 
-1. **Session 01 的順序調整為**：Program → Process → Execution Environment（Runtime / Dependencies / Configuration）→ 傳統部署情境 → 共用 VM／分開 VM 的取捨 → 是否一定需要獨立 Guest OS 的問題 → Isolation → What Is a Container?（先說本質為一個或一組 Process）→ **VM vs Container 最小架構對照（已確認，約 2–3 分鐘）** → What Is Docker? Bridge（隔離已做到，但環境仍需準備）→ Dockerfile / Image / Container（Section 06 已確認）→ 簡單 build/run 示範（Section 07 已確認、待實際驗證）→ **已確認的收尾**（Program／Process 類比 → 一份 Image 多個 Container → Build Once, Deploy Many → Container 與 Docker 的分工總結）→ 理解驗收。
+1. **Session 01 的順序調整為**：Program → Process → Execution Environment（Runtime / Dependencies / Configuration）→ 傳統部署情境 → 共用 VM／分開 VM 的取捨 → 是否一定需要獨立 Guest OS 的問題 → Isolation → What Is a Container?（先說本質為一個或一組 Process）→ **VM vs Container 最小架構對照（已確認，約 2–3 分鐘）** → What Is Docker? Bridge（隔離已做到，但環境仍需準備）→ Dockerfile / Image / Container（3.2–3.4 已確認）→ 簡單 build/run 示範（4.1–4.2 已確認、待實際驗證）→ **已確認的收尾**（Program／Process 類比 → 一份 Image 多個 Container → Build Once, Deploy Many → Container 與 Docker 的分工總結）→ 理解驗收。
 2. 先讓學員知道傳統部署如何在 Linux Server／VM 上準備執行條件；再以**共用 VM 需管理多個服務的執行環境／一服務一 VM 需維護更多 Guest OS** 這項取捨推進。VM 是合理的實務方案，並非預設每個服務一定各有一台 VM。**在介紹 Container 之前，只用 Guest OS 數量與維護成本支撐提問；完成 Container 定義後，才加入 2–3 分鐘的基礎 VM／Container 對照。** 不要求學員理解 Hypervisor 實作，也不深入隔離架構。
 3. Container 的引入必須承接**已核准的部署取捨 Bridge**：服務需求不同 → 共用 VM 的環境管理取捨 → 分開 VM 的 Guest OS 維護成本 → 提問是否存在不需每組 Process 都使用獨立 Kernel 的其他方式 → 解釋真正重視的是隔離性（Isolation）→ Linux Kernel 可約束一個或一組 Process 的資源視圖／使用 → Container 定義。**不能先替學員預設「我們希望不要 Guest OS」或突然轉向 CPU／Memory／Network 隔離**；先讓取捨與成本有依據，再提出問題。結尾**才**用網路架構圖的方框破除「Container 是獨立小盒子」的錯覺，簡短強調本質上是一個或一組受到隔離機制約束的 Linux Process，避免堆疊「不是什麼、也不是什麼」的冗長尾段。**不要把「解決 Python Dependency 問題」描述成 Container 技術誕生的歷史原因**，也不要把「Image 封裝能力」誤當成 Container 的定義。
 4. **先 Container，後 Docker**：前者是具有隔離邊界的執行環境；Docker 是協助建構 Image、建立與管理 Container 的工具／平台。不是所有 Container 都必須透過 Docker 建立。**已確認的 Docker 開場因果**：Linux 已能為多個服務建立 Container → 仍需準備 Runtime、Dependencies 與 Configuration → 和傳統 VM 部署一樣，環境準備及管理工作沒有自動消失 → 腳本與既有工具雖可自動化，仍有整合、標準化與重複使用的需求 → Docker 提供一致的 Image 建構與 Container 管理方式。**不得跳過這條因果鏈，直接用「要部署到另一台 Server」引出 Docker**。
@@ -121,13 +121,13 @@
 **Section 03（Docker／Dockerfile／Image／Container；此處為既有 HTML 區段名稱，非逐字稿編號）**
 
 - 維持先 Container、再 Docker 的順序；明確說明 Docker 並非 Container 的同義詞或唯一實作。
-- **已確認的 Docker 開場 Bridge（逐字稿 Section 05）**：延續同一台 Linux Server 上多個服務的部署故事。先提醒 Container 讓服務隔離、共用 Linux Kernel，不代表 Python Runtime、Dependencies、Configuration、啟動設定會自動出現；再比較以前在 VM 上部署時仍須準備執行條件，說明環境準備／管理是尚未消失的問題。承認 Shell Script、LXC Templates 等現有方法可自動化，避免宣稱沒有 Docker 就必須手動重裝。最後再提出「如何方便、標準化地描述、建構和重複使用環境」，帶出 Docker 的 Image 建構及 Container 管理價值。此處**禁止突然改談部署到其他 Server**，跨主機交付應放在 Image / Registry 後續章節中。
-- Agent 應保留上述**已確認的橋樑敘事**，並緊接已確認的 Section 06 Dockerfile／Image／Container 講稿；不得把 Registry／OCI 等深入內容擅自提前到此。
+- **已確認的 Docker 開場 Bridge（逐字稿 3.1）**：延續同一台 Linux Server 上多個服務的部署故事。先提醒 Container 讓服務隔離、共用 Linux Kernel，不代表 Python Runtime、Dependencies、Configuration、啟動設定會自動出現；再比較以前在 VM 上部署時仍須準備執行條件，說明環境準備／管理是尚未消失的問題。承認 Shell Script、LXC Templates 等現有方法可自動化，避免宣稱沒有 Docker 就必須手動重裝。最後再提出「如何方便、標準化地描述、建構和重複使用環境」，帶出 Docker 的 Image 建構及 Container 管理價值。此處**禁止突然改談部署到其他 Server**，跨主機交付應放在 Image / Registry 後續章節中。
+- Agent 應保留上述**已確認的橋樑敘事**，並緊接已確認的 3.2–3.4 Dockerfile／Image／Container 講稿；不得把 Registry／OCI 等深入內容擅自提前到此。
 - 概念分工清楚：Dockerfile＝Image 的建構指示；Image＝包含檔案及設定的可重複使用建構產物；Container＝根據 Image 建立的實例（可處於 running 或 stopped）；Docker Engine＝管理相關資源的系統。
-- 可把 Section 01 的部署情境接回來，讓學員理解 Dockerfile、Image 如何協助準備及重複使用已建構的內容。**第一堂收尾已確認短講 Build Once, Deploy Many**：Image 不只用於建立多個 Container，也可作為多環境的相同建構產物；只講意義、前提和基本限制，不完整展開 Environment Drift／Registry／Digest／交付工程細節。這些完整內容移至後續 Image／Build 課；正式教材需依逐字稿已確認的 Section 08 收尾編排。
+- 可把 1.1–1.3 的部署情境接回來，讓學員理解 Dockerfile、Image 如何協助準備及重複使用已建構的內容。**第一堂收尾已確認短講 Build Once, Deploy Many**：Image 不只用於建立多個 Container，也可作為多環境的相同建構產物；只講意義、前提和基本限制，不完整展開 Environment Drift／Registry／Digest／交付工程細節。這些完整內容移至後續 Image／Build 課；正式教材需依逐字稿已確認的 4.3 收尾編排。
 - 一份 Image 可以建立多個 Container，應透過簡單示範驗證；保留 Image ≠ 正在執行的 Process 等重要區別。
 
-**第一堂已確認收尾（逐字稿 Section 08；接續 Section 06／07 之後）**
+**第一堂已確認收尾（逐字稿 4.3；接續 3.2–3.4／4.1–4.2 之後）**
 
 - 保留使用者特別確認的因果：**同一份 Program 能啟動多個 Process → Container 裡面執行的本質仍是 Linux Process → 同一份 Image 可以建立多個 Container**。這是理解多個執行實例的類比；不能畫上完全等號，因為 Image 含檔案系統內容／執行設定，Container 具生命週期、Writable Layer，且一個 Container 可包含一個或多個 Process。
 - 明確區分 Image（不在執行的建構產物）、Container（依 Image 建立的執行實例）、Process（Linux Kernel 排程的執行單位），不能說「一份 Image 直接同時啟動多個 Process 而不經 Container」；示範多個 Container 彼此隔離，仍共享基礎 Image。
