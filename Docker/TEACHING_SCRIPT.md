@@ -8,7 +8,7 @@
 >
 > **課程結構決議（2026-11-22）：**取消獨立的 Why Containerization，原八堂調整為七堂。Session 01 整合必要的 Why；Session 02 改為 How Containers Work。此決議不代表後續尚未確認的口頭講稿已完成。
 >
-> **最近修訂：**2026-11-25（調整 1.1／1.3／2.1／2.2 因果銜接；五張 Dark Mode 圖改為英文、簡化為純技術架構）
+> **最近修訂：**2026-11-25（新增 2.1 Container 執行環境示意圖；3.4 改為同一 Image 建立三個含獨立 Main Process 的 Container）
 
 ---
 
@@ -22,7 +22,7 @@
 - **Chapter 3 — Understanding Docker**：3.1 Why Docker? → 3.2 Dockerfile — Defining the Environment → 3.3 Docker Image — The Build Artifact → 3.4 Docker Container — Running the Application。從環境準備仍存在的需求引出 Docker，再依序理解建構指示、靜態成果、執行實例。
 - **Chapter 4 — Hands-on & Key Takeaways**：4.1 Building a Docker Image → 4.2 Running Multiple Containers → 4.3 Putting It All Together。先展示三個實作檔案與 Image Build，再啟動兩個 Container 並清理，最後呼應 Program／Process 類比與 Build Once, Deploy Many。
 - **講稿原則**：Chapter／Section 標題是講稿及教材導覽層級，不硬塞「現在進入第二章／下堂再談」進口語。此次僅重編已確認段落、將原本的 Docker 概念教學與最小實作依主題歸類，保留先前核准的敘述、示範指令及自然 Bridge。課程章次與順序日後可以調整，口語稿不得依賴預告下堂才能完成收尾。
-- **圖資已上傳並實際嵌入逐字稿（Dark Mode SVG）**：圖 01 Program vs Process → 1.1；圖 02 Shared VM vs Multiple VMs → 1.3；圖 03 VM vs Container Architecture → 2.3；圖 04 Dockerfile → Image → Container → 3.4 完成三者解釋之後；圖 05 Build Once, Run Many / Deploy Many → 4.3。深色底、維持原本藍／綠／紫／黃配色；學員版圖面不應包含講師備註、編排理由、無關的描述，且應檢查繁體中文顯示、箭頭方向、元件比例與可讀性。
+- **六張圖資已上傳並嵌入逐字稿（Dark Mode SVG）**：圖 01 Program vs Process → 1.1；圖 02 Shared VM vs Multiple VMs → 1.3；圖 02B Container Runtime Environment（Code／Dependencies／Language Runtime／Configuration → Container）→ 2.1 結尾；圖 03 VM vs Container Architecture → 2.3；圖 04 Dockerfile → Image → Multiple Containers（獨立 Main Processes）→ 3.4；圖 05 Build Once, Run Many / Deploy Many → 4.3。深色底、維持原本藍／綠／紫／黃配色；學員版圖面不應包含講師備註、編排理由、無關的描述，且應檢查繁體中文顯示、箭頭方向、元件比例與可讀性。
 - **其他 Lesson 仍依原本七堂大綱規劃**：Lesson 02 — How Containers Work；Lesson 03 — Dockerfile & Image Internals；Lesson 04 — Docker Builds & Best Practices；Lesson 05 — Container Lifecycle & Storage；Lesson 06 — Docker Networking；Lesson 07 — From Docker to Kubernetes。Lesson 01 的核心比較不提前深入 Namespaces／cgroups／OCI／BuildKit 等實作。
 - **完成狀態**：本檔已確認講述內容與最小實作流程；尚未完成 Docker 實測、整堂試講時間評估，正式 HTML 教材仍未更新；但五張 Dark Mode SVG 已上傳至 `Docker/assets/diagrams/`，並以相對路徑嵌入對應的逐字稿 Section。
 
@@ -114,6 +114,10 @@
 例如，A 服務更新套件或調整設定時，不應直接改變 B 服務的執行環境；其中一個服務占用大量資源，也不應毫無限制地影響其他服務。
 
 **讓不同服務在各自的執行邊界內運作，降低彼此干擾，這個需求就叫做隔離性（Isolation）。**
+
+<!-- 圖 02B｜Section 2.1｜Dark Mode｜插入時機：完成 Isolation 定義後，展示隔離執行環境所需的組成；下一節才正式介紹 Container 的 Linux 機制 -->
+
+![Container execution environment: code, dependencies, language runtime and configuration](assets/diagrams/02b_container_execution_environment_dark.svg)
 
 
 #### 2.2 What Is a Container?
@@ -281,9 +285,9 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
 因此，**我們不需要每次啟動 Container，就重新安裝一次 Python 套件。** 這些檔案已經在建構 Image 時準備好了，可以用來建立不只一個 Container。
 
-<!-- 圖 04｜Section 3.4｜Dark Mode｜插入時機：完成 Dockerfile、Image、Container 的介紹之後，開始 CLI 操作之前 -->
+<!-- 圖 04｜Section 3.4｜Dark Mode｜插入時機：完成 Dockerfile、Image、Container 的介紹後，說明同一份 Image 可建立多個 Container，各有獨立的 Main Process，再進入 CLI 示範 -->
 
-![Dark Mode 流程圖：Dockerfile 經 docker build 產生 Image，再透過 docker run 啟動 Container](assets/diagrams/04_dockerfile_image_container_flow_dark.svg)
+![Dockerfile builds one image that can start multiple containers, each with a separate main process](assets/diagrams/04_dockerfile_image_container_flow_dark.svg)
 
 從「描述環境」到「建構成果」，再到「實際執行」，整個過程現在已經串起來了。我們直接用 Terminal 驗證一次。
 
