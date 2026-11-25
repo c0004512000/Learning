@@ -8,7 +8,7 @@
 >
 > **課程結構決議（2026-11-22）：**取消獨立的 Why Containerization，原八堂調整為七堂。Session 01 整合必要的 Why；Session 02 改為 How Containers Work。此決議不代表後續尚未確認的口頭講稿已完成。
 >
-> **最近修訂：**2026-11-25（2.1 改用使用者於對話中確認的 PNG 原圖；保留四條箭頭與開口紙箱構圖）
+> **最近修訂：**2026-11-25（2.1 PNG 將 Runtime Engine 改為 Runtime；其餘構圖與教學位置不變）
 
 ---
 
@@ -117,7 +117,7 @@
 
 <!-- 圖 02B｜Section 2.1｜Dark Mode PNG｜插入時機：完成 Isolation 定義後；使用對話中核准的原圖 PNG，四條箭頭匯入標示 Container 的紙箱 -->
 
-![Container open box diagram: Configuration, Dependencies, Code, Runtime Engine](assets/diagrams/02b_container_execution_environment_dark.png)
+![Container open box diagram: Configuration, Dependencies, Code, Runtime](assets/diagrams/02b_container_execution_environment_dark.png)
 
 
 #### 2.2 What Is a Container?

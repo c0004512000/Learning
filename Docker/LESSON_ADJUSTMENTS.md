@@ -2,14 +2,14 @@
 
 ## 2026-11-25 — 2.1 原圖 PNG 完整同步（最高優先級）
 
-- `Docker/assets/diagrams/02b_container_execution_environment_dark.png` 是**對話內已核准的圖片原檔**，已完整上傳至 GitHub，不是 SVG 重繪版本。此圖片畫面包括四個英文標籤 Configuration、Dependencies、Code、Runtime Engine，以及正面標示 Container 的開口紙箱；**恰好四條箭頭**。
-- `Docker/TEACHING_SCRIPT.md` 的 2.1 結尾必須直接引用此 PNG 相對路徑。舊檔 `02b_container_execution_environment_dark.svg` 不再作為教材圖資使用；任何舊段落要求改回 SVG、將 Runtime Engine 改名、或自作主張重新排版，均以本決議為準。
+- `Docker/assets/diagrams/02b_container_execution_environment_dark.png` 是**對話內已核准的圖片原檔**，已完整上傳至 GitHub，不是 SVG 重繪版本。此圖片畫面包括四個英文標籤 Configuration、Dependencies、Code、Runtime，以及正面標示 Container 的開口紙箱；**恰好四條箭頭**。此版僅修改 Runtime Engine 標籤為 Runtime，保留原本配置。
+- `Docker/TEACHING_SCRIPT.md` 的 2.1 結尾必須直接引用此 PNG 相對路徑。舊檔 `02b_container_execution_environment_dark.svg` 不再作為教材圖資使用；不可改回 SVG，也不可未經同意另外重畫版面；目前正式標籤為 Runtime。
 - 保持學員版圖片原貌；GitHub 完成狀態不等於 HTML 同步，後續改版 HTML 時需確認圖片路徑。
 
 
 > 狀態：**Lesson 01 已依四個 Chapter／十三個 Section 更新逐字稿。全套規劃七堂 Lesson；正式 HTML、Learning Map 與圖資仍須另行驗證／更新。**
 >
-> 最近修訂：2026-11-25（2.1 已同步使用者核准的 PNG 原圖至 GitHub，停止使用舊版 SVG）
+> 最近修訂：2026-11-25（2.1 正式 PNG 僅將 Runtime Engine 標籤改為 Runtime；已同步 GitHub）
 >
 > Repository：`c0004512000/Learning`，主要目錄：`Docker/`
 >
@@ -17,7 +17,7 @@
 
 ## 2026-11-25 — 2.1 新圖與 3.4 One Image → Multiple Containers（優先適用）
 
-- **2.1 正式圖 `02b_container_execution_environment_dark.png`**：**以對話中使用者認可的生成圖片原檔為唯一正式版本**。Configuration、Dependencies、Code、Runtime Engine 四個圖示依原構圖匯入開口紙箱，紙箱正面標示 Container；保持四條箭頭、暗色系及英文標籤，不以另外重繪的 SVG 取代。此圖已在 GitHub 上傳原始 PNG 位元組，並由 Teaching Script 的 2.1 結尾引用。
+- **2.1 正式圖 `02b_container_execution_environment_dark.png`**：**以對話中使用者認可的生成圖片原檔為唯一正式版本**。Configuration、Dependencies、Code、Runtime 四個圖示依原構圖匯入開口紙箱，紙箱正面標示 Container；保持四條箭頭、暗色系及英文標籤，不以另外重繪的 SVG 取代。此圖已在 GitHub 上傳原始 PNG 位元組，並由 Teaching Script 的 2.1 結尾引用。
 - **3.4 現有圖 `04_dockerfile_image_container_flow_dark.svg`**：一份 Dockerfile Build 一份唯讀 Image，同一 Image 分叉建立 **Container A／B／C**，每個 Container 有自己的 **Main Process A／B／C**。箭頭須真正連接每個 Container；不暗示每個 Container 只能有單一 Process，或各有獨立 Linux Kernel。
 - **視覺規格**：沿用深色底、藍色 Dockerfile、綠色 Image、紫色 Container；圖片內只用英文技術標籤，不加教學旁白。SVG 位於 `Docker/assets/diagrams/`，以 Markdown 相對路徑嵌入 `TEACHING_SCRIPT.md`；HTML 尚未修改。
 - **實際狀態**：兩張 SVG 已在 GitHub 提交；Teaching Script 已新增 2.1 圖片並沿用 3.4 原圖片路徑。兩份 MD 會持續記錄圖資規格與核准狀態。
@@ -64,7 +64,7 @@
 |---|---|---|
 | [`01_program_vs_process_dark.svg`](assets/diagrams/01_program_vs_process_dark.svg) | 1.1 | 說明一份 Program 可產生多個 Process |
 | [`02_shared_vm_vs_many_vms_dark.svg`](assets/diagrams/02_shared_vm_vs_many_vms_dark.svg) | 1.3 | 比較共用一台 VM／一服務一台 VM 的維運取捨 |
-| [`02b_container_execution_environment_dark.png`](assets/diagrams/02b_container_execution_environment_dark.png) | **2.1 結尾** | 使用者核准之 PNG 原圖；Configuration／Dependencies／Code／Runtime Engine 各一條箭頭匯入 Container 開口紙箱 |
+| [`02b_container_execution_environment_dark.png`](assets/diagrams/02b_container_execution_environment_dark.png) | **2.1 結尾** | 使用者核准之 Dark Mode PNG（Runtime 標籤版）；Configuration／Dependencies／Code／Runtime 各一條箭頭匯入 Container 開口紙箱 |
 | [`03_vm_vs_container_architecture_dark.svg`](assets/diagrams/03_vm_vs_container_architecture_dark.svg) | 2.3 | 定義 Container 之後，對照 Guest Kernel 與共享 Host Kernel |
 | [`04_dockerfile_image_container_flow_dark.svg`](assets/diagrams/04_dockerfile_image_container_flow_dark.svg) | 3.4 | Dockerfile → one Image → Container A／B／C；各有獨立 Main Process，不代表容器僅能有單一 Process |
 | [`05_build_once_run_many_deploy_many_dark.svg`](assets/diagrams/05_build_once_run_many_deploy_many_dark.svg) | 4.3 | 兩個 Container 的示範結束後，呼應收尾概念 |
