@@ -4,8 +4,8 @@ printf 'requests==2.31.0\n' &gt; old/requirements.txt
 printf 'requests==2.32.5\n' &gt; fixed/requirements.txt
 trivy --cache-dir "$PWD/cache" fs --download-db-only
 trivy --cache-dir "$PWD/cache" --version</code></pre><p>Requests CVE-2024-35195 的公告顯示 2.32.0 之前版本受影響。測試只驗證這筆 CVE，非證明新版完全安全。使用乾淨工作目錄、確認沒有非預期 TRIVY_*、trivy.yaml、ignorefile。</p><h2>02 / 固定 DB，產生三份報告</h2><pre><code>for target in old fixed empty; do
-  trivy --cache-dir "$PWD/cache" fs --scanners vuln \\
-    --skip-db-update --list-all-pkgs --format json \\
+  trivy --cache-dir "$PWD/cache" fs --scanners vuln \
+    --skip-db-update --list-all-pkgs --format json \
     --exit-code 0 --output "reports/$target.json" "$target" || exit 1
 done</code></pre><p>範例假設已成功準備 vulnerability DB，且純 Python 宣告不需 Java DB。比較前核對 DB metadata、CLI 版本及報告路徑，不應重用之前輸出。</p><pre><code>for report in reports/{old,fixed,empty}.json; do
   echo "$report"
