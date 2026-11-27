@@ -42,3 +42,12 @@
 - [Database and update mechanism](https://trivy.dev/docs/latest/guide/configuration/db/)
 - [Standalone operation](https://trivy.dev/docs/latest/guide/references/modes/standalone/)
 - [已查核的前導課來源證據](sources/evidence/2026-11-22-cli-fundamentals.md)
+
+## 2026-11-27 CLI / DB / Output 教材
+
+- [Configuration](https://trivy.dev/docs/latest/guide/configuration/)
+- [Cache](https://trivy.dev/docs/latest/configuration/cache/)
+- [Filtering](https://trivy.dev/docs/latest/guide/configuration/filtering/)
+- [Network scenarios](https://trivy.dev/docs/latest/guide/advanced/air-gap/)
+- [trivy-db](https://github.com/aquasecurity/trivy-db)
+- [2026-11-27 查核證據](sources/evidence/2026-11-27-cli-db-output.md)

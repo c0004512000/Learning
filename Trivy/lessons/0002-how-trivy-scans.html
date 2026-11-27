@@ -20,7 +20,7 @@
 <tr><td>常見盲點</td><td>實際版本／間接依賴沒寫在檔案裡</td><td>未封裝進 Image 的檔案／外部依賴不會憑空出現</td></tr>
 <tr><td>與你的部署關係</td><td>IIS 專案或 Docker build 前可使用</td><td>Kubernetes Docker build 後可使用；IIS 通常沒有對應 Image</td></tr>
 </tbody></table></div>
-<p>兩者不是單純「Image 比 fs 進階」。它們<strong>回答的目標不同</strong>：Repo 內的依賴資訊 vs. 已封裝的 Image。你的企業導入最後可能同時需要其中兩種，但必須拿出驗證理由。</p>
+<p>兩者不是單純「Image 比 fs 進階」。它們<strong>回答的目標不同</strong>：Repo 內的依賴資訊 vs. 已封裝的 Image。本課以兩者的觀察範圍作比較；目前導入主線只要求 Filesystem Dependency Vulnerability Scan。</p>
 <div class="diagram" id="flow"><p class="diagram-title">Figure 02 · 目標不同，看到的依賴也不同</p>
 <ol><li><strong>GitHub Checkout</strong> <span class="cite">包含 package.json / requirements.txt / .csproj 等</span><br>↓ <em>Trivy fs 讀取可辨識的檔案</em><br>取得檔案能證明的套件資訊</li>
 <li><strong>Docker build 產出的 Image</strong> <span class="cite">可能包含 OS packages + 安裝的應用套件</span><br>↓ <em>Trivy image 讀取實際封裝的內容</em><br>取得 Image 能辨識的套件資訊</li>
@@ -38,7 +38,7 @@ trivy fs --scanners vuln .
 # 掃描已建好的 Image
 trivy image --scanners vuln my-service:example-tag</code></pre>
 <ol><li>Trivy 接到掃描目標。</li><li>它嘗試辨識目標內的套件、版本與所屬環境資訊。</li><li>它利用漏洞資料進行比對，產生可讀的風險結果。</li><li>CI 可保存報告，再依<strong>你們訂定的 Policy</strong>決定是否阻擋後續部署。</li></ol>
-<p>第一次執行通常還需準備漏洞資料庫；DB 下載失敗、套件辨識不足和「確實沒有命中漏洞」要分開看待。CLI 錯誤／退出碼與 JSON 報告會在 Phase 02 實際驗證。</p>
+<p>第一次執行通常還需準備漏洞資料庫；DB 下載失敗、套件辨識不足和「確實沒有命中漏洞」要分開看待。CLI 錯誤／退出碼與 JSON 報告會在 後續 CLI 與 Output 課程實際驗證。</p>
 <h2>05 / 套到你的兩種部署管線</h2>
 <div class="box tip"><strong>Kubernetes / Harbor</strong><p>Docker build 後掃 Image，可以評估進入 Image 的 OS/Application packages；若想在 push 前擋，需要先確認目前 Workflow 的 build/push 是否可拆開。之後還要明確比對實際部署的 tag 或 digest。</p></div>
 <div class="box tip"><strong>Windows IIS</strong><p>因為通常沒有 Container Image，應該檢查 Restore/Install 完成後可取得的依賴清單及 publish output。更重要的是先確認 workflow 的 MSBuild 或 msdeploy 動作是否<strong>已經包含部署</strong>，不要到部署之後才設 Scan Gate。</p></div>
@@ -52,9 +52,9 @@ trivy image --scanners vuln my-service:example-tag</code></pre>
 <div class="choices"><label><input type="radio" name="q2" value="a">套件清單必定完整</label><label><input type="radio" name="q2" value="b">仍需核對執行環境</label><label><input type="radio" name="q2" value="c">可直接取代 Lockfile</label></div><p><button type="button" class="choice" data-check>確認我的判斷</button></p><p class="feedback" data-feedback role="status"></p><noscript><details><summary>未啟用 JavaScript：查看解析</summary><p>先證明 freeze 來自與建置／部署一致的環境。</p></details></noscript></section>
 <h2>07 / 本章回顧</h2>
 <ul><li>Trivy 不是執行功能測試；它要從輸入辨識套件並查已知漏洞。</li><li>Filesystem Scan 與 Image Scan 的<strong>輸入、觀測範圍不同</strong>。</li><li>Lockfile／freeze 是為了讓精確版本和間接依賴更可見；必須確認符合真實環境。</li><li>沒有發現漏洞 ≠ 所有套件都已辨識；沒有找到套件 ≠ 安全。</li><li>導入 CI 之前要知道哪個建置或部署步驟會真的改變環境。</li></ul>
-<div class="box ask"><strong>離開第一章前的自我檢查：</strong>不看答案，能否用 60 秒解釋「為什麼同一個 Repo 的 Filesystem Scan 和建好的 Image Scan，結果可能不同」？如果可以，再進 Phase 02 CLI PoC；如果卡住，回 <a href="../reference/0001-scan-pipeline.html">掃描流程 Reference</a>。</div>
+<div class="box ask"><strong>離開第一章前的自我檢查：</strong>不看答案，能否用 60 秒解釋「為什麼同一個 Repo 的 Filesystem Scan 和建好的 Image Scan，結果可能不同」？如果可以，再進 Phase 02 CLI 與 Configuration；如果卡住，回 <a href="../reference/0001-scan-pipeline.html">掃描流程 Reference</a>。</div>
 <p>回到 ChatGPT 描述你的推論，我會根據實際回答確認是否需要補前提；頁面不會把讀完視為通過。</p>
-<div class="lesson-nav"><a href="0001-why-trivy.html">← Lesson 01</a><a href="0002a-cli-fundamentals.html">Phase 02：先理解 Trivy CLI →</a></div>
+<div class="lesson-nav"><a href="0001-why-trivy.html">← Lesson 01</a><a href="0002a-cli-fundamentals.html">Phase 02：學習 Trivy CLI 與 Flags →</a></div>
 <p class="cite"><strong>來源：</strong><a href="https://trivy.dev/docs/latest/guide/target/filesystem/">Filesystem</a>、<a href="https://trivy.dev/docs/latest/guide/target/container_image/">Container Image</a>、<a href="https://trivy.dev/docs/latest/guide/coverage/language/python/">Python</a>、<a href="https://trivy.dev/docs/latest/guide/coverage/language/dotnet/">.NET</a>、<a href="https://github.com/c0004512000/Learning/blob/main/Trivy/sources/evidence/2026-11-18-source-baseline.md">已驗證基準</a>。</p>
 </main>
 <footer class="lesson-nav"><a href="../learning-map/index.html">← 學習地圖</a><a href="https://github.com/c0004512000/Learning/blob/main/Trivy/RESOURCES.md">資料來源</a></footer>

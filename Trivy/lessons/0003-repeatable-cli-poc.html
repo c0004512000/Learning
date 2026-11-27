@@ -1,81 +1,24 @@
-<!doctype html>
-<html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Lesson 03｜建立可重複的 CLI 掃描 · Trivy Learning</title><link rel="stylesheet" href="../assets/style.css"></head><body>
-<nav aria-label="課程導覽"><a href="../index.html">Trivy 首頁</a>　/　<a href="../learning-map/index.html#phase-2">學習地圖</a>　/　<a href="../reference/0002-cli-poc.html">CLI 速查</a></nav>
-<main>
-<p class="subtitle">PHASE 02 / LESSON 03 · 最小可重現實驗</p>
-<h1>我們怎麼證明 Trivy 真的有掃到？</h1>
-<p>先閱讀 <a href="0002a-cli-fundamentals.html">CLI 基礎前導課</a>：知道 Trivy 在哪裡執行、掃描目標從哪裡取得，以及 Target 與 Scanner 的差別。現在把「先辨識套件名稱與版本，再比對已知漏洞」這個模型變成可驗證的實驗。不必使用公司 Repo，也不需要先部署 Trivy Server。</p>
-<div class="box"><strong>本堂目標</strong><p>對一個最小樣本，比較舊版、修正版、空目錄與建好的 Image 的掃描結果，能說出每個案例驗證了什麼。</p><p class="cite">前置閱讀：<a href="0002a-cli-fundamentals.html">Phase 02 前導：Trivy CLI 的基本原理與使用方式</a>。本頁是可重現實驗教材，以下預期結果並非本次執行紀錄。</p></div>
-<h2>01 / 先設計實驗，再下指令</h2>
-<p>假設只拿一個完全陌生的專案掃描，Trivy 回報 0 個漏洞。我們無法判斷它是沒有找到漏洞，還是沒有讀到套件。因此先挑一個已知有漏洞的版本，及一個修正該漏洞的版本，作為對照。</p>
-<p>本次選 Python 的 requests：公開公告 <a href="https://github.com/advisories/GHSA-9wx4-h78v-vm56">CVE-2024-35195</a> 指出 2.32.0 之前版本受此問題影響。用 2.31.0 與 2.32.5 做對照，只驗證這一個 CVE 是否消失，不要求修正版完全沒有其他漏洞。過程不需要執行有漏洞的程式。</p>
-<div class="diagram"><p class="diagram-title">Figure 03 · 四個受控輸入</p><ol><li>舊版 requirements.txt → 應辨識 requests 2.31.0，並命中指定 CVE。</li><li>修正版 requirements.txt → 應辨識 requests 2.32.5，但不命中指定 CVE。</li><li>沒有套件清單的空目錄 → 不應聲稱 requests 已被辨識。</li><li>由舊版清單安裝套件的 Image → 應檢查 Image 中可辨識的 Python 套件與 OS 套件。</li></ol><p class="cite">每個箭頭代表把該輸入交給 Scanner 觀察，並非事先宣稱測試成功。</p></div>
-<h2>02 / 準備環境與樣本</h2>
-<p>使用已核准的 Linux／WSL 測試環境，需要 Trivy CLI、jq、Docker（最後一個 Image 實驗才需要）。安裝方式請見 <a href="https://trivy.dev/docs/latest/getting-started/installation/">官方安裝文件</a>；先選定核准的固定版本，不在公司 Runner 上擅自安裝。初次掃描需要能取得漏洞資料庫。</p>
-<pre><code>trivy --version
-jq --version
-docker version
-
-mkdir -p trivy-poc
-cd trivy-poc
-mkdir -p old fixed empty reports
-
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Filesystem CLI：用受控實驗驗證掃描契約｜Trivy Learning</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/technical-reading.css"></head><body><nav aria-label="主要導覽"><a href="../index.html">Trivy 首頁</a>　/　<a href="../learning-map/index.html">學習地圖</a>　/　<a href="../reference/0003-cli-output-db.html">速查</a></nav><main><p class="subtitle">PHASE 05 / LESSON 09 · PRACTICE LAB</p><h1>Filesystem CLI：用受控實驗驗證掃描契約</h1><div class="box"><strong>本堂目標</strong><p>能從空白需求自行設計 command，並證明漏洞命中、修復、覆蓋不足、篩選及執行錯誤的差異。</p></div><h2>01 / 準備三個輸入</h2><p>在已核准測試環境使用固定版本 Trivy、Bash、jq；不需要 Docker、公司 repo、部署服務或執行漏洞程式。先核對 help。以下為可重現步驟，預期結果未實測。</p><pre><code>mkdir -p trivy-lab/{old,fixed,empty,reports}
+cd trivy-lab
 printf 'requests==2.31.0\n' &gt; old/requirements.txt
-printf 'requests==2.32.5\n' &gt; fixed/requirements.txt</code></pre>
-<p>我們把 reports 放在掃描目錄外面，避免掃描結果成為下一次的輸入；在乾淨目錄中操作，避免既有 trivy.yaml、忽略規則或環境變數改變實驗條件。</p>
-<h2>03 / 第一次 Filesystem Scan</h2>
-<pre><code>trivy fs --scanners vuln \
-  --list-all-pkgs --format json \
-  --output reports/old.json old</code></pre>
-<p><code>--scanners vuln</code> 讓本次只測漏洞；<code>--format json</code> 是方便機器讀取的報告；<code>--list-all-pkgs</code> 讓沒有命中漏洞的可辨識套件也留在報告。掃描前、後都記錄 <code>trivy --version</code>，保留 CLI 及可取得的 DB 版本／更新時間。若資料庫在兩個案例之間更新，須記錄差異或用同一份已更新的 DB 重新比較。</p>
-<pre><code>jq -r '.Results[]? | .Packages[]? |
-  [.Name, .Version] | @tsv' reports/old.json
-
-jq -r '.Results[]? | .Vulnerabilities[]? |
-  select(.VulnerabilityID==&quot;CVE-2024-35195&quot;) |
-  [.PkgName, .InstalledVersion, .FixedVersion] |
-  @tsv' reports/old.json</code></pre>
-<p>第一個命令讀出套件清單，第二個只找指定漏洞。這樣就不需要靠漏洞總數來判定 scanner 是否正確辨識版本。</p>
-<h2>04 / 保持 Scanner 相同，只更換輸入</h2>
-<pre><code>trivy fs --scanners vuln --list-all-pkgs \
-  --format json -o reports/fixed.json fixed
-
-trivy fs --scanners vuln --list-all-pkgs \
-  --format json -o reports/empty.json empty</code></pre>
-<p>用上一節的 jq 命令檢查這兩份報告（換檔名）。預期 fixed 仍有 requests，但指定漏洞不再出現；empty 沒有 requests，不能把它當作修復成功。任何命令若非正常完成，先處理錯誤再解讀報告。</p>
-<h2>05 / 同一個樣本，改掃 Image</h2>
-<p>這次真的安裝舊版套件，再讀取最終 Image。這是隔離的教學 Image，不要執行服務、推送 Harbor 或部署。</p>
-<pre><code>cat &gt; old/Dockerfile &lt;&lt;'EOF'
-FROM python:3.12-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    &amp;&amp; rm requirements.txt
-EOF
-
-docker build -t trivy-poc:old old
-docker image inspect --format '{{.Id}}' trivy-poc:old
-trivy image --image-src docker --scanners vuln \
-  --list-all-pkgs --format json \
-  -o reports/image.json trivy-poc:old</code></pre>
-<p>Dockerfile 安裝套件後移除原宣告，以便觀察 Image 內的安裝套件 metadata；注意 Docker base tag 和間接依賴可能隨時間變化。正式重現時需固定 base digest、實際安裝版本與 Scanner DB，並保留 image ID。<code>--image-src docker</code> 限定本機 Docker，避免同名 registry Image 影響結果。</p>
-<pre><code>jq -r '.Results[]? |
-  [.Target, .Class, .Type,
-   ((.Packages // []) | length)] | @tsv' \
-  reports/image.json</code></pre>
-<p>預期看到 Python 已安裝套件與 Linux OS 套件的結果分類；請以清單核對，而不是假設一定有固定數量。這就是第一章的 fs/image 差異在 CLI 中的具體表現。</p>
-<h2>06 / 什麼結果才算 PoC 通過？</h2>
-<div class="table-wrap"><table><thead><tr><th>案例</th><th>必須觀察的結果（預期）</th></tr></thead><tbody>
-<tr><td>舊版</td><td>requests 2.31.0 已辨識，指定 CVE 存在</td></tr>
-<tr><td>修正版</td><td>requests 2.32.5 已辨識，指定 CVE 不存在</td></tr>
-<tr><td>空目錄</td><td>requests 未辨識，不視同安全</td></tr>
-<tr><td>Image</td><td>掃描到指定 Image，核對 Python 及 OS 套件資訊</td></tr></tbody></table></div>
-<p>把實際輸出、CLI/DB 版本、錯誤與 Image ID 記錄下來。不符合預期時先找出是輸入、版本辨識、DB 或執行問題；不要直接降低驗收條件。</p>
-<h2>07 / 練習</h2>
-<section class="quiz" data-quiz data-correct="b" data-hint="先確認被檢查的版本是否出現在套件清單。" data-explanation="沒有辨識到 requests 就不能驗證其漏洞是否已修復。"><p class="question">修正版報告沒有指定 CVE，但也完全沒有 requests。這次能證明修復成功嗎？</p><div class="choices"><label><input type="radio" name="l3q1" value="a">可以直接通過</label><label><input type="radio" name="l3q1" value="b">不能證明修復</label><label><input type="radio" name="l3q1" value="c">可以忽略清單</label></div><p><button type="button" class="choice" data-check>確認我的判斷</button></p><p class="feedback" data-feedback role="status"></p><noscript><details><summary>查看解析</summary><p>沒有辨識到 requests 就不能驗證其漏洞是否已修復。</p></details></noscript></section>
-<section class="quiz" data-quiz data-correct="a" data-hint="回想兩個掃描目標的不同。" data-explanation="先核對各掃描目標內實際存在且可辨識的套件，數量差異本身不代表錯誤。"><p class="question">Image 多出 OS 套件；Filesystem 只有 requests。下一步應該如何判斷？</p><div class="choices"><label><input type="radio" name="l3q2" value="a">核對掃描範圍</label><label><input type="radio" name="l3q2" value="b">判定掃描失敗</label><label><input type="radio" name="l3q2" value="c">忽略所有差異</label></div><p><button type="button" class="choice" data-check>確認我的判斷</button></p><p class="feedback" data-feedback role="status"></p><noscript><details><summary>查看解析</summary><p>先核對各掃描目標內實際存在且可辨識的套件，數量差異本身不代表錯誤。</p></details></noscript></section>
-<h2>08 / 回顧</h2><ul><li>用已知漏洞版本與修正版建立對照，而不是拿 0 筆報告猜測。</li><li>套件清單與漏洞命中必須分開驗證。</li><li>空目錄是負向輸入，不是安全證據。</li><li>Image scan 讀取已建置的 Image；比較時保留實際 Image 身分和資料庫版本。</li></ul>
-<p>有任何命令不符合預期，可以將去除機密的報告片段或錯誤貼回對話，我們一起定位問題。下一堂學會讀取報告與退出碼。</p>
-<p class="cite">主要來源：<a href="https://trivy.dev/docs/latest/guide/references/configuration/cli/trivy_filesystem/">Filesystem CLI</a>、<a href="https://trivy.dev/docs/latest/guide/references/configuration/cli/trivy_image/">Image CLI</a>、<a href="https://github.com/advisories/GHSA-9wx4-h78v-vm56">公開漏洞公告</a>。</p>
-<div class="lesson-nav"><a href="0002a-cli-fundamentals.html">← CLI 基礎前導課</a><a href="0004-reading-scan-results.html">Lesson 04：如何判讀結果 →</a></div></main><footer class="lesson-nav"><a href="../learning-map/index.html#phase-2">← 學習地圖</a><a href="https://github.com/c0004512000/Learning/blob/main/Trivy/sources/evidence/2026-11-19-cli-poc.md">來源證據</a></footer>
-<script src="../assets/theme.js" defer></script><script src="../assets/quiz.js" defer></script></body></html>
+printf 'requests==2.32.5\n' &gt; fixed/requirements.txt
+trivy --cache-dir "$PWD/cache" fs --download-db-only
+trivy --cache-dir "$PWD/cache" --version</code></pre><p>Requests CVE-2024-35195 的公告顯示 2.32.0 之前版本受影響。測試只驗證這筆 CVE，非證明新版完全安全。使用乾淨工作目錄、確認沒有非預期 TRIVY_*、trivy.yaml、ignorefile。</p><h2>02 / 固定 DB，產生三份報告</h2><pre><code>for target in old fixed empty; do
+  trivy --cache-dir "$PWD/cache" fs --scanners vuln \\
+    --skip-db-update --list-all-pkgs --format json \\
+    --exit-code 0 --output "reports/$target.json" "$target" || exit 1
+done</code></pre><p>範例假設已成功準備 vulnerability DB，且純 Python 宣告不需 Java DB。比較前核對 DB metadata、CLI 版本及報告路徑，不應重用之前輸出。</p><pre><code>for report in reports/{old,fixed,empty}.json; do
+  echo "$report"
+  jq -r '.Results[]? | .Packages[]? | [.Name,.Version]|@tsv' "$report"
+  jq -r '.Results[]? | .Vulnerabilities[]? | select(.VulnerabilityID=="CVE-2024-35195") | [.PkgName,.InstalledVersion,.Severity]|@tsv' "$report"
+done</code></pre> <div class="table-wrap"><table><thead><tr><th>樣本</th><th>預期（需實驗確認）</th></tr></thead><tbody><tr><td>old</td><td>requests 2.31.0 已辨識，指定 CVE 命中</td></tr><tr><td>fixed</td><td>requests 2.32.5 已辨識，指定 CVE 不命中</td></tr><tr><td>empty</td><td>無 requests；不能視為安全修復</td></tr></tbody></table></div><h2>03 / 不重新掃描，改變報告條件</h2><pre><code>trivy convert --format table reports/old.json
+trivy convert --format table --severity CRITICAL reports/old.json</code></pre><p>比對指定 CVE 是否因 severity 篩選而消失；先查它在原 JSON 的 severity，不要假定必然是 MEDIUM。</p><h2>04 / 故意造成失敗與 policy hit</h2><pre><code>if trivy --cache-dir "$PWD/cache" fs --scanners vuln --skip-db-update --exit-code 42 old; then
+  echo 'exit=0'
+else
+  echo "exit=$?"
+fi
+if trivy --cache-dir "$PWD/cache" fs --scanners vuln --skip-db-update --exit-code 0 ./does-not-exist; then
+  echo 'unexpected success'
+else
+  echo "scan failed, exit=$?"
+fi</code></pre><p>前者在有未被篩除發現且正常完成時預期為 42；後者若路徑確實不存在應失敗，不假設固定錯誤碼。不要把缺少有效 report 當成無漏洞。</p><h2>05 / 實驗驗收</h2><p>提交去識別的版本資訊、metadata、三份 Packages／指定 CVE 摘要、篩選結果與兩種退出碼。若任一不符，依 expected → observed → failure path 找原因，而非直接改門檻。後續才擴展到 .NET、Node.js、Python 的真實 restore 結果及 workflow。</p><h2>理解驗收</h2><div class="quiz"><p class="question">fixed 的指定 CVE 不見了，但 Packages 沒有 requests，驗收應該通過嗎？</p><details><summary>完成自己的推論後，查看解析</summary><p>不通過。需要證明修補版本有被辨識，才能說明特定 CVE 不命中。</p></details></div><div class="quiz"><p class="question">如果兩份報告 DB metadata 不同，如何比較？</p><details><summary>完成自己的推論後，查看解析</summary><p>重新使用相同 DB snapshot、CLI 版本、設定與輸入測試，或明確標註不可直接歸因的差異。</p></details></div><h2>本堂回顧</h2><ul><li>受控舊版、修補版、空輸入能區別漏洞與覆蓋。</li><li>固定 DB 與輸入條件才能歸因。</li><li>篩選後未顯示不代表漏洞消失。</li><li>保留 report 與 exit code 證據。</li></ul><p class="cite">主要來源：<a href="https://trivy.dev/docs/latest/guide/references/configuration/cli/trivy_filesystem/">CLI</a> · <a href="https://trivy.dev/docs/latest/guide/configuration/reporting/">Reporting</a> · <a href="https://github.com/advisories/GHSA-9wx4-h78v-vm56">Requests advisory</a>。範例依官方文件設計，未在公司 Runner 實測。以固定 CLI 版本的 <code>--help</code> 為準。</p><p>有不清楚的輸出或推論，可把去識別後的內容帶回對話討論。</p><footer class="lesson-nav"><a href="0008-json-and-policy.html">← 上一堂</a><a href="../learning-map/index.html">下一堂 →</a></footer></main><script src="../assets/theme.js" defer></script></body></html>

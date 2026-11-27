@@ -1,24 +1,3 @@
-<!doctype html>
-<html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Reference 02｜CLI PoC 速查 · Trivy Learning</title><link rel="stylesheet" href="../assets/style.css"></head><body>
-<nav aria-label="課程導覽"><a href="../index.html">Trivy 首頁</a>　/　<a href="../learning-map/index.html#phase-2">學習地圖</a>　/　<a href="../reference/0002-cli-poc.html">CLI 速查</a></nav>
-<main>
-<p class="subtitle">REFERENCE 02 / CLI / RESULT INTERPRETATION</p><h1>Trivy CLI 與結果判讀速查</h1><p>這份 Reference 供 Phase 02 的 CLI 前導課、實驗與結果判讀課往返使用。先理解 CLI 再複製指令。</p>
-<p><a href="../lessons/0002a-cli-fundamentals.html"><strong>沒有 CLI 基礎？先閱讀它在哪裡執行、掃誰、從哪裡取得資料與 Target／Scanner 的區別 →</strong></a></p><h2>最小命令</h2><pre><code>trivy --version
-trivy fs --scanners vuln --list-all-pkgs \
-  --format json -o report.json .
-trivy image --image-src docker --scanners vuln \
-  --list-all-pkgs --format json -o image.json app:tag
-trivy convert --format sarif -o report.sarif report.json</code></pre>
-<p>切記輸出放在受掃目錄外（上方 fs 示例以 report.json 表示輸出位置，實作時使用外部路徑）。若需要依特定發現回傳非零，用 <code>--exit-code 42</code> 做獨立測試；值可自訂。<code>--severity HIGH,CRITICAL</code> 是漏洞嚴重度篩選，不是套件清單的完整性證明。</p>
-<h2>讀取報告</h2><pre><code>jq -r '.Results[]? | .Packages[]? |
-  [.Name, .Version] | @tsv' report.json
-
-jq -r '.Results[]? | .Vulnerabilities[]? |
-  [.VulnerabilityID,.PkgName,.InstalledVersion,
-   .FixedVersion,.Severity] | @tsv' report.json</code></pre>
-<h2>驗收順序</h2><ol><li>執行正常？先核對 exit code、log、報告是否有效。</li><li>應有套件真的存在？核對名稱與版本。</li><li>指定漏洞命中？核對 CVE，不只看總數。</li><li>對照實驗的輸入是否唯一改變？記錄 Scanner/DB、目標內容、參數及修補版本。</li></ol>
-<div class="box"><strong>四種結論</strong><p>有漏洞／未命中／覆蓋不足／執行失敗。只有前兩種在掃描正常且需要的套件清單已核對後，才能做該範圍的漏洞判定。</p></div>
-<h2>實驗紀錄模板</h2><div class="table-wrap"><table><thead><tr><th>項目</th><th>填寫實測證據</th></tr></thead><tbody><tr><td>工具與 DB</td><td>版本、更新時間、核准來源</td></tr><tr><td>掃描目標</td><td>檔案內容或 Image ID/digest</td></tr><tr><td>指令與結果</td><td>完整參數、exit code、log、JSON</td></tr><tr><td>預期 vs. 觀察</td><td>套件版本、指定 CVE、差異原因</td></tr></tbody></table></div>
-<p class="cite">來源：<a href="https://trivy.dev/docs/latest/guide/references/configuration/cli/trivy_filesystem/">Filesystem CLI</a>、<a href="https://trivy.dev/docs/latest/guide/configuration/reporting/">Reporting</a>。</p>
-<div class="lesson-nav"><a href="../lessons/0002a-cli-fundamentals.html">← CLI 基礎前導</a><a href="../lessons/0004-reading-scan-results.html">Lesson 04 →</a></div></main><footer class="lesson-nav"><a href="../learning-map/index.html#phase-2">← 學習地圖</a><a href="https://github.com/c0004512000/Learning/blob/main/Trivy/sources/evidence/2026-11-19-cli-poc.md">來源證據</a></footer>
-<script src="../assets/theme.js" defer></script></body></html>
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Filesystem CLI PoC 速查｜Trivy Learning</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/technical-reading.css"></head><body><nav aria-label="主要導覽"><a href="../index.html">Trivy 首頁</a>　/　<a href="../learning-map/index.html">學習地圖</a>　/　<a href="../reference/0003-cli-output-db.html">速查</a></nav><main><p class="subtitle">REFERENCE / PRACTICE</p><h1>Filesystem CLI PoC 速查</h1><p>先完成 CLI、DB、Output 基礎，再進行受控實驗。不需要 Docker 或 Image Scan。</p><p><a href="../lessons/0003-repeatable-cli-poc.html">完整受控實驗 →</a></p><pre><code>trivy --cache-dir ./cache fs --download-db-only
+trivy --cache-dir ./cache fs --scanners vuln --skip-db-update \\
+  --list-all-pkgs --format json -o reports/old.json old</code></pre><p>對照 old、fixed、empty 的套件辨識及指定 CVE；分開驗證 exit code 與篩選。詳見 <a href="../reference/0003-cli-output-db.html">CLI / DB / Output 速查</a>。</p></main><script src="../assets/theme.js" defer></script></body></html>

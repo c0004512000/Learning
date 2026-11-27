@@ -6,3 +6,5 @@
 - 用臺灣繁體中文、第一性原理、可驗證實例，控制術語數量。
 - 學習完成（assessed）、教材撰寫完成（authored）與 CI 實測完成（verified）必須分別標示。
 - 未能取得實際 UI 時，不偽造截圖或瀏覽器測試結果。
+
+- 教學主線限定 filesystem dependency vulnerability scan；Image Scan 只作工具能力比較，不要求 Docker 實驗。CLI、DB、cache、output 分堂；實作前用獨立命令設計及報告判讀驗收。
