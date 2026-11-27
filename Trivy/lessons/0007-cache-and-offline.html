@@ -5,7 +5,10 @@
 <p>因此 Trivy 第一次需要 DB 時，會將它下載到本機磁碟，讓後續命令能重用。這個保存資料的目錄稱為 <strong>Cache Directory</strong>。在同一台機器上，以相同 cache path 執行兩次 CLI，第二次才能看見第一次留下的 DB。若是不同使用者、不同 Pod 或不同路徑，可能看見不同資料。</p>
 <pre><code>trivy --help | grep -A 1 -- "--cache-dir"</code></pre>
 <p>這條 Bash 指令從 help 中找 cache-dir 的預設值（grep 只篩文字）。Linux 常見預設為 <code>~/.cache/trivy</code>，Windows 則使用平台及使用者相關的 cache 路徑；以實際 Runner 帳號下的 help 為準。CI 建議明確指定根目錄，不要猜測預設。</p>
-<pre><code>cache/\n└── db/\n    ├── trivy.db\n    └── metadata.json</code></pre>
+<pre><code>cache/
+└── db/
+    ├── trivy.db
+    └── metadata.json</code></pre>
 <p>這是只準備 vulnerability DB 時的核心檔案結構。其他 Scanner 或功能可能再建立 javadb/、checks、VEX 與 scan cache 等資料。<code>--cache-dir ./cache</code> 指根目錄，不是 <code>./cache/db</code>。</p>
 <h2>02 / DB Cache 與 Scan Cache 有什麼差別？</h2>
 <p>思考兩種可以重用的東西：第一種是所有專案都需要的漏洞資訊；第二種是某個掃描目標以前分析出來的套件清單。第一種與 repo 無關，第二種與目標內容有關。這就是兩種不同的快取。</p>
