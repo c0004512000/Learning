@@ -58,3 +58,12 @@
 - [npm ci](https://docs.npmjs.com/cli/v11/commands/npm-ci)、[pnpm install](https://pnpm.io/cli/install)、[pip freeze](https://pip.pypa.io/en/stable/cli/pip_freeze/)
 - [Reusable workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)、[Artifacts](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/storing-and-sharing-data-from-a-workflow)、[Secure use](https://docs.github.com/en/actions/reference/security/secure-use)、[VEX](https://trivy.dev/docs/latest/guide/supply-chain/vex/)
 - [查核證據](sources/evidence/2026-11-27-dependency-ci-operations.md)
+
+## Phase 03 DB 深度修訂
+- [DB builder 與更新間隔](https://github.com/aquasecurity/trivy-db#update-interval)
+- [NeedsUpdate、isNewDB 與 metadata](https://github.com/aquasecurity/trivy/blob/f94c2ef22036ec1d3f2a85d34ce686b75a82ea41/pkg/db/db.go)
+- [DownloadDB](https://github.com/aquasecurity/trivy/blob/f94c2ef22036ec1d3f2a85d34ce686b75a82ea41/pkg/commands/operation/operation.go)
+- [DB flags 驗證](https://github.com/aquasecurity/trivy/blob/f94c2ef22036ec1d3f2a85d34ce686b75a82ea41/pkg/flag/db_flags.go)
+- [DB initialization](https://github.com/aquasecurity/trivy/blob/f94c2ef22036ec1d3f2a85d34ce686b75a82ea41/pkg/commands/artifact/run.go)
+- [Self-hosting](https://trivy.dev/docs/latest/advanced/self-hosting/)
+- [DB lifecycle 查核證據](sources/evidence/2026-11-27-db-lifecycle.md)

@@ -1,9 +1,107 @@
-<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cache、DB 更新與離線掃描｜Trivy Learning</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/technical-reading.css"></head><body><nav aria-label="主要導覽"><a href="../index.html">Trivy 首頁</a>　/　<a href="../learning-map/index.html">學習地圖</a>　/　<a href="../reference/0003-cli-output-db.html">速查</a></nav><main><p class="subtitle">PHASE 03 / LESSON 06 · CACHE & OFFLINE</p><h1>Cache、DB 更新與離線掃描</h1><div class="box"><strong>本堂目標</strong><p>能分辨資料庫 cache 與 Scan Cache，設計一次預下載、可重複掃描並定位下載故障。</p></div><h2>01 / Cache directory 不是 Scan Cache Backend</h2><p>如果每次 scan 都下載 DB，成本會很高。因此 Trivy 保存已下載的資料；它也有保存分析結果的 scan cache，用來避免重複分析。兩者不是同一件事。</p><div class="table-wrap"><table><thead><tr><th>機制</th><th>意義</th></tr></thead><tbody><tr><td>--cache-dir</td><td>本機 DB 與相關 cache 的目錄位置</td></tr><tr><td>--cache-backend</td><td>分析結果的儲存方式：memory、fs、Redis（依版本與 target）</td></tr><tr><td>Filesystem Scan</td><td>官方目前文件說明預設 scan cache 使用 memory；DB 仍可存在磁碟</td></tr><tr><td>ARC ephemeral runner</td><td>如果 cache 存在 Pod 臨時檔案系統且沒有持久化機制，Pod 結束後即失去；實際取決於 mount／runner 設定</td></tr></tbody></table></div><h2>02 / 把下載與掃描拆開</h2><pre><code>CACHE="$PWD/lab-cache"
-trivy --cache-dir "$CACHE" fs --download-db-only
-trivy --cache-dir "$CACHE" --version
-trivy --cache-dir "$CACHE" fs --scanners vuln \
-  --skip-db-update ./project</code></pre><p>第一次準備成功後才跳過更新。對不存在或不相容的 DB 不應直接跳過；遇到錯誤先停止並核對。這只停止漏洞 DB 更新，不代表 Java DB、其他網路查詢或版本檢查也停止。</p><div class="table-wrap"><table><thead><tr><th>Flag</th><th>停止或改變的行為</th></tr></thead><tbody><tr><td>--skip-db-update</td><td>跳過漏洞 DB 更新</td></tr><tr><td>--skip-java-db-update</td><td>跳過 Java index DB 更新</td></tr><tr><td>--skip-check-update</td><td>跳過 checks bundle 更新</td></tr><tr><td>--offline-scan</td><td>停止某些套件辨識的遠端查詢；可能降低覆蓋率</td></tr><tr><td>--download-java-db-only</td><td>預先準備 Java index DB</td></tr><tr><td>--db-repository</td><td>更換漏洞 DB OCI 來源</td></tr><tr><td>--java-db-repository</td><td>更換 Java DB OCI 來源</td></tr></tbody></table></div><p>真正隔離網路需準備掃描所需資料、處理版本／遙測等額外請求（依版本 help），並在受控環境實際驗證。單獨 offline-scan 並不能保證零網路流量。</p><h2>03 / 多 Runner 的三種設計</h2><div class="table-wrap"><table><thead><tr><th>方案</th><th>取捨</th></tr></thead><tbody><tr><td>每個 Job 直接下載</td><td>簡單，但 ephemeral job 重複下載、可能遇限流</td></tr><tr><td>每個 Job 還原同一 DB cache snapshot</td><td>降低重複下載；要做新鮮度、版本相容與 cache key 控制</td></tr><tr><td>中央更新 DB，內部 OCI Registry 分發</td><td>統一對外連線與版本治理；仍要驗證媒體類型、權限、TLS、保留策略</td></tr></tbody></table></div><p>避免多程序任意寫同一個 filesystem cache；官方文件有 lock／cache 併發限制。可以使用各 job 的獨立目錄、由中央發布版本化 DB snapshot。Harbor 只是候選方案，不代表目前已驗證。</p><pre><code>trivy --cache-dir ./lab-cache fs \
-  --db-repository registry.example.com/security/trivy-db:2 \
-  --download-db-only</code></pre><p>範例網址不是可用公司位址。需事先以支援 OCI artifact 的工具同步官方 artifact、保留 media type，確認 TLS 信任及讀取授權；不能當一般 Docker image 任意重包裝。</p><h2>04 / 故障定位</h2><div class="table-wrap"><table><thead><tr><th>觀察</th><th>下一步</th></tr></thead><tbody><tr><td>DB 下載 429</td><td>查實際 registry、限流與併發；改用受控 cache/mirror</td></tr><tr><td>x509 unknown authority</td><td>核對企業 CA、proxy TLS；不要將 insecure 當正式方案</td></tr><tr><td>DB schema 不相容</td><td>核對 CLI 版號、metadata Version 與 DB tag</td></tr><tr><td>skip update 後錯誤</td><td>查 cache-dir 是否一致、DB 是否準備成功</td></tr><tr><td>同一 commit 結果不同</td><td>對照 DB metadata、CLI 版本、設定與輸入清單</td></tr></tbody></table></div><p>清除 cache 前先記錄 metadata 與錯誤，避免破壞其他 job；以下只針對自己的 lab-cache。</p><pre><code>trivy --cache-dir ./lab-cache clean --scan-cache
-# 只有需要重建漏洞 DB 時才做：
-trivy --cache-dir ./lab-cache clean --vuln-db</code></pre> <h2>理解驗收</h2><div class="quiz"><p class="question">已使用 --offline-scan，但第一次執行還在下載 vulnerability DB，是否矛盾？</p><details><summary>完成自己的推論後，查看解析</summary><p>不矛盾；offline-scan 與 DB 更新控制不同。先預下載，再依 scanner 需求設定 skip flags。</p></details></div><div class="quiz"><p class="question">100 個 Pod 共用相同 DB repository 是否代表它們共用本機 DB？</p><details><summary>完成自己的推論後，查看解析</summary><p>否。Registry 是下載來源；每個 Pod 的本機 cache 是否共用取決於實際掛載／還原方式。</p></details></div><h2>本堂回顧</h2><ul><li>DB 與 scan cache 分開管理。</li><li>預先下載與掃描可拆開；跳過更新需要可用 DB。</li><li>離線模式不是單一 flag。</li><li>中央 DB 分發方案需要驗證新鮮度、授權及併發。</li></ul><p class="cite">主要來源：<a href="https://trivy.dev/docs/latest/guide/configuration/db/">Databases</a> · <a href="https://trivy.dev/docs/latest/configuration/cache/">Cache</a> · <a href="https://trivy.dev/docs/latest/guide/advanced/air-gap/">Network scenarios</a> · <a href="https://trivy.dev/docs/latest/guide/references/troubleshooting/">Troubleshooting</a>。範例依官方文件設計，未在公司 Runner 實測。以固定 CLI 版本的 <code>--help</code> 為準。</p><p>有不清楚的輸出或推論，可把去識別後的內容帶回對話討論。</p><footer class="lesson-nav"><a href="0006-database.html">← 上一堂</a><a href="0004-reading-scan-results.html">下一堂 →</a></footer></main><script src="../assets/theme.js" defer></script></body></html>
+<!doctype html><html lang="zh-Hant" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cache、下載與 DB 更新：Trivy 每次執行時如何決定？｜Trivy Learning</title><link rel="stylesheet" href="../assets/style.css"><link rel="stylesheet" href="../assets/technical-reading.css"></head><body><nav aria-label="主要導覽"><a href="../index.html">Trivy 首頁</a>　/　<a href="../learning-map/index.html">學習地圖</a>　/　<a href="../reference/0003-cli-output-db.html">CLI / DB / Output 速查</a></nav><main><p class="subtitle">PHASE 03 / LESSON 06</p><h1>Cache、下載與 DB 更新：Trivy 每次執行時如何決定？</h1>
+<div class="box"><strong>本堂目標</strong><p>能獨立判斷 Trivy 何時下載 DB、何時使用本機 DB、如何檢查資料年齡、如何控制更新、如何用相同 DB 比較結果，以及如何設計多 Runner 的 DB 分發。</p></div>
+<h2>01 / Cache 是什麼？為什麼需要它？</h2>
+<p>上一堂已知道漏洞 DB 是官方整理完成的一份資料庫檔案。假設你上午執行 Trivy 掃了 Repo A，五分鐘後掃 Repo B。兩個 repo 的套件不同，但都可以使用同一份漏洞資料庫。不需要為每個專案重新取得所有漏洞公告。</p>
+<p>因此 Trivy 第一次需要 DB 時，會將它下載到本機磁碟，讓後續命令能重用。這個保存資料的目錄稱為 <strong>Cache Directory</strong>。在同一台機器上，以相同 cache path 執行兩次 CLI，第二次才能看見第一次留下的 DB。若是不同使用者、不同 Pod 或不同路徑，可能看見不同資料。</p>
+<pre><code>trivy --help | grep -A 1 -- "--cache-dir"</code></pre>
+<p>這條 Bash 指令從 help 中找 cache-dir 的預設值（grep 只篩文字）。Linux 常見預設為 <code>~/.cache/trivy</code>，Windows 則使用平台及使用者相關的 cache 路徑；以實際 Runner 帳號下的 help 為準。CI 建議明確指定根目錄，不要猜測預設。</p>
+<pre><code>cache/\n└── db/\n    ├── trivy.db\n    └── metadata.json</code></pre>
+<p>這是只準備 vulnerability DB 時的核心檔案結構。其他 Scanner 或功能可能再建立 javadb/、checks、VEX 與 scan cache 等資料。<code>--cache-dir ./cache</code> 指根目錄，不是 <code>./cache/db</code>。</p>
+<h2>02 / DB Cache 與 Scan Cache 有什麼差別？</h2>
+<p>思考兩種可以重用的東西：第一種是所有專案都需要的漏洞資訊；第二種是某個掃描目標以前分析出來的套件清單。第一種與 repo 無關，第二種與目標內容有關。這就是兩種不同的快取。</p>
+<div class="table-wrap"><table><thead><tr><th>類型</th><th>儲存什麼？</th></tr></thead><tbody><tr><td>Vulnerability DB</td><td>公告與漏洞比對資料，檔案在 cache-dir/db/。後續可跨不同 Repo 重用。</td></tr><tr><td>Scan Cache</td><td>分析結果，例如辨識到的 package list；支援的 target 可重用先前的分析，減少重複工作。</td></tr></tbody></table></div>
+<p><code>--cache-backend</code> 是選擇 Scan Cache 存放方式，不是選擇 vulnerability DB 存放方式。</p>
+<div class="table-wrap"><table><thead><tr><th>Backend</th><th>行為</th></tr></thead><tbody><tr><td>memory（fs 預設）</td><td>分析結果放記憶體；程序結束後消失。但磁碟上的漏洞 DB 仍在。</td></tr><tr><td>fs</td><td>分析結果存本機檔案。官方說明此 backend 使用 BoltDB，存在多程序存取的鎖定限制。</td></tr><tr><td>redis://host:port</td><td>把支援的 scan cache 放 Redis，屬實驗性功能；不會把 trivy.db 自動搬進 Redis。</td></tr></tbody></table></div>
+<p>官方 troubleshooting 文件指出漏洞 DB 本身以 read-only 模式開啟，與 scan cache 的檔案鎖問題不同。但同時更新同一個 DB 目錄仍需另行設計及驗證，不能假定多個獨立 CLI 程序能安全協調寫入。後面會說明為何每個 job 使用獨立目錄較易控制。</p>
+<h2>03 / 先弄懂 metadata.json：它是更新判斷的依據</h2>
+<p>假設現在有一份下載完成的 DB，metadata 可能如下。為了教學使用簡化的整點 UTC 時間，並非真實下載結果。Z 代表 UTC；臺灣時間須加 8 小時。</p>
+<pre><code>{
+  "Version": 2,
+  "UpdatedAt": "2026-11-27T00:00:00Z",
+  "NextUpdate": "2026-11-28T00:00:00Z",
+  "DownloadedAt": "2026-11-27T02:00:00Z"
+}</code></pre>
+<div class="table-wrap"><table><thead><tr><th>欄位</th><th>用例解讀</th></tr></thead><tbody><tr><td>Version = 2</td><td>DB schema 2；CLI 必須懂這個資料格式。不是漏洞 DB 的建置次數。</td></tr><tr><td>UpdatedAt = 11/27 00:00 UTC</td><td>DB 資料建置／更新時間。臺灣 11/27 08:00。</td></tr><tr><td>NextUpdate = 11/28 00:00 UTC</td><td>由 DB 建置流程設定的下次更新判斷時間，臺灣 11/28 08:00。並非 Runner 的下載時間加 24 小時。</td></tr><tr><td>DownloadedAt = 11/27 02:00 UTC</td><td>這個本機 cache 是何時由 CLI 下載，臺灣 11/27 10:00。</td></tr></tbody></table></div>
+<p>如果現在是臺灣 11/27 18:00，這份 DB 內容年齡為 10 小時，本機持有時間為 8 小時。它們不是同一個數字。即使今天剛下載，Registry 也可能提供一份較舊的 DB；判斷漏洞資料新鮮度應看 UpdatedAt，而非 DownloadedAt。</p>
+<h2>04 / 官方每 6 小時更新，為什麼 CLI 不會每 6 小時下載？</h2>
+<p>這裡要分三個時間機制。<a href="https://github.com/aquasecurity/trivy-db#update-interval">官方 trivy-db README</a> 記載 DB 建置排程每 6 小時，metadata 預設更新間隔 24 小時。另一方面，Trivy CLI 的 <a href="https://github.com/aquasecurity/trivy/blob/f94c2ef22036ec1d3f2a85d34ce686b75a82ea41/pkg/db/db.go">isNewDB 與 NeedsUpdate</a> 還會檢查最近下載是否在一小時內。</p>
+<div class="table-wrap"><table><thead><tr><th>時間</th><th>是誰在控制？</th></tr></thead><tbody><tr><td>6 小時</td><td>官方 DB 建置流程嘗試產生新 DB；不是每個 Runner 的下載排程，也非公告必然六小時內收錄的保證。</td></tr><tr><td>24 小時（預設）</td><td>DB metadata 的 NextUpdate 間隔，由建置端指定；CLI 以實際 NextUpdate 欄位為準。</td></tr><tr><td>1 小時</td><td>所查 CLI 原始碼中的本機最近下載保護：避免剛下載過就反覆抓取。</td></tr></tbody></table></div>
+<p>CLI 是執行時才檢查更新，並不會因為安裝了 Trivy，就有背景程序每 6 或 24 小時更新 cache。若某個 Runner 一星期沒跑，DB 檔案可以一星期沒變。</p>
+<h3>一次完整的時間軸</h3>
+<p>以下均使用臺灣時間；假設官方 DB 正常發佈、沒有其他設定、CLI 與 DB 相容。</p>
+<figure class="diagram"><div class="flow-step">11/27 08:00：官方產生 DB A，NextUpdate 設為 11/28 08:00</div><div class="flow-arrow">↓ Runner 第一次 scan</div><div class="flow-step">11/27 10:00：下載 DB A，DownloadedAt = 10:00</div><div class="flow-arrow">↓ 官方 14:00、20:00 等時間可能已發布較新的 DB</div><div class="flow-step">11/27 21:00：再次 scan，仍早於 DB A 的 NextUpdate</div><div class="flow-arrow">↓ CLI 判定本機 DB 可重用，不需要下載</div><div class="flow-step">11/28 08:05：再次 scan，已達 NextUpdate，且距上次下載超過 1 小時</div><div class="flow-arrow">↓ CLI 嘗試從 Registry 下載當時可取得的 DB</div><div class="flow-step">下載成功則繼續掃描；失敗則回報錯誤</div></figure>
+<p>因此官方可能已有較新的 DB，但 CLI 仍合理地重用目前本機 DB。這不是 CLI 知道遠端內容完全相同，而是根據本機 metadata 決定不去抓遠端。對企業若要求更高新鮮度，需要另訂下載策略。</p>
+<h2>05 / 每次執行的實際決策順序</h2>
+<p>下列依 <a href="https://github.com/aquasecurity/trivy/blob/f94c2ef22036ec1d3f2a85d34ce686b75a82ea41/pkg/db/db.go">指定修訂的 NeedsUpdate / isNewDB</a> 與 <a href="https://github.com/aquasecurity/trivy/blob/f94c2ef22036ec1d3f2a85d34ce686b75a82ea41/pkg/commands/operation/operation.go">DownloadDB</a> 整理，前提是 standalone vulnerability scan，非 Client/Server 模式。先確認檔案與格式，再考慮時間，不是單純比較 DB 年齡。</p>
+<div class="table-wrap"><table><thead><tr><th>先檢查</th><th>沒有 --skip-db-update 時</th></tr></thead><tbody><tr><td>trivy.db 或有效 metadata 不存在</td><td>需要下載。</td></tr><tr><td>DownloadedAt 為零值</td><td>程式可能視為手動下載或資料不完整；不跳過時重新下載。</td></tr><tr><td>本機 schema 比 CLI 支援的新</td><td>報相容性錯誤（在正常 metadata 條件下）。不能假設會自動升級 CLI。</td></tr><tr><td>本機 schema 較舊</td><td>嘗試更新 DB。</td></tr><tr><td>格式相容，現在時間早於 NextUpdate</td><td>重用本機 DB。</td></tr><tr><td>已到 NextUpdate，但距 DownloadedAt 未滿 1 小時</td><td>仍重用本機 DB。</td></tr><tr><td>兩個時間條件都不成立</td><td>需要下載 DB。</td></tr></tbody></table></div>
+<p>若明確設 <code>--skip-db-update</code>，缺少 DB/metadata 或 schema 不相容會報錯；已有相容 DB 時跳過更新時間判斷，即使內容已很舊仍可能被使用。檔案損毀或無法讀取仍可能在之後的 DB 初始化中失敗。這個 flag 不會自動檢查你公司的 freshness 政策。</p>
+<h3>特別容易忽略：一小時保護</h3>
+<p>假設 DB A 的 NextUpdate 已在上午 08:00 到期，但因來源尚未同步，08:10 才下載到同一份舊內容。08:30 再執行，距上次下載僅 20 分鐘，即使 NextUpdate 已過，也會先重用。到了 09:10 或之後，再次執行時兩個時間條件都不成立，就會嘗試下載。</p>
+<p>若需要更新而下載失敗，所查 DownloadDB 實作會回傳錯誤，不是無條件自動使用上一份 DB。不能以「cache 裡原本有資料」推論 scan 可以正常完成；失敗還可能造成檔案狀態改變。應保留獨立已驗證 snapshot，而不是依賴更新失敗後的原目錄。</p>
+<h2>06 / 下載、更新、使用：Command 的差異</h2>
+<p>使用上堂已建立的 LAB，或自行建立新的暫存實驗。以下 Bash 命令可在核准環境使用；每個實驗都應先確認非預期 TRIVY_* 與本機 CLI help。使用 --config "" 的版本需支援停用預設設定檔。</p>
+<pre><code>LAB=$(mktemp -d)
+mkdir "$LAB/project"
+printf 'requests==2.31.0\n' &gt; "$LAB/project/requirements.txt"
+CACHE="$LAB/cache"</code></pre>
+<h3>A / 正常掃描：交由 CLI 判斷</h3>
+<pre><code>trivy --config "" --cache-dir "$CACHE" --debug fs --scanners vuln "$LAB/project"</code></pre>
+<p>沒有 download-only 或 skip-update。第一次執行時需要準備 DB，完成後掃描 project；第二次若 DB 仍相容且時間條件符合，重用同一份資料。Debug log 可以觀察是否有 <code>Need to update DB</code> 或本機 DB 可重用的訊息。</p>
+<h3>B / 只準備 DB，不掃專案</h3>
+<pre><code>trivy --config "" --cache-dir "$CACHE" --debug fs --scanners vuln --download-db-only</code></pre>
+<p>此 command 也走更新判斷。已有可重用 DB 時可能完全不下載。它的意義是「完成 DB 準備便結束」，<strong>不是 force download</strong>。沒有 project 參數、沒有漏洞表格，屬正常行為。</p>
+<h3>C / 使用既有 DB，不更新</h3>
+<pre><code>trivy --config "" --cache-dir "$CACHE" --debug fs --scanners vuln --skip-db-update "$LAB/project"</code></pre>
+<p>用已經驗證的 DB 執行多次掃描或固定 PoC 的變因。<code>--skip-db-update</code> 僅停用 vulnerability DB 更新，不是取消掃描，也不是跳過所有網路連線。</p>
+<h3>D / 明確重新取得 DB</h3>
+<pre><code>FRESH_CACHE=$(mktemp -d)
+trivy --config "" --cache-dir "$FRESH_CACHE" --debug fs --scanners vuln --download-db-only
+cat "$FRESH_CACHE/db/metadata.json"</code></pre>
+<p>使用新的空 cache，CLI 沒有本機 DB 可重用，會嘗試下載。這能確保觸發下載，但不能保證遠端 mirror 一定是最新內容；需要比對 UpdatedAt、schema、CLI exit code，必要時查遠端 digest。先驗證新的資料再替換 CI 使用的 snapshot，不破壞原有快取。</p>
+<h3>E / 僅在自己的 lab 中清除 DB</h3>
+<pre><code>trivy --config "" --cache-dir "$CACHE" clean --vuln-db
+trivy --config "" --cache-dir "$CACHE" fs --scanners vuln --download-db-only</code></pre>
+<p>第一條刪除該 cache 下的 vulnerability DB，第二條因缺檔而嘗試下載。不是在公司共享 cache 上直接清除；先確認路徑與使用者，避免其他 job 失敗。正式 updater 優先使用 D 的獨立暫存方式。</p>
+<div class="table-wrap"><table><thead><tr><th>Command / Flag</th><th>影響</th></tr></thead><tbody><tr><td>clean --vuln-db</td><td>清漏洞 DB；下次需要該 DB 時重抓。</td></tr><tr><td>clean --java-db</td><td>清 Java index DB。</td></tr><tr><td>clean --scan-cache</td><td>清分析結果 cache，不清 vulnerability DB。</td></tr><tr><td>clean --all</td><td>清除所有 cache，範圍最大。</td></tr><tr><td>--download-db-only + --skip-db-update</td><td>衝突；所查 CLI flags 程式會拒絕兩者同時使用。</td></tr></tbody></table></div>
+<h2>07 / 如何自己看更新前後的變化？</h2>
+<p>實際執行下列步驟（假設步驟 A 已成功）。比較內容而不是只看有沒有進度列。</p>
+<pre><code>cp "$CACHE/db/metadata.json" "$LAB/before.json"
+trivy --config "" --cache-dir "$CACHE" --debug fs --scanners vuln --download-db-only
+cp "$CACHE/db/metadata.json" "$LAB/after.json"
+diff -u "$LAB/before.json" "$LAB/after.json"</code></pre>
+<p>如果剛完成首次下載且沒有其他條件改變，預期 metadata 不變，log 可能顯示本機資料可重用。<code>diff</code> 沒有輸出代表內容一致；有差異時檢查 UpdatedAt 與 DownloadedAt 各改變了什麼。diff 的 exit 1 表示有差異，不是 Trivy 掃描失敗。此處不應手動改 metadata 來偽造更新結果。</p>
+<p>另外準備一個空 cache 並試著跳過 DB 更新：</p>
+<pre><code>EMPTY_CACHE=$(mktemp -d)
+if trivy --config "" --cache-dir "$EMPTY_CACHE" fs --scanners vuln --skip-db-update "$LAB/project"; then
+  echo "Unexpected success; inspect effective settings"
+else
+  echo "Scan failed, exit=$?"
+fi</code></pre>
+<p>預期非零退出且 log 說明首次執行不能 skip DB download。這是驗證缺少 DB 時的負向案例。若成功，先確認實際使用的 cache path、scanners、設定與執行模式，而不是直接當作官方行為改變。</p>
+<h2>08 / 指定下載來源：--db-repository</h2>
+<pre><code>CUSTOM_CACHE=$(mktemp -d)
+trivy --config "" --cache-dir "$CUSTOM_CACHE" fs --scanners vuln --db-repository ghcr.io/aquasecurity/trivy-db:2 --download-db-only</code></pre>
+<p>這次明確指定 GHCR；用空 cache 確保真的需要下載，否則看不出來源切換。<code>--db-repository</code> 改的是遠端來源，不是本機存放位置，不會強迫 CLI 每次更新，也不會變更漏洞資料來源種類。指定多個值時依順序嘗試；若希望保留官方 fallback，必須明確列入。</p>
+<pre><code>trivy --config "" --cache-dir "$CUSTOM_CACHE" fs --scanners vuln --db-repository mirror.gcr.io/aquasec/trivy-db:2 --db-repository ghcr.io/aquasecurity/trivy-db:2 --download-db-only</code></pre>
+<p>這條示範有順序的來源清單，不代表有 cache 時就一定連到兩個 Registry。其常見 YAML 對應為 db.repository，環境變數形式可參考本機 CLI 支援，布林項例如 TRIVY_SKIP_DB_UPDATE=true；不應將 caller 可控的設定直接當成中央政策。</p>
+<h2>09 / --offline-scan 是不是可以完全離線？</h2>
+<p>不行。DB 更新是一種網路存取，Analyzer 為了確認依賴身分而向套件服務查詢是另一種網路存取。比如某些 Java 分析情況可能需要額外查詢套件資訊。要分別控制。</p>
+<div class="table-wrap"><table><thead><tr><th>Flag</th><th>控制的事</th></tr></thead><tbody><tr><td>--skip-db-update</td><td>不更新 vulnerability DB；需要已存在的相容 DB。</td></tr><tr><td>--skip-java-db-update</td><td>不更新 Java index DB；有需要使用時仍須預先準備相容索引。</td></tr><tr><td>--offline-scan</td><td>不做辨識依賴所需的額外 API 查詢，可能影響辨識完整度；不阻止 DB 更新。</td></tr><tr><td>--skip-check-update</td><td>不更新 misconfiguration checks；不代表停用 vulnerability DB。</td></tr><tr><td>--skip-version-check</td><td>停用版本通知／公告檢查（依 CLI 支援），不是 DB 更新 flag。</td></tr></tbody></table></div>
+<pre><code>trivy --config "" --cache-dir "$CACHE" fs --scanners vuln --skip-db-update --offline-scan "$LAB/project"</code></pre>
+<p>對這個只有 Python 精確版本清單的 lab，假設已準備 DB，應能利用本機資料掃描。若 repo 含需要 Java index 的檔案，先用 <code>trivy fs --download-java-db-only</code>（指定同一 cache）準備，之後才按需要使用 --skip-java-db-update。download-db-only 與 download-java-db-only 不可放在同一 command。真正 air-gapped 環境還需要依啟用功能停用其他遠端存取並用網路隔離實際測試，不能只看 flags 名稱。</p>
+<h2>10 / 套用到 ARC 與長期 Windows Runner</h2>
+<p>Cache 是否能跨 Job 重用，取決於檔案實際存放在哪裡。例如 ARC Runner Pod 的臨時檔案系統在 Pod 被移除後通常不保留；使用持久化磁碟或 CI cache 恢復時則可能保留。Windows persistent runner 可能長期留著同一份 cache，但 service account 改變或不同路徑也會使用不同資料。先檢查實際部署，不能只根據 runner 名稱判斷。</p>
+<div class="table-wrap"><table><thead><tr><th>做法</th><th>實際會發生什麼</th></tr></thead><tbody><tr><td>每個 Job 用空 cache</td><td>每個 Job 可能各自下載；容易增加網路流量和限流。</td></tr><tr><td>持久化同一 cache</td><td>後續 Job 可以重用，但要處理更新併發、資料新鮮度、路徑及權限。</td></tr><tr><td>中央 updater 下載後分發 snapshot</td><td>中央產出相容的兩個 DB 檔案與驗證紀錄；Job 還原到自己的目錄，再 skip update。可將下載與掃描分離。</td></tr><tr><td>內部 Registry（例如 Harbor）</td><td>中央將原始 OCI 封裝同步到內部 Registry；Job 以 --db-repository 指向它。Job 仍需要本機 cache。</td></tr></tbody></table></div>
+<h3>如何將 DB 放到 Harbor？</h3>
+<p>先區分「下載後的兩個檔案」與「遠端 OCI 封裝」。Harbor 可以作為分發來源，但需支援 Trivy DB 封裝的 media type。官方建議可使用 ORAS、crane 等能複製 OCI 內容的工具。ORAS 是專門操作 Registry 內 OCI artifact 的 CLI，不需要啟動 container。以下僅為未執行的架構範例；registry.example.com 不是公司真實地址，使用前需要核准、認證及相容性驗證。</p>
+<pre><code>oras copy ghcr.io/aquasecurity/trivy-db:2 registry.example.com/security/trivy-db:2
+trivy fs --cache-dir ./lab-cache --db-repository registry.example.com/security/trivy-db:2 --download-db-only</code></pre>
+<p>第一條把來源封裝複製到內部 Registry；第二條指示 Trivy 在需要下載時從內部 Registry 取得。不是把兩個 db 檔案 docker build 成任意 image。鏡像更新與 CLI 更新仍是兩個獨立時程。確認 authentication、TLS、media type、metadata 新鮮度與 artifact digest，才可宣告整合成功。</p>
+<h2>11 / Troubleshooting：先看症狀，再定位原因</h2>
+<div class="table-wrap"><table><thead><tr><th>實際觀察</th><th>下一步</th></tr></thead><tbody><tr><td>每次 scan 都下載</td><td>確認有效 cache-dir、Runner 帳號、Pod lifecycle、metadata 是否存在與有效、schema 與時間；不要先改 skip flags。</td></tr><tr><td>download-only 沒有下載 log</td><td>檢查 exit、metadata 與 Debug；可能是現有 DB 可重用。</td></tr><tr><td>下載 429 / 5xx</td><td>看實際來源、併發與 fallback 設定；中央同步或快照可減少重複下載。</td></tr><tr><td>DB 很舊但 exit 0</td><td>若使用 skip-update，可能合理地讀取舊 DB；企業 freshness 要獨立檢查。</td></tr><tr><td>首次 skip-update 失敗</td><td>確認 cache 根目錄與 db/trivy.db、metadata.json 是否存在且有效。</td></tr><tr><td>DB schema mismatch</td><td>查 CLI 版本、metadata Version、指定 DB schema；按核准流程選相容版本。</td></tr><tr><td>x509 unknown authority</td><td>確認 Registry、企業 CA 與 proxy；不要將 insecure 作為正式解法。</td></tr><tr><td>更新失敗但原 DB 曾存在</td><td>先確認錯誤、檔案及 metadata 狀態；使用獨立已驗證 snapshot 的 fallback 必須由政策明確允許。</td></tr></tbody></table></div>
+<h2>理解驗收</h2>
+<div class="quiz"><p class="question">某 DB 11/27 08:00 建置、10:00 下載，NextUpdate 是隔天 08:00；今天 20:00 官方已發新版。今天 21:00 執行正常 scan，一定會下載嗎？</p><details><summary>先自行推論，再看解析</summary><p>不會必然下載。依所查邏輯，仍早於 NextUpdate 會重用本機 DB。若需強制重新取得，用獨立空 cache，再核對 UpdatedAt。</p></details></div>
+<div class="quiz"><p class="question">兩台 Runner 都指定 memory backend，是否表示每次都會重新下載 DB？</p><details><summary>先自行推論，再看解析</summary><p>不一定。memory 是 scan cache 的 backend；vulnerability DB 仍在磁碟。真正決定是否能重用的是本機 cache 路徑、持久化與更新條件。</p></details></div>
+<div class="quiz"><p class="question">你要一個中央 Job 每次嘗試取得 DB，再讓 100 個 Job 使用同一份資料。請設計步驟。</p><details><summary>先自行推論，再看解析</summary><p>中央用獨立空 cache 準備 DB，驗證檔案、schema、UpdatedAt 與下載成功後發佈可追溯 snapshot；每個 Job 還原到自己的 cache 目錄，使用 skip-db-update，獨立檢查 freshness 並保留 metadata。失敗處理需由核准政策決定。</p></details></div>
+<h2>本堂回顧</h2><ul><li>cache-dir 是本機根目錄；DB cache 與 scan cache 存不同資料。</li><li>官方 DB 建置每 6 小時與 metadata 預設 24 小時不同；CLI 還有最近下載一小時的保護。</li><li>更新判斷會先檢查必要檔案、schema 與 skip-update，再看時間。</li><li>download-db-only 不保證強制下載；新空 cache 可觸發下載。</li><li>skip-db-update 不代表 DB 新鮮、不代表完全離線。</li><li>中央分發、Runner local cache 與更新／回復政策是不同層級。</li></ul>
+<p class="cite">主要來源：<a href="https://trivy.dev/docs/latest/guide/configuration/db/">DB</a> · <a href="https://trivy.dev/docs/latest/configuration/cache/">Cache</a> · <a href="https://trivy.dev/docs/latest/guide/references/configuration/cli/trivy_filesystem/">CLI</a> · <a href="https://trivy.dev/docs/latest/advanced/self-hosting/">Self-hosting</a> · <a href="https://github.com/aquasecurity/trivy-db#update-interval">官方更新間隔</a> · <a href="https://github.com/aquasecurity/trivy/blob/f94c2ef22036ec1d3f2a85d34ce686b75a82ea41/pkg/db/db.go">NeedsUpdate / isNewDB</a> · <a href="https://github.com/aquasecurity/trivy/blob/f94c2ef22036ec1d3f2a85d34ce686b75a82ea41/pkg/commands/operation/operation.go">DownloadDB</a> · <a href="https://github.com/aquasecurity/trivy/blob/f94c2ef22036ec1d3f2a85d34ce686b75a82ea41/pkg/flag/db_flags.go">Flag validation</a>。命令與預期輸出依官方文件及指定原始碼修訂設計，並非本次 Runner 實測；以實際核准版本為準。</p><p>若實際輸出不同，可將 CLI 版本、去識別的 log 與 metadata 帶回對話，從觀察推導原因。</p><footer class="lesson-nav"><a href="0006-database.html">← 上一堂</a><a href="0004-reading-scan-results.html">下一堂 →</a></footer></main><script src="../assets/theme.js" defer></script></body></html>
