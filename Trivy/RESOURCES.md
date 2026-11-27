@@ -51,3 +51,10 @@
 - [Network scenarios](https://trivy.dev/docs/latest/guide/advanced/air-gap/)
 - [trivy-db](https://github.com/aquasecurity/trivy-db)
 - [2026-11-27 查核證據](sources/evidence/2026-11-27-cli-db-output.md)
+
+## Phase 05–06：Dependency Coverage 與 CI 維運
+
+- [Node.js](https://trivy.dev/docs/latest/guide/coverage/language/nodejs/)、[NuGet PackageReference](https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files)、[MSBuild restore](https://learn.microsoft.com/en-us/nuget/reference/msbuild-targets)
+- [npm ci](https://docs.npmjs.com/cli/v11/commands/npm-ci)、[pnpm install](https://pnpm.io/cli/install)、[pip freeze](https://pip.pypa.io/en/stable/cli/pip_freeze/)
+- [Reusable workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)、[Artifacts](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/storing-and-sharing-data-from-a-workflow)、[Secure use](https://docs.github.com/en/actions/reference/security/secure-use)、[VEX](https://trivy.dev/docs/latest/guide/supply-chain/vex/)
+- [查核證據](sources/evidence/2026-11-27-dependency-ci-operations.md)
